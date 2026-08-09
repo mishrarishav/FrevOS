@@ -1,0 +1,31 @@
+# Architecture Decision Records
+
+Architecture Decision Records (ADRs) preserve why consequential FrevOS choices
+were made. Accepted records are immutable historical evidence. A changed
+decision receives a new ADR that names the record it supersedes.
+
+## Status values
+
+- **Proposed:** under review and not implementation authority.
+- **Accepted:** approved architecture direction.
+- **Deprecated:** retained for history but no longer recommended.
+- **Superseded:** replaced by a named later ADR.
+
+## Index
+
+| ADR | Status | Decision |
+| --- | --- | --- |
+| [0001](0001-repository-topology.md) | Accepted | Separate repositories by trust and lifecycle boundary |
+| [0002](0002-workspace-isolation.md) | Accepted | Enforce workspace scope in authorization and data access |
+| [0003](0003-controlled-tool-gateway.md) | Accepted | Route side effects through controlled business tools |
+| [0004](0004-provider-neutral-model-boundary.md) | Accepted | Keep model providers behind domain-neutral adapters |
+| [0005](0005-immutable-artifact-promotion.md) | Accepted | Build once and promote the same artifact digest |
+| [0006](0006-sensitive-action-approvals.md) | Accepted | Require bound, expiring, single-use human approvals |
+| [0007](0007-cloud-jobs-and-ephemeral-checkouts.md) | Accepted | Persist jobs and isolate repository execution in cloud workers |
+| [0008](0008-default-branch-and-merge-governance.md) | Accepted | Protect `main` with pull-request and human-merge controls |
+
+## Creating an ADR
+
+Use the next four-digit number and a short kebab-case name. Include title,
+status, date, context, decision, consequences, rejected alternatives, and links
+to related records. Update this index in the same change.
