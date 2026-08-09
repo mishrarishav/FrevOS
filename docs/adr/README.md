@@ -23,6 +23,9 @@ decision receives a new ADR that names the record it supersedes.
 | [0006](0006-sensitive-action-approvals.md) | Accepted | Require bound, expiring, single-use human approvals |
 | [0007](0007-cloud-jobs-and-ephemeral-checkouts.md) | Accepted | Persist jobs and isolate repository execution in cloud workers |
 | [0008](0008-default-branch-and-merge-governance.md) | Accepted | Protect `main` with pull-request and human-merge controls |
+| [0009](0009-foundation-toolchain.md) | Accepted | Use a minimal Node.js and TypeScript workspace toolchain |
+| [0010](0010-schema-first-domain-contracts.md) | Accepted | Define strict runtime-validated, workspace-scoped contracts |
+| [0011](0011-continuous-integration-baseline.md) | Accepted | Run least-privilege, reproducible validation in GitHub Actions |
 
 ## Creating an ADR
 

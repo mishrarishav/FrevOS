@@ -201,3 +201,21 @@ Phase 0A does not select the application language, web framework, cloud vendor,
 identity provider, database, queue, cache, object store, observability stack,
 model providers, artifact signer, or deployment transport. Those choices need
 explicit requirements, threat analysis, and ADRs before implementation.
+
+## Foundation technology
+
+Phase 1 establishes a narrow, provider-neutral TypeScript foundation:
+
+- Node.js 24 LTS is the supported runtime line.
+- pnpm workspaces manage the modular monorepo without an additional task runner.
+- TypeScript 7 and native ESM define package compilation boundaries.
+- Zod 4 defines strict runtime schemas and exports JSON Schema Draft 2020-12.
+- Biome performs deterministic formatting and linting.
+- Vitest provides isolated unit tests and V8 coverage.
+- GitHub Actions runs the same repository commands with read-only permissions
+  and immutable action references.
+
+This is a tooling and contract decision, not a selection of the future web/API
+framework, cloud provider, database, queue, or deployment platform. See
+[ADR 0009](adr/0009-foundation-toolchain.md) and
+[ADR 0010](adr/0010-schema-first-domain-contracts.md).

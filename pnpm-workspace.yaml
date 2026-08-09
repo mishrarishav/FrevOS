@@ -1,0 +1,11 @@
+packages:
+  - "packages/*"
+
+autoInstallPeers: false
+engineStrict: true
+minimumReleaseAge: 1440
+onlyBuiltDependencies:
+  - esbuild
+savePrefix: ""
+strictPeerDependencies: true
+verifyStoreIntegrity: true

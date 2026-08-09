@@ -123,6 +123,14 @@ setting cannot authorize a protected action.
 - Store artifacts immutably and verify digest and signature before deployment.
 - Promote the same artifact to UAT and Production; never rebuild for Production.
 
+The Phase 1 repository baseline additionally requires an exact package-manager
+version, a committed lockfile, frozen CI installation, strict peer dependency
+resolution, a minimum dependency release age, read-only workflow permissions,
+immutable GitHub Action commit references, automated dependency update
+proposals, and a high-severity dependency audit. These controls reduce exposure
+but do not replace provenance, vulnerability response, or later artifact
+signing.
+
 ### Deployment safety
 
 - Keep the Windows deployment agent separate from the control plane and models.

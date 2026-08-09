@@ -14,7 +14,7 @@ software. Do not scaffold them merely to suggest progress.
 
 ### Phase 0A: architecture and governance
 
-Status: **in progress**
+Status: **complete**
 
 Deliverables:
 
@@ -48,10 +48,31 @@ Phase 0 is complete only when `CURRENT_STATE.md` records readiness for Phase 1.
 
 ## Phase 1 — Foundation contracts, validation, and CI
 
+Status: **in progress**
+
 Define the initial technology baseline and repository conventions. Implement
 only foundational domain contracts, validation boundaries, test conventions,
 and CI checks needed by subsequent phases. Include workspace identity in every
 project-related contract from the start.
+
+Phase 1 deliverables:
+
+- Node.js, TypeScript, pnpm, formatting, lint, test, and build baseline.
+- Strict foundational identifier, workspace/project scope, permission, risk,
+  approval-binding, validation-result, and JSON Schema contracts.
+- Unit tests with enforced coverage thresholds.
+- Repository documentation/ruleset validation.
+- Read-only GitHub CI with immutable action references and frozen installation.
+- Automated dependency-update proposals and dependency vulnerability audit.
+- ADRs and current-state evidence for every accepted foundation choice.
+
+Phase 1 excludes UI, APIs, authentication, persistence, workers, GitHub App,
+MCP, model integration, Playwright, cloud infrastructure, release artifacts,
+and deployment implementation.
+
+Exit requires all local commands and the pull-request CI check to pass on the
+exact head SHA. Only after the workflow has a successful default-branch run may
+its stable check name become mandatory in the `main` ruleset.
 
 ## Phase 2 — Independent acceptance harness
 
