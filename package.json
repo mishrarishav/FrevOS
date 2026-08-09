@@ -1,0 +1,31 @@
+{
+  "name": "frevos",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.21.0",
+  "engines": {
+    "node": ">=24.14.0 <25",
+    "pnpm": ">=11.21.0 <12"
+  },
+  "scripts": {
+    "audit": "pnpm audit --audit-level=high",
+    "build": "pnpm --recursive --if-present run build",
+    "check": "biome check .",
+    "ci": "pnpm run validate:repo && pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test:coverage && pnpm run build && pnpm run audit",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "lint": "biome lint .",
+    "test": "pnpm --recursive --if-present run test",
+    "test:coverage": "pnpm --recursive --if-present run test:coverage",
+    "typecheck": "pnpm --recursive --if-present run typecheck",
+    "validate:repo": "node scripts/validate-repository.mjs"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.7",
+    "@types/node": "24.13.3",
+    "@vitest/coverage-v8": "4.1.10",
+    "typescript": "7.0.2",
+    "vitest": "4.1.10"
+  }
+}

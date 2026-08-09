@@ -12,10 +12,10 @@ approval.
 
 ## Current status
 
-The repository is in **Phase 0A: architecture and governance foundation**.
-There is no runtime product capability yet. Application, service, package,
-infrastructure, and test-harness directories must not be created until their
-roadmap phase authorizes them.
+The repository is in **Phase 1: foundation contracts, validation, and CI**.
+Phase 0A architecture and governance are merged. Phase 1 introduces only the
+shared contract package and repository validation toolchain; no application or
+service runtime exists yet.
 
 The approved Lovable UI reference will be supplied by the product owner when
 Phase 3 begins. UI implementation must pause at that boundary until the exact
@@ -57,6 +57,7 @@ Git submodules.
 - [Security](docs/SECURITY.md)
 - [Permissions](docs/PERMISSIONS.md)
 - [Merge Policy](docs/MERGE_POLICY.md)
+- [Development](docs/DEVELOPMENT.md)
 - [Current State](docs/CURRENT_STATE.md)
 - [Architecture Decision Records](docs/adr/README.md)
 - [Contributor and agent rules](AGENTS.md)
