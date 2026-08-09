@@ -18,7 +18,7 @@ Last updated: 2026-08-09
 | Acceptance repository | Accessible, public, empty, and has no default branch |
 | UI reference | Product owner will provide the Lovable reference at Phase 3 |
 | GitHub authentication | Verified for account `mishrarishav` during Phase 0A |
-| External GitHub publication | Not performed in this Phase 0A worktree |
+| External GitHub publication | Branch pushed; draft PR [#1](https://github.com/mishrarishav/FrevOS/pull/1) open against `main` |
 
 This snapshot distinguishes target architecture from implemented software. The
 documents describe intended boundaries; they do not prove runtime enforcement.
