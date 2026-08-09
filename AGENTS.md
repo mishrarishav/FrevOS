@@ -109,3 +109,19 @@ An implementation handoff must report:
 - tests, build, and security results;
 - known limitations and deviations;
 - readiness for the next bounded phase.
+
+## Merge policy
+
+Follow `docs/MERGE_POLICY.md` for every pull request. In particular:
+
+- A branch author or automated implementation session must not merge its own
+  pull request.
+- Only the human repository owner may perform the merge while FrevOS uses one
+  shared GitHub account for both human and automated work.
+- Use squash merge only and delete the merged task branch.
+- Resolve every review conversation and re-run required validation after the
+  last relevant change.
+- Never bypass repository rules silently. An emergency exception needs explicit
+  human authorization, a recorded reason, exact scope, and follow-up review.
+- Do not start a dependent phase from an unmerged branch unless an approved
+  stacked-change plan explicitly allows it.

@@ -23,6 +23,7 @@ Deliverables:
 - Factual current-state and open-decision register.
 - Initial architecture decision records.
 - Resolved FrevOS repository naming and trust boundaries.
+- Durable merge policy, pull-request checklist, and minimum `main` ruleset.
 
 Explicitly excluded:
 

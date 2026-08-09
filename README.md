@@ -56,6 +56,7 @@ Git submodules.
 - [Roadmap](docs/ROADMAP.md)
 - [Security](docs/SECURITY.md)
 - [Permissions](docs/PERMISSIONS.md)
+- [Merge Policy](docs/MERGE_POLICY.md)
 - [Current State](docs/CURRENT_STATE.md)
 - [Architecture Decision Records](docs/adr/README.md)
 - [Contributor and agent rules](AGENTS.md)

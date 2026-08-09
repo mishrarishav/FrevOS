@@ -19,6 +19,7 @@ Last updated: 2026-08-09
 | UI reference | Product owner will provide the Lovable reference at Phase 3 |
 | GitHub authentication | Verified for account `mishrarishav` during Phase 0A |
 | External GitHub publication | Branch pushed; draft PR [#1](https://github.com/mishrarishav/FrevOS/pull/1) open against `main` |
+| Merge governance | Policy, PR template, and desired ruleset prepared; no GitHub ruleset active |
 
 This snapshot distinguishes target architecture from implemented software. The
 documents describe intended boundaries; they do not prove runtime enforcement.
@@ -74,6 +75,7 @@ to completing Phase 0A:
 | Lovable UI source and approved commit | Phase 3 | Repository/ZIP, exact SHA, screen contract and responsive states |
 | Outlook and Calendar consent scopes | Phase 15 | Minimum permissions, admin consent, retention and send approvals |
 | Audit/evidence retention and private security reporting | Before Production | Legal, privacy, operational and incident-response requirements |
+| Automation identity and independent reviewer model | Phase 1 | Separate bot/App identity, human reviewer ownership, and least-privilege GitHub scopes |
 
 ## Known limitations
 
@@ -84,6 +86,10 @@ to completing Phase 0A:
 - Quantitative service objectives and compliance requirements are not defined.
 - Phase 0A uses documentation checks only; runtime test, build, and security
   scan results are not applicable.
+- The current GitHub integration token can read repository rulesets but returns
+  `403 Resource not accessible by integration` for ruleset and merge-setting
+  writes. `main` therefore remains mechanically unprotected until an authorized
+  administrator applies the documented baseline.
 
 ## Readiness rule
 
