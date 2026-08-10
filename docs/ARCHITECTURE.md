@@ -57,6 +57,13 @@ projects, repository connections, task orchestration, policy, approvals, audit,
 project memory, model routing, job state, and notifications. It verifies
 workspace scope before any downstream operation.
 
+Phase 4 uses a Fastify service boundary and a provider-neutral OpenID Connect
+Backend for Frontend. The browser holds only an opaque hardened session cookie;
+provider tokens remain server-side. The exact OpenID Connect issuer is
+deployment configuration and its SDK objects cannot cross the adapter boundary.
+See [ADR 0013](adr/0013-fastify-control-plane.md) and
+[ADR 0014](adr/0014-oidc-bff-sessions.md).
+
 ### Repository plane
 
 A GitHub App provides repository-scoped authorization. FrevOS records the
@@ -157,6 +164,13 @@ boundary.
 An object identifier without verified workspace context is insufficient for
 access. Cross-workspace operations fail closed and produce safe audit evidence.
 
+Phase 4 selects PostgreSQL as the control-plane system of record. Tenant tables
+carry non-null workspace identity, preserve it through composite foreign keys,
+and use forced row-level security under a non-owner application role. Verified
+workspace context is set transaction-locally; repository predicates and
+application authorization remain required independent layers. See
+[ADR 0015](adr/0015-postgresql-tenant-isolation.md).
+
 ## Repository change workflow
 
 ```text
@@ -228,5 +242,8 @@ framework, cloud provider, database, queue, or deployment platform. See
 [ADR 0009](adr/0009-foundation-toolchain.md) and
 [ADR 0010](adr/0010-schema-first-domain-contracts.md).
 
-Phase 3 selects React and Vite for the experience shell only. Service API,
-identity, cloud, persistence, and deployment framework choices remain deferred.
+Phase 3 selects React and Vite for the experience shell. Phase 4 selects
+Fastify for the service boundary, a provider-neutral OpenID Connect BFF with
+server-side sessions, and PostgreSQL with forced RLS for tenant persistence.
+The concrete identity provider, cloud/regional deployment, and deployment
+platform remain deferred.

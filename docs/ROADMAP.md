@@ -116,7 +116,7 @@ and is protected by active ruleset `20623785` with strict required `validate`.
 
 ## Phase 3 — Control Center shell and design system
 
-Status: **in progress**
+Status: **complete**
 
 The hard UI-reference gate is satisfied by the approved, exact source recorded
 in [Phase 3 UI Reference](UI_REFERENCE.md).
@@ -141,11 +141,33 @@ real repository or task actions, authorization enforcement, approvals,
 orchestration, audit storage, releases, deployments, and PWA/offline behavior.
 Those capabilities remain owned by their roadmap phases.
 
+Exit evidence: Core PR [#5](https://github.com/mishrarishav/FrevOS/pull/5)
+passed exact-head CI, was human squash-merged as `13f3cd2`, passed
+default-branch CI, and its task branch was deleted.
+
 ## Phase 4 — Authentication, workspaces, clients, and isolation
+
+Status: **in progress — Phase 4A is the active bounded slice**
 
 Implement authentication and the workspace membership boundary. Add clients
 and projects only with authorization and data-layer isolation tests, including
 negative cross-workspace cases.
+
+Phase 4 is delivered through three bounded slices:
+
+- **Phase 4A — decisions and domain boundary:** service, session, and database
+  ADRs; identity, session, workspace, membership, client, and project
+  contracts; deterministic workspace authorization and negative unit tests.
+- **Phase 4B — service and persistence:** Fastify BFF, OIDC adapter, durable
+  server sessions, PostgreSQL schema and repositories, forced RLS, and real
+  PostgreSQL isolation tests.
+- **Phase 4C — experience and acceptance:** authenticated Control Center data,
+  denied/expired/error states, and authorized black-box Preview or UAT
+  acceptance.
+
+See [Phase 4 Authentication and Workspace Foundation](PHASE_4_FOUNDATION.md)
+for the exact boundary and exit criteria. Phase 4A contracts do not satisfy
+the full phase exit without the Phase 4B data-layer proof.
 
 ## Phase 5 — GitHub App and repository onboarding
 

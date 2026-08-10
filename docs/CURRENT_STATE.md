@@ -8,18 +8,19 @@ Last updated: 2026-08-10
 | --- | --- |
 | Production repository | `https://github.com/mishrarishav/FrevOS` |
 | Detected default branch | `main` |
-| Phase branch | `phase/3-control-center-shell` |
-| Base commit | `9af3d02dd6868f97d51cf982b8bcb4390194cbe4` |
-| Active phase | Phase 3 — Control Center shell and design system |
-| Runtime capability | Phase 3 local-only Control Center shell in progress; no service runtime |
+| Phase branch | `phase/4-auth-workspace-foundation` |
+| Base commit | `13f3cd22d9e82b1cf0b8a65621aeb9342b402698` |
+| Active phase | Phase 4A — authentication and workspace domain boundary |
+| Phase 3 merge | Core PR [#5](https://github.com/mishrarishav/FrevOS/pull/5) was human squash-merged as `13f3cd2`; its task branch was deleted |
+| Runtime capability | Phase 3 Control Center shell is merged; Phase 4A adds contracts and deterministic authorization only, with no service runtime |
 | Dependency manifests | pnpm workspace and committed lockfile on `main` |
-| CI/CD | `CI / validate` passed on `main` and is a strict required check |
+| CI/CD | `CI / validate` passed on Phase 3 merge commit `13f3cd2` in [run 31380728718](https://github.com/mishrarishav/FrevOS/actions/runs/31380728718) and is a strict required check |
 | Independent QA harness | Merged through Acceptance PR [#1](https://github.com/mishrarishav/FrevOS-Acceptance/pull/1); exact-head and default-branch CI passed |
 | Acceptance repository | Public `main` at completion-state squash commit `ffc85babed5f0e8deaf8af8d0194b9d3734d23be` |
 | Acceptance merge governance | Active `Protect main` ruleset `20623785` enforces squash-only pull requests, conversation resolution, strict up-to-date `validate`, and deletion and force-push prevention |
 | UI reference | Approved private repository ID `1329600731`, `mishrarishav/neural-command-lab`, commit `85f3ba2271ba381fc0520108365c5bb48fe386a7` |
 | GitHub authentication | Verified for account `mishrarishav` during Phase 0A |
-| Completed publications | Core PRs [#1](https://github.com/mishrarishav/FrevOS/pull/1), [#2](https://github.com/mishrarishav/FrevOS/pull/2), [#4](https://github.com/mishrarishav/FrevOS/pull/4), and Acceptance PRs [#1](https://github.com/mishrarishav/FrevOS-Acceptance/pull/1), [#3](https://github.com/mishrarishav/FrevOS-Acceptance/pull/3) squash-merged |
+| Completed publications | Core PRs [#1](https://github.com/mishrarishav/FrevOS/pull/1), [#2](https://github.com/mishrarishav/FrevOS/pull/2), [#4](https://github.com/mishrarishav/FrevOS/pull/4), [#5](https://github.com/mishrarishav/FrevOS/pull/5), and Acceptance PRs [#1](https://github.com/mishrarishav/FrevOS-Acceptance/pull/1), [#3](https://github.com/mishrarishav/FrevOS-Acceptance/pull/3) squash-merged |
 | Merge governance | Active `Protect main`; PR, squash, resolution, strict `validate`, deletion, and force-push controls verified |
 
 This snapshot distinguishes target architecture from implemented software. The
@@ -107,12 +108,18 @@ and screen contract have not been supplied.
   it governs experience only and cannot own production architecture.
 - The Control Center experience uses React 19, Vite 8, TypeScript 7, semantic
   CSS tokens, and deterministic demonstration data.
+- The future control-plane service boundary uses Fastify 5 on Node.js 24.
+- Browser authentication uses a provider-neutral OpenID Connect BFF with
+  server-side opaque sessions and no provider tokens in browser storage.
+- Tenant persistence uses PostgreSQL with application authorization,
+  workspace-scoped repositories, composite workspace foreign keys, and forced
+  row-level security as independent defenses.
 
 The ADR index records the rationale and consequences of these decisions.
 
-## Active Phase 3
+## Completed Phase 3
 
-The current bounded phase introduces:
+The merged Phase 3 foundation introduces:
 
 - `apps/control-center` as the first product experience runtime;
 - desktop and mobile shell navigation, Control Center, and design-system
@@ -127,6 +134,31 @@ Phase 3 does not introduce authentication, APIs, persistence, integrations,
 authorization enforcement, real agent execution, approvals, audit storage,
 artifacts, deployments, secrets, or Production access.
 
+Core PR [#5](https://github.com/mishrarishav/FrevOS/pull/5) passed exact-head
+CI at `088bbb670637bf3519e60cc9fc9208d0f4300fb9`, was human squash-merged as
+`13f3cd22d9e82b1cf0b8a65621aeb9342b402698`, and passed default-branch
+[CI run 31380728718](https://github.com/mishrarishav/FrevOS/actions/runs/31380728718).
+The merged task branch was deleted. Deployed Preview or UAT product acceptance
+remains unavailable and is not claimed.
+
+## Active Phase 4A
+
+After the human Phase 3 merge, the user authorized the Phase 4A publication
+workflow. The `phase/4-auth-workspace-foundation` branch is based directly on
+the verified Phase 3 squash commit on `main`.
+
+The bounded Phase 4A slice owns architecture decisions, strict identity,
+session, workspace, membership, client, and project contracts, plus
+deterministic workspace authorization and negative unit tests. It does not
+claim an HTTP, OIDC, cookie, database, RLS, or UI-integration runtime. See
+[Phase 4 Authentication and Workspace Foundation](PHASE_4_FOUNDATION.md).
+
+The rebased Phase 4A tree passed `pnpm run ci` on 2026-08-10: repository
+validation, formatting, lint, type-check, 70 tests, enforced coverage, package
+and UI production builds, and the high-severity dependency audit all completed
+successfully. No Phase 4 dependency was added. Pull-request CI on the published
+exact head remains the canonical clean-environment gate.
+
 ## Open decision register
 
 These are deliberate blockers to implementing the affected phases, not blockers
@@ -134,10 +166,9 @@ to completing Phase 0A:
 
 | Decision | Needed by | Required evidence |
 | --- | --- | --- |
-| Service application framework | Phase 4 | API boundaries, identity/session architecture, maintainability, security, and deployment needs |
 | Cloud provider and regional/data-residency strategy | Before Phase 4 runtime deployment | Cost, availability, compliance, worker and networking requirements |
-| Identity provider and session architecture | Phase 4 | Tenant model, MFA, lifecycle, recovery, audit requirements |
-| Database and tenant-enforcement mechanism | Phase 4 | Isolation proof, migrations, backup, performance, operational model |
+| OIDC deployment provider and assurance policy | Before Phase 4 runtime deployment | Tenant model, MFA, lifecycle, recovery, audit, regional, and commercial requirements |
+| PostgreSQL hosting and operating model | Before Phase 4 runtime deployment | Regional isolation, backups, recovery, encryption, connection pooling, and operational ownership |
 | Queue, worker runtime, retry, and cancellation semantics | Phase 7 | Persistence, idempotency, isolation, workload and cost model |
 | GitHub App permission and webhook matrix | Phase 5 | Least-privilege mapping for every onboarding/workflow action |
 | Worker sandbox and network-egress controls | Phase 5/8 | Threat model, supported builds, secret and artifact boundaries |
@@ -146,7 +177,6 @@ to completing Phase 0A:
 | Artifact store, provenance, SBOM, and signing | Phase 9 | Integrity, retention, access, promotion and verification model |
 | Windows agent transport and device identity | Phase 10 | Outbound connectivity, authentication, rotation and recovery |
 | Project-memory store, provenance, and freshness | Phase 12 | Retrieval quality, tenant isolation, deletion and retention |
-| Lovable UI source and approved commit | Phase 3 | Repository/ZIP, exact SHA, screen contract and responsive states |
 | Outlook and Calendar consent scopes | Phase 15 | Minimum permissions, admin consent, retention and send approvals |
 | Audit/evidence retention and private security reporting | Before Production | Legal, privacy, operational and incident-response requirements |
 | Automation identity and independent reviewer model | Phase 5/8 | Separate bot/App identity, human reviewer ownership, and least-privilege GitHub scopes |
@@ -155,6 +185,9 @@ to completing Phase 0A:
 
 - The Phase 3 application is a client-only demonstration shell; no API,
   persistence, authentication, or deployment behavior exists yet.
+- Phase 4A contracts and authorization unit tests do not prove an authentication
+  service or database isolation; real OIDC and PostgreSQL tests remain Phase 4B
+  release gates.
 - Phase 1 implements contract and CI guardrails only; it does not implement the
   later runtime authorization, isolation, approval, audit, or deployment controls.
 - Phase 2 has no product-facing tests because no approved executable UI exists.
@@ -168,7 +201,7 @@ to completing Phase 0A:
 
 ## Readiness rule
 
-Phases 0A, 1, and 2 are complete. Phase 3 may be marked complete only after its
-approved shell scope passes local validation, complete diff review, and clean
-pull-request CI on the exact head SHA. Browser product acceptance follows only
-after the shell is merged and an authorized Preview or UAT target exists.
+Phases 0A through 3 are complete. Browser product acceptance follows only when
+an authorized Preview or UAT target exists. Phase 4A may be proposed for human
+review after exact-branch local validation, complete diff review, and clean
+pull-request CI; its contracts do not satisfy the Phase 4 runtime exit.

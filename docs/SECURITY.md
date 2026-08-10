@@ -40,10 +40,23 @@ be established, FrevOS fails closed.
 - User-supplied object IDs never replace a workspace-scoped lookup.
 - Negative cross-workspace tests are release-gating once the relevant layers
   exist.
+- Tenant database tables use non-null workspace keys, workspace-preserving
+  foreign keys, forced PostgreSQL row-level security, and a non-owner runtime
+  role without `BYPASSRLS`.
+- Database workspace context is derived only from verified server authority and
+  is transaction-local so pooled connections cannot retain tenant state.
 
 ### Authentication and authorization
 
 - Use short-lived sessions and credentials with explicit audience and purpose.
+- Use OpenID Connect Authorization Code with PKCE through a confidential
+  backend; keep provider tokens out of the browser.
+- Map external users by the exact issuer and subject pair, never by email.
+- Give the browser only an opaque `Secure`, `HttpOnly`, `SameSite=Strict`,
+  host-only session cookie and independently protect state-changing requests
+  against CSRF.
+- Reconstruct session, workspace membership, and scopes from server-side state
+  for every protected request.
 - Re-authorize consequential tool calls at invocation time.
 - Separate read, propose/draft, approve, and execute permissions.
 - Treat client-side visibility as presentation, never authorization.
