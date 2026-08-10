@@ -12,14 +12,10 @@ approval.
 
 ## Current status
 
-**Phase 2: independent acceptance harness is complete.** The separate
-`mishrarishav/FrevOS-Acceptance` foundation is merged, passes protected CI, and
-remains independent from production source. This production repository still
-has no application or service runtime.
-
-The approved Lovable UI reference will be supplied by the product owner when
-Phase 3 begins. UI implementation must pause at that boundary until the exact
-reference repository and commit are recorded.
+**Phase 3: Control Center shell and design system is in progress.** The exact
+Lovable source and experience contract are approved and recorded. The bounded
+web shell uses demonstration data only; authentication, APIs, persistence, and
+protected actions remain later-phase work.
 
 See [Current State](docs/CURRENT_STATE.md) for the factual implementation
 status and open decisions.
@@ -43,7 +39,7 @@ status and open decisions.
 | --- | --- |
 | `mishrarishav/FrevOS` | Production control plane and product implementation |
 | `mishrarishav/FrevOS-Acceptance` | Independent black-box acceptance tests |
-| `FrevOS-UI-Lab` (future, optional) | Lovable prototypes and approved UI references |
+| `mishrarishav/neural-command-lab` | Private Lovable prototype and pinned experience reference only |
 | `FrevOS-Windows-Agent` (future) | Deterministic high-trust Windows deployment service |
 
 Customer repositories are never vendored into this repository or attached as
@@ -58,6 +54,7 @@ Git submodules.
 - [Permissions](docs/PERMISSIONS.md)
 - [Merge Policy](docs/MERGE_POLICY.md)
 - [Development](docs/DEVELOPMENT.md)
+- [Phase 3 UI Reference](docs/UI_REFERENCE.md)
 - [Current State](docs/CURRENT_STATE.md)
 - [Architecture Decision Records](docs/adr/README.md)
 - [Contributor and agent rules](AGENTS.md)

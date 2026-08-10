@@ -26,6 +26,7 @@ decision receives a new ADR that names the record it supersedes.
 | [0009](0009-foundation-toolchain.md) | Accepted | Use a minimal Node.js and TypeScript workspace toolchain |
 | [0010](0010-schema-first-domain-contracts.md) | Accepted | Define strict runtime-validated, workspace-scoped contracts |
 | [0011](0011-continuous-integration-baseline.md) | Accepted | Run least-privilege, reproducible validation in GitHub Actions |
+| [0012](0012-control-center-web-foundation.md) | Accepted | Use React and Vite for the Control Center experience |
 
 ## Creating an ADR
 

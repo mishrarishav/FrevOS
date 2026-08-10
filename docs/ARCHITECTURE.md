@@ -43,6 +43,13 @@ timelines, agent runs, pull requests, evidence, releases, deployments,
 approvals, audit, notifications, and future office workflows. The client is not
 an authorization boundary and does not hold long-lived infrastructure secrets.
 
+Phase 3 begins this plane with a React and Vite Control Center shell. It uses
+production-owned semantic CSS tokens and deterministic demonstration data. The
+shell has no network client, durable state, authentication, provider SDK, or
+protected-action authority. See
+[ADR 0012](adr/0012-control-center-web-foundation.md) and the
+[approved UI reference](UI_REFERENCE.md).
+
 ### Control plane
 
 The control plane owns authentication, workspaces, membership, clients,
@@ -190,8 +197,9 @@ or explicitly approved.
 
 `mishrarishav/FrevOS` is the production modular monorepo. Runtime directories
 will be created only when a phase needs them. `FrevOS-Acceptance` remains a
-separate black-box QA repository. The optional UI lab and Windows deployment
-agent are separate because they have different trust and lifecycle boundaries.
+separate black-box QA repository. The private `mishrarishav/neural-command-lab`
+reference and future Windows deployment agent are separate because they have
+different trust and lifecycle boundaries.
 
 See [ADR 0001](adr/0001-repository-topology.md).
 
@@ -219,3 +227,6 @@ This is a tooling and contract decision, not a selection of the future web/API
 framework, cloud provider, database, queue, or deployment platform. See
 [ADR 0009](adr/0009-foundation-toolchain.md) and
 [ADR 0010](adr/0010-schema-first-domain-contracts.md).
+
+Phase 3 selects React and Vite for the experience shell only. Service API,
+identity, cloud, persistence, and deployment framework choices remain deferred.

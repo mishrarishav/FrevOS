@@ -116,12 +116,30 @@ and is protected by active ruleset `20623785` with strict required `validate`.
 
 ## Phase 3 — Control Center shell and design system
 
-**Hard pause before implementation:** obtain the product owner's Lovable UI
-reference, exact repository and commit SHA, approved screens, interaction
-states, responsive behavior, design tokens, and acceptance criteria.
+Status: **in progress**
+
+The hard UI-reference gate is satisfied by the approved, exact source recorded
+in [Phase 3 UI Reference](UI_REFERENCE.md).
 
 Implement the application shell and approved design system without assigning
 production persistence, authorization, or API ownership to prototype code.
+
+Phase 3 deliverables:
+
+- a production-owned React and Vite application boundary;
+- responsive desktop and mobile shell navigation;
+- Control Center and design-system surfaces using deterministic demonstration
+  data;
+- command palette, workspace switcher, Agent Activity, Ask FrevOS composer, and
+  reusable state gallery interactions;
+- honest planned-surface destinations for later-phase route vocabulary;
+- semantic OKLCH tokens, accessible focus behavior, and reduced motion;
+- framework ADR, exact source contract, unit validation, and production build.
+
+Phase 3 excludes authentication, API and provider integrations, persistence,
+real repository or task actions, authorization enforcement, approvals,
+orchestration, audit storage, releases, deployments, and PWA/offline behavior.
+Those capabilities remain owned by their roadmap phases.
 
 ## Phase 4 — Authentication, workspaces, clients, and isolation
 

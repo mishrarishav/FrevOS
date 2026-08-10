@@ -8,18 +8,18 @@ Last updated: 2026-08-10
 | --- | --- |
 | Production repository | `https://github.com/mishrarishav/FrevOS` |
 | Detected default branch | `main` |
-| Phase branch | `phase/2-independent-acceptance-harness` |
-| Base commit | `72bbcb462a20d0f93c8c272519e8cc7720929e69` |
-| Active phase | Phase 2 complete — Phase 3 UI reference gate |
-| Runtime capability | Foundational `@frevos/contracts` package merged; no application runtime |
+| Phase branch | `phase/3-control-center-shell` |
+| Base commit | `9af3d02dd6868f97d51cf982b8bcb4390194cbe4` |
+| Active phase | Phase 3 — Control Center shell and design system |
+| Runtime capability | Phase 3 local-only Control Center shell in progress; no service runtime |
 | Dependency manifests | pnpm workspace and committed lockfile on `main` |
 | CI/CD | `CI / validate` passed on `main` and is a strict required check |
 | Independent QA harness | Merged through Acceptance PR [#1](https://github.com/mishrarishav/FrevOS-Acceptance/pull/1); exact-head and default-branch CI passed |
-| Acceptance repository | Public `main` at Phase 2 squash commit `087f85eab600aa50243d2f22b90c68e3c7013ca9` |
+| Acceptance repository | Public `main` at completion-state squash commit `ffc85babed5f0e8deaf8af8d0194b9d3734d23be` |
 | Acceptance merge governance | Active `Protect main` ruleset `20623785` enforces squash-only pull requests, conversation resolution, strict up-to-date `validate`, and deletion and force-push prevention |
-| UI reference | Product owner will provide the Lovable reference at Phase 3 |
+| UI reference | Approved private repository ID `1329600731`, `mishrarishav/neural-command-lab`, commit `85f3ba2271ba381fc0520108365c5bb48fe386a7` |
 | GitHub authentication | Verified for account `mishrarishav` during Phase 0A |
-| Completed publications | Core PR [#1](https://github.com/mishrarishav/FrevOS/pull/1), core PR [#2](https://github.com/mishrarishav/FrevOS/pull/2), and Acceptance PR [#1](https://github.com/mishrarishav/FrevOS-Acceptance/pull/1) squash-merged |
+| Completed publications | Core PRs [#1](https://github.com/mishrarishav/FrevOS/pull/1), [#2](https://github.com/mishrarishav/FrevOS/pull/2), [#4](https://github.com/mishrarishav/FrevOS/pull/4), and Acceptance PRs [#1](https://github.com/mishrarishav/FrevOS-Acceptance/pull/1), [#3](https://github.com/mishrarishav/FrevOS-Acceptance/pull/3) squash-merged |
 | Merge governance | Active `Protect main`; PR, squash, resolution, strict `validate`, deletion, and force-push controls verified |
 
 This snapshot distinguishes target architecture from implemented software. The
@@ -103,8 +103,29 @@ and screen contract have not been supplied.
 - CI runs the same validation with read-only permissions and immutable actions.
 - Independent acceptance uses a separate black-box Playwright repository and a
   synthetic self-test that cannot be represented as product acceptance.
+- The approved Phase 3 UI reference is pinned by repository ID and exact commit;
+  it governs experience only and cannot own production architecture.
+- The Control Center experience uses React 19, Vite 8, TypeScript 7, semantic
+  CSS tokens, and deterministic demonstration data.
 
 The ADR index records the rationale and consequences of these decisions.
+
+## Active Phase 3
+
+The current bounded phase introduces:
+
+- `apps/control-center` as the first product experience runtime;
+- desktop and mobile shell navigation, Control Center, and design-system
+  surfaces;
+- local command palette, workspace switching, Agent Activity, command composer,
+  and state-gallery interactions;
+- planned destinations for later route vocabulary without implementing those
+  capabilities;
+- an exact UI source contract and web-foundation ADR.
+
+Phase 3 does not introduce authentication, APIs, persistence, integrations,
+authorization enforcement, real agent execution, approvals, audit storage,
+artifacts, deployments, secrets, or Production access.
 
 ## Open decision register
 
@@ -113,7 +134,7 @@ to completing Phase 0A:
 
 | Decision | Needed by | Required evidence |
 | --- | --- | --- |
-| Web and service application frameworks | Phase 3/4 | UI contract, API boundaries, maintainability, security, and deployment needs |
+| Service application framework | Phase 4 | API boundaries, identity/session architecture, maintainability, security, and deployment needs |
 | Cloud provider and regional/data-residency strategy | Before Phase 4 runtime deployment | Cost, availability, compliance, worker and networking requirements |
 | Identity provider and session architecture | Phase 4 | Tenant model, MFA, lifecycle, recovery, audit requirements |
 | Database and tenant-enforcement mechanism | Phase 4 | Isolation proof, migrations, backup, performance, operational model |
@@ -132,8 +153,8 @@ to completing Phase 0A:
 
 ## Known limitations
 
-- No application, API, persistence, authentication, or deployment behavior
-  exists yet.
+- The Phase 3 application is a client-only demonstration shell; no API,
+  persistence, authentication, or deployment behavior exists yet.
 - Phase 1 implements contract and CI guardrails only; it does not implement the
   later runtime authorization, isolation, approval, audit, or deployment controls.
 - Phase 2 has no product-facing tests because no approved executable UI exists.
@@ -147,6 +168,7 @@ to completing Phase 0A:
 
 ## Readiness rule
 
-Phases 0A, 1, and 2 are complete. Phase 3 is paused before UI implementation
-until the product owner supplies and approves the exact Lovable source, commit,
-screen contract, responsive behavior, design tokens, and acceptance criteria.
+Phases 0A, 1, and 2 are complete. Phase 3 may be marked complete only after its
+approved shell scope passes local validation, complete diff review, and clean
+pull-request CI on the exact head SHA. Browser product acceptance follows only
+after the shell is merged and an authorized Preview or UAT target exists.
