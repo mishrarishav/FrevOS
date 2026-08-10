@@ -12,10 +12,10 @@ approval.
 
 ## Current status
 
-The repository is in **Phase 1: foundation contracts, validation, and CI**.
-Phase 0A architecture and governance are merged. Phase 1 introduces only the
-shared contract package and repository validation toolchain; no application or
-service runtime exists yet.
+**Phase 2: independent acceptance harness is complete.** The separate
+`mishrarishav/FrevOS-Acceptance` foundation is merged, passes protected CI, and
+remains independent from production source. This production repository still
+has no application or service runtime.
 
 The approved Lovable UI reference will be supplied by the product owner when
 Phase 3 begins. UI implementation must pause at that boundary until the exact

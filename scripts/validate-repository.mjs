@@ -99,6 +99,7 @@ async function validateRuleset() {
   const ruleset = JSON.parse(await readFile(rulesetPath, "utf8"));
   const ruleByType = new Map(ruleset.rules?.map((rule) => [rule.type, rule]));
   const pullRequest = ruleByType.get("pull_request")?.parameters;
+  const statusChecks = ruleByType.get("required_status_checks")?.parameters;
 
   if (ruleset.name !== "Protect main" || ruleset.enforcement !== "active") {
     errors.push("Protect main ruleset must remain active in desired state");
@@ -112,6 +113,16 @@ async function validateRuleset() {
     pullRequest?.allowed_merge_methods?.join(",") !== "squash"
   ) {
     errors.push("Protect main pull-request controls differ from the accepted baseline");
+  }
+  if (
+    statusChecks?.strict_required_status_checks_policy !== true ||
+    statusChecks?.required_status_checks?.length !== 1 ||
+    statusChecks.required_status_checks[0]?.context !== "validate" ||
+    statusChecks.required_status_checks[0]?.integration_id !== 15368
+  ) {
+    errors.push(
+      "Protect main must require the GitHub Actions validate check on an up-to-date branch",
+    );
   }
 }
 
