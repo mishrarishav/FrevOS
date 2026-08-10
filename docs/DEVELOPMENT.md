@@ -35,6 +35,15 @@ update `package.json` and `pnpm-lock.yaml` together.
 | `pnpm audit` | Fail on high or critical known dependency vulnerabilities |
 | `pnpm ci` | Run the complete local CI sequence |
 
+Run the Phase 3 Control Center locally with:
+
+```sh
+pnpm --filter @frevos/control-center dev
+```
+
+The Control Center uses deterministic demonstration data and must not be
+configured with credentials or Production endpoints.
+
 Generated `dist/`, `coverage/`, `node_modules/`, and TypeScript build metadata
 are ignored and must not be committed.
 

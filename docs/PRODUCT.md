@@ -100,8 +100,9 @@ User
 - Clear distinction between a proposal, an approved action, an in-progress
   action, and a verified result.
 
-The approved Phase 3 UI reference is intentionally not present yet. It must be
-supplied and pinned to an exact commit before UI implementation begins.
+The approved Phase 3 experience source is pinned in
+[Phase 3 UI Reference](UI_REFERENCE.md). It governs the visual and interaction
+contract only; production authority and data remain within FrevOS boundaries.
 
 ## Core domain concepts
 
