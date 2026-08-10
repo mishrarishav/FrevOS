@@ -76,7 +76,7 @@ its stable check name become mandatory in the `main` ruleset.
 
 ## Phase 2 — Independent acceptance harness
 
-Status: **in progress**
+Status: **complete**
 
 Establish `mishrarishav/FrevOS-Acceptance` as a separate black-box Playwright
 repository. Define environment contracts, evidence handling, accessibility,
@@ -108,6 +108,11 @@ Exit requires complete local validation and evidence review, an authorized
 acceptance-repository pull request with clean CI on its exact head SHA, human
 squash merge, successful default-branch CI, and active protection requiring the
 stable up-to-date validation check.
+
+Exit evidence: Acceptance PR
+[#1](https://github.com/mishrarishav/FrevOS-Acceptance/pull/1) passed exact-head
+CI, was human squash-merged as `087f85e`, passed default-branch Acceptance CI,
+and is protected by active ruleset `20623785` with strict required `validate`.
 
 ## Phase 3 — Control Center shell and design system
 

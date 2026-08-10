@@ -10,16 +10,16 @@ Last updated: 2026-08-10
 | Detected default branch | `main` |
 | Phase branch | `phase/2-independent-acceptance-harness` |
 | Base commit | `72bbcb462a20d0f93c8c272519e8cc7720929e69` |
-| Active phase | Phase 2 — independent acceptance harness |
+| Active phase | Phase 2 complete — Phase 3 UI reference gate |
 | Runtime capability | Foundational `@frevos/contracts` package merged; no application runtime |
 | Dependency manifests | pnpm workspace and committed lockfile on `main` |
 | CI/CD | `CI / validate` passed on `main` and is a strict required check |
-| Independent QA harness | Implemented and validated on the dedicated Phase 2 acceptance branch; pull-request and merge gates remain |
-| Acceptance repository | Public `main` bootstrapped at `9d8c073`; independent Phase 2 branch active locally |
-| Acceptance merge governance | Active `Protect main` baseline targets the default branch and enforces squash-only pull requests, conversation resolution, and deletion and force-push prevention; the stable `validate` check is deferred until the first successful `main` run |
+| Independent QA harness | Merged through Acceptance PR [#1](https://github.com/mishrarishav/FrevOS-Acceptance/pull/1); exact-head and default-branch CI passed |
+| Acceptance repository | Public `main` at Phase 2 squash commit `087f85eab600aa50243d2f22b90c68e3c7013ca9` |
+| Acceptance merge governance | Active `Protect main` ruleset `20623785` enforces squash-only pull requests, conversation resolution, strict up-to-date `validate`, and deletion and force-push prevention |
 | UI reference | Product owner will provide the Lovable reference at Phase 3 |
 | GitHub authentication | Verified for account `mishrarishav` during Phase 0A |
-| Completed publications | PR [#1](https://github.com/mishrarishav/FrevOS/pull/1) and PR [#2](https://github.com/mishrarishav/FrevOS/pull/2) squash-merged |
+| Completed publications | Core PR [#1](https://github.com/mishrarishav/FrevOS/pull/1), core PR [#2](https://github.com/mishrarishav/FrevOS/pull/2), and Acceptance PR [#1](https://github.com/mishrarishav/FrevOS-Acceptance/pull/1) squash-merged |
 | Merge governance | Active `Protect main`; PR, squash, resolution, strict `validate`, deletion, and force-push controls verified |
 
 This snapshot distinguishes target architecture from implemented software. The
@@ -60,9 +60,9 @@ pull-request CI, was human squash-merged as `72bbcb4`, and then passed the
 default-branch `CI / validate` run. The active ruleset now requires that stable
 check and an up-to-date branch.
 
-## Phase 2 work
+## Completed Phase 2
 
-The independent `FrevOS-Acceptance` phase branch introduces:
+The merged independent `FrevOS-Acceptance` foundation introduces:
 
 - separate repository and test-maintenance governance;
 - Playwright desktop/mobile Chromium and axe-core accessibility foundations;
@@ -76,6 +76,12 @@ The independent `FrevOS-Acceptance` phase branch introduces:
   arbitrary sleeps, forced interactions, and weak assertions;
 - read-only pinned CI, frozen dependencies, short artifact retention, and
   desired branch governance.
+
+Acceptance PR [#1](https://github.com/mishrarishav/FrevOS-Acceptance/pull/1)
+passed its exact-head CI, was human squash-merged as `087f85e`, and passed
+default-branch
+[Acceptance CI run 31363238909](https://github.com/mishrarishav/FrevOS-Acceptance/actions/runs/31363238909).
+The active Acceptance ruleset requires the stable up-to-date `validate` check.
 
 No FrevOS UI behavior is claimed or tested because the Phase 3 Lovable source
 and screen contract have not been supplied.
@@ -135,16 +141,12 @@ to completing Phase 0A:
 - External preview/UAT execution and authenticated browser state are not yet
   authorized or validated.
 - Quantitative service objectives and compliance requirements are not defined.
-- Acceptance pull-request CI and the subsequent default-branch run remain Phase
-  2 exit gates. Local results do not replace those clean-environment results.
 - The current GitHub integration token can read repository rulesets but returns
   `403 Resource not accessible by integration` for ruleset and merge-setting
   writes. The human owner successfully applied and verified the current baseline.
 
 ## Readiness rule
 
-Phases 0A and 1 are complete. Phase 2 may be marked complete only after local
-validation and evidence review, authorized publication through the independent
-repository, exact-head pull-request CI, human squash merge, successful `main`
-CI, and active acceptance-repository protection. Phase 3 must pause before UI
-work until the product owner supplies and approves the Lovable source.
+Phases 0A, 1, and 2 are complete. Phase 3 is paused before UI implementation
+until the product owner supplies and approves the exact Lovable source, commit,
+screen contract, responsive behavior, design tokens, and acceptance criteria.

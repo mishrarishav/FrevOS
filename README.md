@@ -12,10 +12,10 @@ approval.
 
 ## Current status
 
-The project is in **Phase 2: independent acceptance harness**. Phase 1 contracts
-and CI are merged and protected by the required `validate` check. Phase 2 work
-lives primarily in the separate `mishrarishav/FrevOS-Acceptance` repository;
-this production repository still has no application or service runtime.
+**Phase 2: independent acceptance harness is complete.** The separate
+`mishrarishav/FrevOS-Acceptance` foundation is merged, passes protected CI, and
+remains independent from production source. This production repository still
+has no application or service runtime.
 
 The approved Lovable UI reference will be supplied by the product owner when
 Phase 3 begins. UI implementation must pause at that boundary until the exact
