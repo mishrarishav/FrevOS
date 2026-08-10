@@ -48,7 +48,7 @@ Phase 0 is complete only when `CURRENT_STATE.md` records readiness for Phase 1.
 
 ## Phase 1 — Foundation contracts, validation, and CI
 
-Status: **in progress**
+Status: **complete**
 
 Define the initial technology baseline and repository conventions. Implement
 only foundational domain contracts, validation boundaries, test conventions,
@@ -76,10 +76,38 @@ its stable check name become mandatory in the `main` ruleset.
 
 ## Phase 2 — Independent acceptance harness
 
+Status: **in progress**
+
 Establish `mishrarishav/FrevOS-Acceptance` as a separate black-box Playwright
 repository. Define environment contracts, evidence handling, accessibility,
 desktop/mobile coverage, failure artifacts, and protections against weakening
 tests to accommodate production changes.
+
+Phase 2 deliverables:
+
+- independent repository governance and test-maintenance boundaries;
+- pinned Node.js, pnpm, TypeScript, Playwright, axe-core, and Biome toolchain;
+- validated fixture/preview/UAT environment contracts with no Production or
+  credential support;
+- a loopback-only synthetic fixture that proves harness behavior without
+  claiming FrevOS product acceptance;
+- desktop/mobile Chromium, accessibility, console, responsive, success, and
+  network-failure harness checks;
+- failure screenshots, traces, videos, HTML, JSON, and JUnit evidence;
+- deterministic rejection of production coupling and common test-weakening
+  mechanisms;
+- read-only pinned CI, short artifact retention, dependency proposals, audit,
+  and desired merge governance.
+
+Phase 2 excludes FrevOS UI/product specifications, authentication, workspace
+isolation, tool/approval/audit/deployment tests, Production execution, physical
+devices, and visual baselines. Those tests require the corresponding product
+phase and approved public behavior.
+
+Exit requires complete local validation and evidence review, an authorized
+acceptance-repository pull request with clean CI on its exact head SHA, human
+squash merge, successful default-branch CI, and active protection requiring the
+stable up-to-date validation check.
 
 ## Phase 3 — Control Center shell and design system
 

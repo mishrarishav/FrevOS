@@ -1,6 +1,6 @@
 # FrevOS Current State
 
-Last updated: 2026-08-09
+Last updated: 2026-08-10
 
 ## Snapshot
 
@@ -8,18 +8,19 @@ Last updated: 2026-08-09
 | --- | --- |
 | Production repository | `https://github.com/mishrarishav/FrevOS` |
 | Detected default branch | `main` |
-| Phase branch | `phase/1-contracts-and-ci` |
-| Base commit | `04953f5be4417182ff3a27ffb7a78e4dad667599` |
-| Active phase | Phase 1 — foundation contracts, validation, and CI |
-| Runtime capability | Foundational `@frevos/contracts` package on the phase branch |
-| Dependency manifests | pnpm workspace and committed lockfile on the phase branch |
-| CI/CD | Read-only `CI / validate` workflow prepared; external run pending publication |
-| Independent QA harness | Not implemented |
-| Acceptance repository | Accessible, public, empty, and has no default branch |
+| Phase branch | `phase/2-independent-acceptance-harness` |
+| Base commit | `72bbcb462a20d0f93c8c272519e8cc7720929e69` |
+| Active phase | Phase 2 — independent acceptance harness |
+| Runtime capability | Foundational `@frevos/contracts` package merged; no application runtime |
+| Dependency manifests | pnpm workspace and committed lockfile on `main` |
+| CI/CD | `CI / validate` passed on `main` and is a strict required check |
+| Independent QA harness | Implemented and validated on the dedicated Phase 2 acceptance branch; pull-request and merge gates remain |
+| Acceptance repository | Public `main` bootstrapped at `9d8c073`; independent Phase 2 branch active locally |
+| Acceptance merge governance | Active `Protect main` baseline targets the default branch and enforces squash-only pull requests, conversation resolution, and deletion and force-push prevention; the stable `validate` check is deferred until the first successful `main` run |
 | UI reference | Product owner will provide the Lovable reference at Phase 3 |
 | GitHub authentication | Verified for account `mishrarishav` during Phase 0A |
-| Phase 0 publication | PR [#1](https://github.com/mishrarishav/FrevOS/pull/1) squash-merged as `04953f5` |
-| Merge governance | Active `Protect main` ruleset; squash-only, PR, resolution, deletion, and force-push controls verified |
+| Completed publications | PR [#1](https://github.com/mishrarishav/FrevOS/pull/1) and PR [#2](https://github.com/mishrarishav/FrevOS/pull/2) squash-merged |
+| Merge governance | Active `Protect main`; PR, squash, resolution, strict `validate`, deletion, and force-push controls verified |
 
 This snapshot distinguishes target architecture from implemented software. The
 documents describe intended boundaries; they do not prove runtime enforcement.
@@ -37,9 +38,9 @@ The merged foundation establishes:
 
 Phase 0A introduced no application runtime.
 
-## Phase 1 work
+## Completed Phase 1
 
-The current phase branch introduces:
+The merged foundation introduces:
 
 - Node.js 24 LTS, TypeScript 7, pnpm 11, native ESM, and strict compiler rules;
 - one provider-neutral `@frevos/contracts` package;
@@ -53,6 +54,31 @@ The current phase branch introduces:
 
 No UI, API, authentication, persistence, queue, worker, GitHub App, MCP, model,
 Playwright, cloud infrastructure, artifact, or deployment capability is added.
+
+PR [#2](https://github.com/mishrarishav/FrevOS/pull/2) passed its exact-head
+pull-request CI, was human squash-merged as `72bbcb4`, and then passed the
+default-branch `CI / validate` run. The active ruleset now requires that stable
+check and an up-to-date branch.
+
+## Phase 2 work
+
+The independent `FrevOS-Acceptance` phase branch introduces:
+
+- separate repository and test-maintenance governance;
+- Playwright desktop/mobile Chromium and axe-core accessibility foundations;
+- fixture/preview/UAT environment validation with Production and credentials
+  denied;
+- a synthetic loopback fixture clearly separated from product acceptance;
+- semantic, responsive, console, network-failure, and accessibility checks;
+- retained-on-failure screenshot, trace, and video evidence plus HTML, JSON, and
+  JUnit reports;
+- automated rejection of production source coupling, skipped/focused tests,
+  arbitrary sleeps, forced interactions, and weak assertions;
+- read-only pinned CI, frozen dependencies, short artifact retention, and
+  desired branch governance.
+
+No FrevOS UI behavior is claimed or tested because the Phase 3 Lovable source
+and screen contract have not been supplied.
 
 ## Accepted foundation decisions
 
@@ -69,6 +95,8 @@ Playwright, cloud infrastructure, artifact, or deployment capability is added.
 - The foundation uses Node.js 24 LTS, pnpm 11, TypeScript 7, Biome, and Vitest.
 - Zod schemas are the runtime source of truth for shared boundary contracts.
 - CI runs the same validation with read-only permissions and immutable actions.
+- Independent acceptance uses a separate black-box Playwright repository and a
+  synthetic self-test that cannot be represented as product acceptance.
 
 The ADR index records the rationale and consequences of these decisions.
 
@@ -102,20 +130,21 @@ to completing Phase 0A:
   exists yet.
 - Phase 1 implements contract and CI guardrails only; it does not implement the
   later runtime authorization, isolation, approval, audit, or deployment controls.
-- `FrevOS-Acceptance` exists and is accessible but is empty; its independent
-  harness and default branch are intentionally deferred to Phase 2.
+- Phase 2 has no product-facing tests because no approved executable UI exists.
+- Chromium emulation does not prove Firefox, WebKit, or physical-device behavior.
+- External preview/UAT execution and authenticated browser state are not yet
+  authorized or validated.
 - Quantitative service objectives and compliance requirements are not defined.
-- GitHub CI cannot run until the phase branch is published. Local results do not
-  replace the required clean-environment pull-request result.
+- Acceptance pull-request CI and the subsequent default-branch run remain Phase
+  2 exit gates. Local results do not replace those clean-environment results.
 - The current GitHub integration token can read repository rulesets but returns
   `403 Resource not accessible by integration` for ruleset and merge-setting
   writes. The human owner successfully applied and verified the current baseline.
 
 ## Readiness rule
 
-Phase 0A is complete. Phase 1 may be marked complete only after local validation,
-complete diff review, dependency audit, and the pull-request `CI / validate`
-check pass for the exact head SHA. After the merged workflow succeeds on `main`,
-its stable check name may be added to the `Protect main` ruleset. Phase 3 must
-pause before UI work until the product owner supplies and approves the Lovable
-source.
+Phases 0A and 1 are complete. Phase 2 may be marked complete only after local
+validation and evidence review, authorized publication through the independent
+repository, exact-head pull-request CI, human squash merge, successful `main`
+CI, and active acceptance-repository protection. Phase 3 must pause before UI
+work until the product owner supplies and approves the Lovable source.
