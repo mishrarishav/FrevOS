@@ -1,0 +1,26 @@
+{
+  "name": "@frevos/control-plane",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "migrate": "node dist/migrate.js",
+    "start": "node dist/main.js",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@fastify/cookie": "11.1.2",
+    "@frevos/contracts": "workspace:*",
+    "fastify": "5.11.3",
+    "openid-client": "6.8.4",
+    "pg": "8.23.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@testcontainers/postgresql": "12.1.0",
+    "@types/pg": "8.21.0"
+  }
+}

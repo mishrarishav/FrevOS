@@ -13,11 +13,10 @@ negative isolation tests against the real data store.
 
 ## Dependency
 
-The dependency is satisfied. Phase 3 Control Center PR
-[#5](https://github.com/mishrarishav/FrevOS/pull/5) was human squash-merged as
-`13f3cd22d9e82b1cf0b8a65621aeb9342b402698`, its task branch was deleted, and
-default-branch CI passed. The Phase 4A branch is based directly on that squash
-commit and requires its own exact-head validation and human review.
+The current dependency is satisfied. Phase 4A Core PR
+[#7](https://github.com/mishrarishav/FrevOS/pull/7) was human squash-merged as
+`425c1f3e8b20dde798316b557341baa6c8aa8fb8`, and its remote task branch was
+deleted. The Phase 4B branch is based directly on that squash commit.
 
 ## Phase 4A: decisions and domain boundary
 
@@ -45,9 +44,9 @@ An authorization context is server-constructed evidence. A client may submit a
 requested workspace and action, but it must never submit the session,
 membership, workspace status, or granted scopes that the evaluator trusts.
 
-## Phase 4B: service, identity, and persistence
+## Active Phase 4B: service, identity, and persistence
 
-The second slice will:
+The second slice owns:
 
 - create the Fastify control-plane boundary;
 - implement OpenID Connect Authorization Code with PKCE through a
@@ -68,6 +67,19 @@ The second slice will:
 Phase 4B must not use SQLite or an in-memory store as evidence for PostgreSQL
 RLS behavior. CI must execute the isolation suite against the selected
 PostgreSQL major line.
+
+The implementation pins Fastify `5.11.3`, `openid-client` `6.8.4`, `pg`
+`8.23.0`, Testcontainers `12.1.0`, PostgreSQL `18.4`, and the helper/test image
+digests used by CI. OIDC provider tokens are discarded after callback identity
+validation because this slice has no provider-API capability. PostgreSQL stores
+only session and CSRF digests. Migration authority is separate from the
+runtime `frevos_app` role. A tightly scoped, owner-defined membership resolver
+returns evidence only for the exact authenticated user and candidate workspace;
+only authorized evidence becomes the workspace context for data repositories.
+
+Phase 4B does not include cloud deployment, a production identity provider,
+provider consent storage, invitations or product roles, GitHub App onboarding,
+agent execution, UI wiring, or Phase 4C acceptance.
 
 ## Phase 4C: experience integration and acceptance
 

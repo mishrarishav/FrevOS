@@ -12,10 +12,11 @@ approval.
 
 ## Current status
 
-**Phase 3: Control Center shell and design system is in progress.** The exact
-Lovable source and experience contract are approved and recorded. The bounded
-web shell uses demonstration data only; authentication, APIs, persistence, and
-protected actions remain later-phase work.
+**Phase 4B: control-plane identity and PostgreSQL isolation is in progress.**
+The Phase 3 Control Center and Phase 4A contracts are merged. The active branch
+adds the first Fastify BFF, provider-neutral OIDC adapter, durable server
+sessions, protected workspace APIs, and forced PostgreSQL row security. The web
+shell still uses demonstration data until Phase 4C experience integration.
 
 See [Current State](docs/CURRENT_STATE.md) for the factual implementation
 status and open decisions.

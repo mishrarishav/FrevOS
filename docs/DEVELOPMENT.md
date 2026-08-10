@@ -5,6 +5,7 @@
 - Node.js `24.19.0`, pinned in `.node-version`.
 - pnpm `11.21.0`, pinned in the root `packageManager` field.
 - Git with a dedicated task branch based on the intended default-branch commit.
+- Docker for the Phase 4B PostgreSQL integration and isolation suite.
 
 Node.js 24 is the supported LTS line. Use the pinned patch in CI and normal
 development; the package engine range is a compatibility floor, not permission
@@ -44,6 +45,18 @@ pnpm --filter @frevos/control-center dev
 The Control Center uses deterministic demonstration data and must not be
 configured with credentials or Production endpoints.
 
+Build and validate the Phase 4B control plane with:
+
+```sh
+pnpm --filter @frevos/control-plane build
+pnpm --filter @frevos/control-plane test:coverage
+```
+
+The control-plane tests start immutable PostgreSQL `18.4` and Testcontainers
+helper images. Runtime and privileged migration configuration are documented in
+[`apps/control-plane/README.md`](../apps/control-plane/README.md). Never use a
+real provider credential in local or CI test configuration.
+
 Generated `dist/`, `coverage/`, `node_modules/`, and TypeScript build metadata
 are ignored and must not be committed.
 
@@ -68,6 +81,16 @@ are ignored and must not be committed.
 - Dependency build scripts are denied unless explicitly allowlisted.
 - Dependabot proposes grouped weekly npm and GitHub Actions updates.
 - GitHub Actions remain pinned to full commit SHAs with version comments.
+
+Phase 4B adds exact MIT-licensed releases of Fastify, `@fastify/cookie`,
+`openid-client`, `pg`, Zod, Testcontainers PostgreSQL, and the `pg` type
+declarations. Transitive native/metadata install scripts from optional
+Testcontainers paths remain explicitly denied because local Docker execution
+does not require them. `skipLibCheck` is enabled only in the control-plane
+TypeScript project to isolate an upstream `openid-client` declaration conflict
+with `exactOptionalPropertyTypes`; FrevOS source still uses every root strictness
+option, and removal of this compatibility exception is required once upstream
+types support the pinned TypeScript line.
 
 ## CI and merge
 
