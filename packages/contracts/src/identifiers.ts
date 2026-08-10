@@ -17,8 +17,20 @@ export type UserId = z.infer<typeof UserIdSchema>;
 export const ServiceIdentityIdSchema = identifierSchema("svc", "ServiceIdentityId");
 export type ServiceIdentityId = z.infer<typeof ServiceIdentityIdSchema>;
 
+export const IdentityIdSchema = identifierSchema("idn", "IdentityId");
+export type IdentityId = z.infer<typeof IdentityIdSchema>;
+
+export const SessionIdSchema = identifierSchema("ses", "SessionId");
+export type SessionId = z.infer<typeof SessionIdSchema>;
+
 export const WorkspaceIdSchema = identifierSchema("ws", "WorkspaceId");
 export type WorkspaceId = z.infer<typeof WorkspaceIdSchema>;
+
+export const WorkspaceMembershipIdSchema = identifierSchema("wsm", "WorkspaceMembershipId");
+export type WorkspaceMembershipId = z.infer<typeof WorkspaceMembershipIdSchema>;
+
+export const ClientIdSchema = identifierSchema("cli", "ClientId");
+export type ClientId = z.infer<typeof ClientIdSchema>;
 
 export const ProjectIdSchema = identifierSchema("prj", "ProjectId");
 export type ProjectId = z.infer<typeof ProjectIdSchema>;

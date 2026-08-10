@@ -37,9 +37,20 @@ Artifact actions also include the artifact ID and digest. External-provider
 actions include the relevant installation or consent grant. Absence or mismatch
 of any required dimension results in denial.
 
-Scope names will be formalized in Phase 1. They should follow a stable
+Scope names were formalized in Phase 1. They follow a stable
 `resource:action` convention, for example `repository:read`, `task:execute`, or
 `deployment:request`, without embedding provider-specific SDK concepts.
+
+Phase 4 membership records carry explicit scopes rather than granting authority
+from a client-supplied role name. The authorization boundary requires an active,
+unexpired server session; an active workspace; an active membership for the
+same internal user and workspace; and an exact required scope. Wildcards and
+ungranted actions are denied. Protected routes own their required scope; a
+client cannot choose it.
+
+The authorization context is assembled from server-side session and membership
+lookups. Its schema validates evidence shape but does not make client-supplied
+membership or scope claims trustworthy.
 
 ## Risk levels
 
@@ -128,7 +139,9 @@ local permission decision.
 
 ## Decisions deferred
 
-Phase 0A does not define product roles, membership invitation policy, service
-account lifecycle, emergency access, policy language, delegation limits,
-approval quorum, or exact GitHub/Outlook/Calendar permission sets. These require
-use-case-specific ADRs and negative authorization tests before implementation.
+Product roles, membership invitation policy, service-account lifecycle,
+emergency access, policy language, delegation limits, approval quorum, and
+exact GitHub/Outlook/Calendar permission sets remain deferred. Phase 4A uses
+explicit membership scopes and does not infer any of these policies. They
+require use-case-specific ADRs and negative authorization tests before
+implementation.
