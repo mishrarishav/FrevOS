@@ -16,9 +16,10 @@
     "format": "biome format --write .",
     "format:check": "biome format .",
     "lint": "biome lint .",
-    "test": "pnpm --recursive --if-present run test",
-    "test:coverage": "pnpm --recursive --if-present run test:coverage",
-    "typecheck": "pnpm --recursive --if-present run typecheck",
+    "build:contracts": "pnpm --filter @frevos/contracts run build",
+    "test": "pnpm run build:contracts && pnpm --recursive --if-present run test",
+    "test:coverage": "pnpm run build:contracts && pnpm --recursive --if-present run test:coverage",
+    "typecheck": "pnpm run build:contracts && pnpm --recursive --if-present run typecheck",
     "validate:repo": "node scripts/validate-repository.mjs"
   },
   "devDependencies": {

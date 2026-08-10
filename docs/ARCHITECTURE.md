@@ -59,9 +59,10 @@ workspace scope before any downstream operation.
 
 Phase 4 uses a Fastify service boundary and a provider-neutral OpenID Connect
 Backend for Frontend. The browser holds only an opaque hardened session cookie;
-provider tokens remain server-side. The exact OpenID Connect issuer is
-deployment configuration and its SDK objects cannot cross the adapter boundary.
-See [ADR 0013](adr/0013-fastify-control-plane.md) and
+provider tokens remain inside the adapter and Phase 4B discards them after
+identity validation because it has no provider-API capability. The exact OpenID
+Connect issuer is deployment configuration and its SDK objects cannot cross the
+adapter boundary. See [ADR 0013](adr/0013-fastify-control-plane.md) and
 [ADR 0014](adr/0014-oidc-bff-sessions.md).
 
 ### Repository plane

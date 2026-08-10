@@ -8,19 +8,20 @@ Last updated: 2026-08-10
 | --- | --- |
 | Production repository | `https://github.com/mishrarishav/FrevOS` |
 | Detected default branch | `main` |
-| Phase branch | `phase/4-auth-workspace-foundation` |
-| Base commit | `13f3cd22d9e82b1cf0b8a65621aeb9342b402698` |
-| Active phase | Phase 4A — authentication and workspace domain boundary |
+| Phase branch | `phase/4b-control-plane-identity-storage` |
+| Base commit | `425c1f3e8b20dde798316b557341baa6c8aa8fb8` |
+| Active phase | Phase 4B — control-plane identity, sessions, and PostgreSQL isolation |
 | Phase 3 merge | Core PR [#5](https://github.com/mishrarishav/FrevOS/pull/5) was human squash-merged as `13f3cd2`; its task branch was deleted |
-| Runtime capability | Phase 3 Control Center shell is merged; Phase 4A adds contracts and deterministic authorization only, with no service runtime |
+| Phase 4A merge | Core PR [#7](https://github.com/mishrarishav/FrevOS/pull/7) was human squash-merged as `425c1f3`; its task branch was deleted |
+| Runtime capability | Phase 3 Control Center and Phase 4A contracts are merged; the active Phase 4B branch adds the first Fastify BFF and PostgreSQL runtime boundary |
 | Dependency manifests | pnpm workspace and committed lockfile on `main` |
-| CI/CD | `CI / validate` passed on Phase 3 merge commit `13f3cd2` in [run 31380728718](https://github.com/mishrarishav/FrevOS/actions/runs/31380728718) and is a strict required check |
+| CI/CD | `CI / validate` passed on Phase 4A merge commit `425c1f3` in [run 31381302149](https://github.com/mishrarishav/FrevOS/actions/runs/31381302149) and is a strict required check |
 | Independent QA harness | Merged through Acceptance PR [#1](https://github.com/mishrarishav/FrevOS-Acceptance/pull/1); exact-head and default-branch CI passed |
 | Acceptance repository | Public `main` at completion-state squash commit `ffc85babed5f0e8deaf8af8d0194b9d3734d23be` |
 | Acceptance merge governance | Active `Protect main` ruleset `20623785` enforces squash-only pull requests, conversation resolution, strict up-to-date `validate`, and deletion and force-push prevention |
 | UI reference | Approved private repository ID `1329600731`, `mishrarishav/neural-command-lab`, commit `85f3ba2271ba381fc0520108365c5bb48fe386a7` |
 | GitHub authentication | Verified for account `mishrarishav` during Phase 0A |
-| Completed publications | Core PRs [#1](https://github.com/mishrarishav/FrevOS/pull/1), [#2](https://github.com/mishrarishav/FrevOS/pull/2), [#4](https://github.com/mishrarishav/FrevOS/pull/4), [#5](https://github.com/mishrarishav/FrevOS/pull/5), and Acceptance PRs [#1](https://github.com/mishrarishav/FrevOS-Acceptance/pull/1), [#3](https://github.com/mishrarishav/FrevOS-Acceptance/pull/3) squash-merged |
+| Completed publications | Core PRs [#1](https://github.com/mishrarishav/FrevOS/pull/1), [#2](https://github.com/mishrarishav/FrevOS/pull/2), [#4](https://github.com/mishrarishav/FrevOS/pull/4), [#5](https://github.com/mishrarishav/FrevOS/pull/5), [#7](https://github.com/mishrarishav/FrevOS/pull/7), and Acceptance PRs [#1](https://github.com/mishrarishav/FrevOS-Acceptance/pull/1), [#3](https://github.com/mishrarishav/FrevOS-Acceptance/pull/3) squash-merged |
 | Merge governance | Active `Protect main`; PR, squash, resolution, strict `validate`, deletion, and force-push controls verified |
 
 This snapshot distinguishes target architecture from implemented software. The
@@ -141,23 +142,40 @@ CI at `088bbb670637bf3519e60cc9fc9208d0f4300fb9`, was human squash-merged as
 The merged task branch was deleted. Deployed Preview or UAT product acceptance
 remains unavailable and is not claimed.
 
-## Active Phase 4A
+## Completed Phase 4A
 
-After the human Phase 3 merge, the user authorized the Phase 4A publication
-workflow. The `phase/4-auth-workspace-foundation` branch is based directly on
-the verified Phase 3 squash commit on `main`.
+Phase 4A added the accepted Fastify, OIDC BFF, and PostgreSQL RLS decisions;
+strict identity, session, workspace, membership, client, and project contracts;
+and deterministic workspace authorization with negative tests.
 
-The bounded Phase 4A slice owns architecture decisions, strict identity,
-session, workspace, membership, client, and project contracts, plus
-deterministic workspace authorization and negative unit tests. It does not
-claim an HTTP, OIDC, cookie, database, RLS, or UI-integration runtime. See
-[Phase 4 Authentication and Workspace Foundation](PHASE_4_FOUNDATION.md).
+Core PR [#7](https://github.com/mishrarishav/FrevOS/pull/7) passed exact-head
+`validate` at `e3c21fca6b669a5eb1e78a8f67a4e6a6bffdcd2c`, was human squash-merged as
+`425c1f3e8b20dde798316b557341baa6c8aa8fb8`, and passed default-branch
+[CI run 31381302149](https://github.com/mishrarishav/FrevOS/actions/runs/31381302149).
+Its remote task branch was deleted.
 
-The rebased Phase 4A tree passed `pnpm run ci` on 2026-08-10: repository
-validation, formatting, lint, type-check, 70 tests, enforced coverage, package
-and UI production builds, and the high-severity dependency audit all completed
-successfully. No Phase 4 dependency was added. Pull-request CI on the published
-exact head remains the canonical clean-environment gate.
+## Active Phase 4B
+
+The `phase/4b-control-plane-identity-storage` branch is based directly on the
+verified Phase 4A squash commit. Its bounded implementation adds:
+
+- a separately constructed Fastify BFF with bounded HTTP settings;
+- provider-neutral OpenID Connect Authorization Code with PKCE, state, and nonce;
+- encrypted pre-authentication state plus opaque, digest-backed, rotating,
+  idle-limited, absolute-limited server sessions;
+- same-origin, session-bound CSRF protection and hardened host cookies;
+- PostgreSQL migrations and repositories for Phase 4 identity and workspace data;
+- separate owner/runtime roles, transaction-local workspace context, forced RLS,
+  membership-gated evidence resolution, and workspace-preserving foreign keys;
+- real PostgreSQL 18.4 isolation and service integration tests.
+
+The complete working tree passed `pnpm run ci` on 2026-08-10: repository and
+format validation, lint, strict type-check, 87 tests with enforced coverage,
+real PostgreSQL 18.4 isolation, all builds, and the high-severity dependency
+audit completed successfully. Control-plane coverage was 97.87% statements,
+93.23% branches, 98.75% functions, and 98.17% lines at that gate. The working
+tree passed complete diff review. The branch remains local and unpublished;
+push and pull-request creation require separate authorization.
 
 ## Open decision register
 
@@ -183,11 +201,10 @@ to completing Phase 0A:
 
 ## Known limitations
 
-- The Phase 3 application is a client-only demonstration shell; no API,
-  persistence, authentication, or deployment behavior exists yet.
-- Phase 4A contracts and authorization unit tests do not prove an authentication
-  service or database isolation; real OIDC and PostgreSQL tests remain Phase 4B
-  release gates.
+- The Phase 3 application is still a client-only demonstration shell and is not
+  wired to the Phase 4B service; that experience integration is Phase 4C.
+- Phase 4B has no selected production identity provider, cloud database,
+  credential/key lifecycle, Preview/UAT deployment, or external acceptance.
 - Phase 1 implements contract and CI guardrails only; it does not implement the
   later runtime authorization, isolation, approval, audit, or deployment controls.
 - Phase 2 has no product-facing tests because no approved executable UI exists.
@@ -201,7 +218,7 @@ to completing Phase 0A:
 
 ## Readiness rule
 
-Phases 0A through 3 are complete. Browser product acceptance follows only when
-an authorized Preview or UAT target exists. Phase 4A may be proposed for human
-review after exact-branch local validation, complete diff review, and clean
-pull-request CI; its contracts do not satisfy the Phase 4 runtime exit.
+Phases 0A through 3 and Phase 4A are complete. Phase 4B may be proposed for
+human review only after exact-branch full validation and complete diff review.
+Phase 4C and browser product acceptance require a reviewed Phase 4B merge plus
+an authorized Preview or UAT target; Phase 4 is not yet complete.

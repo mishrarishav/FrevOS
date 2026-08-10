@@ -183,16 +183,19 @@ injection, path traversal, egress controls, secret redaction, approval expiry
 and replay, idempotent retries, audit failure, artifact mismatch, unauthorized
 Production actions, and deployment rollback behavior.
 
-Phase 0A validation is limited to documentation consistency and diff review; it
-does not claim that runtime security controls exist.
+Phase 4B validates the first runtime identity and tenant controls against real
+PostgreSQL. This evidence covers the control-plane boundary only; it does not
+claim a deployed provider, cloud database, external acceptance, or later tool,
+agent, approval, audit, artifact, and deployment controls.
 
 ## Open security decisions
 
-The identity provider, credential vault, tenant enforcement mechanism, worker
-sandbox technology, network-egress policy, data classification, encryption key
-ownership, audit retention, evidence retention, artifact signing, vulnerability
-response policy, and deployment transport require later ADRs before their
-respective implementation phases.
+The production identity provider, credential vault, PostgreSQL hosting and
+operations, OIDC transaction-key ownership, worker sandbox technology,
+network-egress policy, data classification, audit retention, evidence
+retention, artifact signing, vulnerability response policy, and deployment
+transport require later decisions before their respective deployment or
+implementation boundaries.
 
 Security issues must not be placed in public logs or normal project memory.
 The private reporting and incident-response channel is not yet selected.
