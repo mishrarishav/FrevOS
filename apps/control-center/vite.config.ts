@@ -8,7 +8,7 @@ export default defineConfig({
   },
   test: {
     coverage: {
-      include: ["src/routing.ts"],
+      include: ["src/api.ts", "src/experience.ts", "src/routing.ts"],
       provider: "v8",
       reporter: ["text", "json-summary"],
       thresholds: {

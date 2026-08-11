@@ -147,7 +147,7 @@ default-branch CI, and its task branch was deleted.
 
 ## Phase 4 — Authentication, workspaces, clients, and isolation
 
-Status: **in progress — Phase 4B is the active bounded slice**
+Status: **in progress — Phase 4C is the active bounded slice**
 
 Implement authentication and the workspace membership boundary. Add clients
 and projects only with authorization and data-layer isolation tests, including
@@ -170,9 +170,13 @@ for the exact boundary and exit criteria. Phase 4A contracts do not satisfy
 the full phase exit without the Phase 4B data-layer proof.
 
 Phase 4A was human squash-merged through Core PR
-[#7](https://github.com/mishrarishav/FrevOS/pull/7) as `425c1f3`. Phase 4B is
-based directly on that reviewed commit. Phase 4C and full Phase 4 exit remain
-blocked on a reviewed Phase 4B merge and explicit authorization.
+[#7](https://github.com/mishrarishav/FrevOS/pull/7) as `425c1f3`. Phase 4B was
+human squash-merged through Core PR
+[#8](https://github.com/mishrarishav/FrevOS/pull/8) as `6bf5509` and passed
+default-branch CI. Phase 4C is based directly on that reviewed commit. Full
+Phase 4 exit remains blocked on an authorized Preview or UAT deployment,
+selected OIDC provider and PostgreSQL operating model, and independent
+black-box acceptance.
 
 ## Phase 5 — GitHub App and repository onboarding
 

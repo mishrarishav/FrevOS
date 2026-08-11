@@ -1,6 +1,6 @@
 # FrevOS Control Plane
 
-`@frevos/control-plane` is the Phase 4B server-side identity, session, workspace,
+`@frevos/control-plane` is the Phase 4 server-side identity, session, workspace,
 client, and project boundary. It is a Fastify Backend for Frontend (BFF); the
 browser never receives an OpenID Provider access, refresh, or ID token.
 
@@ -20,6 +20,9 @@ browser never receives an OpenID Provider access, refresh, or ID token.
   fixation. Sessions have a 30-minute idle limit and a 12-hour absolute limit.
 - Every protected workspace request reconstructs the session, workspace,
   membership, and permission scopes on the server.
+- `GET /v1/workspaces` derives its principal only from the authenticated
+  session, returns only active memberships with `workspace:read`, and exposes no
+  membership or scope payload to the browser.
 
 Provider tokens are used only inside the callback adapter for identity
 validation and are discarded afterward. Phase 4B does not request or persist
@@ -41,6 +44,14 @@ authenticated user and requested workspace membership. The function is owned
 by `frevos_owner`, pins its `search_path`, has no public execution grant, and
 returns nothing for a non-member. Only the resulting authorized workspace is
 used by later repository transactions.
+
+Workspace discovery uses a separate transaction-local `frevos.user_id` context
+derived from the authenticated session. Select-only RLS policies expose that
+principal's workspace and membership rows for discovery; they do not expose
+clients or projects and do not authorize inserts or updates. Application
+authorization then removes suspended, revoked, inactive, or missing-scope
+evidence. Every selected-workspace API still reconstructs exact membership
+evidence and establishes the existing verified `frevos.workspace_id` context.
 
 Run migrations through a separately authorized privileged connection after
 building the package:

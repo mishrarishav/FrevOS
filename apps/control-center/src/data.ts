@@ -5,19 +5,6 @@ export type Status = {
   tone: Tone;
 };
 
-export const workspaces = [
-  { id: "frev-labs", name: "Frev Labs", projects: 2 },
-  { id: "sandbox", name: "Design Sandbox", projects: 1 },
-] as const;
-
-export const health = [
-  { label: "GitHub", status: { label: "Reference only", tone: "neutral" } },
-  { label: "Cloud workers", status: { label: "Planned", tone: "neutral" } },
-  { label: "Model router", status: { label: "Planned", tone: "neutral" } },
-  { label: "Tool gateway", status: { label: "Planned", tone: "neutral" } },
-  { label: "Deploy agent", status: { label: "Unavailable", tone: "neutral" } },
-] satisfies ReadonlyArray<{ label: string; status: Status }>;
-
 export const tasks = [
   {
     id: "task-184",
@@ -64,36 +51,13 @@ export const approvals = [
   },
 ] as const;
 
-export const projects = [
-  {
-    name: "FrevOS",
-    repo: "mishrarishav/FrevOS",
-    sha: "9af3d02",
-    branch: "main",
-    status: { label: "Foundation verified", tone: "verified" },
-  },
-  {
-    name: "Acceptance",
-    repo: "mishrarishav/FrevOS-Acceptance",
-    sha: "ffc85ba",
-    branch: "main",
-    status: { label: "Harness verified", tone: "verified" },
-  },
-] satisfies ReadonlyArray<{
-  name: string;
-  repo: string;
-  sha: string;
-  branch: string;
-  status: Status;
-}>;
-
 export const activity = [
   {
     agent: "Master Orchestrator",
     glyph: "MO",
-    detail: "Holding task boundary",
+    detail: "Demonstration boundary only",
     tool: "policy.evaluate@1",
-    status: { label: "Running", tone: "orchestration" },
+    status: { label: "Example", tone: "orchestration" },
   },
   {
     agent: "Repository Analyst",

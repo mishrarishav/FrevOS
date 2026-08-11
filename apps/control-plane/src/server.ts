@@ -3,6 +3,7 @@ import {
   ClientSchema,
   ProjectSchema,
   SessionContextSchema,
+  SessionSummarySchema,
   WorkspaceIdSchema,
   WorkspaceSchema,
   authorizeWorkspaceAction,
@@ -228,7 +229,38 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
     },
     async (request) => {
       const evidence = await requireSession(request, options.identitySessions, now());
-      return safeSessionResponse(evidence.session.context);
+      return SessionSummarySchema.parse(safeSessionResponse(evidence.session.context));
+    },
+  );
+
+  server.get(
+    "/v1/workspaces",
+    {
+      schema: {
+        response: {
+          200: { type: "array", items: WorkspaceJsonSchema },
+          401: ErrorResponseSchema,
+        },
+      },
+    },
+    async (request) => {
+      const evaluatedAt = now();
+      const session = await requireSession(request, options.identitySessions, evaluatedAt);
+      const evidence = await options.workspaces.listEvidenceForPrincipal(
+        session.session.context.userId,
+      );
+      return evidence
+        .filter(
+          (candidate) =>
+            authorizeWorkspaceAction({
+              session: session.session.context,
+              workspace: candidate.workspace,
+              membership: candidate.membership,
+              requiredScope: "workspace:read",
+              evaluatedAt: evaluatedAt.toISOString(),
+            }).allowed,
+        )
+        .map((candidate) => WorkspaceSchema.parse(candidate.workspace));
     },
   );
 

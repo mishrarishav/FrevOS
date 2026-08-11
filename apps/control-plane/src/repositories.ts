@@ -21,7 +21,11 @@ import {
 import type { QueryResultRow } from "pg";
 import { z } from "zod";
 import { randomIdentifier, randomOpaqueToken, sha256 } from "./crypto.js";
-import { type DatabasePool, withApplicationTransaction } from "./database.js";
+import {
+  type DatabasePool,
+  withApplicationPrincipalTransaction,
+  withApplicationTransaction,
+} from "./database.js";
 
 const DisplayNameSchema = z
   .string()
@@ -413,6 +417,48 @@ export class WorkspaceRepository {
           created_at: row.membership_created_at,
         }),
       };
+    });
+  }
+
+  async listEvidenceForPrincipal(userId: string): Promise<WorkspaceEvidence[]> {
+    const parsedUserId = UserIdSchema.parse(userId);
+    return withApplicationPrincipalTransaction(this.#pool, parsedUserId, async (client) => {
+      const result = await client.query<WorkspaceEvidenceRow>(
+        `
+          SELECT
+            workspace.workspace_id,
+            workspace.display_name AS workspace_display_name,
+            workspace.status AS workspace_status,
+            workspace.created_at AS workspace_created_at,
+            membership.membership_id,
+            membership.user_id AS membership_user_id,
+            membership.status AS membership_status,
+            membership.granted_scopes AS membership_granted_scopes,
+            membership.created_at AS membership_created_at
+          FROM frevos.workspaces AS workspace
+          INNER JOIN frevos.workspace_memberships AS membership
+            ON membership.workspace_id = workspace.workspace_id
+          WHERE membership.user_id = $1
+          ORDER BY workspace.created_at, workspace.workspace_id
+        `,
+        [parsedUserId],
+      );
+      return result.rows.map((row) => ({
+        workspace: workspaceFromRow({
+          workspace_id: row.workspace_id,
+          display_name: row.workspace_display_name,
+          status: row.workspace_status,
+          created_at: row.workspace_created_at,
+        }),
+        membership: membershipFromRow({
+          membership_id: row.membership_id,
+          workspace_id: row.workspace_id,
+          user_id: row.membership_user_id,
+          status: row.membership_status,
+          granted_scopes: row.membership_granted_scopes,
+          created_at: row.membership_created_at,
+        }),
+      }));
     });
   }
 

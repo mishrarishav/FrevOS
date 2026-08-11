@@ -13,10 +13,10 @@ negative isolation tests against the real data store.
 
 ## Dependency
 
-The current dependency is satisfied. Phase 4A Core PR
-[#7](https://github.com/mishrarishav/FrevOS/pull/7) was human squash-merged as
-`425c1f3e8b20dde798316b557341baa6c8aa8fb8`, and its remote task branch was
-deleted. The Phase 4B branch is based directly on that squash commit.
+The current dependency is satisfied. Phase 4B Core PR
+[#8](https://github.com/mishrarishav/FrevOS/pull/8) was human squash-merged as
+`6bf550922a8adec9cddbb881f32612a935adfbde`, and its remote task branch was
+deleted. The Phase 4C branch is based directly on that squash commit.
 
 ## Phase 4A: decisions and domain boundary
 
@@ -44,7 +44,7 @@ An authorization context is server-constructed evidence. A client may submit a
 requested workspace and action, but it must never submit the session,
 membership, workspace status, or granted scopes that the evaluator trusts.
 
-## Active Phase 4B: service, identity, and persistence
+## Completed Phase 4B: service, identity, and persistence
 
 The second slice owns:
 
@@ -81,15 +81,26 @@ Phase 4B does not include cloud deployment, a production identity provider,
 provider consent storage, invitations or product roles, GitHub App onboarding,
 agent execution, UI wiring, or Phase 4C acceptance.
 
-## Phase 4C: experience integration and acceptance
+Core PR [#8](https://github.com/mishrarishav/FrevOS/pull/8) passed exact-head
+validation at `f7d2555dd73875feac32c3785625aef7ecfc851a`, was human
+squash-merged as `6bf550922a8adec9cddbb881f32612a935adfbde`, and passed
+default-branch [CI run 31388085447](https://github.com/mishrarishav/FrevOS/actions/runs/31388085447).
 
-The final slice will replace the relevant Phase 3 demonstration boundaries
-with authenticated session and authorized workspace data. It will add honest
-loading, unauthenticated, denied, empty, retry, and session-expired states and
-then enable independent black-box Preview or UAT acceptance.
+## Active Phase 4C: experience integration and acceptance
+
+The final slice replaces the relevant Phase 3 demonstration boundaries with
+authenticated session and authorized workspace, client, and project data. It
+adds principal-scoped workspace discovery, strict browser response validation,
+and honest loading, unauthenticated, denied, empty, retry, and session-expired
+states.
 
 The client remains presentation only. A hidden route, disabled control, or
 selected workspace in browser state never proves authorization.
+
+Independent black-box Preview or UAT acceptance remains part of the slice but
+cannot run until an authorized same-origin deployment target, OIDC provider,
+and PostgreSQL operating model exist. Local or service-level tests are not
+represented as external product acceptance.
 
 ## Phase 4 exit criteria
 
@@ -118,3 +129,4 @@ Phase 4 is complete only when:
 - [ADR 0013](adr/0013-fastify-control-plane.md)
 - [ADR 0014](adr/0014-oidc-bff-sessions.md)
 - [ADR 0015](adr/0015-postgresql-tenant-isolation.md)
+- [ADR 0016](adr/0016-principal-scoped-workspace-discovery.md)

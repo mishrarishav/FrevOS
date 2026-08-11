@@ -30,6 +30,7 @@ decision receives a new ADR that names the record it supersedes.
 | [0013](0013-fastify-control-plane.md) | Accepted | Use Fastify for the control-plane service boundary |
 | [0014](0014-oidc-bff-sessions.md) | Accepted | Use OpenID Connect through a session-owning backend |
 | [0015](0015-postgresql-tenant-isolation.md) | Accepted | Enforce tenant data boundaries with PostgreSQL row security |
+| [0016](0016-principal-scoped-workspace-discovery.md) | Accepted | Constrain workspace discovery with authenticated-principal row security |
 
 ## Creating an ADR
 
