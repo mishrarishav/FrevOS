@@ -6,11 +6,14 @@ import { join } from "node:path";
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { registerControlCenter } from "../src/control-center.js";
 import { OidcTransactionCodec, type OidcTransaction } from "../src/crypto.js";
 import {
   createDatabasePool,
+  prepareApplicationLoginRole,
   runMigrations,
   verifyApplicationRole,
+  verifyDatabaseReadiness,
   withApplicationPrincipalTransaction,
   withApplicationTransaction,
 } from "../src/database.js";
@@ -77,9 +80,10 @@ beforeAll(async () => {
   await adminPool.query(`
     CREATE ROLE frevos_test_runtime
       LOGIN PASSWORD 'synthetic-runtime-password'
-      NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
-    GRANT frevos_app TO frevos_test_runtime;
+      NOSUPERUSER NOCREATEDB NOCREATEROLE INHERIT NOREPLICATION NOBYPASSRLS;
   `);
+  await prepareApplicationLoginRole(adminPool, "frevos_test_runtime");
+  await prepareApplicationLoginRole(adminPool, "frevos_test_runtime");
   const runtimeUrl = new URL(container.getConnectionUri());
   runtimeUrl.username = "frevos_test_runtime";
   runtimeUrl.password = "synthetic-runtime-password";
@@ -172,7 +176,33 @@ afterAll(async () => {
 describe("PostgreSQL application boundary", () => {
   it("uses an unprivileged non-owner role and forces RLS on every tenant table", async () => {
     await expect(verifyApplicationRole(pool)).resolves.toBeUndefined();
+    await expect(verifyDatabaseReadiness(pool)).resolves.toBeUndefined();
     await expect(verifyApplicationRole(adminPool)).rejects.toThrow("required unprivileged role");
+    await expect(prepareApplicationLoginRole(adminPool, "postgres")).rejects.toThrow(
+      "missing or privileged",
+    );
+    await expect(prepareApplicationLoginRole(adminPool, "bad-role")).rejects.toThrow(
+      "invalid name",
+    );
+    await expect(pool.query("SELECT user_id FROM frevos.users")).rejects.toThrow(
+      "permission denied",
+    );
+
+    const membershipResult = await adminPool.query<{
+      admin_option: boolean;
+      inherit_option: boolean;
+      set_option: boolean;
+    }>(`
+      SELECT membership.admin_option, membership.inherit_option, membership.set_option
+      FROM pg_auth_members AS membership
+      INNER JOIN pg_roles AS granted_role ON granted_role.oid = membership.roleid
+      INNER JOIN pg_roles AS member_role ON member_role.oid = membership.member
+      WHERE granted_role.rolname = 'frevos_app'
+        AND member_role.rolname = 'frevos_test_runtime'
+    `);
+    expect(membershipResult.rows).toEqual([
+      { admin_option: false, inherit_option: false, set_option: true },
+    ]);
 
     const roleResult = await adminPool.query<{
       rolname: string;
@@ -559,6 +589,9 @@ describe("Fastify BFF and protected workspace APIs", () => {
   it("executes OIDC, hardened cookies, authorization, CSRF, rotation, and logout", async () => {
     const oidcProvider = new FakeOidcProvider();
     const codec = new OidcTransactionCodec(randomBytes(32));
+    let databaseAvailable = true;
+    const assetsDirectory = await mkdtemp(join(tmpdir(), "frevos-integrated-control-center-"));
+    await writeFile(join(assetsDirectory, "index.html"), "<!doctype html><title>FrevOS</title>");
     const server = await buildServer({
       publicOrigin: PUBLIC_ORIGIN,
       oidcProvider,
@@ -566,12 +599,25 @@ describe("Fastify BFF and protected workspace APIs", () => {
       identitySessions: identities,
       workspaces,
       now: () => NOW,
+      readiness: async () => {
+        if (!databaseAvailable) {
+          throw new Error("synthetic database outage");
+        }
+      },
     });
+    await registerControlCenter(server, assetsDirectory);
 
     try {
-      expect((await server.inject({ method: "GET", url: "/health" })).json()).toEqual({
+      const healthy = await server.inject({ method: "GET", url: "/health" });
+      expect(healthy.json()).toEqual({
         status: "ok",
       });
+      expect(healthy.headers["content-security-policy"]).toContain("default-src 'self'");
+      databaseAvailable = false;
+      const unavailableHealth = await server.inject({ method: "GET", url: "/health" });
+      expect(unavailableHealth.statusCode).toBe(503);
+      expect(unavailableHealth.json()).toEqual({ status: "unavailable" });
+      databaseAvailable = true;
       expect((await server.inject({ method: "GET", url: "/v1/session" })).statusCode).toBe(401);
       expect((await server.inject({ method: "GET", url: "/v1/workspaces" })).statusCode).toBe(401);
       expect((await server.inject({ method: "GET", url: "/auth/callback" })).statusCode).toBe(400);
@@ -774,6 +820,7 @@ describe("Fastify BFF and protected workspace APIs", () => {
       ).toBe(401);
     } finally {
       await server.close();
+      await rm(assetsDirectory, { recursive: true, force: true });
     }
   });
 

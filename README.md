@@ -12,11 +12,12 @@ approval.
 
 ## Current status
 
-**Phase 4B: control-plane identity and PostgreSQL isolation is in progress.**
-The Phase 3 Control Center and Phase 4A contracts are merged. The active branch
-adds the first Fastify BFF, provider-neutral OIDC adapter, durable server
-sessions, protected workspace APIs, and forced PostgreSQL row security. The web
-shell still uses demonstration data until Phase 4C experience integration.
+**Phase 4 exit: Preview/UAT deployment and independent acceptance are in
+progress.** The authenticated Control Center, Fastify OIDC BFF, durable server
+sessions, protected workspace APIs, and forced PostgreSQL row security are
+merged. The active bounded work packages those runtimes on one origin and
+records the non-Production identity, database, backup, secret, and deployment
+operating model required before independent acceptance can run.
 
 See [Current State](docs/CURRENT_STATE.md) for the factual implementation
 status and open decisions.
@@ -56,6 +57,7 @@ Git submodules.
 - [Merge Policy](docs/MERGE_POLICY.md)
 - [Development](docs/DEVELOPMENT.md)
 - [Phase 3 UI Reference](docs/UI_REFERENCE.md)
+- [Phase 4 UAT Runbook](docs/PHASE_4_UAT_RUNBOOK.md)
 - [Current State](docs/CURRENT_STATE.md)
 - [Architecture Decision Records](docs/adr/README.md)
 - [Contributor and agent rules](AGENTS.md)

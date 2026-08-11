@@ -684,16 +684,12 @@ function ControlCenter({
                     <p className="mono-copy">
                       {task.id} · {task.project} · {task.agent}
                     </p>
-                    <div
+                    <progress
                       className="progress-track"
-                      role="progressbar"
                       aria-label={`${task.progress}% complete`}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-valuenow={task.progress}
-                    >
-                      <span style={{ width: `${task.progress}%` }} />
-                    </div>
+                      max={100}
+                      value={task.progress}
+                    />
                   </div>
                   <span className="time-copy">{task.updated}</span>
                 </article>

@@ -11,6 +11,7 @@ const requiredDocuments = [
   "docs/CURRENT_STATE.md",
   "docs/MERGE_POLICY.md",
   "docs/PERMISSIONS.md",
+  "docs/PHASE_4_UAT_RUNBOOK.md",
   "docs/PRODUCT.md",
   "docs/ROADMAP.md",
   "docs/SECURITY.md",
@@ -126,6 +127,61 @@ async function validateRuleset() {
   }
 }
 
+async function validatePhase4Deployment() {
+  const dockerfile = await readFile(join(repositoryRoot, "Dockerfile"), "utf8");
+  const dockerIgnore = await readFile(join(repositoryRoot, ".dockerignore"), "utf8");
+  const blueprint = await readFile(join(repositoryRoot, "render.yaml"), "utf8");
+  const controlPlaneManifest = JSON.parse(
+    await readFile(join(repositoryRoot, "apps/control-plane/package.json"), "utf8"),
+  );
+
+  const fromLines = dockerfile.split("\n").filter((line) => line.startsWith("FROM "));
+  if (
+    fromLines.length !== 2 ||
+    fromLines.some(
+      (line) =>
+        !line.includes("node:24.19.0-bookworm-slim@sha256:") || /(?:^|:)latest(?:\s|$)/.test(line),
+    )
+  ) {
+    errors.push("Docker build and runtime stages must pin Node.js 24.19.0 by digest");
+  }
+  if (!dockerfile.includes("USER node") || !dockerfile.includes("--frozen-lockfile")) {
+    errors.push("Docker runtime must be non-root and install from the frozen lockfile");
+  }
+  for (const ignored of [".env", "**/node_modules", "**/dist", ".git"]) {
+    if (!dockerIgnore.split("\n").includes(ignored)) {
+      errors.push(`.dockerignore must exclude ${ignored}`);
+    }
+  }
+
+  for (const required of [
+    'postgresMajorVersion: "18"',
+    "region: frankfurt",
+    "plan: starter",
+    "plan: basic-256mb",
+    "ipAllowList: []",
+    'autoDeployTrigger: "off"',
+    "healthCheckPath: /health",
+    "generateValue: true",
+  ]) {
+    if (!blueprint.includes(required)) {
+      errors.push(`Render Blueprint is missing required setting: ${required}`);
+    }
+  }
+  if (blueprint.includes("MIGRATION_DATABASE_URL")) {
+    errors.push("Render web service must never receive MIGRATION_DATABASE_URL");
+  }
+  for (const secret of ["DATABASE_URL", "FREVOS_OIDC_CLIENT_SECRET"]) {
+    const declaration = new RegExp(`- key: ${secret}\\n\\s+sync: false`);
+    if (!declaration.test(blueprint)) {
+      errors.push(`Render Blueprint must keep ${secret} as an unsynchronized secret`);
+    }
+  }
+  if (controlPlaneManifest.dependencies?.["@fastify/static"] !== "10.1.2") {
+    errors.push("Control plane must pin the patched @fastify/static 10.1.2 release");
+  }
+}
+
 for (const document of requiredDocuments) {
   if (!(await pathExists(join(repositoryRoot, document)))) {
     errors.push(`Required document is missing: ${document}`);
@@ -140,6 +196,7 @@ for (const file of markdownFiles) {
 }
 
 await validateRuleset();
+await validatePhase4Deployment();
 
 if (errors.length > 0) {
   for (const error of errors) {

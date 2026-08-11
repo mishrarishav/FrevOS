@@ -190,12 +190,14 @@ agent, approval, audit, artifact, and deployment controls.
 
 ## Open security decisions
 
-The production identity provider, credential vault, PostgreSQL hosting and
-operations, OIDC transaction-key ownership, worker sandbox technology,
-network-egress policy, data classification, audit retention, evidence
-retention, artifact signing, vulnerability response policy, and deployment
-transport require later decisions before their respective deployment or
-implementation boundaries.
+ADR 0017 selects Auth0 EU, Render PostgreSQL 18, Render-managed secret
+injection, and an explicit 90-day review/rotation policy only for synthetic
+non-Production Phase 4 UAT. The Production identity provider, credential vault,
+PostgreSQL availability and recovery objectives, region, worker sandbox
+technology, network-egress policy, data classification, audit retention,
+evidence retention, artifact signing, vulnerability response policy, and
+deployment transport require later decisions before their respective
+deployment or implementation boundaries.
 
 Security issues must not be placed in public logs or normal project memory.
 The private reporting and incident-response channel is not yet selected.

@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@fastify/cookie": "11.1.2",
+    "@fastify/static": "10.1.2",
     "@frevos/contracts": "workspace:*",
     "fastify": "5.11.3",
     "openid-client": "6.8.4",

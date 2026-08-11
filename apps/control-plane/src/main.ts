@@ -1,6 +1,8 @@
+import { fileURLToPath } from "node:url";
 import { loadConfig } from "./config.js";
+import { registerControlCenter } from "./control-center.js";
 import { OidcTransactionCodec } from "./crypto.js";
-import { createDatabasePool, verifyApplicationRole } from "./database.js";
+import { createDatabasePool, verifyApplicationRole, verifyDatabaseReadiness } from "./database.js";
 import { OpenIdClientProvider } from "./oidc.js";
 import { IdentitySessionRepository, WorkspaceRepository } from "./repositories.js";
 import { buildServer } from "./server.js";
@@ -22,7 +24,12 @@ try {
     transactionCodec: new OidcTransactionCodec(config.oidcTransactionKey),
     identitySessions: new IdentitySessionRepository(pool),
     workspaces: new WorkspaceRepository(pool),
+    readiness: () => verifyDatabaseReadiness(pool),
   });
+  await registerControlCenter(
+    server,
+    fileURLToPath(new URL("../../control-center/dist/", import.meta.url)),
+  );
 
   const shutdown = async () => {
     await server.close();

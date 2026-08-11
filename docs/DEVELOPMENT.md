@@ -57,6 +57,29 @@ helper images. Runtime and privileged migration configuration are documented in
 [`apps/control-plane/README.md`](../apps/control-plane/README.md). Never use a
 real provider credential in local or CI test configuration.
 
+The deployment migration command requires `MIGRATION_DATABASE_URL` and the
+separate runtime `DATABASE_URL` from an approved process-local secret boundary:
+
+```sh
+pnpm --filter @frevos/control-plane build
+pnpm --filter @frevos/control-plane migrate
+```
+
+It applies migrations with the first credential, derives only the non-secret
+login role name from the second, and grants `frevos_app` only after that runtime
+login passes the unprivileged-role checks. Never type either URL into shell
+history. See the [Phase 4 UAT runbook](PHASE_4_UAT_RUNBOOK.md).
+
+Build the same-origin non-Production image with:
+
+```sh
+docker build --tag frevos:phase4-uat .
+```
+
+The Dockerfile pins Node.js 24.19.0 by multi-platform digest, installs from the
+frozen lockfile, builds both runtimes, copies the runtime package and migrations,
+and runs as the unprivileged `node` user.
+
 Generated `dist/`, `coverage/`, `node_modules/`, and TypeScript build metadata
 are ignored and must not be committed.
 
@@ -84,7 +107,9 @@ are ignored and must not be committed.
 
 Phase 4B adds exact MIT-licensed releases of Fastify, `@fastify/cookie`,
 `openid-client`, `pg`, Zod, Testcontainers PostgreSQL, and the `pg` type
-declarations. Transitive native/metadata install scripts from optional
+declarations. Phase 4 same-origin packaging adds the exact MIT-licensed,
+security-patched `@fastify/static` `10.1.2` release. Transitive native/metadata
+install scripts from optional
 Testcontainers paths remain explicitly denied because local Docker execution
 does not require them. `skipLibCheck` is enabled only in the control-plane
 TypeScript project to isolate an upstream `openid-client` declaration conflict

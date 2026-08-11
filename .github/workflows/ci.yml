@@ -59,5 +59,17 @@ jobs:
       - name: Build packages
         run: pnpm run build
 
+      - name: Build pinned non-Production runtime image
+        run: docker build --tag frevos-ci:${{ github.sha }} .
+
+      - name: Validate runtime image boundary
+        run: >-
+          docker run --rm --entrypoint node frevos-ci:${{ github.sha }} -e
+          "const fs=require('node:fs');
+          if(process.getuid?.()!==1000)throw new Error('runtime user is not node');
+          for(const file of ['/opt/frevos/control-plane/dist/main.js','/opt/frevos/control-plane/migrations/0001_identity_workspace.sql','/opt/frevos/control-center/dist/index.html'])fs.accessSync(file);
+          for(const path of ['/opt/frevos/control-plane/src','/opt/frevos/control-plane/test','/opt/frevos/control-center/src'])if(fs.existsSync(path))throw new Error('source or test directory present: '+path);
+          if(fs.readdirSync('/opt/frevos/control-center/dist/assets').some(name=>name.endsWith('.map')))throw new Error('browser source map present');"
+
       - name: Audit dependencies
         run: pnpm run audit
