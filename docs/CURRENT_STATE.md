@@ -1,6 +1,6 @@
 # FrevOS Current State
 
-Last updated: 2026-08-10
+Last updated: 2026-08-11
 
 ## Snapshot
 
@@ -8,20 +8,21 @@ Last updated: 2026-08-10
 | --- | --- |
 | Production repository | `https://github.com/mishrarishav/FrevOS` |
 | Detected default branch | `main` |
-| Phase branch | `phase/4b-control-plane-identity-storage` |
-| Base commit | `425c1f3e8b20dde798316b557341baa6c8aa8fb8` |
-| Active phase | Phase 4B — control-plane identity, sessions, and PostgreSQL isolation |
+| Phase branch | `phase/4c-authenticated-experience` |
+| Base commit | `6bf550922a8adec9cddbb881f32612a935adfbde` |
+| Active phase | Phase 4C — authenticated experience integration and acceptance |
 | Phase 3 merge | Core PR [#5](https://github.com/mishrarishav/FrevOS/pull/5) was human squash-merged as `13f3cd2`; its task branch was deleted |
 | Phase 4A merge | Core PR [#7](https://github.com/mishrarishav/FrevOS/pull/7) was human squash-merged as `425c1f3`; its task branch was deleted |
-| Runtime capability | Phase 3 Control Center and Phase 4A contracts are merged; the active Phase 4B branch adds the first Fastify BFF and PostgreSQL runtime boundary |
+| Phase 4B merge | Core PR [#8](https://github.com/mishrarishav/FrevOS/pull/8) was human squash-merged as `6bf5509`; its task branch was deleted |
+| Runtime capability | The Fastify BFF, OIDC session boundary, PostgreSQL forced RLS, and service APIs are merged; the active Phase 4C branch integrates the protected Control Center experience |
 | Dependency manifests | pnpm workspace and committed lockfile on `main` |
-| CI/CD | `CI / validate` passed on Phase 4A merge commit `425c1f3` in [run 31381302149](https://github.com/mishrarishav/FrevOS/actions/runs/31381302149) and is a strict required check |
+| CI/CD | `CI / validate` passed on Phase 4B merge commit `6bf5509` in [run 31388085447](https://github.com/mishrarishav/FrevOS/actions/runs/31388085447) and is a strict required check |
 | Independent QA harness | Merged through Acceptance PR [#1](https://github.com/mishrarishav/FrevOS-Acceptance/pull/1); exact-head and default-branch CI passed |
 | Acceptance repository | Public `main` at completion-state squash commit `ffc85babed5f0e8deaf8af8d0194b9d3734d23be` |
 | Acceptance merge governance | Active `Protect main` ruleset `20623785` enforces squash-only pull requests, conversation resolution, strict up-to-date `validate`, and deletion and force-push prevention |
 | UI reference | Approved private repository ID `1329600731`, `mishrarishav/neural-command-lab`, commit `85f3ba2271ba381fc0520108365c5bb48fe386a7` |
 | GitHub authentication | Verified for account `mishrarishav` during Phase 0A |
-| Completed publications | Core PRs [#1](https://github.com/mishrarishav/FrevOS/pull/1), [#2](https://github.com/mishrarishav/FrevOS/pull/2), [#4](https://github.com/mishrarishav/FrevOS/pull/4), [#5](https://github.com/mishrarishav/FrevOS/pull/5), [#7](https://github.com/mishrarishav/FrevOS/pull/7), and Acceptance PRs [#1](https://github.com/mishrarishav/FrevOS-Acceptance/pull/1), [#3](https://github.com/mishrarishav/FrevOS-Acceptance/pull/3) squash-merged |
+| Completed publications | Core PRs [#1](https://github.com/mishrarishav/FrevOS/pull/1), [#2](https://github.com/mishrarishav/FrevOS/pull/2), [#4](https://github.com/mishrarishav/FrevOS/pull/4), [#5](https://github.com/mishrarishav/FrevOS/pull/5), [#7](https://github.com/mishrarishav/FrevOS/pull/7), [#8](https://github.com/mishrarishav/FrevOS/pull/8), and Acceptance PRs [#1](https://github.com/mishrarishav/FrevOS-Acceptance/pull/1), [#3](https://github.com/mishrarishav/FrevOS-Acceptance/pull/3) squash-merged |
 | Merge governance | Active `Protect main`; PR, squash, resolution, strict `validate`, deletion, and force-push controls verified |
 
 This snapshot distinguishes target architecture from implemented software. The
@@ -108,8 +109,9 @@ and screen contract have not been supplied.
 - The approved Phase 3 UI reference is pinned by repository ID and exact commit;
   it governs experience only and cannot own production architecture.
 - The Control Center experience uses React 19, Vite 8, TypeScript 7, semantic
-  CSS tokens, and deterministic demonstration data.
-- The future control-plane service boundary uses Fastify 5 on Node.js 24.
+  CSS tokens, authenticated BFF data for Phase 4 resources, and explicitly
+  labeled demonstration data only for later capabilities.
+- The control-plane service boundary uses Fastify 5 on Node.js 24.
 - Browser authentication uses a provider-neutral OpenID Connect BFF with
   server-side opaque sessions and no provider tokens in browser storage.
 - Tenant persistence uses PostgreSQL with application authorization,
@@ -154,10 +156,9 @@ Core PR [#7](https://github.com/mishrarishav/FrevOS/pull/7) passed exact-head
 [CI run 31381302149](https://github.com/mishrarishav/FrevOS/actions/runs/31381302149).
 Its remote task branch was deleted.
 
-## Active Phase 4B
+## Completed Phase 4B
 
-The `phase/4b-control-plane-identity-storage` branch is based directly on the
-verified Phase 4A squash commit. Its bounded implementation adds:
+Phase 4B added:
 
 - a separately constructed Fastify BFF with bounded HTTP settings;
 - provider-neutral OpenID Connect Authorization Code with PKCE, state, and nonce;
@@ -169,13 +170,39 @@ verified Phase 4A squash commit. Its bounded implementation adds:
   membership-gated evidence resolution, and workspace-preserving foreign keys;
 - real PostgreSQL 18.4 isolation and service integration tests.
 
-The complete working tree passed `pnpm run ci` on 2026-08-10: repository and
-format validation, lint, strict type-check, 87 tests with enforced coverage,
+Core PR [#8](https://github.com/mishrarishav/FrevOS/pull/8) passed exact-head
+`validate` at `f7d2555dd73875feac32c3785625aef7ecfc851a`, was human
+squash-merged as `6bf550922a8adec9cddbb881f32612a935adfbde`, and passed
+default-branch
+[CI run 31388085447](https://github.com/mishrarishav/FrevOS/actions/runs/31388085447).
+Its remote task branch was deleted.
+
+## Active Phase 4C
+
+The `phase/4c-authenticated-experience` branch is based directly on the verified
+Phase 4B squash commit. Its bounded working tree adds:
+
+- authenticated-principal workspace discovery with select-only RLS policies;
+- server-side filtering for active `workspace:read` authorization;
+- a strict browser-safe session summary contract and response validation;
+- same-origin Control Center loading of authorized workspaces, clients, and
+  projects without browser-managed tokens or membership evidence;
+- fail-closed loading, unauthenticated, denied, empty, retry, and
+  session-expired experience states;
+- real PostgreSQL and deterministic client lifecycle tests.
+
+Commands, tasks, Agent Activity, approvals, audit persistence, external side
+effects, and all Phase 5 capabilities remain unavailable. The branch is local
+and unpublished; staging, committing, pushing, and pull-request creation remain
+separate actions requiring authorization.
+
+The complete working tree passed `pnpm run ci` on 2026-08-11: repository and
+format validation, lint, strict type-check, 123 tests with enforced coverage,
 real PostgreSQL 18.4 isolation, all builds, and the high-severity dependency
-audit completed successfully. Control-plane coverage was 97.87% statements,
-93.23% branches, 98.75% functions, and 98.17% lines at that gate. The working
-tree passed complete diff review. The branch remains local and unpublished;
-push and pull-request creation require separate authorization.
+audit completed successfully. Contract and selected Control Center API/state
+machine coverage were 100%; control-plane coverage was 98.02% statements,
+93.23% branches, 98.85% functions, and 98.29% lines. Independent deployed
+Preview or UAT acceptance was unavailable and is not claimed.
 
 ## Open decision register
 
@@ -201,13 +228,12 @@ to completing Phase 0A:
 
 ## Known limitations
 
-- The Phase 3 application is still a client-only demonstration shell and is not
-  wired to the Phase 4B service; that experience integration is Phase 4C.
-- Phase 4B has no selected production identity provider, cloud database,
+- Phase 4 has no selected production identity provider, cloud database,
   credential/key lifecycle, Preview/UAT deployment, or external acceptance.
 - Phase 1 implements contract and CI guardrails only; it does not implement the
   later runtime authorization, isolation, approval, audit, or deployment controls.
-- Phase 2 has no product-facing tests because no approved executable UI exists.
+- The independent acceptance harness has not run against an authorized deployed
+  Phase 4C product target.
 - Chromium emulation does not prove Firefox, WebKit, or physical-device behavior.
 - External preview/UAT execution and authenticated browser state are not yet
   authorized or validated.
@@ -218,7 +244,8 @@ to completing Phase 0A:
 
 ## Readiness rule
 
-Phases 0A through 3 and Phase 4A are complete. Phase 4B may be proposed for
-human review only after exact-branch full validation and complete diff review.
-Phase 4C and browser product acceptance require a reviewed Phase 4B merge plus
-an authorized Preview or UAT target; Phase 4 is not yet complete.
+Phases 0A through 4B are complete. Phase 4C may be proposed for human review
+only after exact-branch full validation and complete diff review. Phase 4 exit
+additionally requires an authorized same-origin Preview or UAT target, selected
+OIDC provider and PostgreSQL operating model, and independent black-box product
+acceptance. Phase 4 is not yet complete.

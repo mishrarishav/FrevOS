@@ -11,6 +11,7 @@ import {
   createDatabasePool,
   runMigrations,
   verifyApplicationRole,
+  withApplicationPrincipalTransaction,
   withApplicationTransaction,
 } from "../src/database.js";
 import type { AuthenticatedIdentity, OidcProvider } from "../src/oidc.js";
@@ -124,6 +125,17 @@ beforeAll(async () => {
     workspaceId: "ws_beta",
     userId: principalB.userId,
     grantedScopes: ["workspace:read", "client:read", "project:read"],
+    now: NOW,
+  });
+  await workspaces.createWorkspace({
+    workspaceId: "ws_limited",
+    displayName: "Limited Workspace",
+    now: NOW,
+  });
+  await workspaces.createMembership({
+    workspaceId: "ws_limited",
+    userId: principalA.userId,
+    grantedScopes: ["client:read"],
     now: NOW,
   });
   const alphaClient = await workspaces.createClient({
@@ -335,6 +347,75 @@ describe("PostgreSQL application boundary", () => {
     }
   });
 
+  it("discovers only the authenticated principal memberships without opening tenant data", async () => {
+    const missingPrincipal = await withApplicationTransaction(pool, undefined, async (client) => {
+      const memberships = await client.query(
+        "SELECT membership_id FROM frevos.workspace_memberships",
+      );
+      const workspacesResult = await client.query("SELECT workspace_id FROM frevos.workspaces");
+      return { memberships: memberships.rows, workspaces: workspacesResult.rows };
+    });
+    expect(missingPrincipal).toEqual({ memberships: [], workspaces: [] });
+
+    const principalRows = await withApplicationPrincipalTransaction(
+      pool,
+      principalA.userId,
+      async (client) => {
+        const memberships = await client.query<{ workspace_id: string }>(
+          "SELECT workspace_id FROM frevos.workspace_memberships ORDER BY workspace_id",
+        );
+        const workspaceRows = await client.query<{ workspace_id: string }>(
+          "SELECT workspace_id FROM frevos.workspaces ORDER BY workspace_id",
+        );
+        const clients = await client.query("SELECT client_id FROM frevos.clients");
+        return {
+          memberships: memberships.rows.map((row) => row.workspace_id),
+          workspaces: workspaceRows.rows.map((row) => row.workspace_id),
+          clients: clients.rows,
+        };
+      },
+    );
+    expect(principalRows).toEqual({
+      memberships: ["ws_alpha", "ws_limited"],
+      workspaces: ["ws_alpha", "ws_limited"],
+      clients: [],
+    });
+
+    await expect(
+      withApplicationPrincipalTransaction(pool, principalA.userId, async (client) =>
+        client.query(
+          `
+            INSERT INTO frevos.workspace_memberships (
+              membership_id, workspace_id, user_id, status, granted_scopes, created_at
+            ) VALUES ('wsm_principal_write', 'ws_beta', $1, 'active', ARRAY['workspace:read'], $2)
+          `,
+          [principalA.userId, NOW],
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "42501" });
+
+    const runtimeUrl = new URL(container.getConnectionUri());
+    runtimeUrl.username = "frevos_test_runtime";
+    runtimeUrl.password = "synthetic-runtime-password";
+    const singleConnectionPool = new Pool({ connectionString: runtimeUrl.toString(), max: 1 });
+    try {
+      const visible = await withApplicationPrincipalTransaction(
+        singleConnectionPool,
+        principalA.userId,
+        async (client) => client.query("SELECT workspace_id FROM frevos.workspace_memberships"),
+      );
+      expect(visible.rowCount).toBe(2);
+      const cleared = await withApplicationTransaction(
+        singleConnectionPool,
+        undefined,
+        async (client) => client.query("SELECT workspace_id FROM frevos.workspace_memberships"),
+      );
+      expect(cleared.rows).toEqual([]);
+    } finally {
+      await singleConnectionPool.end();
+    }
+  });
+
   it("returns only scoped records and server-constructed membership evidence", async () => {
     expect((await workspaces.listClients("ws_alpha")).map((client) => client.displayName)).toEqual([
       "Alpha Client",
@@ -347,6 +428,16 @@ describe("PostgreSQL application boundary", () => {
     );
     await expect(workspaces.getEvidence("ws_alpha", principalB.userId)).resolves.toBeNull();
     await expect(workspaces.getEvidence("ws_unknown", principalA.userId)).resolves.toBeNull();
+    expect(
+      (await workspaces.listEvidenceForPrincipal(principalA.userId)).map(
+        (candidate) => candidate.workspace.workspaceId,
+      ),
+    ).toEqual(["ws_alpha", "ws_limited"]);
+    expect(
+      (await workspaces.listEvidenceForPrincipal(principalB.userId)).map(
+        (candidate) => candidate.workspace.workspaceId,
+      ),
+    ).toEqual(["ws_beta"]);
   });
 
   it("supports optional repository fields without weakening workspace scope", async () => {
@@ -482,6 +573,7 @@ describe("Fastify BFF and protected workspace APIs", () => {
         status: "ok",
       });
       expect((await server.inject({ method: "GET", url: "/v1/session" })).statusCode).toBe(401);
+      expect((await server.inject({ method: "GET", url: "/v1/workspaces" })).statusCode).toBe(401);
       expect((await server.inject({ method: "GET", url: "/auth/callback" })).statusCode).toBe(400);
 
       const firstLogin = await server.inject({ method: "GET", url: "/auth/login" });
@@ -514,6 +606,23 @@ describe("Fastify BFF and protected workspace APIs", () => {
       expect(sessionResponse.statusCode).toBe(200);
       expect(sessionResponse.json()).toMatchObject({ userId: principalA.userId });
       expect(JSON.stringify(sessionResponse.json())).not.toContain("token");
+
+      const workspaceList = await server.inject({
+        method: "GET",
+        url: "/v1/workspaces",
+        headers: { cookie: firstSessionCookie },
+      });
+      expect(workspaceList.statusCode).toBe(200);
+      expect(workspaceList.json()).toEqual([
+        {
+          workspaceId: "ws_alpha",
+          displayName: "Alpha Workspace",
+          status: "active",
+          createdAt: NOW.toISOString(),
+        },
+      ]);
+      expect(JSON.stringify(workspaceList.json())).not.toContain("ws_beta");
+      expect(JSON.stringify(workspaceList.json())).not.toContain("ws_limited");
 
       const deniedWorkspace = await server.inject({
         method: "GET",

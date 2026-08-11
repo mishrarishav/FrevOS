@@ -32,6 +32,7 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
+import type { Client, Project, Workspace } from "@frevos/contracts";
 import {
   type FormEvent,
   type MouseEvent,
@@ -47,15 +48,18 @@ import {
   activity,
   approvals,
   auditEvents,
-  health,
-  projects,
   stateExamples,
   type Status,
   tasks,
   tokenGroups,
   type Tone,
-  workspaces,
 } from "./data.js";
+import { createControlCenterApi, type ControlCenterApi } from "./api.js";
+import {
+  loadInitialExperience,
+  loadWorkspaceExperience,
+  type ExperienceState,
+} from "./experience.js";
 import {
   isPathActive,
   normalizePath,
@@ -66,6 +70,8 @@ import {
 } from "./routing.js";
 
 type OverlayName = "palette" | "activity" | "states" | "composer" | null;
+
+const browserApi = createControlCenterApi();
 
 const routeIcons: Record<Exclude<RouteId, "not-found">, LucideIcon> = {
   "control-center": Radar,
@@ -113,13 +119,52 @@ function getBrowserPath(): string {
   return typeof window === "undefined" ? "/" : normalizePath(window.location.pathname);
 }
 
-export function App({ initialPath }: { initialPath?: string }) {
+export function App({
+  initialPath,
+  api = browserApi,
+  initialExperience,
+}: {
+  initialPath?: string;
+  api?: ControlCenterApi;
+  initialExperience?: ExperienceState;
+}) {
   const [pathname, setPathname] = useState(() => normalizePath(initialPath ?? getBrowserPath()));
   const [overlay, setOverlay] = useState<OverlayName>(null);
-  const [workspaceId, setWorkspaceId] = useState<string>(workspaces[0].id);
+  const [experience, setExperience] = useState<ExperienceState>(
+    initialExperience ?? { kind: "loading" },
+  );
   const [activityFilter, setActivityFilter] = useState<"all" | "active">("all");
   const [command, setCommand] = useState("");
   const [receipt, setReceipt] = useState<string | null>(null);
+  const initialRequest = useRef<AbortController | null>(null);
+  const selectionRequest = useRef<AbortController | null>(null);
+
+  const loadExperience = useCallback(() => {
+    initialRequest.current?.abort();
+    const controller = new AbortController();
+    initialRequest.current = controller;
+    setExperience({ kind: "loading" });
+    void loadInitialExperience(api, controller.signal)
+      .then((next) => {
+        if (!controller.signal.aborted) {
+          setExperience(next);
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setExperience({ kind: "retry", reason: "invalid-response" });
+        }
+      });
+  }, [api]);
+
+  useEffect(() => {
+    if (initialExperience === undefined) {
+      loadExperience();
+    }
+    return () => initialRequest.current?.abort();
+  }, [initialExperience, loadExperience]);
+
+  useEffect(() => () => selectionRequest.current?.abort(), []);
 
   useEffect(() => {
     const onPopState = () => setPathname(getBrowserPath());
@@ -164,8 +209,46 @@ export function App({ initialPath }: { initialPath?: string }) {
     setOverlay(null);
   }, []);
 
-  const selectedWorkspace =
-    workspaces.find((workspace) => workspace.id === workspaceId) ?? workspaces[0];
+  const retryExperience = useCallback(() => {
+    selectionRequest.current?.abort();
+    loadExperience();
+  }, [loadExperience]);
+
+  const selectWorkspace = useCallback(
+    (workspaceId: string) => {
+      if (experience.kind !== "ready" || experience.workspace.workspaceId === workspaceId) {
+        return;
+      }
+      selectionRequest.current?.abort();
+      const controller = new AbortController();
+      selectionRequest.current = controller;
+      const { session, workspaces: authorizedWorkspaces } = experience;
+      setExperience({ kind: "loading" });
+      void loadWorkspaceExperience(
+        api,
+        session,
+        authorizedWorkspaces,
+        workspaceId,
+        controller.signal,
+      )
+        .then((next) => {
+          if (!controller.signal.aborted) {
+            setExperience(next);
+          }
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) {
+            setExperience({ kind: "retry", reason: "invalid-response" });
+          }
+        });
+    },
+    [api, experience],
+  );
+
+  if (experience.kind !== "ready") {
+    return <ExperienceBoundary state={experience} onRetry={retryExperience} />;
+  }
+
   const route = resolveRoute(pathname);
 
   return (
@@ -174,8 +257,9 @@ export function App({ initialPath }: { initialPath?: string }) {
         Skip to main content
       </a>
       <TopBar
-        workspaceId={selectedWorkspace.id}
-        onWorkspaceChange={setWorkspaceId}
+        workspaces={experience.workspaces}
+        workspaceId={experience.workspace.workspaceId}
+        onWorkspaceChange={selectWorkspace}
         onPalette={() => setOverlay("palette")}
         onActivity={() => setOverlay("activity")}
         onStates={() => setOverlay("states")}
@@ -186,7 +270,9 @@ export function App({ initialPath }: { initialPath?: string }) {
         <main id="main-content" className="main-workspace">
           {route?.id === "control-center" ? (
             <ControlCenter
-              workspace={selectedWorkspace.name}
+              workspace={experience.workspace}
+              clients={experience.clients}
+              projects={experience.projects}
               command={command}
               receipt={receipt}
               onCommandChange={setCommand}
@@ -241,13 +327,116 @@ export function App({ initialPath }: { initialPath?: string }) {
   );
 }
 
+function ExperienceBoundary({
+  state,
+  onRetry,
+}: {
+  state: Exclude<ExperienceState, { kind: "ready" }>;
+  onRetry: () => void;
+}) {
+  const content =
+    state.kind === "loading"
+      ? {
+          icon: Clock3,
+          eyebrow: "Verifying session",
+          title: "Resolving your workspace boundary",
+          description:
+            "FrevOS is reconstructing session and workspace authority before showing protected data.",
+        }
+      : state.kind === "unauthenticated"
+        ? {
+            icon: ShieldCheck,
+            eyebrow: "Authentication required",
+            title: "Sign in to FrevOS",
+            description:
+              "The Control Center stays closed until the server verifies an authenticated session.",
+          }
+        : state.kind === "session-expired"
+          ? {
+              icon: Clock3,
+              eyebrow: "Session expired",
+              title: "Authenticate again",
+              description:
+                "Your previous workspace context was discarded. Sign in again to establish fresh authority.",
+            }
+          : state.kind === "empty"
+            ? {
+                icon: Boxes,
+                eyebrow: "No authorized workspace",
+                title: "Your session has no workspace access",
+                description:
+                  "Ask a workspace owner to grant access. FrevOS will not infer or guess a workspace identifier.",
+              }
+            : state.kind === "denied"
+              ? {
+                  icon: ShieldCheck,
+                  eyebrow: "Access changed",
+                  title: "Workspace access is unavailable",
+                  description:
+                    "FrevOS stopped the request without revealing whether the selected resource still exists.",
+                }
+              : {
+                  icon: state.reason === "unavailable" ? WifiOff : CircleAlert,
+                  eyebrow:
+                    state.reason === "unavailable"
+                      ? "Control plane unavailable"
+                      : "Invalid response",
+                  title:
+                    state.reason === "unavailable"
+                      ? "We could not reach the verified data boundary"
+                      : "Workspace data could not be verified",
+                  description:
+                    "No protected result is shown. Retry when the session and response can be checked safely.",
+                };
+  const Icon = content.icon;
+  const showLogin = state.kind === "unauthenticated" || state.kind === "session-expired";
+  const showRetry = state.kind === "retry" || state.kind === "denied";
+
+  return (
+    <div className="app-canvas experience-canvas">
+      <header className="experience-header">
+        <span className="brand-mark">F</span>
+        <span className="brand-name">FrevOS</span>
+        <span className="disclosure-chip experience-disclosure">
+          Phase 4C · Protected experience
+        </span>
+      </header>
+      <main className="experience-boundary" aria-live="polite">
+        <section className="experience-card">
+          <span className={`experience-icon ${state.kind}`}>
+            <Icon aria-hidden="true" size={26} />
+          </span>
+          <p className="eyebrow experience-eyebrow">{content.eyebrow}</p>
+          <h1>{content.title}</h1>
+          <p>{content.description}</p>
+          {showLogin ? (
+            <a className="button primary experience-action" href="/auth/login">
+              Continue to secure sign in
+            </a>
+          ) : null}
+          {showRetry ? (
+            <button className="button secondary experience-action" type="button" onClick={onRetry}>
+              Retry verification
+            </button>
+          ) : null}
+          {state.kind === "loading" ? (
+            <span className="boundary-progress" aria-hidden="true" />
+          ) : null}
+        </section>
+      </main>
+    </div>
+  );
+}
+
 function TopBar({
+  workspaces,
   workspaceId,
   onWorkspaceChange,
   onPalette,
   onActivity,
   onStates,
 }: {
+  workspaces: Workspace[];
   workspaceId: string;
   onWorkspaceChange: (id: string) => void;
   onPalette: () => void;
@@ -265,8 +454,8 @@ function TopBar({
         <span className="sr-only">Current workspace</span>
         <select value={workspaceId} onChange={(event) => onWorkspaceChange(event.target.value)}>
           {workspaces.map((workspace) => (
-            <option key={workspace.id} value={workspace.id}>
-              {workspace.name} · {workspace.projects} projects
+            <option key={workspace.workspaceId} value={workspace.workspaceId}>
+              {workspace.displayName}
             </option>
           ))}
         </select>
@@ -274,10 +463,10 @@ function TopBar({
       </label>
 
       <div className="top-bar-spacer" />
-      <span className="disclosure-chip">Phase 3 shell · Demonstration data</span>
+      <span className="disclosure-chip">Phase 4C · Authenticated workspace</span>
       <span className="system-state">
         <span className="status-orb verified" aria-hidden="true" />
-        Shell healthy
+        Session verified
       </span>
       <button className="top-action command-trigger" type="button" onClick={onPalette}>
         <Search aria-hidden="true" size={15} />
@@ -288,10 +477,9 @@ function TopBar({
         className="top-action"
         type="button"
         onClick={onActivity}
-        aria-label="Open Agent Activity"
+        aria-label="Open planned Agent Activity examples"
       >
         <PanelRightOpen aria-hidden="true" size={17} />
-        <span className="action-count">1</span>
       </button>
       <button
         className="top-action"
@@ -390,13 +578,17 @@ function MobileLink({
 
 function ControlCenter({
   workspace,
+  clients,
+  projects,
   command,
   receipt,
   onCommandChange,
   onSubmit,
   navigate,
 }: {
-  workspace: string;
+  workspace: Workspace;
+  clients: Client[];
+  projects: Project[];
   command: string;
   receipt: string | null;
   onCommandChange: (value: string) => void;
@@ -412,8 +604,8 @@ function ControlCenter({
     <div className="page-stack">
       <PageHeader
         eyebrow="Neural Command OS"
-        title={`Good morning. ${workspace} is ready.`}
-        description="One calm surface for bounded work, evidence, and human decisions."
+        title={`${workspace.displayName} is authorized.`}
+        description="Session-backed workspace context and server-authorized records, with later capabilities kept explicit."
         action={
           <AppLink to="/onboarding" navigate={navigate} className="button secondary">
             <Plus aria-hidden="true" size={15} />
@@ -448,7 +640,18 @@ function ControlCenter({
           <span className="pulse-ring" aria-hidden="true" />
           <span>System boundary</span>
         </div>
-        {health.map((service) => (
+        {[
+          { label: "Session", status: { label: "Verified", tone: "verified" } as const },
+          { label: "Workspace", status: { label: "Authorized", tone: "verified" } as const },
+          {
+            label: "Clients",
+            status: { label: `${clients.length} loaded`, tone: "signal" } as const,
+          },
+          {
+            label: "Projects",
+            status: { label: `${projects.length} loaded`, tone: "signal" } as const,
+          },
+        ].map((service) => (
           <div className="health-item" key={service.label}>
             <span>{service.label}</span>
             <StatusBadge status={service.status} compact />
@@ -460,7 +663,7 @@ function ControlCenter({
         <div className="dashboard-primary">
           <Panel
             title="Active and recent tasks"
-            description="Demonstration timeline · no external work executed"
+            description="Planned examples · no external work executed"
             action={
               <AppLink to="/tasks/task-184" navigate={navigate}>
                 Open timeline
@@ -499,37 +702,67 @@ function ControlCenter({
           </Panel>
 
           <Panel
-            title="Connected project references"
-            description="Local shell data pinned to observed merge evidence"
+            title="Authorized workspace records"
+            description="Clients and projects returned through the verified workspace boundary"
             action={
               <AppLink to="/projects/frevos" navigate={navigate}>
                 View projects
               </AppLink>
             }
           >
+            <div className="resource-summary">
+              <span>Clients</span>
+              {clients.length === 0 ? (
+                <p>No clients are registered in this workspace.</p>
+              ) : (
+                clients.map((client) => (
+                  <span className="resource-chip" key={client.clientId}>
+                    {client.displayName} · {client.status}
+                  </span>
+                ))
+              )}
+            </div>
             <div className="project-grid">
-              {projects.map((project) => (
-                <article className="project-card" key={project.repo}>
-                  <div className="project-mark">
-                    <GitBranch aria-hidden="true" size={17} />
-                  </div>
+              {projects.length === 0 ? (
+                <div className="resource-empty">
+                  <Boxes aria-hidden="true" size={19} />
                   <div>
-                    <h3>{project.name}</h3>
-                    <p>{project.repo}</p>
+                    <h3>No projects in this workspace</h3>
+                    <p>The authorized query returned an empty project collection.</p>
                   </div>
-                  <StatusBadge status={project.status} compact />
-                  <dl>
-                    <div>
-                      <dt>Default</dt>
-                      <dd>{project.branch}</dd>
+                </div>
+              ) : null}
+              {projects.map((project) => {
+                const client = clients.find((candidate) => candidate.clientId === project.clientId);
+                return (
+                  <article className="project-card" key={project.projectId}>
+                    <div className="project-mark">
+                      <GitBranch aria-hidden="true" size={17} />
                     </div>
                     <div>
-                      <dt>Observed SHA</dt>
-                      <dd>{project.sha}</dd>
+                      <h3>{project.displayName}</h3>
+                      <p>{project.projectId}</p>
                     </div>
-                  </dl>
-                </article>
-              ))}
+                    <StatusBadge
+                      status={{
+                        label: project.status,
+                        tone: project.status === "active" ? "verified" : "neutral",
+                      }}
+                      compact
+                    />
+                    <dl>
+                      <div>
+                        <dt>Client</dt>
+                        <dd>{client?.displayName ?? "Unassigned"}</dd>
+                      </div>
+                      <div>
+                        <dt>Workspace</dt>
+                        <dd>{project.workspaceId}</dd>
+                      </div>
+                    </dl>
+                  </article>
+                );
+              })}
             </div>
           </Panel>
         </div>
@@ -537,7 +770,7 @@ function ControlCenter({
         <div className="dashboard-secondary">
           <Panel
             title="Pending approvals"
-            description="Examples only · no decision endpoint"
+            description="Planned examples · no decision endpoint"
             tone="approval"
             action={
               <AppLink to="/approvals" navigate={navigate}>
@@ -566,7 +799,7 @@ function ControlCenter({
           </Panel>
 
           <Panel
-            title="Recent audit evidence"
+            title="Planned audit examples"
             action={
               <AppLink to="/audit" navigate={navigate}>
                 Explore
@@ -593,10 +826,10 @@ function ControlCenter({
             <div className="boundary-card">
               <FileCheck2 aria-hidden="true" size={20} />
               <div>
-                <h3>Shell contract active</h3>
+                <h3>Authenticated boundary active</h3>
                 <p>
-                  UI behavior is local and deterministic. Authentication, APIs, persistence, and
-                  protected actions remain unavailable.
+                  Session and workspace records are server verified. Commands, agents, approvals,
+                  audit persistence, and protected actions remain unavailable.
                 </p>
               </div>
             </div>
@@ -756,7 +989,7 @@ function PlannedSurface({
             <code>{route.path}</code>
           </div>
           <div className="planned-fact">
-            <span>Network calls</span>
+            <span>Surface-specific calls</span>
             <strong>None</strong>
           </div>
           <div className="planned-fact">
@@ -868,7 +1101,7 @@ function ActivityDock({
   onFilter: (filter: "all" | "active") => void;
 }) {
   return (
-    <aside className="activity-dock" aria-label="Agent Activity">
+    <aside className="activity-dock" aria-label="Planned Agent Activity examples">
       <ActivityContent filter={filter} onFilter={onFilter} />
     </aside>
   );
@@ -890,14 +1123,14 @@ function ActivityContent({
       <header className="dock-header">
         <div>
           <p className="eyebrow">Evidence stream</p>
-          <h2>Agent Activity</h2>
+          <h2>Agent Activity Preview</h2>
         </div>
         <span className="live-indicator">
-          <span className="status-orb orchestration" aria-hidden="true" /> 1 active
+          <span className="status-orb neutral" aria-hidden="true" /> Examples only
         </span>
       </header>
       <fieldset className="segmented">
-        <legend className="sr-only">Filter Agent Activity</legend>
+        <legend className="sr-only">Filter planned Agent Activity examples</legend>
         <button
           className={filter === "all" ? "active" : ""}
           type="button"
@@ -910,7 +1143,7 @@ function ActivityContent({
           type="button"
           onClick={() => onFilter("active")}
         >
-          Active
+          Orchestration
         </button>
       </fieldset>
       <ol className="agent-list">
@@ -934,7 +1167,7 @@ function ActivityContent({
       </ol>
       <div className="dock-boundary">
         <ShieldCheck aria-hidden="true" size={16} />
-        <p>Agents shown here have no runtime authority in Phase 3.</p>
+        <p>Agents shown here remain planned examples with no runtime authority in Phase 4C.</p>
       </div>
     </>
   );
@@ -976,7 +1209,7 @@ function CommandForm({
   };
   return (
     <form className={prominent ? "command-form prominent" : "command-form"} onSubmit={submit}>
-      <button type="button" aria-label="Attach context" title="Attachment is a Phase 3 placeholder">
+      <button type="button" aria-label="Attach context" title="Attachment is not available yet">
         <Paperclip aria-hidden="true" size={17} />
       </button>
       <label>

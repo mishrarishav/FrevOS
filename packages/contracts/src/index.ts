@@ -44,12 +44,14 @@ export {
   IdentitySubjectSchema,
   IsoTimestampSchema,
   SessionContextSchema,
+  SessionSummarySchema,
   SessionStatusSchema,
   type ExternalIdentity,
   type IdentityIssuer,
   type IdentitySubject,
   type IsoTimestamp,
   type SessionContext,
+  type SessionSummary,
   type SessionStatus,
 } from "./identity.js";
 export { contractJsonSchemas } from "./json-schemas.js";

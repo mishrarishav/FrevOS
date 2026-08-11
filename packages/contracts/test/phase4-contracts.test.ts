@@ -8,6 +8,7 @@ import {
   IdentitySubjectSchema,
   ProjectSchema,
   SessionContextSchema,
+  SessionSummarySchema,
   SessionIdSchema,
   WorkspaceAuthorizationContextSchema,
   WorkspaceMembershipIdSchema,
@@ -122,6 +123,22 @@ describe("identity boundary contracts", () => {
     expect(SessionContextSchema.safeParse({ ...session, expiresAt: authenticatedAt }).success).toBe(
       false,
     );
+  });
+
+  it("exposes a strict browser-safe session summary", () => {
+    const summary = {
+      sessionId: session.sessionId,
+      userId: session.userId,
+      authenticatedAt: session.authenticatedAt,
+      expiresAt: session.expiresAt,
+    };
+    expect(SessionSummarySchema.parse(summary)).toEqual(summary);
+    expect(
+      SessionSummarySchema.safeParse({ ...summary, accessToken: "must-not-cross" }).success,
+    ).toBe(false);
+    expect(
+      SessionSummarySchema.safeParse({ ...summary, expiresAt: summary.authenticatedAt }).success,
+    ).toBe(false);
   });
 });
 

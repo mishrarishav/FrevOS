@@ -85,3 +85,17 @@ export const SessionContextSchema = z
     path: ["expiresAt"],
   });
 export type SessionContext = z.infer<typeof SessionContextSchema>;
+
+export const SessionSummarySchema = z
+  .object({
+    sessionId: SessionIdSchema,
+    userId: UserIdSchema,
+    authenticatedAt: IsoTimestampSchema,
+    expiresAt: IsoTimestampSchema,
+  })
+  .strict()
+  .refine((session) => Date.parse(session.expiresAt) > Date.parse(session.authenticatedAt), {
+    message: "Session expiration must be after authentication",
+    path: ["expiresAt"],
+  });
+export type SessionSummary = z.infer<typeof SessionSummarySchema>;

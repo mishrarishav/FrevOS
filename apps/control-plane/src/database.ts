@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { UserIdSchema } from "@frevos/contracts";
 import { Pool, type PoolClient } from "pg";
 
 const MIGRATIONS_DIRECTORY = fileURLToPath(new URL("../migrations", import.meta.url));
@@ -121,6 +122,28 @@ export async function withApplicationTransaction<T>(
     if (workspaceId !== undefined) {
       await client.query("SELECT set_config('frevos.workspace_id', $1, true)", [workspaceId]);
     }
+    const result = await operation(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function withApplicationPrincipalTransaction<T>(
+  pool: DatabasePool,
+  userId: string,
+  operation: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  const verifiedUserId = UserIdSchema.parse(userId);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(`SET LOCAL ROLE ${APP_ROLE}`);
+    await client.query("SELECT set_config('frevos.user_id', $1, true)", [verifiedUserId]);
     const result = await operation(client);
     await client.query("COMMIT");
     return result;
