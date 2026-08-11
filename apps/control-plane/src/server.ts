@@ -101,6 +101,7 @@ interface BuildServerOptions {
   readonly transactionCodec: OidcTransactionCodec;
   readonly identitySessions: IdentitySessionRepository;
   readonly workspaces: WorkspaceRepository;
+  readonly readiness?: () => Promise<void>;
   readonly now?: () => Date;
 }
 
@@ -160,10 +161,23 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
             required: ["status"],
             properties: { status: { type: "string", const: "ok" } },
           },
+          503: {
+            type: "object",
+            additionalProperties: false,
+            required: ["status"],
+            properties: { status: { type: "string", const: "unavailable" } },
+          },
         },
       },
     },
-    async () => ({ status: "ok" }),
+    async (_request, reply) => {
+      try {
+        await options.readiness?.();
+        return { status: "ok" };
+      } catch {
+        return reply.status(503).send({ status: "unavailable" });
+      }
+    },
   );
 
   server.get("/auth/login", async (_request, reply) => {

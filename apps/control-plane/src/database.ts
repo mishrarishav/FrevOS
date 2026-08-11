@@ -19,6 +19,24 @@ export function createDatabasePool(connectionString: string): DatabasePool {
   });
 }
 
+export function databaseRoleFromConnectionString(connectionString: string): string {
+  const url = new URL(connectionString);
+  if (url.protocol !== "postgres:" && url.protocol !== "postgresql:") {
+    throw new Error("Database connection URL must use PostgreSQL");
+  }
+
+  let role: string;
+  try {
+    role = decodeURIComponent(url.username);
+  } catch {
+    throw new Error("Database connection URL has an invalid role name");
+  }
+  if (!/^[a-z][a-z0-9_]{2,62}$/.test(role)) {
+    throw new Error("Database connection URL has an invalid role name");
+  }
+  return role;
+}
+
 export async function runMigrations(
   pool: DatabasePool,
   migrationsDirectory = MIGRATIONS_DIRECTORY,
@@ -62,6 +80,100 @@ export async function runMigrations(
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function prepareApplicationLoginRole(
+  migrationPool: DatabasePool,
+  applicationLoginRole: string,
+): Promise<void> {
+  if (!/^[a-z][a-z0-9_]{2,62}$/.test(applicationLoginRole)) {
+    throw new Error("Database application login role has an invalid name");
+  }
+
+  const client = await migrationPool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(667_342_847)");
+    const result = await client.query<{
+      rolbypassrls: boolean;
+      rolcanlogin: boolean;
+      rolcreatedb: boolean;
+      rolcreaterole: boolean;
+      rolreplication: boolean;
+      rolsuper: boolean;
+      can_assume_owner: boolean;
+    }>(
+      `
+        SELECT
+          rolcanlogin,
+          rolsuper,
+          rolcreatedb,
+          rolcreaterole,
+          rolreplication,
+          rolbypassrls,
+          pg_has_role(rolname, 'frevos_owner', 'MEMBER') AS can_assume_owner
+        FROM pg_roles
+        WHERE rolname = $1
+      `,
+      [applicationLoginRole],
+    );
+    const role = result.rows[0];
+    if (
+      role === undefined ||
+      !role.rolcanlogin ||
+      role.rolsuper ||
+      role.rolcreatedb ||
+      role.rolcreaterole ||
+      role.rolreplication ||
+      role.rolbypassrls ||
+      role.can_assume_owner
+    ) {
+      throw new Error("Database application login role is missing or privileged");
+    }
+
+    await client.query(
+      `GRANT frevos_app TO "${applicationLoginRole}" WITH INHERIT FALSE, SET TRUE, ADMIN FALSE`,
+    );
+    const membership = await client.query<{
+      admin_option: boolean;
+      inherit_option: boolean;
+      set_option: boolean;
+    }>(
+      `
+        SELECT membership.admin_option, membership.inherit_option, membership.set_option
+        FROM pg_auth_members AS membership
+        INNER JOIN pg_roles AS granted_role ON granted_role.oid = membership.roleid
+        INNER JOIN pg_roles AS member_role ON member_role.oid = membership.member
+        WHERE granted_role.rolname = 'frevos_app'
+          AND member_role.rolname = $1
+      `,
+      [applicationLoginRole],
+    );
+    const applicationMembership = membership.rows[0];
+    if (
+      applicationMembership === undefined ||
+      applicationMembership.inherit_option ||
+      !applicationMembership.set_option ||
+      applicationMembership.admin_option
+    ) {
+      throw new Error("Database application login role has unsafe frevos_app membership");
+    }
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function verifyDatabaseReadiness(pool: DatabasePool): Promise<void> {
+  const client = await pool.connect();
+  try {
+    await client.query("SELECT 1");
   } finally {
     client.release();
   }

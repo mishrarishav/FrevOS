@@ -57,8 +57,15 @@ Run migrations through a separately authorized privileged connection after
 building the package:
 
 ```sh
-MIGRATION_DATABASE_URL=postgresql://... pnpm --filter @frevos/control-plane migrate
+pnpm --filter @frevos/control-plane migrate
 ```
+
+Both `MIGRATION_DATABASE_URL` and the separate runtime `DATABASE_URL` must be
+injected by an authorized secret boundary. The command applies migrations with
+the former and validates and grants only `frevos_app` to the login role derived
+from the latter. The running service must receive only `DATABASE_URL`; startup
+rejects a superuser, role-creating, database-creating, owner-capable, or
+`BYPASSRLS` login.
 
 Normal runtime configuration is:
 
@@ -73,8 +80,20 @@ Normal runtime configuration is:
 | `HOST` / `PORT` | Listener address and port; default `127.0.0.1:3001` |
 
 Do not put real values in committed files, shell history, logs, screenshots, or
-test fixtures. Deployment, provider selection, key lifecycle, and database
-hosting remain open operating decisions.
+test fixtures. The selected non-Production operating model and exact bootstrap
+sequence are in the
+[Phase 4 UAT runbook](../../docs/PHASE_4_UAT_RUNBOOK.md). Production provider,
+availability, region, and recovery choices remain open.
+
+## Same-origin delivery
+
+The deployment entrypoint serves `apps/control-center/dist` and the BFF from
+the exact same origin. Browser navigation receives the SPA shell, while missing
+API, authentication, health, well-known, and asset paths remain real 404s.
+Hashed assets are immutable, the HTML shell is not cached, and every response
+receives the accepted CSP, frame, MIME, referrer, permissions, opener, and HSTS
+headers. `/health` probes PostgreSQL and returns 503 when the database is
+unavailable.
 
 ## Validation
 

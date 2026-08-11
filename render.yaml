@@ -1,0 +1,43 @@
+databases:
+  - name: frevos-uat-postgres
+    databaseName: frevos_uat
+    user: frevos_migrator
+    plan: basic-256mb
+    diskSizeGB: 5
+    storageAutoscalingEnabled: false
+    region: frankfurt
+    postgresMajorVersion: "18"
+    connectionPool: none
+    ipAllowList: []
+
+services:
+  - type: web
+    name: frevos-uat
+    runtime: docker
+    plan: starter
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    autoDeployTrigger: "off"
+    healthCheckPath: /health
+    maxShutdownDelaySeconds: 30
+    renderSubdomainPolicy: enabled
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        sync: false
+      - key: FREVOS_PUBLIC_ORIGIN
+        sync: false
+      - key: FREVOS_OIDC_ISSUER
+        sync: false
+      - key: FREVOS_OIDC_CLIENT_ID
+        sync: false
+      - key: FREVOS_OIDC_CLIENT_SECRET
+        sync: false
+      - key: FREVOS_OIDC_TRANSACTION_KEY
+        generateValue: true

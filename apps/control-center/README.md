@@ -17,6 +17,10 @@ remain explicitly labeled planned examples and trigger no external side effect.
 
 The deployed Control Center and BFF must share the exact HTTPS origin. This
 package does not add a development proxy or weaken secure host-cookie behavior.
+The Phase 4 container satisfies that boundary by serving this package's
+compiled `dist` directory from the Fastify process. The HTML shell is not
+cached, hashed assets are immutable, and browser route fallback never masks a
+missing API or asset.
 
 ```sh
 pnpm --filter @frevos/control-center dev

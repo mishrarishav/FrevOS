@@ -246,5 +246,7 @@ framework, cloud provider, database, queue, or deployment platform. See
 Phase 3 selects React and Vite for the experience shell. Phase 4 selects
 Fastify for the service boundary, a provider-neutral OpenID Connect BFF with
 server-side sessions, and PostgreSQL with forced RLS for tenant persistence.
-The concrete identity provider, cloud/regional deployment, and deployment
-platform remain deferred.
+Phase 4 non-Production UAT uses one same-origin Render web service, paid Render
+PostgreSQL 18 in Frankfurt, and a separate Auth0 EU staging tenant under
+[ADR 0017](adr/0017-preview-uat-operating-model.md). This validation target does
+not select the Production provider, region, availability, or compliance model.
