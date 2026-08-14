@@ -10,6 +10,9 @@ dist/
 .env
 .env.*
 !.env.example
+.local/
+backups/local/
+pass.md
 
 # Editors and operating systems
 .DS_Store

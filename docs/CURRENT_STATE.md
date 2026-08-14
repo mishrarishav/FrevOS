@@ -1,6 +1,6 @@
 # FrevOS Current State
 
-Last updated: 2026-08-11
+Last updated: 2026-08-14
 
 ## Snapshot
 
@@ -8,14 +8,14 @@ Last updated: 2026-08-11
 | --- | --- |
 | Production repository | `https://github.com/mishrarishav/FrevOS` |
 | Detected default branch | `main` |
-| Phase branch | `phase/4c-preview-uat-deployment` |
-| Base commit | `3973c592b4e35e336048da98b906ba15028f6d8a` |
+| Phase branch | `phase/4-local-preview` |
+| Base commit | `2b334bbfef962b76345d304f62187557e5201a79` |
 | Active phase | Phase 4 exit — Preview/UAT deployment and independent acceptance |
 | Phase 3 merge | Core PR [#5](https://github.com/mishrarishav/FrevOS/pull/5) was human squash-merged as `13f3cd2`; its task branch was deleted |
 | Phase 4A merge | Core PR [#7](https://github.com/mishrarishav/FrevOS/pull/7) was human squash-merged as `425c1f3`; its task branch was deleted |
 | Phase 4B merge | Core PR [#8](https://github.com/mishrarishav/FrevOS/pull/8) was human squash-merged as `6bf5509`; its task branch was deleted |
 | Phase 4C merge | Core PR [#9](https://github.com/mishrarishav/FrevOS/pull/9) was human squash-merged as `3973c59`; its task branch was deleted |
-| Runtime capability | The authenticated Control Center, Fastify BFF, OIDC session boundary, PostgreSQL forced RLS, and protected workspace APIs are merged; the active branch packages their same-origin non-Production runtime |
+| Runtime capability | The authenticated Control Center, Fastify BFF, OIDC session boundary, PostgreSQL forced RLS, protected workspace APIs, and hosted UAT package are merged; the active branch adds a laptop-only authenticated Preview stack |
 | Dependency manifests | pnpm workspace and committed lockfile on `main` |
 | CI/CD | `CI / validate` passed on Phase 4C merge commit `3973c59` in [run 31484010142](https://github.com/mishrarishav/FrevOS/actions/runs/31484010142) and is a strict required check; UAT deployment remains manual and unexecuted |
 | Independent QA harness | Merged through Acceptance PR [#1](https://github.com/mishrarishav/FrevOS-Acceptance/pull/1); exact-head and default-branch CI passed |
@@ -121,6 +121,9 @@ and screen contract have not been supplied.
 - Phase 4 non-Production UAT uses one same-origin Render web service, paid
   Render PostgreSQL 18 in Frankfurt, and a separate Auth0 EU staging tenant;
   this is not a Production platform selection.
+- Phase 4 laptop Preview uses Caddy local HTTPS, Keycloak, PostgreSQL 18, and
+  the same FrevOS product image; it does not replace hosted UAT or independent
+  black-box acceptance.
 
 The ADR index records the rationale and consequences of these decisions.
 
@@ -218,6 +221,11 @@ container validation.
 It does not provision paid resources, create tenants or identities, change
 secrets, deploy, modify the independent acceptance repository, or claim Phase 4
 completion. Those external actions remain unperformed.
+
+The `phase/4-local-preview` follow-up adds an optional free laptop Preview
+target with generated ignored secrets, synthetic identities, deterministic
+seed data, local CA guidance, and guarded backup/restore commands. It remains
+inside Phase 4 exit support and makes no hosted UAT or acceptance claim.
 
 ## Open decision register
 

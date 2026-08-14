@@ -218,6 +218,12 @@ different trust and lifecycle boundaries.
 
 See [ADR 0001](adr/0001-repository-topology.md).
 
+The optional laptop Preview composes the existing product image with
+PostgreSQL 18, Keycloak, and Caddy-managed local HTTPS. It preserves the OIDC
+BFF, secure-cookie, and database-role boundaries; see
+[ADR 0018](adr/0018-local-preview-operating-model.md) and
+[Local Preview](LOCAL_PREVIEW.md).
+
 ## Decisions intentionally deferred
 
 Phase 0A does not select the application language, web framework, cloud vendor,

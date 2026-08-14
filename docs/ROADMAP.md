@@ -181,6 +181,11 @@ same-origin UAT packaging and the selected non-Production operating model.
 Full Phase 4 exit still requires an authorized live deployment, recovery
 evidence, and separately reviewed independent black-box acceptance.
 
+An optional laptop Preview follow-up packages the same product runtime with
+PostgreSQL 18, Keycloak, and Caddy local HTTPS. It improves authenticated local
+development but is not evidence for the hosted UAT, recovery, or independent
+acceptance exit gates.
+
 ## Phase 5 — GitHub App and repository onboarding
 
 Implement URL normalization, GitHub App authorization, immutable repository

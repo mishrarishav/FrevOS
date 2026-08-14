@@ -12,7 +12,7 @@ COPY . .
 
 RUN pnpm install --frozen-lockfile
 RUN pnpm run build
-RUN pnpm --filter @frevos/control-plane deploy --prod --legacy /runtime/control-plane
+RUN pnpm --filter @frevos/control-plane deploy --prod /runtime/control-plane
 
 FROM node:24.19.0-bookworm-slim@sha256:3638d9a6fe4030bd716be989438248074489337ba3275657f93595428be4fc03 AS runtime
 

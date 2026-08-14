@@ -34,7 +34,7 @@ update `package.json` and `pnpm-lock.yaml` together.
 | `pnpm test:coverage` | Run tests with enforced V8 coverage thresholds |
 | `pnpm build` | Build every workspace package |
 | `pnpm audit` | Fail on high or critical known dependency vulnerabilities |
-| `pnpm ci` | Run the complete local CI sequence |
+| `pnpm run ci` | Run the complete local CI sequence |
 
 Run the Phase 3 Control Center locally with:
 

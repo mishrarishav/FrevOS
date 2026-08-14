@@ -124,6 +124,17 @@ describe("Control Center rendering", () => {
     expect(html).toContain("Reference 85f3ba2");
   });
 
+  it("renders the authenticated projects route from the current workspace snapshot", () => {
+    const html = renderToStaticMarkup(
+      <App initialPath="/projects/frevos" initialExperience={readyExperience} />,
+    );
+    expect(html).toContain("Alpha Workspace projects");
+    expect(html).toContain("Phase 4 authenticated records");
+    expect(html).toContain("Alpha Client");
+    expect(html).toContain("Alpha Project");
+    expect(html).not.toContain("This route is reserved, not simulated.");
+  });
+
   it("renders later-phase routes as honest planned surfaces", () => {
     const html = renderToStaticMarkup(
       <App initialPath="/deployments/deploy-72" initialExperience={readyExperience} />,

@@ -1,0 +1,47 @@
+{
+  "realm": "frevos-local",
+  "enabled": true,
+  "displayName": "FrevOS Local",
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "clients": [
+    {
+      "clientId": "frevos-local",
+      "name": "FrevOS Local Preview",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${FREVOS_OIDC_CLIENT_SECRET}",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["https://frevos.localhost:8443/auth/callback"],
+      "webOrigins": ["https://frevos.localhost:8443"]
+    }
+  ],
+  "users": [
+    {
+      "id": "10000000-0000-4000-8000-000000000001",
+      "username": "admin@local.frevos",
+      "email": "admin@local.frevos",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Local",
+      "lastName": "Admin",
+      "credentials": [
+        { "type": "password", "value": "${FREVOS_LOCAL_ADMIN_PASSWORD}", "temporary": false }
+      ]
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000002",
+      "username": "viewer@local.frevos",
+      "email": "viewer@local.frevos",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Local",
+      "lastName": "Viewer",
+      "credentials": [
+        { "type": "password", "value": "${FREVOS_LOCAL_VIEWER_PASSWORD}", "temporary": false }
+      ]
+    }
+  ]
+}
