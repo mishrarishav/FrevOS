@@ -31,8 +31,9 @@ decision receives a new ADR that names the record it supersedes.
 | [0014](0014-oidc-bff-sessions.md) | Accepted | Use OpenID Connect through a session-owning backend |
 | [0015](0015-postgresql-tenant-isolation.md) | Accepted | Enforce tenant data boundaries with PostgreSQL row security |
 | [0016](0016-principal-scoped-workspace-discovery.md) | Accepted | Constrain workspace discovery with authenticated-principal row security |
-| [0017](0017-preview-uat-operating-model.md) | Accepted | Operate Phase 4 Preview and UAT on Render and Auth0 |
+| [0017](0017-preview-uat-operating-model.md) | Superseded | Operate Phase 4 Preview and UAT on Render and Auth0 |
 | [0018](0018-local-preview-operating-model.md) | Accepted | Add a free local Preview operating model |
+| [0019](0019-oracle-free-uat-operating-model.md) | Accepted | Operate hosted Phase 4 UAT on Oracle Always Free and Auth0 |
 
 ## Creating an ADR
 

@@ -179,7 +179,15 @@ async function validatePhase4Deployment() {
   ) {
     errors.push("Docker deployment must inject workspace packages into a portable runtime");
   }
-  for (const ignored of [".env", "**/node_modules", "**/dist", ".git"]) {
+  for (const ignored of [
+    ".env",
+    ".local",
+    "backups",
+    "pass.md",
+    "**/node_modules",
+    "**/dist",
+    ".git",
+  ]) {
     if (!dockerIgnore.split("\n").includes(ignored)) {
       errors.push(`.dockerignore must exclude ${ignored}`);
     }
@@ -267,6 +275,104 @@ async function validateLocalPreview() {
   }
 }
 
+async function validateOracleUat() {
+  const compose = normalizeNewlines(
+    await readFile(join(repositoryRoot, "compose.oci.yaml"), "utf8"),
+  );
+  const caddy = normalizeNewlines(
+    await readFile(join(repositoryRoot, "docker/oci/Caddyfile"), "utf8"),
+  );
+  const configure = normalizeNewlines(
+    await readFile(join(repositoryRoot, "scripts/configure-oci-uat.sh"), "utf8"),
+  );
+  const operations = normalizeNewlines(
+    await readFile(join(repositoryRoot, "scripts/oci-uat.sh"), "utf8"),
+  );
+  const restoreCheck = normalizeNewlines(
+    await readFile(join(repositoryRoot, "docker/oci/postgres/restore-check.sh"), "utf8"),
+  );
+
+  for (const required of [
+    "platform: linux/arm64",
+    "postgres:18.4-bookworm@sha256:882236b897e39051d2368c5ccc6cda944904723506b2dfc97f2a8f5bc9afa382",
+    "caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d",
+    "internal: true",
+    'user: "999:999"',
+    'user: "1000:1000"',
+    "no-new-privileges:true",
+    "cap_drop:\n      - ALL",
+    "$" + "{FREVOS_DATA_ROOT:-/srv/frevos}/postgres:/var/lib/postgresql",
+    'entrypoint: ["/backup.sh"]',
+    'entrypoint: ["/restore-check.sh"]',
+  ]) {
+    if (!compose.includes(required)) {
+      errors.push(`Oracle UAT Compose file is missing required setting: ${required}`);
+    }
+  }
+
+  const frevosService = compose.match(/\n {2}frevos:\n([\s\S]*?)\n {2}caddy:\n/)?.[1] ?? "";
+  const postgresService = compose.match(/\n {2}postgres:\n([\s\S]*?)\n {2}migrate:\n/)?.[1] ?? "";
+  if (!frevosService || frevosService.includes("MIGRATION_DATABASE_URL")) {
+    errors.push("Oracle UAT web service must never receive MIGRATION_DATABASE_URL");
+  }
+  if (!postgresService || postgresService.includes("ports:")) {
+    errors.push("Oracle UAT PostgreSQL must not publish a host port");
+  }
+  if ((compose.match(/\n {4}ports:\n/g) ?? []).length !== 1) {
+    errors.push("Only the Oracle UAT Caddy service may publish host ports");
+  }
+
+  for (const required of [
+    "admin 127.0.0.1:2019",
+    "{$FREVOS_UAT_HOST}",
+    "reverse_proxy frevos:10000",
+  ]) {
+    if (!caddy.includes(required)) {
+      errors.push(`Oracle UAT Caddyfile is missing required setting: ${required}`);
+    }
+  }
+  if (/^\s*log\s*[{\n]/m.test(caddy)) {
+    errors.push("Oracle UAT Caddy access logging must remain disabled for OIDC callbacks");
+  }
+
+  for (const required of [
+    "repository_root=/opt/frevos/repository",
+    'environment_file="$environment_directory/uat.env"',
+    "data_root=/srv/frevos",
+    '[ ! -e "$environment_file" ]',
+    "status --porcelain",
+    "install -o root -g root -m 0600",
+    "openssl rand -hex 32",
+    "openssl rand -base64 32",
+    '"$' + '{#transaction_key}" -eq 43',
+  ]) {
+    if (!configure.includes(required)) {
+      errors.push(`Oracle UAT configuration boundary is missing: ${required}`);
+    }
+  }
+  for (const required of [
+    "environment_file=/etc/frevos/uat.env",
+    "root:root:600",
+    "compose config --quiet",
+    "node:24.19.0-bookworm-slim@sha256:3638d9a6fe4030bd716be989438248074489337ba3275657f93595428be4fc03",
+    "actual_sha",
+    "configured_sha",
+    "status --porcelain",
+    "--confirm-isolated-restore-check",
+  ]) {
+    if (!operations.includes(required)) {
+      errors.push(`Oracle UAT operation boundary is missing: ${required}`);
+    }
+  }
+  if (
+    !restoreCheck.includes("check_database=frevos_restore_check") ||
+    !restoreCheck.includes('!= "--confirm-isolated-restore-check"') ||
+    restoreCheck.includes("DROP DATABASE frevos")
+  ) {
+    errors.push("Oracle UAT restore check must remain isolated and exactly confirmed");
+  }
+}
+
 for (const document of requiredDocuments) {
   if (!(await pathExists(join(repositoryRoot, document)))) {
     errors.push(`Required document is missing: ${document}`);
@@ -283,6 +389,7 @@ for (const file of markdownFiles) {
 await validateRuleset();
 await validatePhase4Deployment();
 await validateLocalPreview();
+await validateOracleUat();
 
 if (errors.length > 0) {
   for (const error of errors) {

@@ -15,9 +15,10 @@ approval.
 **Phase 4 exit: Preview/UAT deployment and independent acceptance are in
 progress.** The authenticated Control Center, Fastify OIDC BFF, durable server
 sessions, protected workspace APIs, and forced PostgreSQL row security are
-merged. The active bounded work packages those runtimes on one origin and
-records the non-Production identity, database, backup, secret, and deployment
-operating model required before independent acceptance can run.
+merged. The active bounded work replaces the paid hosted route with an Oracle
+Always Free ARM64 UAT target using private PostgreSQL 18, Caddy HTTPS, Auth0
+Free, validated backup, and isolated recovery boundaries. No live cloud target
+or Phase 4 completion is claimed yet.
 
 See [Current State](docs/CURRENT_STATE.md) for the factual implementation
 status and open decisions.
@@ -25,6 +26,9 @@ status and open decisions.
 For an authenticated laptop Preview using local HTTPS, Keycloak, and
 PostgreSQL 18, follow [Local Preview](docs/LOCAL_PREVIEW.md) and run
 `pnpm local:up`.
+
+For the separately authorized hosted free-tier route, follow the
+[Phase 4 Oracle UAT runbook](docs/PHASE_4_UAT_RUNBOOK.md).
 
 ## Non-negotiable principles
 

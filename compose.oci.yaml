@@ -1,0 +1,218 @@
+name: frevos-oci-uat
+
+services:
+  postgres:
+    image: postgres:18.4-bookworm@sha256:882236b897e39051d2368c5ccc6cda944904723506b2dfc97f2a8f5bc9afa382
+    platform: linux/arm64
+    user: "999:999"
+    read_only: true
+    environment:
+      POSTGRES_DB: frevos
+      POSTGRES_USER: frevos_migrator
+      POSTGRES_PASSWORD: ${FREVOS_DB_MIGRATOR_PASSWORD:?missing migrator password}
+      FREVOS_DB_RUNTIME_PASSWORD: ${FREVOS_DB_RUNTIME_PASSWORD:?missing runtime password}
+    volumes:
+      - ${FREVOS_DATA_ROOT:-/srv/frevos}/postgres:/var/lib/postgresql
+      - ./docker/oci/postgres/init-runtime-role.sh:/docker-entrypoint-initdb.d/10-runtime-role.sh:ro
+    tmpfs:
+      - /tmp:mode=1777
+      - /var/run/postgresql:uid=999,gid=999,mode=0775
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U frevos_migrator -d frevos"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+
+  migrate:
+    image: frevos:${FREVOS_SOURCE_SHA:?missing source SHA}
+    platform: linux/arm64
+    build:
+      context: .
+      target: runtime
+    read_only: true
+    environment:
+      MIGRATION_DATABASE_URL: postgresql://frevos_migrator:${FREVOS_DB_MIGRATOR_PASSWORD}@postgres:5432/frevos
+      DATABASE_URL: postgresql://frevos_runtime:${FREVOS_DB_RUNTIME_PASSWORD}@postgres:5432/frevos
+    command: ["node", "control-plane/dist/migrate.js"]
+    tmpfs:
+      - /tmp:mode=1777
+    networks:
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: "no"
+
+  seed:
+    image: postgres:18.4-bookworm@sha256:882236b897e39051d2368c5ccc6cda944904723506b2dfc97f2a8f5bc9afa382
+    platform: linux/arm64
+    user: "999:999"
+    read_only: true
+    environment:
+      PGPASSWORD: ${FREVOS_DB_MIGRATOR_PASSWORD:?missing migrator password}
+    volumes:
+      - ./docker/oci/postgres/seed.sql:/seed.sql:ro
+    command:
+      - psql
+      - --set=ON_ERROR_STOP=1
+      - --set=issuer=${FREVOS_OIDC_ISSUER:?missing OIDC issuer}
+      - --set=admin_subject=${FREVOS_UAT_ADMIN_SUBJECT:?missing admin subject}
+      - --set=viewer_subject=${FREVOS_UAT_VIEWER_SUBJECT:?missing viewer subject}
+      - --host=postgres
+      - --username=frevos_migrator
+      - --dbname=frevos
+      - --file=/seed.sql
+    tmpfs:
+      - /tmp:mode=1777
+      - /var/run/postgresql:uid=999,gid=999,mode=0775
+    networks:
+      - backend
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: "no"
+
+  frevos:
+    image: frevos:${FREVOS_SOURCE_SHA:?missing source SHA}
+    platform: linux/arm64
+    read_only: true
+    environment:
+      HOST: 0.0.0.0
+      PORT: 10000
+      DATABASE_URL: postgresql://frevos_runtime:${FREVOS_DB_RUNTIME_PASSWORD}@postgres:5432/frevos
+      FREVOS_PUBLIC_ORIGIN: https://${FREVOS_UAT_HOST:?missing UAT host}
+      FREVOS_OIDC_ISSUER: ${FREVOS_OIDC_ISSUER:?missing OIDC issuer}
+      FREVOS_OIDC_CLIENT_ID: ${FREVOS_OIDC_CLIENT_ID:?missing OIDC client ID}
+      FREVOS_OIDC_CLIENT_SECRET: ${FREVOS_OIDC_CLIENT_SECRET:?missing OIDC client secret}
+      FREVOS_OIDC_TRANSACTION_KEY: ${FREVOS_OIDC_TRANSACTION_KEY:?missing transaction key}
+    tmpfs:
+      - /tmp:mode=1777
+    networks:
+      - edge
+      - backend
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:10000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
+    platform: linux/arm64
+    user: "1000:1000"
+    read_only: true
+    environment:
+      FREVOS_ACME_EMAIL: ${FREVOS_ACME_EMAIL:?missing ACME email}
+      FREVOS_UAT_HOST: ${FREVOS_UAT_HOST:?missing UAT host}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/oci/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${FREVOS_DATA_ROOT:-/srv/frevos}/caddy-data:/data
+      - ${FREVOS_DATA_ROOT:-/srv/frevos}/caddy-config:/config
+    tmpfs:
+      - /tmp:mode=1777
+    networks:
+      - edge
+    depends_on:
+      frevos:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:2019/config/"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    restart: unless-stopped
+
+  backup:
+    image: postgres:18.4-bookworm@sha256:882236b897e39051d2368c5ccc6cda944904723506b2dfc97f2a8f5bc9afa382
+    platform: linux/arm64
+    profiles: [operations]
+    user: "999:999"
+    read_only: true
+    environment:
+      PGPASSWORD: ${FREVOS_DB_MIGRATOR_PASSWORD:?missing migrator password}
+    entrypoint: ["/backup.sh"]
+    volumes:
+      - ./docker/oci/postgres/backup.sh:/backup.sh:ro
+      - ${FREVOS_DATA_ROOT:-/srv/frevos}/backups:/backups
+    tmpfs:
+      - /tmp:mode=1777
+      - /var/run/postgresql:uid=999,gid=999,mode=0775
+    networks:
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: "no"
+
+  restore-check:
+    image: postgres:18.4-bookworm@sha256:882236b897e39051d2368c5ccc6cda944904723506b2dfc97f2a8f5bc9afa382
+    platform: linux/arm64
+    profiles: [operations]
+    user: "999:999"
+    read_only: true
+    environment:
+      PGPASSWORD: ${FREVOS_DB_MIGRATOR_PASSWORD:?missing migrator password}
+    entrypoint: ["/restore-check.sh"]
+    volumes:
+      - ./docker/oci/postgres/restore-check.sh:/restore-check.sh:ro
+      - ${FREVOS_DATA_ROOT:-/srv/frevos}/backups:/backups:ro
+    tmpfs:
+      - /tmp:mode=1777
+      - /var/run/postgresql:uid=999,gid=999,mode=0775
+    networks:
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: "no"
+
+networks:
+  edge:
+  backend:
+    internal: true

@@ -224,6 +224,14 @@ BFF, secure-cookie, and database-role boundaries; see
 [ADR 0018](adr/0018-local-preview-operating-model.md) and
 [Local Preview](LOCAL_PREVIEW.md).
 
+The Phase 4 hosted UAT route composes the same product image for `linux/arm64`
+with private PostgreSQL 18 and Caddy public HTTPS on one Oracle Always Free
+Ampere A1 VM. Only Caddy publishes host ports; the database remains on an
+internal Docker network. Auth0 EU Free supplies synthetic UAT authentication,
+while FrevOS retains authorization and session state. See
+[ADR 0019](adr/0019-oracle-free-uat-operating-model.md) and the
+[Phase 4 UAT runbook](PHASE_4_UAT_RUNBOOK.md).
+
 ## Decisions intentionally deferred
 
 Phase 0A does not select the application language, web framework, cloud vendor,
@@ -252,7 +260,9 @@ framework, cloud provider, database, queue, or deployment platform. See
 Phase 3 selects React and Vite for the experience shell. Phase 4 selects
 Fastify for the service boundary, a provider-neutral OpenID Connect BFF with
 server-side sessions, and PostgreSQL with forced RLS for tenant persistence.
-Phase 4 non-Production UAT uses one same-origin Render web service, paid Render
-PostgreSQL 18 in Frankfurt, and a separate Auth0 EU staging tenant under
-[ADR 0017](adr/0017-preview-uat-operating-model.md). This validation target does
-not select the Production provider, region, availability, or compliance model.
+Phase 4 non-Production UAT uses one same-origin Oracle Always Free Ampere A1 VM,
+self-managed PostgreSQL 18, Caddy HTTPS, and a separate Auth0 EU Free staging
+tenant under [ADR 0019](adr/0019-oracle-free-uat-operating-model.md). ADR 0019
+supersedes the paid Render route in ADR 0017 for hosted Phase 4 UAT. This
+validation target does not select the Production provider, region, availability,
+recovery objective, or compliance model.
