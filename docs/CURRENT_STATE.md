@@ -1,6 +1,6 @@
 # FrevOS Current State
 
-Last updated: 2026-08-14
+Last updated: 2026-08-15
 
 ## Snapshot
 
@@ -8,22 +8,24 @@ Last updated: 2026-08-14
 | --- | --- |
 | Production repository | `https://github.com/mishrarishav/FrevOS` |
 | Detected default branch | `main` |
-| Phase branch | `phase/4-local-preview` |
-| Base commit | `2b334bbfef962b76345d304f62187557e5201a79` |
+| Phase branch | `phase/4-oracle-free-uat` |
+| Base commit | `9ded1f17c302b27881c720fa1a481074171a324b` |
 | Active phase | Phase 4 exit — Preview/UAT deployment and independent acceptance |
 | Phase 3 merge | Core PR [#5](https://github.com/mishrarishav/FrevOS/pull/5) was human squash-merged as `13f3cd2`; its task branch was deleted |
 | Phase 4A merge | Core PR [#7](https://github.com/mishrarishav/FrevOS/pull/7) was human squash-merged as `425c1f3`; its task branch was deleted |
 | Phase 4B merge | Core PR [#8](https://github.com/mishrarishav/FrevOS/pull/8) was human squash-merged as `6bf5509`; its task branch was deleted |
 | Phase 4C merge | Core PR [#9](https://github.com/mishrarishav/FrevOS/pull/9) was human squash-merged as `3973c59`; its task branch was deleted |
-| Runtime capability | The authenticated Control Center, Fastify BFF, OIDC session boundary, PostgreSQL forced RLS, protected workspace APIs, and hosted UAT package are merged; the active branch adds a laptop-only authenticated Preview stack |
+| Phase 4 UAT-package merge | Core PR [#10](https://github.com/mishrarishav/FrevOS/pull/10) was human squash-merged as `2b334bb` |
+| Phase 4 local-preview merge | Core PR [#11](https://github.com/mishrarishav/FrevOS/pull/11) was human squash-merged as `9ded1f1` |
+| Runtime capability | The authenticated Control Center, Fastify BFF, OIDC session boundary, PostgreSQL forced RLS, protected workspace APIs, hosted UAT package, and laptop-only authenticated Preview stack are merged |
 | Dependency manifests | pnpm workspace and committed lockfile on `main` |
-| CI/CD | `CI / validate` passed on Phase 4C merge commit `3973c59` in [run 31484010142](https://github.com/mishrarishav/FrevOS/actions/runs/31484010142) and is a strict required check; UAT deployment remains manual and unexecuted |
+| CI/CD | `CI / validate` passed on local-preview merge commit `9ded1f1` in [run 31797404612](https://github.com/mishrarishav/FrevOS/actions/runs/31797404612) and is a strict required check; UAT deployment remains manual and unexecuted |
 | Independent QA harness | Merged through Acceptance PR [#1](https://github.com/mishrarishav/FrevOS-Acceptance/pull/1); exact-head and default-branch CI passed |
 | Acceptance repository | Public `main` at completion-state squash commit `ffc85babed5f0e8deaf8af8d0194b9d3734d23be` |
 | Acceptance merge governance | Active `Protect main` ruleset `20623785` enforces squash-only pull requests, conversation resolution, strict up-to-date `validate`, and deletion and force-push prevention |
 | UI reference | Approved private repository ID `1329600731`, `mishrarishav/neural-command-lab`, commit `85f3ba2271ba381fc0520108365c5bb48fe386a7` |
 | GitHub authentication | Verified for account `mishrarishav` during Phase 0A |
-| Completed publications | Core PRs [#1](https://github.com/mishrarishav/FrevOS/pull/1), [#2](https://github.com/mishrarishav/FrevOS/pull/2), [#4](https://github.com/mishrarishav/FrevOS/pull/4), [#5](https://github.com/mishrarishav/FrevOS/pull/5), [#7](https://github.com/mishrarishav/FrevOS/pull/7), [#8](https://github.com/mishrarishav/FrevOS/pull/8), [#9](https://github.com/mishrarishav/FrevOS/pull/9), and Acceptance PRs [#1](https://github.com/mishrarishav/FrevOS-Acceptance/pull/1), [#3](https://github.com/mishrarishav/FrevOS-Acceptance/pull/3) squash-merged |
+| Completed publications | Core PRs [#1](https://github.com/mishrarishav/FrevOS/pull/1), [#2](https://github.com/mishrarishav/FrevOS/pull/2), [#4](https://github.com/mishrarishav/FrevOS/pull/4), [#5](https://github.com/mishrarishav/FrevOS/pull/5), [#7](https://github.com/mishrarishav/FrevOS/pull/7), [#8](https://github.com/mishrarishav/FrevOS/pull/8), [#9](https://github.com/mishrarishav/FrevOS/pull/9), [#10](https://github.com/mishrarishav/FrevOS/pull/10), [#11](https://github.com/mishrarishav/FrevOS/pull/11), and Acceptance PRs [#1](https://github.com/mishrarishav/FrevOS-Acceptance/pull/1), [#3](https://github.com/mishrarishav/FrevOS-Acceptance/pull/3) squash-merged |
 | Merge governance | Active `Protect main`; PR, squash, resolution, strict `validate`, deletion, and force-push controls verified |
 
 This snapshot distinguishes target architecture from implemented software. The
@@ -118,9 +120,9 @@ and screen contract have not been supplied.
 - Tenant persistence uses PostgreSQL with application authorization,
   workspace-scoped repositories, composite workspace foreign keys, and forced
   row-level security as independent defenses.
-- Phase 4 non-Production UAT uses one same-origin Render web service, paid
-  Render PostgreSQL 18 in Frankfurt, and a separate Auth0 EU staging tenant;
-  this is not a Production platform selection.
+- Phase 4 hosted UAT uses one Oracle Always Free Ampere A1 VM, private
+  self-managed PostgreSQL 18, Caddy public HTTPS, and a separate Auth0 EU Free
+  staging tenant under ADR 0019; this is not a Production platform selection.
 - Phase 4 laptop Preview uses Caddy local HTTPS, Keycloak, PostgreSQL 18, and
   the same FrevOS product image; it does not replace hosted UAT or independent
   black-box acceptance.
@@ -208,24 +210,29 @@ default-branch
 Its remote task branch was deleted. Independent deployed Preview or UAT
 acceptance remained unavailable and was not claimed.
 
-## Active Phase 4 exit work
+## Remaining Phase 4 exit work
 
-The `phase/4c-preview-uat-deployment` branch is based directly on the verified
-Phase 4C squash commit. Its bounded working tree selects the non-Production
-Render, Auth0, PostgreSQL, region, backup, and secret-lifecycle model; packages
-the Control Center and BFF in one pinned, non-root Docker runtime; adds the
-Render Blueprint and UAT runbook; keeps migration authority outside the web
-service; and adds database-aware health, static-delivery, header, role, and
-container validation.
+Core PR [#10](https://github.com/mishrarishav/FrevOS/pull/10) merged the
+non-Production Render, Auth0, PostgreSQL, region, backup, and secret-lifecycle
+model; the pinned non-root product image; the Render Blueprint and UAT runbook;
+the separate migration boundary; and the related deterministic validation. ADR
+0019 now supersedes that paid hosted route while retaining the package as
+historical evidence.
 
-It does not provision paid resources, create tenants or identities, change
-secrets, deploy, modify the independent acceptance repository, or claim Phase 4
-completion. Those external actions remain unperformed.
+Core PR [#11](https://github.com/mishrarishav/FrevOS/pull/11) merged the optional
+free laptop Preview target with generated ignored secrets, synthetic identities,
+deterministic seed data, local CA guidance, and guarded backup/restore commands.
+The local target remains development support and is not hosted-UAT, recovery,
+or independent-acceptance evidence.
 
-The `phase/4-local-preview` follow-up adds an optional free laptop Preview
-target with generated ignored secrets, synthetic identities, deterministic
-seed data, local CA guidance, and guarded backup/restore commands. It remains
-inside Phase 4 exit support and makes no hosted UAT or acceptance claim.
+The `phase/4-oracle-free-uat` branch is based directly on the verified
+local-preview squash commit. Its bounded change replaces the active hosted route
+with Oracle Always Free and Auth0 Free, adds an ARM64 Compose deployment with no
+public database port, and adds guarded logical backup and isolated restore
+operations. No Oracle or Auth0 resource, secret, deployment, or live target has
+been created or claimed. Those external actions still require separate
+authorization, followed by independent black-box acceptance against the exact
+HTTPS target.
 
 ## Open decision register
 
@@ -251,9 +258,10 @@ to completing Phase 0A:
 
 ## Known limitations
 
-- Phase 4 has a selected non-Production operating model and local deployment
-  package, but no Render or Auth0 resources, secrets, live Preview/UAT target,
-  recovery exercise, or external acceptance have been observed.
+- Phase 4 has merged the original UAT packaging and local Preview stack, and the
+  active branch prepares the Oracle Always Free replacement; no Oracle or Auth0
+  resources, UAT secrets, live hosted target, recovery exercise, or external
+  acceptance have been observed.
 - Phase 1 implements contract and CI guardrails only; it does not implement the
   later runtime authorization, isolation, approval, audit, or deployment controls.
 - The independent acceptance harness has no merged Phase 4 product-facing
@@ -269,9 +277,10 @@ to completing Phase 0A:
 
 ## Readiness rule
 
-Phases 0A through 4C implementation are merged. Phase 4 remains incomplete
-until this deployment change is reviewed and merged, the human owner authorizes
-and provisions the paid non-Production resources and secret boundaries, the
-exact merged source is healthy on one HTTPS origin, database recovery evidence
+Phases 0A through 4C implementation and both Phase 4 exit-support packages are
+merged. Phase 4 remains incomplete until the human owner explicitly authorizes
+and provisions the Always Free non-Production resources and secret boundaries,
+confirms the provider estimate remains zero, the exact merged source is healthy
+on one HTTPS origin, logical and volume backup plus isolated recovery evidence
 is recorded, and a separately reviewed independent black-box acceptance change
 passes against that exact target. Phase 5 must not start before those gates.

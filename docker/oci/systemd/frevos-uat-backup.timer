@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the FrevOS UAT logical backup every day
+
+[Timer]
+OnCalendar=*-*-* 02:15:00 UTC
+Persistent=true
+RandomizedDelaySec=15m
+Unit=frevos-uat-backup.service
+
+[Install]
+WantedBy=timers.target

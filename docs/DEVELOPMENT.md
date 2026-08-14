@@ -80,6 +80,20 @@ The Dockerfile pins Node.js 24.19.0 by multi-platform digest, installs from the
 frozen lockfile, builds both runtimes, copies the runtime package and migrations,
 and runs as the unprivileged `node` user.
 
+Validate the Oracle Always Free ARM64 Compose contract with placeholders only:
+
+```sh
+docker compose --env-file docker/oci/.env.example -f compose.oci.yaml config --quiet
+docker buildx build --platform linux/arm64 --target runtime --tag frevos:phase4-oci-arm64 --load .
+```
+
+The example values are not credentials and must never be used for a live target.
+Host configuration and operations are intentionally fixed to the reviewed
+`/opt/frevos/repository`, `/etc/frevos/uat.env`, and `/srv/frevos` boundaries.
+Follow the [Phase 4 UAT runbook](PHASE_4_UAT_RUNBOOK.md); do not run its secret,
+deployment, storage, or external-account steps without their separate required
+authorizations.
+
 Generated `dist/`, `coverage/`, `node_modules/`, and TypeScript build metadata
 are ignored and must not be committed.
 

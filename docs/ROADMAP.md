@@ -147,8 +147,8 @@ default-branch CI, and its task branch was deleted.
 
 ## Phase 4 — Authentication, workspaces, clients, and isolation
 
-Status: **in progress — Phase 4C implementation is merged; deployment and
-independent acceptance remain**
+Status: **in progress — implementation and exit-support packages are merged;
+hosted deployment, recovery, and independent acceptance remain**
 
 Implement authentication and the workspace membership boundary. Add clients
 and projects only with authorization and data-layer isolation tests, including
@@ -176,15 +176,20 @@ human squash-merged through Core PR
 [#8](https://github.com/mishrarishav/FrevOS/pull/8) as `6bf5509`. Phase 4C was
 human squash-merged through Core PR
 [#9](https://github.com/mishrarishav/FrevOS/pull/9) as `3973c59`; all three
-merge commits passed default-branch CI. The remaining bounded exit work owns
-same-origin UAT packaging and the selected non-Production operating model.
-Full Phase 4 exit still requires an authorized live deployment, recovery
+merge commits passed default-branch CI. Core PR
+[#10](https://github.com/mishrarishav/FrevOS/pull/10) merged the same-origin UAT
+packaging and original paid non-Production operating model as `2b334bb`. Core PR
+[#11](https://github.com/mishrarishav/FrevOS/pull/11) merged the optional local
+Preview stack as `9ded1f1`. The active bounded change supersedes the paid hosted
+selection with an Oracle Always Free ARM64 target, while preserving the
+same-origin, private PostgreSQL, secret-boundary, and recovery requirements.
+Full Phase 4 exit still requires an authorized live hosted deployment, recovery
 evidence, and separately reviewed independent black-box acceptance.
 
-An optional laptop Preview follow-up packages the same product runtime with
-PostgreSQL 18, Keycloak, and Caddy local HTTPS. It improves authenticated local
-development but is not evidence for the hosted UAT, recovery, or independent
-acceptance exit gates.
+The merged optional laptop Preview follow-up packages the same product runtime
+with PostgreSQL 18, Keycloak, and Caddy local HTTPS. It improves authenticated
+local development but is not evidence for the hosted UAT, recovery, or
+independent acceptance exit gates.
 
 ## Phase 5 — GitHub App and repository onboarding
 

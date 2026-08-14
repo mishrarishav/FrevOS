@@ -1,0 +1,8 @@
+[Unit]
+Description=FrevOS UAT validated PostgreSQL logical backup
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/sh /opt/frevos/repository/scripts/oci-uat.sh backup

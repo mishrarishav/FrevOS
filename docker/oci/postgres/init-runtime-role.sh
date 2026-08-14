@@ -1,0 +1,7 @@
+#!/bin/sh
+set -eu
+
+psql --set=ON_ERROR_STOP=1 --set=runtime_password="$FREVOS_DB_RUNTIME_PASSWORD" \
+  --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-'SQL'
+CREATE ROLE frevos_runtime LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS PASSWORD :'runtime_password';
+SQL

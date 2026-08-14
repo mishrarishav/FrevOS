@@ -190,14 +190,17 @@ agent, approval, audit, artifact, and deployment controls.
 
 ## Open security decisions
 
-ADR 0017 selects Auth0 EU, Render PostgreSQL 18, Render-managed secret
-injection, and an explicit 90-day review/rotation policy only for synthetic
-non-Production Phase 4 UAT. The Production identity provider, credential vault,
-PostgreSQL availability and recovery objectives, region, worker sandbox
-technology, network-egress policy, data classification, audit retention,
-evidence retention, artifact signing, vulnerability response policy, and
-deployment transport require later decisions before their respective
-deployment or implementation boundaries.
+ADR 0019 supersedes the paid hosted UAT selection in ADR 0017. It selects Auth0
+EU Free, one Oracle Always Free ARM64 VM, private self-managed PostgreSQL 18,
+root-only host secret injection, public Caddy HTTPS, daily validated logical
+backups, and an isolated restore drill only for synthetic non-Production Phase 4
+UAT. The host root and Docker daemon are trusted for that temporary boundary;
+public ingress is limited to 80 and 443 and PostgreSQL has no public listener.
+The Production identity provider, credential vault, PostgreSQL availability and
+recovery objectives, region, worker sandbox technology, network-egress policy,
+data classification, audit retention, evidence retention, artifact signing,
+vulnerability response policy, and deployment transport require later decisions
+before their respective deployment or implementation boundaries.
 
 Security issues must not be placed in public logs or normal project memory.
 The private reporting and incident-response channel is not yet selected.
