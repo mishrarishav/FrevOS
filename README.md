@@ -22,6 +22,10 @@ operating model required before independent acceptance can run.
 See [Current State](docs/CURRENT_STATE.md) for the factual implementation
 status and open decisions.
 
+For an authenticated laptop Preview using local HTTPS, Keycloak, and
+PostgreSQL 18, follow [Local Preview](docs/LOCAL_PREVIEW.md) and run
+`pnpm local:up`.
+
 ## Non-negotiable principles
 
 - Every project resource is workspace scoped.
@@ -58,6 +62,7 @@ Git submodules.
 - [Development](docs/DEVELOPMENT.md)
 - [Phase 3 UI Reference](docs/UI_REFERENCE.md)
 - [Phase 4 UAT Runbook](docs/PHASE_4_UAT_RUNBOOK.md)
+- [Local Preview](docs/LOCAL_PREVIEW.md)
 - [Current State](docs/CURRENT_STATE.md)
 - [Architecture Decision Records](docs/adr/README.md)
 - [Contributor and agent rules](AGENTS.md)

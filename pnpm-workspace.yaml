@@ -9,6 +9,7 @@ allowBuilds:
 
 autoInstallPeers: false
 engineStrict: true
+injectWorkspacePackages: true
 minimumReleaseAge: 1440
 onlyBuiltDependencies:
   - esbuild

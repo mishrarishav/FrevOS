@@ -1,0 +1,140 @@
+name: frevos-local
+
+services:
+  postgres:
+    image: postgres:18.4-bookworm
+    environment:
+      POSTGRES_DB: frevos
+      POSTGRES_USER: frevos_migrator
+      POSTGRES_PASSWORD: ${FREVOS_DB_MIGRATOR_PASSWORD}
+      FREVOS_DB_RUNTIME_PASSWORD: ${FREVOS_DB_RUNTIME_PASSWORD}
+      FREVOS_DB_KEYCLOAK_PASSWORD: ${FREVOS_DB_KEYCLOAK_PASSWORD}
+    volumes:
+      - frevos-postgres:/var/lib/postgresql
+      - ./docker/local/postgres/init-runtime-role.sh:/docker-entrypoint-initdb.d/10-runtime-role.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U frevos_migrator -d frevos"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  migrate:
+    build:
+      context: .
+      target: runtime
+    environment:
+      MIGRATION_DATABASE_URL: postgresql://frevos_migrator:${FREVOS_DB_MIGRATOR_PASSWORD}@postgres:5432/frevos
+      DATABASE_URL: postgresql://frevos_runtime:${FREVOS_DB_RUNTIME_PASSWORD}@postgres:5432/frevos
+    command: ["node", "control-plane/dist/migrate.js"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  seed:
+    image: postgres:18.4-bookworm
+    environment:
+      PGPASSWORD: ${FREVOS_DB_MIGRATOR_PASSWORD}
+    volumes:
+      - ./docker/local/postgres/seed.sql:/seed.sql:ro
+    command: ["psql", "-v", "ON_ERROR_STOP=1", "-h", "postgres", "-U", "frevos_migrator", "-d", "frevos", "-f", "/seed.sql"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.0
+    command: ["start-dev", "--import-realm", "--http-enabled=true", "--hostname=https://identity.frevos.localhost:8443", "--health-enabled=true"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: local-admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${FREVOS_KEYCLOAK_ADMIN_PASSWORD}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/frevos_keycloak
+      KC_DB_USERNAME: frevos_keycloak
+      KC_DB_PASSWORD: ${FREVOS_DB_KEYCLOAK_PASSWORD}
+      FREVOS_OIDC_CLIENT_SECRET: ${FREVOS_OIDC_CLIENT_SECRET}
+      FREVOS_LOCAL_ADMIN_PASSWORD: ${FREVOS_LOCAL_ADMIN_PASSWORD}
+      FREVOS_LOCAL_VIEWER_PASSWORD: ${FREVOS_LOCAL_VIEWER_PASSWORD}
+    volumes:
+      - ./docker/local/keycloak/frevos-local-realm.json:/opt/keycloak/data/import/frevos-local-realm.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000; printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3; grep -q '200 OK' <&3"]
+      interval: 5s
+      timeout: 5s
+      retries: 36
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frevos:
+    build:
+      context: .
+      target: runtime
+    environment:
+      HOST: 0.0.0.0
+      PORT: 10000
+      DATABASE_URL: postgresql://frevos_runtime:${FREVOS_DB_RUNTIME_PASSWORD}@postgres:5432/frevos
+      FREVOS_PUBLIC_ORIGIN: https://frevos.localhost:8443
+      FREVOS_OIDC_ISSUER: https://identity.frevos.localhost:8443/realms/frevos-local
+      FREVOS_OIDC_CLIENT_ID: frevos-local
+      FREVOS_OIDC_CLIENT_SECRET: ${FREVOS_OIDC_CLIENT_SECRET}
+      FREVOS_OIDC_TRANSACTION_KEY: ${FREVOS_OIDC_TRANSACTION_KEY}
+      NODE_EXTRA_CA_CERTS: /caddy-trust/root.crt
+    volumes:
+      - frevos-caddy-trust:/caddy-trust:ro
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      keycloak:
+        condition: service_healthy
+      caddy-trust:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:10000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.10.2-alpine
+    ports:
+      - "8443:8443"
+    volumes:
+      - ./docker/local/Caddyfile:/etc/caddy/Caddyfile:ro
+      - frevos-caddy-data:/data
+      - frevos-caddy-config:/config
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    networks:
+      default:
+        aliases:
+          - identity.frevos.localhost
+    healthcheck:
+      test: ["CMD", "wget", "--no-check-certificate", "-q", "--spider", "https://identity.frevos.localhost:8443/realms/frevos-local/.well-known/openid-configuration"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  caddy-trust:
+    image: caddy:2.10.2-alpine
+    command:
+      ["sh", "-c", "umask 022; cp /data/caddy/pki/authorities/local/root.crt /trust/root.crt; chmod 0444 /trust/root.crt"]
+    volumes:
+      - frevos-caddy-data:/data:ro
+      - frevos-caddy-trust:/trust
+    depends_on:
+      caddy:
+        condition: service_healthy
+    restart: "no"
+
+volumes:
+  frevos-postgres:
+  frevos-caddy-data:
+  frevos-caddy-config:
+  frevos-caddy-trust:

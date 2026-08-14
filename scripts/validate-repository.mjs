@@ -1,15 +1,30 @@
-import { access, readFile, readdir } from "node:fs/promises";
+import { access, readdir, readFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const ignoredDirectories = new Set([".git", "coverage", "dist", "node_modules"]);
+const ignoredDirectories = new Set([".git", ".local", "coverage", "dist", "node_modules"]);
+const ignoredFileNames = new Set(
+  (await readFile(join(repositoryRoot, ".gitignore"), "utf8"))
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(
+      (line) =>
+        line &&
+        !line.startsWith("#") &&
+        !line.startsWith("!") &&
+        !line.endsWith("/") &&
+        !line.includes("/") &&
+        !/[?*[\]\\]/.test(line),
+    ),
+);
 const requiredDocuments = [
   "AGENTS.md",
   "README.md",
   "docs/ARCHITECTURE.md",
   "docs/CURRENT_STATE.md",
   "docs/MERGE_POLICY.md",
+  "docs/LOCAL_PREVIEW.md",
   "docs/PERMISSIONS.md",
   "docs/PHASE_4_UAT_RUNBOOK.md",
   "docs/PRODUCT.md",
@@ -19,6 +34,10 @@ const requiredDocuments = [
 ];
 
 const errors = [];
+
+function normalizeNewlines(content) {
+  return content.replace(/\r\n?/g, "\n");
+}
 
 async function pathExists(path) {
   try {
@@ -41,7 +60,7 @@ async function collectMarkdownFiles(directory) {
     const entryPath = join(directory, entry.name);
     if (entry.isDirectory()) {
       files.push(...(await collectMarkdownFiles(entryPath)));
-    } else if (entry.isFile() && entry.name.endsWith(".md")) {
+    } else if (entry.isFile() && entry.name.endsWith(".md") && !ignoredFileNames.has(entry.name)) {
       files.push(entryPath);
     }
   }
@@ -50,8 +69,8 @@ async function collectMarkdownFiles(directory) {
 }
 
 function validateDocumentStructure(file, content) {
-  const repositoryPath = relative(repositoryRoot, file);
-  const lines = content.split("\n");
+  const repositoryPath = relative(repositoryRoot, file).replaceAll("\\", "/");
+  const lines = normalizeNewlines(content).split("\n");
 
   for (const [index, line] of lines.entries()) {
     if (/[\t ]+$/.test(line)) {
@@ -129,8 +148,13 @@ async function validateRuleset() {
 
 async function validatePhase4Deployment() {
   const dockerfile = await readFile(join(repositoryRoot, "Dockerfile"), "utf8");
-  const dockerIgnore = await readFile(join(repositoryRoot, ".dockerignore"), "utf8");
-  const blueprint = await readFile(join(repositoryRoot, "render.yaml"), "utf8");
+  const dockerIgnore = normalizeNewlines(
+    await readFile(join(repositoryRoot, ".dockerignore"), "utf8"),
+  );
+  const blueprint = normalizeNewlines(await readFile(join(repositoryRoot, "render.yaml"), "utf8"));
+  const workspace = normalizeNewlines(
+    await readFile(join(repositoryRoot, "pnpm-workspace.yaml"), "utf8"),
+  );
   const controlPlaneManifest = JSON.parse(
     await readFile(join(repositoryRoot, "apps/control-plane/package.json"), "utf8"),
   );
@@ -147,6 +171,13 @@ async function validatePhase4Deployment() {
   }
   if (!dockerfile.includes("USER node") || !dockerfile.includes("--frozen-lockfile")) {
     errors.push("Docker runtime must be non-root and install from the frozen lockfile");
+  }
+  if (
+    !workspace.includes("injectWorkspacePackages: true") ||
+    !dockerfile.includes("deploy --prod /runtime/control-plane") ||
+    dockerfile.includes("deploy --prod --legacy")
+  ) {
+    errors.push("Docker deployment must inject workspace packages into a portable runtime");
   }
   for (const ignored of [".env", "**/node_modules", "**/dist", ".git"]) {
     if (!dockerIgnore.split("\n").includes(ignored)) {
@@ -182,6 +213,60 @@ async function validatePhase4Deployment() {
   }
 }
 
+async function validateLocalPreview() {
+  const compose = await readFile(join(repositoryRoot, "compose.local.yaml"), "utf8");
+  const realm = await readFile(
+    join(repositoryRoot, "docker/local/keycloak/frevos-local-realm.json"),
+    "utf8",
+  );
+  const seed = await readFile(join(repositoryRoot, "docker/local/postgres/seed.sql"), "utf8");
+  const manifest = JSON.parse(await readFile(join(repositoryRoot, "package.json"), "utf8"));
+
+  for (const required of [
+    "postgres:18.4-bookworm",
+    "quay.io/keycloak/keycloak:26.7.0",
+    "caddy:2.10.2-alpine",
+    "service_completed_successfully",
+    "https://frevos.localhost:8443",
+    "NODE_EXTRA_CA_CERTS",
+    "frevos-caddy-trust:/caddy-trust:ro",
+    "chmod 0444 /trust/root.crt",
+  ]) {
+    if (!compose.includes(required)) {
+      errors.push(`Local Preview Compose file is missing required setting: ${required}`);
+    }
+  }
+  for (const script of [
+    "local:up",
+    "local:down",
+    "local:status",
+    "local:logs",
+    "local:backup",
+    "local:restore",
+  ]) {
+    if (typeof manifest.scripts?.[script] !== "string") {
+      errors.push(`Local Preview package script is missing: ${script}`);
+    }
+  }
+  for (const placeholder of [
+    `$${"{FREVOS_OIDC_CLIENT_SECRET}"}`,
+    `$${"{FREVOS_LOCAL_ADMIN_PASSWORD}"}`,
+    `$${"{FREVOS_LOCAL_VIEWER_PASSWORD}"}`,
+  ]) {
+    if (!realm.includes(placeholder)) {
+      errors.push(`Keycloak realm must use generated value: ${placeholder}`);
+    }
+  }
+  for (const email of ["admin@local.frevos", "viewer@local.frevos"]) {
+    if (!realm.includes(`"email": "${email}"`)) {
+      errors.push(`Keycloak synthetic user must have a complete local profile: ${email}`);
+    }
+  }
+  if (!seed.includes("set_config('frevos.workspace_id', 'ws_local_demo', true)")) {
+    errors.push("Local Preview seed must set an explicit workspace context for forced RLS");
+  }
+}
+
 for (const document of requiredDocuments) {
   if (!(await pathExists(join(repositoryRoot, document)))) {
     errors.push(`Required document is missing: ${document}`);
@@ -197,6 +282,7 @@ for (const file of markdownFiles) {
 
 await validateRuleset();
 await validatePhase4Deployment();
+await validateLocalPreview();
 
 if (errors.length > 0) {
   for (const error of errors) {

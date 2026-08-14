@@ -1,0 +1,13 @@
+{
+	admin off
+}
+
+https://frevos.localhost:8443 {
+	tls internal
+	reverse_proxy frevos:10000
+}
+
+https://identity.frevos.localhost:8443 {
+	tls internal
+	reverse_proxy keycloak:8080
+}

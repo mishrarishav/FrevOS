@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>FrevOS</title>
+  <rect width="64" height="64" rx="14" fill="#0c1018" />
+  <path d="M16 15h34v8H25v9h20v8H25v17h-9z" fill="#f4f7fb" />
+  <path d="M43 15h7v8h-7z" fill="#ff9f43" />
+</svg>

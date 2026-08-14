@@ -283,7 +283,18 @@ export function App({
           {route?.id === "design-system" ? (
             <DesignSystem onStates={() => setOverlay("states")} />
           ) : null}
-          {route && route.id !== "control-center" && route.id !== "design-system" ? (
+          {route?.id === "projects" ? (
+            <ProjectsSurface
+              workspace={experience.workspace}
+              clients={experience.clients}
+              projects={experience.projects}
+              navigate={navigate}
+            />
+          ) : null}
+          {route &&
+          route.id !== "control-center" &&
+          route.id !== "design-system" &&
+          route.id !== "projects" ? (
             <PlannedSurface route={route} navigate={navigate} />
           ) : null}
           {!route ? <NotFound pathname={pathname} navigate={navigate} /> : null}
@@ -1006,6 +1017,92 @@ function PlannedSurface({
           </button>
         </div>
       </section>
+    </div>
+  );
+}
+
+function ProjectsSurface({
+  workspace,
+  clients,
+  projects,
+  navigate,
+}: {
+  workspace: Workspace;
+  clients: Client[];
+  projects: Project[];
+  navigate: (to: string) => void;
+}) {
+  return (
+    <div className="page-stack">
+      <PageHeader
+        eyebrow="Phase 4 authenticated records"
+        title={`${workspace.displayName} projects`}
+        description="Read-only clients and projects returned through the verified workspace boundary."
+        action={
+          <button className="button secondary" type="button" onClick={() => navigate("/")}>
+            Return to Control Center
+          </button>
+        }
+      />
+      <Panel
+        title="Authorized workspace records"
+        description={`${projects.length} projects across ${clients.length} clients`}
+      >
+        <div className="resource-summary">
+          <span>Clients</span>
+          {clients.length === 0 ? (
+            <p>No clients are registered in this workspace.</p>
+          ) : (
+            clients.map((client) => (
+              <span className="resource-chip" key={client.clientId}>
+                {client.displayName} · {client.status}
+              </span>
+            ))
+          )}
+        </div>
+        <div className="project-grid">
+          {projects.length === 0 ? (
+            <div className="resource-empty">
+              <Boxes aria-hidden="true" size={19} />
+              <div>
+                <h3>No projects in this workspace</h3>
+                <p>The authorized query returned an empty project collection.</p>
+              </div>
+            </div>
+          ) : null}
+          {projects.map((project) => {
+            const client = clients.find((candidate) => candidate.clientId === project.clientId);
+            return (
+              <article className="project-card" key={project.projectId}>
+                <div className="project-mark">
+                  <GitBranch aria-hidden="true" size={17} />
+                </div>
+                <div>
+                  <h3>{project.displayName}</h3>
+                  <p>{project.projectId}</p>
+                </div>
+                <StatusBadge
+                  status={{
+                    label: project.status,
+                    tone: project.status === "active" ? "verified" : "neutral",
+                  }}
+                  compact
+                />
+                <dl>
+                  <div>
+                    <dt>Client</dt>
+                    <dd>{client?.displayName ?? "Unassigned"}</dd>
+                  </div>
+                  <div>
+                    <dt>Workspace</dt>
+                    <dd>{project.workspaceId}</dd>
+                  </div>
+                </dl>
+              </article>
+            );
+          })}
+        </div>
+      </Panel>
     </div>
   );
 }
