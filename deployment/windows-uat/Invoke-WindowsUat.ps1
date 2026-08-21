@@ -20,11 +20,15 @@ function Write-Utf8NoBom([string]$Path, [string]$Value) {
     [IO.File]::WriteAllText($Path, $Value, [Text.UTF8Encoding]::new($false))
 }
 
+function Read-Utf8([string]$Path) {
+    return [IO.File]::ReadAllText($Path, [Text.UTF8Encoding]::new($false))
+}
+
 function Get-OperationsConfig {
     if (-not (Test-Path -LiteralPath $operationsConfigFile -PathType Leaf)) {
         throw "The FrevOS operations configuration is missing."
     }
-    return Get-Content -LiteralPath $operationsConfigFile -Raw | ConvertFrom-Json
+    return Read-Utf8 $operationsConfigFile | ConvertFrom-Json
 }
 
 function Invoke-WithDatabasePassword([scriptblock]$Operation) {
@@ -46,7 +50,7 @@ switch ($Action) {
     "Status" {
         $service = Get-Service -Name $serviceName -ErrorAction Stop
         $task = Get-ScheduledTask -TaskName $taskName -ErrorAction Stop
-        $activeRelease = (Get-Content -LiteralPath $activeReleaseFile -Raw).Trim()
+        $activeRelease = (Read-Utf8 $activeReleaseFile).Trim()
         $localHealth = Invoke-WebRequest -Uri "http://127.0.0.1:10000/frevos/health" -UseBasicParsing -TimeoutSec 15
         [pscustomobject]@{
             ActiveRelease = $activeRelease

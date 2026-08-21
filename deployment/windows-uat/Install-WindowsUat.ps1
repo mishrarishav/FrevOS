@@ -51,6 +51,10 @@ function Write-Utf8NoBom([string]$Path, [string]$Value) {
     [IO.File]::WriteAllText($Path, $Value, [Text.UTF8Encoding]::new($false))
 }
 
+function Read-Utf8([string]$Path) {
+    return [IO.File]::ReadAllText($Path, [Text.UTF8Encoding]::new($false))
+}
+
 function Set-ControlledAcl(
     [string]$Path,
     [switch]$AllowLocalService,
@@ -110,7 +114,7 @@ function Test-ReleaseManifest {
     if (-not (Test-Path -LiteralPath $manifestFile -PathType Leaf)) {
         throw "release-manifest.json is missing."
     }
-    $manifest = Get-Content -LiteralPath $manifestFile -Raw | ConvertFrom-Json
+    $manifest = Read-Utf8 $manifestFile | ConvertFrom-Json
     if ($manifest.sourceSha -notmatch "^[a-f0-9]{40}$" -or $manifest.basePath -ne $basePath) {
         throw "Release identity or base path is invalid."
     }
@@ -207,7 +211,7 @@ $activeReleaseFile = Join-Path $stateDirectory "active-release.txt"
 $runtimeConfigFile = Join-Path $configDirectory "runtime.json"
 $operationsConfigFile = Join-Path $configDirectory "operations.json"
 $previousRelease = if (Test-Path -LiteralPath $activeReleaseFile) {
-    (Get-Content -LiteralPath $activeReleaseFile -Raw).Trim()
+    (Read-Utf8 $activeReleaseFile).Trim()
 } else { $null }
 
 foreach ($directory in @($uatRoot, $stateDirectory, $configDirectory, $runtimeDirectory, $binDirectory, $backupDirectory, $iisBackupDirectory, (Split-Path $releaseDirectory))) {
@@ -321,8 +325,8 @@ if ($newDatabase) {
     if ((Get-Content -LiteralPath (Join-Path $dataDirectory "PG_VERSION") -Raw).Trim() -ne "18") {
         throw "Only the controlled PostgreSQL 18 data cluster is accepted."
     }
-    $runtimeConfig = Get-Content -LiteralPath $runtimeConfigFile -Raw | ConvertFrom-Json
-    $operationsConfig = Get-Content -LiteralPath $operationsConfigFile -Raw | ConvertFrom-Json
+    $runtimeConfig = Read-Utf8 $runtimeConfigFile | ConvertFrom-Json
+    $operationsConfig = Read-Utf8 $operationsConfigFile | ConvertFrom-Json
     $databaseUrl = [string]$runtimeConfig.DATABASE_URL
     $migrationDatabaseUrl = [string]$operationsConfig.MIGRATION_DATABASE_URL
     $issuer = [string]$operationsConfig.OIDC_ISSUER
@@ -407,7 +411,7 @@ $iisBackup = Join-Path $iisBackupDirectory ("applicationHost-" + [DateTime]::Utc
 Copy-Item -LiteralPath $applicationHostConfig -Destination $iisBackup
 
 New-Item -ItemType Directory -Path $iisApplicationPath -Force | Out-Null
-$webConfig = (Get-Content -LiteralPath (Join-Path $PSScriptRoot "web.config.template") -Raw).Replace("__PORT__", "$listenPort")
+$webConfig = (Read-Utf8 (Join-Path $PSScriptRoot "web.config.template")).Replace("__PORT__", "$listenPort")
 Write-Utf8NoBom (Join-Path $iisApplicationPath "web.config") $webConfig
 
 $poolName = "FrevOS-UAT"

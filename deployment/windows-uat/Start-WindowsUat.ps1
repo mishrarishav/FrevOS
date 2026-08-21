@@ -7,6 +7,10 @@ $activeReleaseFile = Join-Path $uatRoot "state\active-release.txt"
 $runtimeConfigFile = Join-Path $uatRoot "config\runtime.json"
 $nodeExecutable = Join-Path $uatRoot "runtime\node-v24.19.0-win-x64\node.exe"
 
+function Read-Utf8([string]$Path) {
+    return [IO.File]::ReadAllText($Path, [Text.UTF8Encoding]::new($false))
+}
+
 if (-not (Test-Path -LiteralPath $activeReleaseFile -PathType Leaf)) {
     throw "The active FrevOS release pointer is missing."
 }
@@ -17,7 +21,7 @@ if (-not (Test-Path -LiteralPath $nodeExecutable -PathType Leaf)) {
     throw "The pinned Node.js runtime is missing."
 }
 
-$releaseDirectory = (Get-Content -LiteralPath $activeReleaseFile -Raw).Trim()
+$releaseDirectory = (Read-Utf8 $activeReleaseFile).Trim()
 $expectedReleaseRoot = [IO.Path]::GetFullPath((Join-Path $uatRoot "releases"))
 $resolvedRelease = [IO.Path]::GetFullPath($releaseDirectory)
 if (-not $resolvedRelease.StartsWith("$expectedReleaseRoot\", [StringComparison]::OrdinalIgnoreCase)) {
@@ -29,7 +33,7 @@ if (-not (Test-Path -LiteralPath $entryPoint -PathType Leaf)) {
     throw "The active FrevOS entry point is missing."
 }
 
-$runtime = Get-Content -LiteralPath $runtimeConfigFile -Raw | ConvertFrom-Json
+$runtime = Read-Utf8 $runtimeConfigFile | ConvertFrom-Json
 [Environment]::SetEnvironmentVariable("MIGRATION_DATABASE_URL", $null, "Process")
 [Environment]::SetEnvironmentVariable("PGPASSWORD", $null, "Process")
 $allowedVariables = @(
