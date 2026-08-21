@@ -12,17 +12,23 @@ const pool = createDatabasePool(config.databaseUrl);
 
 try {
   await verifyApplicationRole(pool);
-  const oidcProvider = await OpenIdClientProvider.discover({
-    issuer: config.oidcIssuer,
-    clientId: config.oidcClientId,
-    clientSecret: config.oidcClientSecret,
-    redirectUri: `${config.publicOrigin}${config.basePath}/auth/callback`,
-  });
+  const authentication =
+    config.authMode === "local"
+      ? { authMode: "local" as const }
+      : {
+          authMode: "oidc" as const,
+          oidcProvider: await OpenIdClientProvider.discover({
+            issuer: config.oidcIssuer,
+            clientId: config.oidcClientId,
+            clientSecret: config.oidcClientSecret,
+            redirectUri: `${config.publicOrigin}${config.basePath}/auth/callback`,
+          }),
+          transactionCodec: new OidcTransactionCodec(config.oidcTransactionKey),
+        };
   const server = await buildServer({
     publicOrigin: config.publicOrigin,
     basePath: config.basePath,
-    oidcProvider,
-    transactionCodec: new OidcTransactionCodec(config.oidcTransactionKey),
+    ...authentication,
     identitySessions: new IdentitySessionRepository(pool),
     workspaces: new WorkspaceRepository(pool),
     readiness: () => verifyDatabaseReadiness(pool),

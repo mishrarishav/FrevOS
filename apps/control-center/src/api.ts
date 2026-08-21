@@ -10,7 +10,12 @@ import {
 } from "@frevos/contracts";
 import { addBasePath } from "./routing.js";
 
-export type ApiFailureKind = "unauthenticated" | "denied" | "unavailable" | "invalid-response";
+export type ApiFailureKind =
+  | "unauthenticated"
+  | "invalid-credentials"
+  | "denied"
+  | "unavailable"
+  | "invalid-response";
 
 export class ApiFailure extends Error {
   readonly kind: ApiFailureKind;
@@ -29,6 +34,7 @@ export interface WorkspaceSnapshot {
 }
 
 export interface ControlCenterApi {
+  login(username: string, password: string, signal?: AbortSignal): Promise<void>;
   getSession(signal?: AbortSignal): Promise<SessionSummary>;
   listWorkspaces(signal?: AbortSignal): Promise<Workspace[]>;
   getWorkspaceSnapshot(workspaceId: string, signal?: AbortSignal): Promise<WorkspaceSnapshot>;
@@ -88,6 +94,30 @@ export function createControlCenterApi(
   };
 
   return {
+    async login(username, password, signal) {
+      let response: Response;
+      try {
+        response = await fetcher(addBasePath("/auth/login", basePath), {
+          method: "POST",
+          credentials: "same-origin",
+          cache: "no-store",
+          headers: { "content-type": "application/json", accept: "application/json" },
+          body: JSON.stringify({ username, password }),
+          ...(signal === undefined ? {} : { signal }),
+        });
+      } catch (error) {
+        if (signal?.aborted === true) {
+          throw error;
+        }
+        throw new ApiFailure("unavailable");
+      }
+      if (response.status === 401) {
+        throw new ApiFailure("invalid-credentials");
+      }
+      if (!response.ok) {
+        throw new ApiFailure(response.status === 403 ? "denied" : "unavailable");
+      }
+    },
     getSession: (signal) => get("/v1/session", SessionSummarySchema, signal),
     listWorkspaces: (signal) => get("/v1/workspaces", WorkspaceSchema.array(), signal),
     async getWorkspaceSnapshot(workspaceId, signal) {

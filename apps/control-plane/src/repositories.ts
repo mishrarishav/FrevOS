@@ -2,6 +2,7 @@ import {
   ClientIdSchema,
   ClientSchema,
   ExternalIdentitySchema,
+  IdentityIdSchema,
   IdentityIssuerSchema,
   IdentitySubjectSchema,
   ProjectSchema,
@@ -26,6 +27,12 @@ import {
   withApplicationPrincipalTransaction,
   withApplicationTransaction,
 } from "./database.js";
+import {
+  consumeDummyPasswordCheck,
+  hashLocalPassword,
+  LocalUsernameSchema,
+  verifyLocalPassword,
+} from "./passwords.js";
 
 const DisplayNameSchema = z
   .string()
@@ -45,6 +52,14 @@ interface IdentityRow extends QueryResultRow {
   subject: string;
   linked_at: Date;
   last_authenticated_at: Date;
+}
+
+interface LocalCredentialRow extends IdentityRow {
+  password_salt: Buffer;
+  password_hash: Buffer;
+  status: string;
+  failed_attempts: number;
+  locked_until: Date | null;
 }
 
 interface SessionRow extends QueryResultRow {
@@ -191,6 +206,150 @@ export class IdentitySessionRepository {
 
   constructor(pool: DatabasePool) {
     this.#pool = pool;
+  }
+
+  async provisionLocalCredential(input: {
+    username: string;
+    password: string;
+    displayName: string;
+    userId?: string;
+    identityId?: string;
+    now?: Date;
+  }): Promise<IdentityPrincipal> {
+    const username = LocalUsernameSchema.parse(input.username);
+    const displayName = DisplayNameSchema.parse(input.displayName.trim());
+    const digest = await hashLocalPassword(input.password);
+    const now = input.now ?? new Date();
+    const requestedUserId = UserIdSchema.parse(input.userId ?? randomIdentifier("usr"));
+    const requestedIdentityId = IdentityIdSchema.parse(input.identityId ?? randomIdentifier("idn"));
+
+    return withApplicationTransaction(this.#pool, undefined, async (client) => {
+      await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [username]);
+      const existing = await client.query<IdentityRow>(
+        `
+          SELECT identity.identity_id, identity.user_id, identity.issuer, identity.subject,
+                 identity.linked_at, identity.last_authenticated_at
+          FROM frevos.local_credentials AS credential
+          INNER JOIN frevos.external_identities AS identity
+            ON identity.identity_id = credential.identity_id
+          WHERE credential.username = $1
+        `,
+        [username],
+      );
+      const current = existing.rows[0];
+      if (current !== undefined) {
+        await client.query("UPDATE frevos.users SET display_name = $2 WHERE user_id = $1", [
+          current.user_id,
+          displayName,
+        ]);
+        await client.query(
+          `
+            UPDATE frevos.local_credentials
+            SET password_salt = $2, password_hash = $3, status = 'active',
+                failed_attempts = 0, locked_until = NULL, password_changed_at = $4
+            WHERE username = $1
+          `,
+          [username, digest.salt, digest.hash, now],
+        );
+        const identity = identityFromRow(current);
+        return { identity, userId: UserIdSchema.parse(identity.userId) };
+      }
+
+      await client.query(
+        "INSERT INTO frevos.users (user_id, display_name, created_at) VALUES ($1, $2, $3)",
+        [requestedUserId, displayName, now],
+      );
+      const inserted = await client.query<IdentityRow>(
+        `
+          INSERT INTO frevos.external_identities (
+            identity_id, user_id, issuer, subject, linked_at, last_authenticated_at
+          ) VALUES ($1, $2, 'https://local.frevos.invalid/', $3, $4, $4)
+          RETURNING identity_id, user_id, issuer, subject, linked_at, last_authenticated_at
+        `,
+        [requestedIdentityId, requestedUserId, username, now],
+      );
+      await client.query(
+        `
+          INSERT INTO frevos.local_credentials (
+            identity_id, user_id, username, password_salt, password_hash, status,
+            failed_attempts, created_at, password_changed_at
+          ) VALUES ($1, $2, $3, $4, $5, 'active', 0, $6, $6)
+        `,
+        [requestedIdentityId, requestedUserId, username, digest.salt, digest.hash, now],
+      );
+      const row = requiredRow(inserted.rows[0], "Local identity insert");
+      return { identity: identityFromRow(row), userId: requestedUserId };
+    });
+  }
+
+  async authenticateLocalCredential(input: {
+    username: string;
+    password: string;
+    now?: Date;
+  }): Promise<IdentityPrincipal | null> {
+    const parsedUsername = LocalUsernameSchema.safeParse(input.username);
+    const now = input.now ?? new Date();
+    if (!parsedUsername.success) {
+      await consumeDummyPasswordCheck(input.password);
+      return null;
+    }
+
+    return withApplicationTransaction(this.#pool, undefined, async (client) => {
+      const result = await client.query<LocalCredentialRow>(
+        `
+          SELECT identity.identity_id, identity.user_id, identity.issuer, identity.subject,
+                 identity.linked_at, identity.last_authenticated_at,
+                 credential.password_salt, credential.password_hash, credential.status,
+                 credential.failed_attempts, credential.locked_until
+          FROM frevos.local_credentials AS credential
+          INNER JOIN frevos.external_identities AS identity
+            ON identity.identity_id = credential.identity_id
+          WHERE credential.username = $1
+          FOR UPDATE OF credential
+        `,
+        [parsedUsername.data],
+      );
+      const row = result.rows[0];
+      if (row === undefined) {
+        await consumeDummyPasswordCheck(input.password);
+        return null;
+      }
+      const passwordMatches = await verifyLocalPassword(
+        input.password,
+        row.password_salt,
+        row.password_hash,
+      );
+      const locked = row.locked_until !== null && row.locked_until > now;
+      if (!passwordMatches || row.status !== "active" || locked) {
+        if (row.status === "active" && !locked) {
+          const failures = Math.min(row.failed_attempts + 1, 5);
+          const lockedUntil = failures === 5 ? new Date(now.getTime() + 15 * 60 * 1000) : null;
+          await client.query(
+            `
+              UPDATE frevos.local_credentials
+              SET failed_attempts = $2, locked_until = $3
+              WHERE identity_id = $1
+            `,
+            [row.identity_id, failures, lockedUntil],
+          );
+        }
+        return null;
+      }
+      await client.query(
+        `
+          UPDATE frevos.local_credentials
+          SET failed_attempts = 0, locked_until = NULL, last_authenticated_at = $2
+          WHERE identity_id = $1
+        `,
+        [row.identity_id, now],
+      );
+      await client.query(
+        "UPDATE frevos.external_identities SET last_authenticated_at = $2 WHERE identity_id = $1",
+        [row.identity_id, now],
+      );
+      const identity = identityFromRow({ ...row, last_authenticated_at: now });
+      return { identity, userId: UserIdSchema.parse(identity.userId) };
+    });
   }
 
   async upsertIdentity(input: {

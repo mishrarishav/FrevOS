@@ -44,6 +44,7 @@ const project = ProjectSchema.parse({
 
 function api(overrides: Partial<ControlCenterApi> = {}): ControlCenterApi {
   return {
+    login: async () => undefined,
     getSession: async () => session,
     listWorkspaces: async () => [workspace, otherWorkspace],
     getWorkspaceSnapshot: async (workspaceId) =>

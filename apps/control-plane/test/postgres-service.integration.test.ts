@@ -66,6 +66,7 @@ let identities: IdentitySessionRepository;
 let workspaces: WorkspaceRepository;
 let principalA: IdentityPrincipal;
 let principalB: IdentityPrincipal;
+let localPrincipal: IdentityPrincipal;
 let alphaClientId: string;
 
 beforeAll(async () => {
@@ -103,6 +104,12 @@ beforeAll(async () => {
     displayName: "Principal B",
     now: NOW,
   });
+  localPrincipal = await identities.provisionLocalCredential({
+    username: "personal.admin",
+    password: "personal-password",
+    displayName: "Personal Admin",
+    now: NOW,
+  });
   await workspaces.createWorkspace({
     workspaceId: "ws_alpha",
     displayName: "Alpha Workspace",
@@ -123,6 +130,12 @@ beforeAll(async () => {
       "project:read",
       "project:write",
     ],
+    now: NOW,
+  });
+  await workspaces.createMembership({
+    workspaceId: "ws_alpha",
+    userId: localPrincipal.userId,
+    grantedScopes: ["workspace:read", "client:read", "project:read"],
     now: NOW,
   });
   await workspaces.createMembership({
@@ -513,6 +526,63 @@ describe("PostgreSQL application boundary", () => {
 });
 
 describe("durable identity and session lifecycle", () => {
+  it("authenticates local credentials without storing a plaintext password", async () => {
+    await expect(
+      identities.authenticateLocalCredential({
+        username: "PERSONAL.ADMIN",
+        password: "personal-password",
+        now: NOW,
+      }),
+    ).resolves.toMatchObject({ userId: localPrincipal.userId });
+    await expect(
+      identities.authenticateLocalCredential({
+        username: "personal.admin",
+        password: "incorrect-password",
+        now: NOW,
+      }),
+    ).resolves.toBeNull();
+    const columns = await adminPool.query<{ column_name: string }>(
+      `
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'frevos' AND table_name = 'local_credentials'
+      `,
+    );
+    expect(columns.rows.map((row) => row.column_name)).not.toContain("password");
+  });
+
+  it("temporarily locks a local credential after five failed attempts", async () => {
+    const lockedPrincipal = await identities.provisionLocalCredential({
+      username: "lock.test",
+      password: "correct-password",
+      displayName: "Lock Test",
+      now: NOW,
+    });
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await expect(
+        identities.authenticateLocalCredential({
+          username: "lock.test",
+          password: "wrong-password",
+          now: new Date(NOW.getTime() + attempt),
+        }),
+      ).resolves.toBeNull();
+    }
+    await expect(
+      identities.authenticateLocalCredential({
+        username: "lock.test",
+        password: "correct-password",
+        now: new Date(NOW.getTime() + 60_000),
+      }),
+    ).resolves.toBeNull();
+    await expect(
+      identities.authenticateLocalCredential({
+        username: "lock.test",
+        password: "correct-password",
+        now: new Date(NOW.getTime() + 16 * 60_000),
+      }),
+    ).resolves.toMatchObject({ userId: lockedPrincipal.userId });
+  });
+
   it("maps exact issuer and subject pairs without duplicating users", async () => {
     const again = await identities.upsertIdentity({
       issuer: "https://identity.example",
@@ -586,6 +656,58 @@ describe("durable identity and session lifecycle", () => {
 });
 
 describe("Fastify BFF and protected workspace APIs", () => {
+  it("creates the same hardened server session from a local login", async () => {
+    const server = await buildServer({
+      publicOrigin: PUBLIC_ORIGIN,
+      authMode: "local",
+      identitySessions: identities,
+      workspaces,
+      now: () => NOW,
+    });
+    try {
+      expect(
+        (
+          await server.inject({
+            method: "POST",
+            url: "/auth/login",
+            payload: { username: "personal.admin", password: "personal-password" },
+          })
+        ).statusCode,
+      ).toBe(403);
+      const rejected = await server.inject({
+        method: "POST",
+        url: "/auth/login",
+        headers: { origin: PUBLIC_ORIGIN },
+        payload: { username: "personal.admin", password: "wrong-password" },
+      });
+      expect(rejected.statusCode).toBe(401);
+      expect(rejected.json()).toEqual({ error: "invalid-credentials" });
+
+      const login = await server.inject({
+        method: "POST",
+        url: "/auth/login",
+        headers: { origin: PUBLIC_ORIGIN },
+        payload: { username: "PERSONAL.ADMIN", password: "personal-password" },
+      });
+      expect(login.statusCode).toBe(204);
+      const sessionCookie = cookiePair(login, SESSION_COOKIE);
+      expect(setCookieValue(login, SESSION_COOKIE)).toContain("HttpOnly");
+      expect(setCookieValue(login, SESSION_COOKIE)).toContain("Secure");
+      expect(setCookieValue(login, SESSION_COOKIE)).toContain("SameSite=Strict");
+      expect(setCookieValue(login, SESSION_COOKIE)).not.toContain("Domain=");
+      const session = await server.inject({
+        method: "GET",
+        url: "/v1/session",
+        headers: { cookie: sessionCookie },
+      });
+      expect(session.statusCode).toBe(200);
+      expect(session.json()).toMatchObject({ userId: localPrincipal.userId });
+      expect((await server.inject({ method: "GET", url: "/auth/callback" })).statusCode).toBe(404);
+    } finally {
+      await server.close();
+    }
+  });
+
   it("executes OIDC, hardened cookies, authorization, CSRF, rotation, and logout", async () => {
     const oidcProvider = new FakeOidcProvider();
     const codec = new OidcTransactionCodec(randomBytes(32));

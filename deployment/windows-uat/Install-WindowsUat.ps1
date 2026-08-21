@@ -259,50 +259,12 @@ if (-not $newDatabase -and ((-not (Test-Path -LiteralPath $runtimeConfigFile)) -
 }
 
 if ($newDatabase) {
-    $issuer = (Read-Host "OIDC issuer (exact HTTPS URL ending in /)").Trim()
-    $clientId = (Read-Host "OIDC client ID").Trim()
-    $adminSubject = (Read-Host "OIDC admin synthetic-user subject").Trim()
-    $viewerSubject = (Read-Host "OIDC viewer synthetic-user subject").Trim()
-    $clientSecret = ConvertFrom-SecureValue (Read-Host "OIDC client secret" -AsSecureString)
-    if ($issuer -notmatch "^https://[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?/$") { throw "Invalid OIDC issuer." }
-    if ($clientId -notmatch "^[A-Za-z0-9._~-]{1,255}$") { throw "Invalid OIDC client ID." }
-    if ($adminSubject -notmatch "^[A-Za-z0-9._|:@/-]{1,255}$" -or $viewerSubject -notmatch "^[A-Za-z0-9._|:@/-]{1,255}$" -or $adminSubject -eq $viewerSubject) {
-        throw "Invalid or duplicate OIDC synthetic-user subjects."
-    }
-    if ([string]::IsNullOrWhiteSpace($clientSecret) -or $clientSecret.Length -gt 4096 -or $clientSecret.Contains("`n") -or $clientSecret.Contains("`r")) {
-        throw "Invalid OIDC client secret."
-    }
-    Invoke-WebRequest -Uri "${issuer}.well-known/openid-configuration" -UseBasicParsing -TimeoutSec 20 | Out-Null
-
     $migratorPassword = New-RandomSecret
     $runtimePassword = New-RandomSecret
-    $transactionKey = New-RandomSecret
     $encodedMigratorPassword = [Uri]::EscapeDataString($migratorPassword)
     $encodedRuntimePassword = [Uri]::EscapeDataString($runtimePassword)
     $migrationDatabaseUrl = "postgresql://frevos_migrator:${encodedMigratorPassword}@127.0.0.1:$postgresPort/frevos"
     $databaseUrl = "postgresql://frevos_runtime:${encodedRuntimePassword}@127.0.0.1:$postgresPort/frevos"
-
-    $runtimeConfig = [ordered]@{
-        DATABASE_URL = $databaseUrl
-        FREVOS_PUBLIC_ORIGIN = $publicOrigin
-        FREVOS_OIDC_ISSUER = $issuer
-        FREVOS_OIDC_CLIENT_ID = $clientId
-        FREVOS_OIDC_CLIENT_SECRET = $clientSecret
-        FREVOS_OIDC_TRANSACTION_KEY = $transactionKey
-        FREVOS_BASE_PATH = $basePath
-        HOST = "127.0.0.1"
-        PORT = "$listenPort"
-    }
-    $operationsConfig = [ordered]@{
-        MIGRATION_DATABASE_URL = $migrationDatabaseUrl
-        OIDC_ISSUER = $issuer
-        OIDC_ADMIN_SUBJECT = $adminSubject
-        OIDC_VIEWER_SUBJECT = $viewerSubject
-    }
-    Write-Utf8NoBom $runtimeConfigFile ($runtimeConfig | ConvertTo-Json)
-    Write-Utf8NoBom $operationsConfigFile ($operationsConfig | ConvertTo-Json)
-    Set-ControlledAcl -Path $runtimeConfigFile -AllowLocalService
-    Set-ControlledAcl -Path $operationsConfigFile
 
     New-Item -ItemType Directory -Path $dataDirectory -Force | Out-Null
     $passwordFile = Join-Path $configDirectory ("initdb-" + [guid]::NewGuid().ToString("N") + ".tmp")
@@ -329,12 +291,25 @@ if ($newDatabase) {
     $operationsConfig = Read-Utf8 $operationsConfigFile | ConvertFrom-Json
     $databaseUrl = [string]$runtimeConfig.DATABASE_URL
     $migrationDatabaseUrl = [string]$operationsConfig.MIGRATION_DATABASE_URL
-    $issuer = [string]$operationsConfig.OIDC_ISSUER
-    $adminSubject = [string]$operationsConfig.OIDC_ADMIN_SUBJECT
-    $viewerSubject = [string]$operationsConfig.OIDC_VIEWER_SUBJECT
     $migratorPassword = [Uri]::UnescapeDataString(([Uri]$migrationDatabaseUrl).UserInfo.Split(":", 2)[1])
     $runtimePassword = [Uri]::UnescapeDataString(([Uri]$databaseUrl).UserInfo.Split(":", 2)[1])
 }
+
+$runtimeConfig = [ordered]@{
+    DATABASE_URL = $databaseUrl
+    FREVOS_PUBLIC_ORIGIN = $publicOrigin
+    FREVOS_AUTH_MODE = "local"
+    FREVOS_BASE_PATH = $basePath
+    HOST = "127.0.0.1"
+    PORT = "$listenPort"
+}
+$operationsConfig = [ordered]@{
+    MIGRATION_DATABASE_URL = $migrationDatabaseUrl
+}
+Write-Utf8NoBom $runtimeConfigFile ($runtimeConfig | ConvertTo-Json)
+Write-Utf8NoBom $operationsConfigFile ($operationsConfig | ConvertTo-Json)
+Set-ControlledAcl -Path $runtimeConfigFile -AllowLocalService
+Set-ControlledAcl -Path $operationsConfigFile
 
 $postgresService = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
 if ($null -eq $postgresService) {
@@ -396,10 +371,50 @@ $$;
         $env:DATABASE_URL = $previousDatabaseUrl
     }
 
+    $localCredentialCount = & $psql --host 127.0.0.1 --port $postgresPort --username frevos_migrator `
+        --dbname frevos --tuples-only --no-align --command "SELECT count(*) FROM frevos.local_credentials"
+    if ($LASTEXITCODE -ne 0) { throw "Could not inspect local FrevOS credentials." }
+    if ($localCredentialCount.Trim() -eq "0") {
+        $localUsername = (Read-Host "Initial local admin username (letters, numbers, dot, underscore or hyphen)").Trim().ToLowerInvariant()
+        $localDisplayName = (Read-Host "Initial local admin display name").Trim()
+        $localPassword = ConvertFrom-SecureValue (Read-Host "Initial local admin password (minimum 8 characters)" -AsSecureString)
+        $localPasswordConfirmation = ConvertFrom-SecureValue (Read-Host "Confirm initial local admin password" -AsSecureString)
+        if ($localUsername -notmatch "^[a-z0-9][a-z0-9._-]{2,63}$") { throw "Invalid local admin username." }
+        if ([string]::IsNullOrWhiteSpace($localDisplayName) -or $localDisplayName.Length -gt 120) { throw "Invalid local admin display name." }
+        if ($localPassword.Length -lt 8 -or $localPassword.Length -gt 128 -or $localPassword.Contains("`n") -or $localPassword.Contains("`r")) {
+            throw "Invalid local admin password."
+        }
+        if ($localPassword -cne $localPasswordConfirmation) { throw "Local admin passwords do not match." }
+
+        $bootstrapVariableNames = @(
+            "DATABASE_URL", "FREVOS_PUBLIC_ORIGIN", "FREVOS_AUTH_MODE", "FREVOS_BASE_PATH", "HOST", "PORT",
+            "FREVOS_BOOTSTRAP_USERNAME", "FREVOS_BOOTSTRAP_DISPLAY_NAME", "FREVOS_BOOTSTRAP_PASSWORD"
+        )
+        $previousBootstrapEnvironment = @{}
+        foreach ($name in $bootstrapVariableNames) {
+            $previousBootstrapEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, "Process")
+        }
+        try {
+            foreach ($name in @("DATABASE_URL", "FREVOS_PUBLIC_ORIGIN", "FREVOS_AUTH_MODE", "FREVOS_BASE_PATH", "HOST", "PORT")) {
+                [Environment]::SetEnvironmentVariable($name, [string]$runtimeConfig[$name], "Process")
+            }
+            [Environment]::SetEnvironmentVariable("FREVOS_BOOTSTRAP_USERNAME", $localUsername, "Process")
+            [Environment]::SetEnvironmentVariable("FREVOS_BOOTSTRAP_DISPLAY_NAME", $localDisplayName, "Process")
+            [Environment]::SetEnvironmentVariable("FREVOS_BOOTSTRAP_PASSWORD", $localPassword, "Process")
+            & $nodeExecutable (Join-Path $releaseDirectory "apps\control-plane\dist\bootstrap-local-user.js")
+            if ($LASTEXITCODE -ne 0) { throw "Initial local administrator bootstrap failed." }
+        } finally {
+            foreach ($name in $bootstrapVariableNames) {
+                [Environment]::SetEnvironmentVariable($name, $previousBootstrapEnvironment[$name], "Process")
+            }
+            $localPassword = $null
+            $localPasswordConfirmation = $null
+        }
+    }
+
     & $psql --host 127.0.0.1 --port $postgresPort --username frevos_migrator --dbname frevos `
-        --set ON_ERROR_STOP=on --set "issuer=$issuer" --set "admin_subject=$adminSubject" `
-        --set "viewer_subject=$viewerSubject" --file (Join-Path $releaseDirectory "database\seed.sql")
-    if ($LASTEXITCODE -ne 0) { throw "FrevOS synthetic seed failed." }
+        --set ON_ERROR_STOP=on --file (Join-Path $releaseDirectory "database\seed.sql")
+    if ($LASTEXITCODE -ne 0) { throw "FrevOS personal workspace seed failed." }
 } finally {
     $env:PGPASSWORD = $previousPgPassword
 }

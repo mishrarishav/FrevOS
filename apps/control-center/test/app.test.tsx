@@ -125,6 +125,16 @@ describe("Control Center rendering", () => {
     },
   );
 
+  it("renders the bounded local credential form for Windows personal UAT", () => {
+    const html = renderToStaticMarkup(
+      <App initialExperience={{ kind: "unauthenticated" }} authenticationMode="local" />,
+    );
+    expect(html).toContain('name="username"');
+    expect(html).toContain('name="password"');
+    expect(html).toContain("Sign in");
+    expect(html).not.toContain("Continue to secure sign in");
+  });
+
   it("renders authorized empty project data as empty, not failed", () => {
     const html = renderToStaticMarkup(
       <App initialExperience={{ ...readyExperience, clients: [], projects: [] }} />,

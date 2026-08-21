@@ -39,10 +39,7 @@ $runtime = Read-Utf8 $runtimeConfigFile | ConvertFrom-Json
 $allowedVariables = @(
     "DATABASE_URL",
     "FREVOS_PUBLIC_ORIGIN",
-    "FREVOS_OIDC_ISSUER",
-    "FREVOS_OIDC_CLIENT_ID",
-    "FREVOS_OIDC_CLIENT_SECRET",
-    "FREVOS_OIDC_TRANSACTION_KEY",
+    "FREVOS_AUTH_MODE",
     "FREVOS_BASE_PATH",
     "HOST",
     "PORT"
