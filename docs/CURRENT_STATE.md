@@ -1,6 +1,6 @@
 # FrevOS Current State
 
-Last updated: 2026-08-15
+Last updated: 2026-08-21
 
 ## Snapshot
 
@@ -8,8 +8,8 @@ Last updated: 2026-08-15
 | --- | --- |
 | Production repository | `https://github.com/mishrarishav/FrevOS` |
 | Detected default branch | `main` |
-| Phase branch | `phase/4-oracle-free-uat` |
-| Base commit | `9ded1f17c302b27881c720fa1a481074171a324b` |
+| Phase branch | `phase/4-windows-iis-uat` |
+| Base commit | `5fccb6e927efe623d2a8aba5f089d554d48d4289` |
 | Active phase | Phase 4 exit — Preview/UAT deployment and independent acceptance |
 | Phase 3 merge | Core PR [#5](https://github.com/mishrarishav/FrevOS/pull/5) was human squash-merged as `13f3cd2`; its task branch was deleted |
 | Phase 4A merge | Core PR [#7](https://github.com/mishrarishav/FrevOS/pull/7) was human squash-merged as `425c1f3`; its task branch was deleted |
@@ -17,7 +17,7 @@ Last updated: 2026-08-15
 | Phase 4C merge | Core PR [#9](https://github.com/mishrarishav/FrevOS/pull/9) was human squash-merged as `3973c59`; its task branch was deleted |
 | Phase 4 UAT-package merge | Core PR [#10](https://github.com/mishrarishav/FrevOS/pull/10) was human squash-merged as `2b334bb` |
 | Phase 4 local-preview merge | Core PR [#11](https://github.com/mishrarishav/FrevOS/pull/11) was human squash-merged as `9ded1f1` |
-| Runtime capability | The authenticated Control Center, Fastify BFF, OIDC session boundary, PostgreSQL forced RLS, protected workspace APIs, hosted UAT package, and laptop-only authenticated Preview stack are merged |
+| Runtime capability | The authenticated Control Center, Fastify BFF, OIDC session boundary, PostgreSQL forced RLS, protected workspace APIs, Oracle UAT package, and laptop-only authenticated Preview stack are merged; the Windows/IIS replacement is under review |
 | Dependency manifests | pnpm workspace and committed lockfile on `main` |
 | CI/CD | `CI / validate` passed on local-preview merge commit `9ded1f1` in [run 31797404612](https://github.com/mishrarishav/FrevOS/actions/runs/31797404612) and is a strict required check; UAT deployment remains manual and unexecuted |
 | Independent QA harness | Merged through Acceptance PR [#1](https://github.com/mishrarishav/FrevOS-Acceptance/pull/1); exact-head and default-branch CI passed |
@@ -120,9 +120,9 @@ and screen contract have not been supplied.
 - Tenant persistence uses PostgreSQL with application authorization,
   workspace-scoped repositories, composite workspace foreign keys, and forced
   row-level security as independent defenses.
-- Phase 4 hosted UAT uses one Oracle Always Free Ampere A1 VM, private
-  self-managed PostgreSQL 18, Caddy public HTTPS, and a separate Auth0 EU Free
-  staging tenant under ADR 0019; this is not a Production platform selection.
+- Phase 4 hosted UAT now targets the existing non-Production Windows IIS host,
+  loopback-only Node.js and PostgreSQL 18, and a separate synthetic OIDC tenant
+  under ADR 0020; this is not a Production platform selection.
 - Phase 4 laptop Preview uses Caddy local HTTPS, Keycloak, PostgreSQL 18, and
   the same FrevOS product image; it does not replace hosted UAT or independent
   black-box acceptance.
@@ -225,14 +225,13 @@ deterministic seed data, local CA guidance, and guarded backup/restore commands.
 The local target remains development support and is not hosted-UAT, recovery,
 or independent-acceptance evidence.
 
-The `phase/4-oracle-free-uat` branch is based directly on the verified
-local-preview squash commit. Its bounded change replaces the active hosted route
-with Oracle Always Free and Auth0 Free, adds an ARM64 Compose deployment with no
-public database port, and adds guarded logical backup and isolated restore
-operations. No Oracle or Auth0 resource, secret, deployment, or live target has
-been created or claimed. Those external actions still require separate
-authorization, followed by independent black-box acceptance against the exact
-HTTPS target.
+Core PR [#13](https://github.com/mishrarishav/FrevOS/pull/13) merged the Oracle
+Always Free route as `5fccb6e927efe623d2a8aba5f089d554d48d4289` without
+claiming a live target. The product owner subsequently selected the existing
+non-Production Windows IIS host. The `phase/4-windows-iis-uat` branch adds
+same-origin `/frevos` support and an offline, guarded Windows deployment and
+recovery package. No Windows FrevOS secret, live deployment, recovery exercise,
+or independent acceptance result is claimed before those actions are observed.
 
 ## Open decision register
 
@@ -258,10 +257,9 @@ to completing Phase 0A:
 
 ## Known limitations
 
-- Phase 4 has merged the original UAT packaging and local Preview stack, and the
-  active branch prepares the Oracle Always Free replacement; no Oracle or Auth0
-  resources, UAT secrets, live hosted target, recovery exercise, or external
-  acceptance have been observed.
+- Phase 4 has merged the original, local, and Oracle packaging. The active branch
+  prepares the selected Windows/IIS replacement; no Windows FrevOS secrets,
+  live target, recovery exercise, or external acceptance have been observed.
 - Phase 1 implements contract and CI guardrails only; it does not implement the
   later runtime authorization, isolation, approval, audit, or deployment controls.
 - The independent acceptance harness has no merged Phase 4 product-facing
@@ -277,10 +275,10 @@ to completing Phase 0A:
 
 ## Readiness rule
 
-Phases 0A through 4C implementation and both Phase 4 exit-support packages are
-merged. Phase 4 remains incomplete until the human owner explicitly authorizes
-and provisions the Always Free non-Production resources and secret boundaries,
-confirms the provider estimate remains zero, the exact merged source is healthy
-on one HTTPS origin, logical and volume backup plus isolated recovery evidence
-is recorded, and a separately reviewed independent black-box acceptance change
-passes against that exact target. Phase 5 must not start before those gates.
+Phases 0A through 4C implementation and the prior Phase 4 exit-support packages
+are merged. Phase 4 remains incomplete until the Windows/IIS replacement is
+reviewed and merged, the exact merged source is healthy on one HTTPS origin,
+logical backup and isolated recovery evidence is recorded, sibling IIS
+applications remain healthy, and a separately reviewed independent black-box
+acceptance change passes against that exact target. Phase 5 must not start
+before those gates.

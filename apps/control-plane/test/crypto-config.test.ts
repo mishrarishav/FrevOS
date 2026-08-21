@@ -2,9 +2,9 @@ import { randomBytes } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { loadConfig } from "../src/config.js";
 import {
-  OidcTransactionCodec,
   decodeEncryptionKey,
   hashesMatch,
+  OidcTransactionCodec,
   randomIdentifier,
   randomOpaqueToken,
   sha256,
@@ -83,8 +83,15 @@ describe("control-plane configuration", () => {
     expect(config.publicOrigin).toBe("https://control.frevos.example");
     expect(config.oidcIssuer.href).toBe("https://identity.example/tenant");
     expect(config.oidcTransactionKey).toHaveLength(32);
+    expect(config.basePath).toBe("");
     expect(config.host).toBe("127.0.0.1");
     expect(config.port).toBe(3001);
+  });
+
+  it("accepts one normalized application base-path segment", () => {
+    expect(loadConfig({ ...validEnvironment, FREVOS_BASE_PATH: "/frevos" }).basePath).toBe(
+      "/frevos",
+    );
   });
 
   it("rejects non-HTTPS and path-bearing public origins", () => {
@@ -109,5 +116,7 @@ describe("control-plane configuration", () => {
         FREVOS_OIDC_ISSUER: "https://identity.invalid?tenant=unsafe",
       }),
     ).toThrow();
+    expect(() => loadConfig({ ...validEnvironment, FREVOS_BASE_PATH: "frevos" })).toThrow();
+    expect(() => loadConfig({ ...validEnvironment, FREVOS_BASE_PATH: "/frevos/child" })).toThrow();
   });
 });

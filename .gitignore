@@ -12,6 +12,7 @@ dist/
 !.env.example
 .local/
 backups/local/
+artifacts/
 pass.md
 
 # Editors and operating systems

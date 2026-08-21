@@ -1,5 +1,5 @@
-import { z } from "zod";
 import { IdentityIssuerSchema } from "@frevos/contracts";
+import { z } from "zod";
 import { decodeEncryptionKey } from "./crypto.js";
 
 const EnvironmentSchema = z
@@ -10,6 +10,10 @@ const EnvironmentSchema = z
     FREVOS_OIDC_CLIENT_ID: z.string().min(1).max(255),
     FREVOS_OIDC_CLIENT_SECRET: z.string().min(1).max(4096),
     FREVOS_OIDC_TRANSACTION_KEY: z.string().min(43).max(64),
+    FREVOS_BASE_PATH: z
+      .string()
+      .regex(/^$|^\/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/)
+      .default(""),
     HOST: z.string().min(1).default("127.0.0.1"),
     PORT: z.coerce.number().int().min(1).max(65535).default(3001),
   })
@@ -22,6 +26,7 @@ export interface ControlPlaneConfig {
   readonly oidcClientId: string;
   readonly oidcClientSecret: string;
   readonly oidcTransactionKey: Buffer;
+  readonly basePath: string;
   readonly host: string;
   readonly port: number;
 }
@@ -46,6 +51,7 @@ export function loadConfig(environment: NodeJS.ProcessEnv): ControlPlaneConfig {
     oidcClientId: parsed.FREVOS_OIDC_CLIENT_ID,
     oidcClientSecret: parsed.FREVOS_OIDC_CLIENT_SECRET,
     oidcTransactionKey: decodeEncryptionKey(parsed.FREVOS_OIDC_TRANSACTION_KEY),
+    basePath: parsed.FREVOS_BASE_PATH,
     host: parsed.HOST,
     port: parsed.PORT,
   };

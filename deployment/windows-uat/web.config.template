@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <system.webServer>
+    <rewrite>
+      <rules>
+        <rule name="FrevOS UAT reverse proxy" stopProcessing="true">
+          <match url="^(.*)$" />
+          <action type="Rewrite" url="http://127.0.0.1:__PORT__/frevos/{R:1}" appendQueryString="true" />
+        </rule>
+      </rules>
+    </rewrite>
+    <httpErrors existingResponse="PassThrough" />
+  </system.webServer>
+</configuration>

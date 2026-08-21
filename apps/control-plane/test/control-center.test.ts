@@ -79,4 +79,36 @@ describe("same-origin Control Center delivery", () => {
       await rm(emptyDirectory, { recursive: true, force: true });
     }
   });
+
+  it("serves one same-origin application base path without claiming sibling paths", async () => {
+    const basePathServer = Fastify();
+    await registerControlCenter(basePathServer, assetsDirectory, "/frevos");
+    try {
+      const redirect = await basePathServer.inject({ method: "GET", url: "/frevos" });
+      expect(redirect.statusCode).toBe(308);
+      expect(redirect.headers.location).toBe("/frevos/");
+
+      const shell = await basePathServer.inject({ method: "GET", url: "/frevos/" });
+      expect(shell.statusCode).toBe(200);
+      const asset = await basePathServer.inject({
+        method: "GET",
+        url: "/frevos/assets/app-123.js",
+      });
+      expect(asset.statusCode).toBe(200);
+      const navigation = await basePathServer.inject({
+        method: "GET",
+        url: "/frevos/projects/frevos",
+        headers: { accept: "text/html" },
+      });
+      expect(navigation.statusCode).toBe(200);
+      const sibling = await basePathServer.inject({
+        method: "GET",
+        url: "/another-app",
+        headers: { accept: "text/html" },
+      });
+      expect(sibling.statusCode).toBe(404);
+    } finally {
+      await basePathServer.close();
+    }
+  });
 });

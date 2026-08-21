@@ -1,14 +1,14 @@
 import cookie from "@fastify/cookie";
 import {
+  authorizeWorkspaceAction,
   ClientSchema,
+  type PermissionScope,
   ProjectSchema,
+  type SessionContext,
   SessionContextSchema,
   SessionSummarySchema,
   WorkspaceIdSchema,
   WorkspaceSchema,
-  authorizeWorkspaceAction,
-  type PermissionScope,
-  type SessionContext,
 } from "@frevos/contracts";
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import { z } from "zod";
@@ -97,6 +97,7 @@ const ProjectBodySchema = DisplayNameBodySchema.extend({
 
 interface BuildServerOptions {
   readonly publicOrigin: string;
+  readonly basePath?: string;
   readonly oidcProvider: OidcProvider;
   readonly transactionCodec: OidcTransactionCodec;
   readonly identitySessions: IdentitySessionRepository;
@@ -126,6 +127,8 @@ class HttpError extends Error {
 }
 
 export async function buildServer(options: BuildServerOptions): Promise<FastifyInstance> {
+  const basePath = options.basePath ?? "";
+  const route = (path: string) => `${basePath}${path}`;
   const server = Fastify({
     logger: false,
     trustProxy: false,
@@ -151,7 +154,7 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
   });
 
   server.get(
-    "/health",
+    route("/health"),
     {
       schema: {
         response: {
@@ -180,7 +183,7 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
     },
   );
 
-  server.get("/auth/login", async (_request, reply) => {
+  server.get(route("/auth/login"), async (_request, reply) => {
     const transaction = createOidcTransaction(now());
     const authorizationUrl = await options.oidcProvider.createAuthorizationUrl(transaction);
     if (authorizationUrl.protocol !== "https:") {
@@ -193,7 +196,7 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
     return reply.redirect(authorizationUrl.toString(), 302);
   });
 
-  server.get("/auth/callback", async (request, reply) => {
+  server.get(route("/auth/callback"), async (request, reply) => {
     const encodedTransaction = request.cookies[OIDC_TRANSACTION_COOKIE];
     if (encodedTransaction === undefined) {
       throw new HttpError(400, "invalid-auth-transaction");
@@ -233,11 +236,11 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
 
     setSessionCookies(reply, session.rawToken, session.rawCsrfToken);
     clearCookie(reply, OIDC_TRANSACTION_COOKIE, true);
-    return reply.redirect(`${options.publicOrigin}/`, 302);
+    return reply.redirect(`${options.publicOrigin}${basePath}/`, 302);
   });
 
   server.get(
-    "/v1/session",
+    route("/v1/session"),
     {
       schema: { response: { 200: SessionResponseJsonSchema, 401: ErrorResponseSchema } },
     },
@@ -248,7 +251,7 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
   );
 
   server.get(
-    "/v1/workspaces",
+    route("/v1/workspaces"),
     {
       schema: {
         response: {
@@ -279,7 +282,7 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
   );
 
   server.post(
-    "/auth/logout",
+    route("/auth/logout"),
     {
       schema: {
         response: { 204: { type: "null" }, 401: ErrorResponseSchema, 403: ErrorResponseSchema },
@@ -296,7 +299,7 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
   );
 
   server.get<{ Params: WorkspaceParams }>(
-    "/v1/workspaces/:workspaceId",
+    route("/v1/workspaces/:workspaceId"),
     {
       schema: {
         response: {
@@ -320,7 +323,7 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
   );
 
   server.get<{ Params: WorkspaceParams }>(
-    "/v1/workspaces/:workspaceId/clients",
+    route("/v1/workspaces/:workspaceId/clients"),
     {
       schema: {
         response: {
@@ -340,7 +343,7 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
   );
 
   server.post<{ Params: WorkspaceParams }>(
-    "/v1/workspaces/:workspaceId/clients",
+    route("/v1/workspaces/:workspaceId/clients"),
     {
       schema: {
         response: {
@@ -371,7 +374,7 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
   );
 
   server.get<{ Params: WorkspaceParams }>(
-    "/v1/workspaces/:workspaceId/projects",
+    route("/v1/workspaces/:workspaceId/projects"),
     {
       schema: {
         response: {
@@ -391,7 +394,7 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
   );
 
   server.post<{ Params: WorkspaceParams }>(
-    "/v1/workspaces/:workspaceId/projects",
+    route("/v1/workspaces/:workspaceId/projects"),
     {
       schema: {
         response: {

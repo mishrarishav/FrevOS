@@ -27,6 +27,7 @@ const requiredDocuments = [
   "docs/LOCAL_PREVIEW.md",
   "docs/PERMISSIONS.md",
   "docs/PHASE_4_UAT_RUNBOOK.md",
+  "docs/PHASE_4_WINDOWS_UAT_RUNBOOK.md",
   "docs/PRODUCT.md",
   "docs/ROADMAP.md",
   "docs/SECURITY.md",
@@ -373,6 +374,104 @@ async function validateOracleUat() {
   }
 }
 
+async function validateWindowsUat() {
+  const builder = normalizeNewlines(
+    await readFile(
+      join(repositoryRoot, "deployment/windows-uat/New-WindowsUatRelease.ps1"),
+      "utf8",
+    ),
+  );
+  const installer = normalizeNewlines(
+    await readFile(join(repositoryRoot, "deployment/windows-uat/Install-WindowsUat.ps1"), "utf8"),
+  );
+  const arrInstaller = normalizeNewlines(
+    await readFile(
+      join(repositoryRoot, "deployment/windows-uat/Install-ArrPrerequisite.ps1"),
+      "utf8",
+    ),
+  );
+  const startup = normalizeNewlines(
+    await readFile(join(repositoryRoot, "deployment/windows-uat/Start-WindowsUat.ps1"), "utf8"),
+  );
+  const operations = normalizeNewlines(
+    await readFile(join(repositoryRoot, "deployment/windows-uat/Invoke-WindowsUat.ps1"), "utf8"),
+  );
+  const proxy = normalizeNewlines(
+    await readFile(join(repositoryRoot, "deployment/windows-uat/web.config.template"), "utf8"),
+  );
+
+  for (const required of [
+    'basePath = "/frevos"',
+    '"--config.node-linker=hoisted"',
+    "node-v24.19.0-win-x64.zip",
+    "57f71ab3652e797d84acddc79c81cc9ff1c6ddb2a1974cdb83f00fee9bff4c73",
+    "postgresql-18.4-1-windows-x64-binaries.zip",
+    "7effe34c0bf89027b3f171447d351cbc460f4566c8d0f643daec67f140787858",
+    "requestRouter_amd64.msi",
+    "fb61fdb7101795a34d5129cb37eee43ab675c7ed76ba3a3b23b039d8c90c2a4b",
+    "release-manifest.json",
+    "Compiled control-plane entry point is missing after release pruning",
+  ]) {
+    if (!builder.includes(required)) {
+      errors.push(`Windows UAT release builder is missing: ${required}`);
+    }
+  }
+
+  for (const required of [
+    "[switch]$ConfirmSharedIisProxyChange",
+    '$uatRoot = "D:\\FrevOS-UAT"',
+    '$siteName = "tserver2.eeslindia.org"',
+    '$applicationName = "frevos"',
+    "$listenPort = 10000",
+    "$postgresPort = 5433",
+    '"127.0.0.1"',
+    "NT AUTHORITY\\NetworkService",
+    "NT AUTHORITY\\LOCAL SERVICE",
+    "MIGRATION_DATABASE_URL = $migrationDatabaseUrl",
+    "Set-ControlledAcl -Path $operationsConfigFile",
+    "applicationHost.config",
+    "Wait-ForLocalHealth",
+  ]) {
+    if (!installer.includes(required)) {
+      errors.push(`Windows UAT installer is missing: ${required}`);
+    }
+  }
+  if (
+    !startup.includes('SetEnvironmentVariable("MIGRATION_DATABASE_URL", $null, "Process")') ||
+    startup.includes("operations.json")
+  ) {
+    errors.push(
+      "Windows UAT web startup must clear migration authority and never load operations configuration",
+    );
+  }
+  for (const required of [
+    "[switch]$ConfirmSharedIisRestart",
+    "requestRouter_amd64.msi",
+    "rewrite.dll",
+  ]) {
+    if (!arrInstaller.includes(required)) {
+      errors.push(`Windows UAT ARR boundary is missing: ${required}`);
+    }
+  }
+  for (const required of [
+    '[ValidateSet("Status", "Backup", "RestoreCheck", "Rollback")]',
+    "[switch]$ConfirmIsolatedRestoreCheck",
+    "frevos_restore_check",
+    "release-manifest.json",
+    "Database state was not changed",
+  ]) {
+    if (!operations.includes(required)) {
+      errors.push(`Windows UAT operations boundary is missing: ${required}`);
+    }
+  }
+  if (operations.includes("DROP DATABASE frevos")) {
+    errors.push("Windows UAT restore check must never drop the active database");
+  }
+  if (!proxy.includes("http://127.0.0.1:__PORT__/frevos/{R:1}")) {
+    errors.push("Windows UAT IIS proxy must target only the loopback /frevos application");
+  }
+}
+
 for (const document of requiredDocuments) {
   if (!(await pathExists(join(repositoryRoot, document)))) {
     errors.push(`Required document is missing: ${document}`);
@@ -390,6 +489,7 @@ await validateRuleset();
 await validatePhase4Deployment();
 await validateLocalPreview();
 await validateOracleUat();
+await validateWindowsUat();
 
 if (errors.length > 0) {
   for (const error of errors) {

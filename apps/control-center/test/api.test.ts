@@ -102,6 +102,17 @@ describe("authenticated Control Center API", () => {
     ]);
   });
 
+  it("scopes browser API requests under the configured same-origin base path", async () => {
+    const paths: string[] = [];
+    const api = createControlCenterApi(async (input) => {
+      paths.push(String(input));
+      return jsonResponse(session);
+    }, "/frevos");
+
+    await api.getSession();
+    expect(paths).toEqual(["/frevos/v1/session"]);
+  });
+
   it.each([
     [401, "unauthenticated"],
     [403, "denied"],
