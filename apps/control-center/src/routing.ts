@@ -24,6 +24,22 @@ export type RouteDefinition = {
   description: string;
 };
 
+export const applicationBasePath =
+  import.meta.env.BASE_URL === "/" ? "" : import.meta.env.BASE_URL.replace(/\/$/, "");
+
+export function addBasePath(pathname: string, basePath = applicationBasePath): string {
+  const normalized = normalizePath(pathname);
+  return basePath === "" ? normalized : `${basePath}${normalized}`;
+}
+
+export function removeBasePath(pathname: string, basePath = applicationBasePath): string {
+  const normalized = normalizePath(pathname);
+  if (basePath === "" || !normalized.startsWith(`${basePath}/`)) {
+    return normalized === basePath ? "/" : normalized;
+  }
+  return normalizePath(normalized.slice(basePath.length));
+}
+
 export const routes: readonly RouteDefinition[] = [
   {
     id: "control-center",

@@ -16,10 +16,11 @@ try {
     issuer: config.oidcIssuer,
     clientId: config.oidcClientId,
     clientSecret: config.oidcClientSecret,
-    redirectUri: `${config.publicOrigin}/auth/callback`,
+    redirectUri: `${config.publicOrigin}${config.basePath}/auth/callback`,
   });
   const server = await buildServer({
     publicOrigin: config.publicOrigin,
+    basePath: config.basePath,
     oidcProvider,
     transactionCodec: new OidcTransactionCodec(config.oidcTransactionKey),
     identitySessions: new IdentitySessionRepository(pool),
@@ -29,6 +30,7 @@ try {
   await registerControlCenter(
     server,
     fileURLToPath(new URL("../../control-center/dist/", import.meta.url)),
+    config.basePath,
   );
 
   const shutdown = async () => {

@@ -9,7 +9,14 @@ import { describe, expect, it } from "vitest";
 
 import { App } from "../src/App.js";
 import type { ExperienceState } from "../src/experience.js";
-import { isPathActive, normalizePath, resolveRoute, routes } from "../src/routing.js";
+import {
+  addBasePath,
+  isPathActive,
+  normalizePath,
+  removeBasePath,
+  resolveRoute,
+  routes,
+} from "../src/routing.js";
 
 const session = SessionSummarySchema.parse({
   sessionId: "ses_primary",
@@ -58,6 +65,13 @@ describe("Control Center route contract", () => {
     expect(normalizePath("approvals")).toBe("/approvals");
     expect(normalizePath("/approvals/")).toBe("/approvals");
     expect(normalizePath("/")).toBe("/");
+  });
+
+  it("adds and removes one configured application base path", () => {
+    expect(addBasePath("/projects/frevos", "/frevos")).toBe("/frevos/projects/frevos");
+    expect(removeBasePath("/frevos/projects/frevos", "/frevos")).toBe("/projects/frevos");
+    expect(removeBasePath("/frevos", "/frevos")).toBe("/");
+    expect(removeBasePath("/another/path", "/frevos")).toBe("/another/path");
   });
 
   it("resolves registered routes and rejects unknown routes", () => {

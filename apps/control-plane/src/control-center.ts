@@ -1,7 +1,7 @@
-import staticFiles from "@fastify/static";
-import type { FastifyInstance, FastifyRequest } from "fastify";
 import { access } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
+import staticFiles from "@fastify/static";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 
 const INDEX_FILE = "index.html";
 const RESERVED_PATH_PREFIXES = ["/auth", "/health", "/v1", "/.well-known"] as const;
@@ -30,6 +30,7 @@ const SECURITY_HEADERS = {
 export async function registerControlCenter(
   server: FastifyInstance,
   assetsDirectory: string,
+  basePath = "",
 ): Promise<void> {
   const root = resolve(assetsDirectory);
   await access(join(root, INDEX_FILE));
@@ -43,7 +44,7 @@ export async function registerControlCenter(
 
   await server.register(staticFiles, {
     root,
-    prefix: "/",
+    prefix: `${basePath}/`,
     index: false,
     wildcard: false,
     cacheControl: false,
@@ -57,30 +58,38 @@ export async function registerControlCenter(
     },
   });
 
-  server.get("/", async (_request, reply) => {
+  if (basePath !== "") {
+    server.get(basePath, async (_request, reply) => reply.redirect(`${basePath}/`, 308));
+  }
+
+  server.get(`${basePath}/`, async (_request, reply) => {
     return reply.header("cache-control", "no-store").type("text/html").sendFile(INDEX_FILE);
   });
 
   server.setNotFoundHandler(async (request, reply) => {
-    if (isExperienceNavigation(request)) {
+    if (isExperienceNavigation(request, basePath)) {
       return reply.header("cache-control", "no-store").type("text/html").sendFile(INDEX_FILE);
     }
     return reply.status(404).send({ error: "not-found" });
   });
 }
 
-function isExperienceNavigation(request: FastifyRequest): boolean {
+function isExperienceNavigation(request: FastifyRequest, basePath: string): boolean {
   if (request.method !== "GET" || !request.headers.accept?.includes("text/html")) {
     return false;
   }
   const pathname = new URL(request.url, "https://frevos.invalid").pathname;
+  if (basePath !== "" && pathname !== basePath && !pathname.startsWith(`${basePath}/`)) {
+    return false;
+  }
+  const applicationPath = basePath === "" ? pathname : pathname.slice(basePath.length) || "/";
   if (
     RESERVED_PATH_PREFIXES.some(
-      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+      (prefix) => applicationPath === prefix || applicationPath.startsWith(`${prefix}/`),
     )
   ) {
     return false;
   }
-  const finalSegment = pathname.split("/").at(-1) ?? "";
+  const finalSegment = applicationPath.split("/").at(-1) ?? "";
   return !finalSegment.includes(".");
 }

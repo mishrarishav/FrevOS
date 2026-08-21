@@ -1,11 +1,12 @@
-# Phase 4 Oracle Always Free UAT Runbook
+# Phase 4 Historical Oracle UAT Runbook
 
 ## Purpose and authority boundary
 
-This runbook prepares and verifies the synthetic non-Production Phase 4 UAT
-environment selected in
-[ADR 0019](adr/0019-oracle-free-uat-operating-model.md). It supersedes the
-Render procedure from ADR 0017. It does not itself authorize Oracle or Auth0
+This historical runbook prepares and verifies the Oracle route selected in
+[ADR 0019](adr/0019-oracle-free-uat-operating-model.md). ADR 0020 supersedes it
+for the active hosted target; use the
+[Windows IIS UAT runbook](PHASE_4_WINDOWS_UAT_RUNBOOK.md) for current work. This
+document remains as prior evidence and does not itself authorize Oracle or Auth0
 account creation, payment-method submission, secret creation or rotation, live
 deployment, destructive storage initialization, acceptance-repository changes,
 or Production access. Treat each as a distinct external action and obtain the

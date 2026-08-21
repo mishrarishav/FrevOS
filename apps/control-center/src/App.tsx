@@ -1,3 +1,4 @@
+import type { Client, Project, Workspace } from "@frevos/contracts";
 import {
   Activity,
   Bell,
@@ -14,9 +15,10 @@ import {
   GitBranch,
   GitPullRequest,
   Layers3,
+  type LucideIcon,
   Mic2,
-  Paperclip,
   PanelRightOpen,
+  Paperclip,
   Play,
   Plus,
   Radar,
@@ -30,9 +32,7 @@ import {
   WifiOff,
   X,
   Zap,
-  type LucideIcon,
 } from "lucide-react";
-import type { Client, Project, Workspace } from "@frevos/contracts";
 import {
   type FormEvent,
   type MouseEvent,
@@ -43,29 +43,30 @@ import {
   useRef,
   useState,
 } from "react";
-
+import { type ControlCenterApi, createControlCenterApi } from "./api.js";
 import {
   activity,
   approvals,
   auditEvents,
-  stateExamples,
   type Status,
+  stateExamples,
+  type Tone,
   tasks,
   tokenGroups,
-  type Tone,
 } from "./data.js";
-import { createControlCenterApi, type ControlCenterApi } from "./api.js";
 import {
+  type ExperienceState,
   loadInitialExperience,
   loadWorkspaceExperience,
-  type ExperienceState,
 } from "./experience.js";
 import {
+  addBasePath,
   isPathActive,
   normalizePath,
-  resolveRoute,
   type RouteDefinition,
   type RouteId,
+  removeBasePath,
+  resolveRoute,
   routes,
 } from "./routing.js";
 
@@ -116,7 +117,7 @@ function routeById(id: RouteDefinition["id"]): RouteDefinition {
 }
 
 function getBrowserPath(): string {
-  return typeof window === "undefined" ? "/" : normalizePath(window.location.pathname);
+  return typeof window === "undefined" ? "/" : removeBasePath(window.location.pathname);
 }
 
 export function App({
@@ -189,7 +190,7 @@ export function App({
   const navigate = useCallback((to: string) => {
     const next = normalizePath(to);
     if (typeof window !== "undefined" && next !== getBrowserPath()) {
-      window.history.pushState({}, "", next);
+      window.history.pushState({}, "", addBasePath(next));
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
     setPathname(next);
@@ -421,7 +422,7 @@ function ExperienceBoundary({
           <h1>{content.title}</h1>
           <p>{content.description}</p>
           {showLogin ? (
-            <a className="button primary experience-action" href="/auth/login">
+            <a className="button primary experience-action" href={addBasePath("/auth/login")}>
               Continue to secure sign in
             </a>
           ) : null}
@@ -1544,7 +1545,7 @@ function AppLink({
     navigate(to);
   };
   return (
-    <a href={to} className={className} onClick={onClick} aria-current={ariaCurrent}>
+    <a href={addBasePath(to)} className={className} onClick={onClick} aria-current={ariaCurrent}>
       {children}
     </a>
   );

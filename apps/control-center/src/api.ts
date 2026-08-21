@@ -1,13 +1,14 @@
 import {
-  ClientSchema,
-  ProjectSchema,
-  SessionSummarySchema,
-  WorkspaceSchema,
   type Client,
+  ClientSchema,
   type Project,
+  ProjectSchema,
   type SessionSummary,
+  SessionSummarySchema,
   type Workspace,
+  WorkspaceSchema,
 } from "@frevos/contracts";
+import { addBasePath } from "./routing.js";
 
 export type ApiFailureKind = "unauthenticated" | "denied" | "unavailable" | "invalid-response";
 
@@ -38,7 +39,10 @@ type RuntimeSchema<Output> = {
   safeParse(input: unknown): { success: true; data: Output } | { success: false };
 };
 
-export function createControlCenterApi(fetcher: Fetcher = globalThis.fetch): ControlCenterApi {
+export function createControlCenterApi(
+  fetcher: Fetcher = globalThis.fetch,
+  basePath?: string,
+): ControlCenterApi {
   const get = async <Output>(
     path: string,
     schema: RuntimeSchema<Output>,
@@ -46,7 +50,7 @@ export function createControlCenterApi(fetcher: Fetcher = globalThis.fetch): Con
   ): Promise<Output> => {
     let response: Response;
     try {
-      response = await fetcher(path, {
+      response = await fetcher(addBasePath(path, basePath), {
         method: "GET",
         credentials: "same-origin",
         cache: "no-store",
