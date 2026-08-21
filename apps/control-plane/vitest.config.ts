@@ -11,7 +11,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["src/**/*.ts"],
-      exclude: ["src/main.ts", "src/migrate.ts"],
+      exclude: ["src/bootstrap-local-user.ts", "src/main.ts", "src/migrate.ts"],
       reporter: ["text", "json-summary"],
       thresholds: {
         branches: 90,

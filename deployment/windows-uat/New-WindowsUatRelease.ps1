@@ -77,12 +77,15 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Could not resolve the source timestamp." }
 
     $previousBasePath = $env:FREVOS_BASE_PATH
+    $previousUiAuthMode = $env:VITE_FREVOS_AUTH_MODE
     try {
         $env:FREVOS_BASE_PATH = $basePath
+        $env:VITE_FREVOS_AUTH_MODE = "local"
         Invoke-Checked "pnpm.cmd" @("install", "--frozen-lockfile")
         Invoke-Checked "pnpm.cmd" @("run", "build")
     } finally {
         $env:FREVOS_BASE_PATH = $previousBasePath
+        $env:VITE_FREVOS_AUTH_MODE = $previousUiAuthMode
     }
 
     Assert-ControlledPath $temporaryRoot (Join-Path $repositoryRoot ".local")
@@ -118,7 +121,7 @@ try {
     Get-ChildItem -LiteralPath (Join-Path $controlPlaneTarget "dist") -Recurse -File |
         Where-Object { $_.Name.EndsWith(".map") -or $_.Name.EndsWith(".d.ts") } |
         Remove-Item -Force
-    foreach ($entryPoint in @("main.js", "migrate.js", "server.js")) {
+    foreach ($entryPoint in @("main.js", "migrate.js", "bootstrap-local-user.js", "server.js")) {
         if (-not (Test-Path -LiteralPath (Join-Path $controlPlaneTarget "dist\$entryPoint") -PathType Leaf)) {
             throw "Compiled control-plane entry point is missing after release pruning: $entryPoint"
         }
@@ -126,7 +129,7 @@ try {
 
     Copy-Item -LiteralPath (Join-Path $repositoryRoot "apps\control-center\dist") `
         -Destination (Join-Path $packageRoot "apps\control-center") -Recurse
-    Copy-Item -LiteralPath (Join-Path $repositoryRoot "docker\oci\postgres\seed.sql") `
+    Copy-Item -LiteralPath (Join-Path $repositoryRoot "deployment\windows-uat\seed.sql") `
         -Destination (Join-Path $packageRoot "database\seed.sql")
     Copy-Item -Path (Join-Path $repositoryRoot "deployment\windows-uat\*.ps1") `
         -Destination (Join-Path $packageRoot "deployment\windows-uat")

@@ -9,26 +9,17 @@ authorize Production use, Phase 5 capabilities, active-database restoration,
 secret rotation, changes to sibling IIS applications, or acceptance-test
 weakening.
 
-ARR installation can restart shared IIS services. OIDC secret creation and
-replacement are separate secret-lifecycle actions. The reviewed scripts stop
+ARR installation can restart shared IIS services. The reviewed scripts stop
 unless the operator supplies their exact confirmation switches. Never capture,
-paste, or retain the hidden secret prompts.
+paste, or retain the hidden local-password prompts.
 
-## 1. Prepare exact OIDC settings
+## 1. Prepare the initial local administrator
 
-Create or select the dedicated synthetic UAT OIDC application. Public signup
-must remain disabled. Configure exact values with no wildcard:
-
-| Provider setting | Value |
-| --- | --- |
-| Callback URL | `https://tserver2.eeslindia.org/frevos/auth/callback` |
-| Login URI | `https://tserver2.eeslindia.org/frevos/auth/login` |
-| Logout URL | `https://tserver2.eeslindia.org/frevos/` |
-
-Retain the HTTPS issuer ending in `/`, client ID, and synthetic admin, viewer,
-and no-membership subjects. Keep the client secret only for the later hidden
-server prompt. Confirm the server can reach the issuer discovery URL over
-HTTPS; the installer fails closed if it cannot.
+Choose one normalized username using 3-64 lowercase letters, numbers, dots,
+underscores, or hyphens; one display name; and a password of 8-128 characters.
+Enter the password and confirmation only at the later hidden server prompts.
+Do not put the password in Git, chat, screenshots, commands, configuration, or
+retained evidence. Public signup and external password recovery are absent.
 
 ## 2. Build the offline candidate
 
@@ -96,11 +87,12 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
   -ConfirmSharedIisProxyChange
 ```
 
-On first initialization only, enter non-secret OIDC values and the hidden OIDC
-client secret. The script generates database and transaction secrets locally,
-initializes PostgreSQL 18, applies checksum-guarded migrations, loads idempotent
-synthetic seed data, registers the least-privilege startup task, creates only
-the `/frevos` IIS application, and checks loopback plus public HTTPS health.
+When no local credential exists, enter the initial username and display name,
+then the password and confirmation at hidden prompts. The script generates
+database secrets locally, initializes PostgreSQL 18, applies checksum-guarded
+migrations, stores only a salted `scrypt` password digest, loads idempotent
+personal seed data, registers the least-privilege startup task, creates only the
+`/frevos` IIS application, and checks loopback plus public HTTPS health.
 
 The operation creates no external firewall rule. It backs up the IIS server
 configuration under `D:\FrevOS-UAT\iis-backups` before the FrevOS change. A
@@ -122,12 +114,12 @@ Then verify all observations:
 2. `GET /frevos/` returns the Control Center with the required security headers.
 3. Hashed `/frevos/assets/` content is immutable; missing API and asset routes
    return genuine 404 responses.
-4. Login redirects only to the exact configured issuer and returns to
-   `/frevos/auth/callback` on the same public origin.
-5. Browser storage contains no provider token. FrevOS cookies are host-only,
+4. A wrong local username or password is denied without revealing which value
+   was incorrect; five failures temporarily lock the existing credential.
+5. Browser storage contains no password or bearer token. FrevOS cookies are host-only,
    `Secure`, `HttpOnly` where required, and `SameSite=Strict`.
-6. Synthetic identities observe only their authorized workspace data and the
-   no-membership identity observes the empty state.
+6. The local identity observes only workspace data granted by database-backed
+   membership and scopes.
 7. PostgreSQL listens only on `127.0.0.1:5433`; Node listens only on
    `127.0.0.1:10000`.
 8. The running Local Service process cannot read the administrator-only

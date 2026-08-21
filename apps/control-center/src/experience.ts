@@ -93,5 +93,8 @@ function failureState(
   if (error.kind === "denied") {
     return { kind: "denied" };
   }
-  return { kind: "retry", reason: error.kind };
+  return {
+    kind: "retry",
+    reason: error.kind === "unavailable" ? "unavailable" : "invalid-response",
+  };
 }

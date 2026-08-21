@@ -399,6 +399,9 @@ async function validateWindowsUat() {
   const proxy = normalizeNewlines(
     await readFile(join(repositoryRoot, "deployment/windows-uat/web.config.template"), "utf8"),
   );
+  const personalSeed = normalizeNewlines(
+    await readFile(join(repositoryRoot, "deployment/windows-uat/seed.sql"), "utf8"),
+  );
 
   for (const required of [
     'basePath = "/frevos"',
@@ -410,6 +413,8 @@ async function validateWindowsUat() {
     "requestRouter_amd64.msi",
     "fb61fdb7101795a34d5129cb37eee43ab675c7ed76ba3a3b23b039d8c90c2a4b",
     "release-manifest.json",
+    'VITE_FREVOS_AUTH_MODE = "local"',
+    '"bootstrap-local-user.js"',
     "Compiled control-plane entry point is missing after release pruning",
   ]) {
     if (!builder.includes(required)) {
@@ -428,12 +433,29 @@ async function validateWindowsUat() {
     "NT AUTHORITY\\NetworkService",
     "NT AUTHORITY\\LOCAL SERVICE",
     "MIGRATION_DATABASE_URL = $migrationDatabaseUrl",
+    'FREVOS_AUTH_MODE = "local"',
+    "Initial local admin password",
+    "bootstrap-local-user.js",
     "Set-ControlledAcl -Path $operationsConfigFile",
     "applicationHost.config",
     "Wait-ForLocalHealth",
   ]) {
     if (!installer.includes(required)) {
       errors.push(`Windows UAT installer is missing: ${required}`);
+    }
+  }
+  if (installer.includes("OIDC") || startup.includes("FREVOS_OIDC")) {
+    errors.push("Windows personal UAT must not require an external OIDC configuration");
+  }
+  for (const required of [
+    "usr_windows_admin",
+    "wsm_windows_admin",
+    "workspace:read",
+    "client:write",
+    "project:write",
+  ]) {
+    if (!personalSeed.includes(required)) {
+      errors.push(`Windows personal UAT seed is missing: ${required}`);
     }
   }
   if (

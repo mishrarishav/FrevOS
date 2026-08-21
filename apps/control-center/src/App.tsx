@@ -73,6 +73,10 @@ import {
 type OverlayName = "palette" | "activity" | "states" | "composer" | null;
 
 const browserApi = createControlCenterApi();
+const builtAuthenticationMode =
+  Reflect.get(import.meta.env, "VITE_FREVOS_AUTH_MODE") === "local"
+    ? ("local" as const)
+    : ("oidc" as const);
 
 const routeIcons: Record<Exclude<RouteId, "not-found">, LucideIcon> = {
   "control-center": Radar,
@@ -124,10 +128,12 @@ export function App({
   initialPath,
   api = browserApi,
   initialExperience,
+  authenticationMode = builtAuthenticationMode,
 }: {
   initialPath?: string;
   api?: ControlCenterApi;
   initialExperience?: ExperienceState;
+  authenticationMode?: "local" | "oidc";
 }) {
   const [pathname, setPathname] = useState(() => normalizePath(initialPath ?? getBrowserPath()));
   const [overlay, setOverlay] = useState<OverlayName>(null);
@@ -247,7 +253,14 @@ export function App({
   );
 
   if (experience.kind !== "ready") {
-    return <ExperienceBoundary state={experience} onRetry={retryExperience} />;
+    return (
+      <ExperienceBoundary
+        state={experience}
+        api={api}
+        authenticationMode={authenticationMode}
+        onRetry={retryExperience}
+      />
+    );
   }
 
   const route = resolveRoute(pathname);
@@ -341,9 +354,13 @@ export function App({
 
 function ExperienceBoundary({
   state,
+  api,
+  authenticationMode,
   onRetry,
 }: {
   state: Exclude<ExperienceState, { kind: "ready" }>;
+  api: ControlCenterApi;
+  authenticationMode: "local" | "oidc";
   onRetry: () => void;
 }) {
   const content =
@@ -421,10 +438,13 @@ function ExperienceBoundary({
           <p className="eyebrow experience-eyebrow">{content.eyebrow}</p>
           <h1>{content.title}</h1>
           <p>{content.description}</p>
-          {showLogin ? (
+          {showLogin && authenticationMode === "oidc" ? (
             <a className="button primary experience-action" href={addBasePath("/auth/login")}>
               Continue to secure sign in
             </a>
+          ) : null}
+          {showLogin && authenticationMode === "local" ? (
+            <LocalLoginForm api={api} onAuthenticated={onRetry} />
           ) : null}
           {showRetry ? (
             <button className="button secondary experience-action" type="button" onClick={onRetry}>
@@ -437,6 +457,85 @@ function ExperienceBoundary({
         </section>
       </main>
     </div>
+  );
+}
+
+function LocalLoginForm({
+  api,
+  onAuthenticated,
+}: {
+  api: ControlCenterApi;
+  onAuthenticated: () => void;
+}) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [status, setStatus] = useState<"idle" | "submitting" | "invalid" | "unavailable">("idle");
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (status === "submitting") {
+      return;
+    }
+    setStatus("submitting");
+    void api
+      .login(username, password)
+      .then(() => {
+        setPassword("");
+        onAuthenticated();
+      })
+      .catch((error: unknown) => {
+        setPassword("");
+        setStatus(
+          error instanceof Error && error.message === "invalid-credentials"
+            ? "invalid"
+            : "unavailable",
+        );
+      });
+  };
+
+  return (
+    <form className="local-login-form" onSubmit={submit}>
+      <label>
+        <span>Username</span>
+        <input
+          name="username"
+          autoComplete="username"
+          value={username}
+          maxLength={64}
+          required
+          onChange={(event) => setUsername(event.target.value)}
+        />
+      </label>
+      <label>
+        <span>Password</span>
+        <input
+          name="password"
+          type="password"
+          autoComplete="current-password"
+          value={password}
+          maxLength={128}
+          required
+          onChange={(event) => setPassword(event.target.value)}
+        />
+      </label>
+      {status === "invalid" ? (
+        <p className="login-message" role="alert">
+          Username or password is incorrect.
+        </p>
+      ) : null}
+      {status === "unavailable" ? (
+        <p className="login-message" role="alert">
+          Sign in is temporarily unavailable. Please retry.
+        </p>
+      ) : null}
+      <button
+        className="button primary experience-action"
+        type="submit"
+        disabled={status === "submitting"}
+      >
+        {status === "submitting" ? "Signing in…" : "Sign in"}
+      </button>
+    </form>
   );
 }
 

@@ -37,6 +37,30 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 describe("authenticated Control Center API", () => {
+  it("submits local credentials only to the same-origin login route", async () => {
+    const requests: Array<{ path: string; init: RequestInit | undefined }> = [];
+    const api = createControlCenterApi(async (input, init) => {
+      requests.push({ path: String(input), init });
+      return new Response(null, { status: 204 });
+    }, "/frevos");
+    await expect(api.login("personal.admin", "personal-password")).resolves.toBeUndefined();
+    expect(requests).toEqual([
+      {
+        path: "/frevos/auth/login",
+        init: expect.objectContaining({
+          method: "POST",
+          credentials: "same-origin",
+          body: JSON.stringify({ username: "personal.admin", password: "personal-password" }),
+        }),
+      },
+    ]);
+
+    const rejected = createControlCenterApi(async () => new Response(null, { status: 401 }));
+    await expect(rejected.login("personal.admin", "wrong-password")).rejects.toMatchObject({
+      kind: "invalid-credentials",
+    });
+  });
+
   it("loads strict same-origin session and workspace resources without browser tokens", async () => {
     const requests: Array<{ path: string; init: RequestInit | undefined }> = [];
     const api = createControlCenterApi(async (input, init) => {

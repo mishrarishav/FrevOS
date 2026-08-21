@@ -73,10 +73,11 @@ Normal runtime configuration is:
 | --- | --- |
 | `DATABASE_URL` | Runtime login that may assume `frevos_app` but owns no application table |
 | `FREVOS_PUBLIC_ORIGIN` | Exact HTTPS BFF/browser origin |
-| `FREVOS_OIDC_ISSUER` | HTTPS OpenID Provider issuer |
-| `FREVOS_OIDC_CLIENT_ID` | Confidential OIDC client identifier |
-| `FREVOS_OIDC_CLIENT_SECRET` | Confidential OIDC client secret |
-| `FREVOS_OIDC_TRANSACTION_KEY` | Base64url-encoded 32-byte pre-authentication cookie key |
+| `FREVOS_AUTH_MODE` | `oidc` by default; `local` only for the bounded Windows personal UAT route |
+| `FREVOS_OIDC_ISSUER` | HTTPS OpenID Provider issuer, required only in `oidc` mode |
+| `FREVOS_OIDC_CLIENT_ID` | Confidential OIDC client identifier, required only in `oidc` mode |
+| `FREVOS_OIDC_CLIENT_SECRET` | Confidential OIDC client secret, required only in `oidc` mode |
+| `FREVOS_OIDC_TRANSACTION_KEY` | Base64url-encoded 32-byte pre-authentication cookie key, required only in `oidc` mode |
 | `HOST` / `PORT` | Listener address and port; default `127.0.0.1:3001` |
 
 Do not put real values in committed files, shell history, logs, screenshots, or

@@ -81,6 +81,10 @@ describe("control-plane configuration", () => {
     const config = loadConfig(validEnvironment);
 
     expect(config.publicOrigin).toBe("https://control.frevos.example");
+    expect(config.authMode).toBe("oidc");
+    if (config.authMode !== "oidc") {
+      throw new Error("Expected OIDC configuration");
+    }
     expect(config.oidcIssuer.href).toBe("https://identity.example/tenant");
     expect(config.oidcTransactionKey).toHaveLength(32);
     expect(config.basePath).toBe("");
@@ -92,6 +96,16 @@ describe("control-plane configuration", () => {
     expect(loadConfig({ ...validEnvironment, FREVOS_BASE_PATH: "/frevos" }).basePath).toBe(
       "/frevos",
     );
+  });
+
+  it("accepts local authentication without any external identity-provider secret", () => {
+    const config = loadConfig({
+      DATABASE_URL: "postgresql://runtime.invalid/frevos",
+      FREVOS_PUBLIC_ORIGIN: "https://control.frevos.example",
+      FREVOS_AUTH_MODE: "local",
+    });
+    expect(config).toMatchObject({ authMode: "local", basePath: "" });
+    expect("oidcClientSecret" in config).toBe(false);
   });
 
   it("rejects non-HTTPS and path-bearing public origins", () => {

@@ -94,12 +94,19 @@ const DisplayNameBodySchema = z
 const ProjectBodySchema = DisplayNameBodySchema.extend({
   clientId: z.string().min(5).max(128).optional(),
 }).strict();
+const LocalLoginBodySchema = z
+  .object({
+    username: z.string().min(1).max(64),
+    password: z.string().min(1).max(128),
+  })
+  .strict();
 
 interface BuildServerOptions {
   readonly publicOrigin: string;
   readonly basePath?: string;
-  readonly oidcProvider: OidcProvider;
-  readonly transactionCodec: OidcTransactionCodec;
+  readonly authMode?: "local" | "oidc";
+  readonly oidcProvider?: OidcProvider;
+  readonly transactionCodec?: OidcTransactionCodec;
   readonly identitySessions: IdentitySessionRepository;
   readonly workspaces: WorkspaceRepository;
   readonly readiness?: () => Promise<void>;
@@ -140,6 +147,7 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
   });
   await server.register(cookie);
   const now = options.now ?? (() => new Date());
+  const authMode = options.authMode ?? "oidc";
 
   server.setErrorHandler((error, _request, reply) => {
     if (error instanceof HttpError) {
@@ -183,61 +191,106 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
     },
   );
 
-  server.get(route("/auth/login"), async (_request, reply) => {
-    const transaction = createOidcTransaction(now());
-    const authorizationUrl = await options.oidcProvider.createAuthorizationUrl(transaction);
-    if (authorizationUrl.protocol !== "https:") {
-      throw new HttpError(500, "identity-provider-unavailable");
+  if (authMode === "local") {
+    server.post(
+      route("/auth/login"),
+      {
+        schema: {
+          response: {
+            204: { type: "null" },
+            400: ErrorResponseSchema,
+            401: ErrorResponseSchema,
+            403: ErrorResponseSchema,
+          },
+        },
+      },
+      async (request, reply) => {
+        if (request.headers.origin !== options.publicOrigin) {
+          throw new HttpError(403, "login-origin-rejected");
+        }
+        const body = LocalLoginBodySchema.parse(request.body);
+        const principal = await options.identitySessions.authenticateLocalCredential({
+          username: body.username,
+          password: body.password,
+          now: now(),
+        });
+        if (principal === null) {
+          throw new HttpError(401, "invalid-credentials");
+        }
+        const session = await options.identitySessions.createSession({
+          principal,
+          ...(request.cookies[SESSION_COOKIE] === undefined
+            ? {}
+            : { previousRawToken: request.cookies[SESSION_COOKIE] }),
+          now: now(),
+        });
+        setSessionCookies(reply, session.rawToken, session.rawCsrfToken);
+        return reply.status(204).send();
+      },
+    );
+  } else {
+    if (options.oidcProvider === undefined || options.transactionCodec === undefined) {
+      throw new Error("OIDC provider and transaction codec are required in OIDC mode");
     }
-    reply.setCookie(OIDC_TRANSACTION_COOKIE, options.transactionCodec.seal(transaction), {
-      ...httpOnlyCookieOptions,
-      maxAge: OIDC_MAX_AGE_SECONDS,
+    const oidcProvider = options.oidcProvider;
+    const transactionCodec = options.transactionCodec;
+
+    server.get(route("/auth/login"), async (_request, reply) => {
+      const transaction = createOidcTransaction(now());
+      const authorizationUrl = await oidcProvider.createAuthorizationUrl(transaction);
+      if (authorizationUrl.protocol !== "https:") {
+        throw new HttpError(500, "identity-provider-unavailable");
+      }
+      reply.setCookie(OIDC_TRANSACTION_COOKIE, transactionCodec.seal(transaction), {
+        ...httpOnlyCookieOptions,
+        maxAge: OIDC_MAX_AGE_SECONDS,
+      });
+      return reply.redirect(authorizationUrl.toString(), 302);
     });
-    return reply.redirect(authorizationUrl.toString(), 302);
-  });
 
-  server.get(route("/auth/callback"), async (request, reply) => {
-    const encodedTransaction = request.cookies[OIDC_TRANSACTION_COOKIE];
-    if (encodedTransaction === undefined) {
-      throw new HttpError(400, "invalid-auth-transaction");
-    }
+    server.get(route("/auth/callback"), async (request, reply) => {
+      const encodedTransaction = request.cookies[OIDC_TRANSACTION_COOKIE];
+      if (encodedTransaction === undefined) {
+        throw new HttpError(400, "invalid-auth-transaction");
+      }
 
-    let transaction: OidcTransaction;
-    try {
-      transaction = options.transactionCodec.open(encodedTransaction, now());
-    } catch {
+      let transaction: OidcTransaction;
+      try {
+        transaction = transactionCodec.open(encodedTransaction, now());
+      } catch {
+        clearCookie(reply, OIDC_TRANSACTION_COOKIE, true);
+        throw new HttpError(400, "invalid-auth-transaction");
+      }
+
+      const callbackUrl = new URL(request.url, options.publicOrigin);
+      let externalIdentity: AuthenticatedIdentity;
+      try {
+        externalIdentity = await oidcProvider.completeAuthorization(callbackUrl, transaction);
+      } catch {
+        clearCookie(reply, OIDC_TRANSACTION_COOKIE, true);
+        throw new HttpError(400, "invalid-auth-callback");
+      }
+      const principal = await options.identitySessions.upsertIdentity({
+        issuer: externalIdentity.issuer,
+        subject: externalIdentity.subject,
+        ...(externalIdentity.displayName === undefined
+          ? {}
+          : { displayName: externalIdentity.displayName }),
+        now: now(),
+      });
+      const session = await options.identitySessions.createSession({
+        principal,
+        ...(request.cookies[SESSION_COOKIE] === undefined
+          ? {}
+          : { previousRawToken: request.cookies[SESSION_COOKIE] }),
+        now: now(),
+      });
+
+      setSessionCookies(reply, session.rawToken, session.rawCsrfToken);
       clearCookie(reply, OIDC_TRANSACTION_COOKIE, true);
-      throw new HttpError(400, "invalid-auth-transaction");
-    }
-
-    const callbackUrl = new URL(request.url, options.publicOrigin);
-    let externalIdentity: AuthenticatedIdentity;
-    try {
-      externalIdentity = await options.oidcProvider.completeAuthorization(callbackUrl, transaction);
-    } catch {
-      clearCookie(reply, OIDC_TRANSACTION_COOKIE, true);
-      throw new HttpError(400, "invalid-auth-callback");
-    }
-    const principal = await options.identitySessions.upsertIdentity({
-      issuer: externalIdentity.issuer,
-      subject: externalIdentity.subject,
-      ...(externalIdentity.displayName === undefined
-        ? {}
-        : { displayName: externalIdentity.displayName }),
-      now: now(),
+      return reply.redirect(`${options.publicOrigin}${basePath}/`, 302);
     });
-    const session = await options.identitySessions.createSession({
-      principal,
-      ...(request.cookies[SESSION_COOKIE] === undefined
-        ? {}
-        : { previousRawToken: request.cookies[SESSION_COOKIE] }),
-      now: now(),
-    });
-
-    setSessionCookies(reply, session.rawToken, session.rawCsrfToken);
-    clearCookie(reply, OIDC_TRANSACTION_COOKIE, true);
-    return reply.redirect(`${options.publicOrigin}${basePath}/`, 302);
-  });
+  }
 
   server.get(
     route("/v1/session"),
