@@ -447,6 +447,15 @@ async function validateWindowsUat() {
   if (installer.includes("OIDC") || startup.includes("FREVOS_OIDC")) {
     errors.push("Windows personal UAT must not require an external OIDC configuration");
   }
+  if (
+    !installer.includes("[Security.AccessControl.FileSecurity]::new()") ||
+    !installer.includes("[Security.AccessControl.DirectorySecurity]::new()") ||
+    installer.includes("[Security.AccessControl.FileSystemSecurity]::new()")
+  ) {
+    errors.push(
+      "Windows UAT ACL creation must use concrete PowerShell 5.1-compatible security types",
+    );
+  }
   for (const required of [
     "usr_windows_admin",
     "wsm_windows_admin",
