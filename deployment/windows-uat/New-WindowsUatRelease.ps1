@@ -1,12 +1,18 @@
 [CmdletBinding()]
 param(
-    [string]$OutputDirectory = (Join-Path (Resolve-Path (Join-Path $PSScriptRoot "..\..")) "artifacts\windows-uat"),
-    [string]$PrerequisiteCache = (Join-Path (Resolve-Path (Join-Path $PSScriptRoot "..\..")) ".local\windows-uat-cache")
+    [string]$OutputDirectory = "",
+    [string]$PrerequisiteCache = ""
 )
 
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
+if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
+    $OutputDirectory = Join-Path $repositoryRoot "artifacts\windows-uat"
+}
+if ([string]::IsNullOrWhiteSpace($PrerequisiteCache)) {
+    $PrerequisiteCache = Join-Path $repositoryRoot ".local\windows-uat-cache"
+}
 $temporaryRoot = Join-Path $repositoryRoot ".local\windows-uat-build"
 $basePath = "/frevos"
 
