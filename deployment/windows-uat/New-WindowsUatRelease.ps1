@@ -115,8 +115,14 @@ try {
         $target = Join-Path $controlPlaneTarget $unneeded
         if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Recurse -Force }
     }
-    Get-ChildItem -LiteralPath (Join-Path $controlPlaneTarget "dist") -Recurse -File -Include "*.map", "*.d.ts" |
+    Get-ChildItem -LiteralPath (Join-Path $controlPlaneTarget "dist") -Recurse -File |
+        Where-Object { $_.Name.EndsWith(".map") -or $_.Name.EndsWith(".d.ts") } |
         Remove-Item -Force
+    foreach ($entryPoint in @("main.js", "migrate.js", "server.js")) {
+        if (-not (Test-Path -LiteralPath (Join-Path $controlPlaneTarget "dist\$entryPoint") -PathType Leaf)) {
+            throw "Compiled control-plane entry point is missing after release pruning: $entryPoint"
+        }
+    }
 
     Copy-Item -LiteralPath (Join-Path $repositoryRoot "apps\control-center\dist") `
         -Destination (Join-Path $packageRoot "apps\control-center") -Recurse

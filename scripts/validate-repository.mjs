@@ -410,6 +410,7 @@ async function validateWindowsUat() {
     "requestRouter_amd64.msi",
     "fb61fdb7101795a34d5129cb37eee43ab675c7ed76ba3a3b23b039d8c90c2a4b",
     "release-manifest.json",
+    "Compiled control-plane entry point is missing after release pruning",
   ]) {
     if (!builder.includes(required)) {
       errors.push(`Windows UAT release builder is missing: ${required}`);
