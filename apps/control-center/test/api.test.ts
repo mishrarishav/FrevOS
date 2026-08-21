@@ -61,6 +61,34 @@ describe("authenticated Control Center API", () => {
     });
   });
 
+  it.each([
+    [403, "denied"],
+    [500, "unavailable"],
+  ] as const)("maps local login HTTP %s to %s", async (status, kind) => {
+    const api = createControlCenterApi(async () => new Response(null, { status }));
+    await expect(api.login("personal.admin", "personal-password")).rejects.toMatchObject({ kind });
+  });
+
+  it("fails closed for local-login network errors and preserves cancellation", async () => {
+    const unavailable = createControlCenterApi(async () => {
+      throw new Error("network details");
+    });
+    await expect(unavailable.login("personal.admin", "personal-password")).rejects.toMatchObject({
+      kind: "unavailable",
+    });
+
+    const controller = new AbortController();
+    const cancellation = new Error("cancelled");
+    controller.abort();
+    const aborted = createControlCenterApi(async (_input, init) => {
+      expect(init?.signal).toBe(controller.signal);
+      throw cancellation;
+    });
+    await expect(
+      aborted.login("personal.admin", "personal-password", controller.signal),
+    ).rejects.toBe(cancellation);
+  });
+
   it("loads strict same-origin session and workspace resources without browser tokens", async () => {
     const requests: Array<{ path: string; init: RequestInit | undefined }> = [];
     const api = createControlCenterApi(async (input, init) => {
