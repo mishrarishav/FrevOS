@@ -61,7 +61,7 @@ function Set-ControlledAcl(
     [switch]$AllowNetworkServiceRead,
     [switch]$AllowNetworkServiceModify
 ) {
-    $acl = [Security.AccessControl.FileSystemSecurity]::new()
+    $acl = [Security.AccessControl.FileSecurity]::new()
     if ((Get-Item -LiteralPath $Path) -is [IO.DirectoryInfo]) {
         $acl = [Security.AccessControl.DirectorySecurity]::new()
     }
