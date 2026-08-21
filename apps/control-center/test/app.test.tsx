@@ -11,6 +11,7 @@ import { App } from "../src/App.js";
 import type { ExperienceState } from "../src/experience.js";
 import {
   addBasePath,
+  basePathFromBaseUrl,
   isPathActive,
   normalizePath,
   removeBasePath,
@@ -68,6 +69,8 @@ describe("Control Center route contract", () => {
   });
 
   it("adds and removes one configured application base path", () => {
+    expect(basePathFromBaseUrl("/")).toBe("");
+    expect(basePathFromBaseUrl("/frevos/")).toBe("/frevos");
     expect(addBasePath("/projects/frevos", "/frevos")).toBe("/frevos/projects/frevos");
     expect(removeBasePath("/frevos/projects/frevos", "/frevos")).toBe("/projects/frevos");
     expect(removeBasePath("/frevos", "/frevos")).toBe("/");

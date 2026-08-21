@@ -24,8 +24,11 @@ export type RouteDefinition = {
   description: string;
 };
 
-export const applicationBasePath =
-  import.meta.env.BASE_URL === "/" ? "" : import.meta.env.BASE_URL.replace(/\/$/, "");
+export function basePathFromBaseUrl(baseUrl: string): string {
+  return baseUrl === "/" ? "" : baseUrl.replace(/\/$/, "");
+}
+
+export const applicationBasePath = basePathFromBaseUrl(import.meta.env.BASE_URL);
 
 export function addBasePath(pathname: string, basePath = applicationBasePath): string {
   const normalized = normalizePath(pathname);
