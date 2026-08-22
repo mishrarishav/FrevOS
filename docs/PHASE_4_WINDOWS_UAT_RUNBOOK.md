@@ -94,6 +94,13 @@ migrations, stores only a salted `scrypt` password digest, loads idempotent
 personal seed data, registers the least-privilege startup task, creates only the
 `/frevos` IIS application, and checks loopback plus public HTTPS health.
 
+For a first installation, the script makes the empty PostgreSQL data directory
+owned and writable by the elevated installer identity before `initdb`, grants
+that identity read access only to the ephemeral password and role-input files,
+and then applies the service ACLs. An empty database-existence result is treated
+as "not created". A non-empty data directory without `PG_VERSION` fails closed
+for operator review; the installer never deletes a partial cluster.
+
 The operation creates no external firewall rule. It backs up the IIS server
 configuration under `D:\FrevOS-UAT\iis-backups` before the FrevOS change. A
 failed application health check restores the prior active release pointer when
