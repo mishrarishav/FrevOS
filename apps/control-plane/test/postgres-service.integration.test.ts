@@ -1061,6 +1061,21 @@ describe("TrackGRN UAT automation pilot", () => {
         authorization: `Bearer ${agentToken}`,
         "x-frevos-agent-id": TRACKGRN_AGENT_ID,
       };
+      for (const headers of [
+        { authorization: `Bearer ${agentToken}`, "x-frevos-agent-id": "svc_wrong_agent" },
+        { "x-frevos-agent-id": TRACKGRN_AGENT_ID },
+        { authorization: "Bearer short", "x-frevos-agent-id": TRACKGRN_AGENT_ID },
+      ]) {
+        expect(
+          (
+            await server.inject({
+              method: "POST",
+              url: "/v1/agents/trackgrn/claim",
+              headers,
+            })
+          ).statusCode,
+        ).toBe(401);
+      }
       expect(
         (
           await server.inject({
@@ -1110,6 +1125,26 @@ describe("TrackGRN UAT automation pilot", () => {
         environment: "uat",
       });
 
+      const missingProfileUrl = `/v1/workspaces/${TRACKGRN_WORKSPACE_ID}/projects/prj_missing_profile/automation`;
+      expect(
+        (
+          await server.inject({
+            method: "GET",
+            url: missingProfileUrl,
+            headers: { cookie: sessionCookie },
+          })
+        ).statusCode,
+      ).toBe(404);
+      expect(
+        (
+          await server.inject({
+            method: "GET",
+            url: `${missingProfileUrl}/operations`,
+            headers: { cookie: sessionCookie },
+          })
+        ).statusCode,
+      ).toBe(404);
+
       const createUrl = `/v1/workspaces/${TRACKGRN_WORKSPACE_ID}/projects/${TRACKGRN_PROJECT_ID}/automation/operations`;
       expect(
         (
@@ -1121,6 +1156,16 @@ describe("TrackGRN UAT automation pilot", () => {
           })
         ).statusCode,
       ).toBe(403);
+      expect(
+        (
+          await server.inject({
+            method: "POST",
+            url: `${missingProfileUrl}/operations`,
+            headers: browserHeaders,
+            payload: { action: "repository.inspect", input: {} },
+          })
+        ).statusCode,
+      ).toBe(404);
       const created = await server.inject({
         method: "POST",
         url: createUrl,
@@ -1133,6 +1178,25 @@ describe("TrackGRN UAT automation pilot", () => {
         status: "queued",
         requestedBy: localPrincipal.userId,
       });
+      const operationUrl = `${createUrl}/${created.json().operationId}`;
+      expect(
+        (
+          await server.inject({
+            method: "GET",
+            url: operationUrl,
+            headers: { cookie: sessionCookie },
+          })
+        ).json(),
+      ).toMatchObject({ operationId: created.json().operationId, status: "queued" });
+      expect(
+        (
+          await server.inject({
+            method: "GET",
+            url: `${createUrl}/op_missing_01`,
+            headers: { cookie: sessionCookie },
+          })
+        ).statusCode,
+      ).toBe(404);
 
       const claimed = await server.inject({
         method: "POST",
@@ -1193,6 +1257,49 @@ describe("TrackGRN UAT automation pilot", () => {
           status: "succeeded",
         }),
       ]);
+
+      const second = await server.inject({
+        method: "POST",
+        url: createUrl,
+        headers: browserHeaders,
+        payload: { action: "project.build", input: {} },
+      });
+      expect(second.statusCode).toBe(202);
+      expect(
+        (
+          await server.inject({
+            method: "POST",
+            url: "/v1/agents/trackgrn/claim",
+            headers: agentHeaders,
+          })
+        ).statusCode,
+      ).toBe(200);
+      const secondCompletionUrl = `/v1/agents/trackgrn/operations/${second.json().operationId}/complete`;
+      expect(
+        (
+          await server.inject({
+            method: "POST",
+            url: secondCompletionUrl,
+            headers: agentHeaders,
+            payload: { status: "succeeded", result: { output: "x".repeat(60_001) } },
+          })
+        ).statusCode,
+      ).toBe(400);
+      const failedCompletion = await server.inject({
+        method: "POST",
+        url: secondCompletionUrl,
+        headers: agentHeaders,
+        payload: {
+          status: "failed",
+          errorCode: "operation-failed",
+          result: { message: "Synthetic allowlisted operation failure" },
+        },
+      });
+      expect(failedCompletion.statusCode).toBe(200);
+      expect(failedCompletion.json()).toMatchObject({
+        status: "failed",
+        errorCode: "operation-failed",
+      });
     } finally {
       await server.close();
     }
@@ -1220,6 +1327,31 @@ describe("TrackGRN UAT automation pilot", () => {
           })
         ).json(),
       ).toEqual({ error: "trackgrn-agent-disabled" });
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("keeps automation unavailable when the store is not installed", async () => {
+    const server = await buildServer({
+      publicOrigin: PUBLIC_ORIGIN,
+      authMode: "local",
+      identitySessions: identities,
+      workspaces,
+      trackGrnAgentTokenHash: sha256(agentToken),
+      now: () => NOW,
+    });
+    try {
+      const response = await server.inject({
+        method: "POST",
+        url: "/v1/agents/trackgrn/claim",
+        headers: {
+          authorization: `Bearer ${agentToken}`,
+          "x-frevos-agent-id": TRACKGRN_AGENT_ID,
+        },
+      });
+      expect(response.statusCode).toBe(503);
+      expect(response.json()).toEqual({ error: "project-automation-unavailable" });
     } finally {
       await server.close();
     }
