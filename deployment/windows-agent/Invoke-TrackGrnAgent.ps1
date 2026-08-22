@@ -77,6 +77,19 @@ function Assert-GitHubOperator {
     }
 }
 
+function Invoke-GitHubJson([string[]]$Arguments) {
+    $output = @(& gh @Arguments 2>$null)
+    if ($LASTEXITCODE -ne 0) {
+        throw "An allowlisted GitHub operation failed."
+    }
+    try {
+        return (($output -join "`n") | ConvertFrom-Json)
+    }
+    catch {
+        throw "GitHub returned an invalid response."
+    }
+}
+
 function Get-RepositoryFiles {
     $files = @(
         Invoke-Git @("ls-files", "--modified", "--deleted", "--others", "--exclude-standard") |
@@ -233,6 +246,14 @@ function Commit-AndPush([object]$Operation) {
     Assert-GitHubOperator
     $snapshot = Get-RepositorySnapshot
     if ($snapshot.clean) { throw "There are no reviewed TrackGRN changes to commit." }
+    if ($snapshot.branch -cne "main") {
+        throw "Reviewed TrackGRN changes must start from the local main branch."
+    }
+    $remoteMain = @(Invoke-Git @("ls-remote", "--heads", "origin", "refs/heads/main"))
+    if ($remoteMain.Count -ne 1 -or
+        -not ([string]$remoteMain[0]).StartsWith("$($snapshot.headSha)`t")) {
+        throw "The local TrackGRN main branch is not the current remote main."
+    }
     if ($snapshot.headSha -cne [string]$Operation.input.expectedHeadSha) {
         throw "The repository HEAD changed after review."
     }
@@ -257,8 +278,148 @@ function Commit-AndPush([object]$Operation) {
         sourceSha = $snapshot.headSha
         commitSha = $newHead
         branch = $branch
+        commitMessage = $message
         repositoryUrl = "https://github.com/mishrarishav/TraceGRN"
         pullRequestUrl = "https://github.com/mishrarishav/TraceGRN/compare/main...$branch?expand=1"
+    }
+}
+
+function Open-PullRequest([object]$Operation) {
+    Assert-GitHubOperator
+    $snapshot = Get-RepositorySnapshot
+    $expectedHead = [string]$Operation.input.expectedHeadSha
+    $branch = [string]$Operation.input.branch
+    $title = [string]$Operation.input.title
+    if ($snapshot.clean -ne $true -or $snapshot.headSha -cne $expectedHead) {
+        throw "The reviewed branch source changed before pull request creation."
+    }
+    if ($branch -cnotmatch "^frevos/trackgrn-[A-Za-z0-9_-]{12}$" -or
+        $snapshot.branch -cne $branch) {
+        throw "The reviewed TrackGRN branch is invalid."
+    }
+    if ($title.Length -lt 3 -or $title.Length -gt 120 -or
+        $title.Contains("`n") -or $title.Contains("`r") -or $title.Trim() -cne $title) {
+        throw "The reviewed pull request title is invalid."
+    }
+    $remoteHead = @(Invoke-Git @("ls-remote", "--heads", "origin", "refs/heads/$branch"))
+    if ($remoteHead.Count -ne 1 -or -not ([string]$remoteHead[0]).StartsWith("$expectedHead`t")) {
+        throw "The reviewed remote branch head could not be verified."
+    }
+
+    $pullRequests = @(
+        Invoke-GitHubJson @(
+            "pr", "list",
+            "--repo", "mishrarishav/TraceGRN",
+            "--head", $branch,
+            "--state", "open",
+            "--json", "number,url,state,isDraft,baseRefName,headRefOid"
+        )
+    )
+    if ($pullRequests.Count -gt 1) {
+        throw "Multiple open pull requests exist for the reviewed branch."
+    }
+    if ($pullRequests.Count -eq 0) {
+        $createdUrl = @(& gh pr create `
+            --repo "mishrarishav/TraceGRN" `
+            --base "main" `
+            --head $branch `
+            --title $title `
+            --body "Created from a reviewed FrevOS TrackGRN operation. Human approval is required before squash merge." `
+            2>$null)
+        if ($LASTEXITCODE -ne 0 -or $createdUrl.Count -eq 0) {
+            throw "The reviewed TrackGRN pull request could not be created."
+        }
+        $pullRequest = Invoke-GitHubJson @(
+            "pr", "view", ([string]$createdUrl[-1]).Trim(),
+            "--repo", "mishrarishav/TraceGRN",
+            "--json", "number,url,state,isDraft,baseRefName,headRefOid"
+        )
+    }
+    else {
+        $pullRequest = $pullRequests[0]
+    }
+    if ([string]$pullRequest.state -cne "OPEN" -or [bool]$pullRequest.isDraft -or
+        [string]$pullRequest.baseRefName -cne "main" -or
+        [string]$pullRequest.headRefOid -cne $expectedHead) {
+        throw "The TrackGRN pull request does not match the reviewed branch."
+    }
+    return [ordered]@{
+        pullRequestNumber = [int]$pullRequest.number
+        pullRequestUrl = [string]$pullRequest.url
+        state = "OPEN"
+        baseBranch = "main"
+        branch = $branch
+        headSha = $expectedHead
+        humanMergeRequired = $true
+    }
+}
+
+function Squash-MergePullRequest([object]$Operation) {
+    Assert-GitHubOperator
+    $snapshot = Get-RepositorySnapshot
+    if (-not $snapshot.clean) {
+        throw "TrackGRN squash merge requires a clean checkout."
+    }
+    $number = [int]$Operation.input.pullRequestNumber
+    $expectedHead = [string]$Operation.input.expectedHeadSha
+    if ($number -lt 1 -or $number -gt 2147483647 -or
+        $expectedHead -cnotmatch "^[a-f0-9]{40}$" -or
+        [string]$Operation.input.confirmation -cne "squash-merge") {
+        throw "The human-approved squash merge input is invalid."
+    }
+    $pullRequest = Invoke-GitHubJson @(
+        "pr", "view", "$number",
+        "--repo", "mishrarishav/TraceGRN",
+        "--json", "number,url,state,isDraft,baseRefName,headRefOid,mergeable,mergeStateStatus,statusCheckRollup"
+    )
+    $validateChecks = @(
+        $pullRequest.statusCheckRollup |
+            Where-Object { [string]$_.name -ceq "validate" }
+    )
+    if ([int]$pullRequest.number -ne $number -or
+        [string]$pullRequest.state -cne "OPEN" -or [bool]$pullRequest.isDraft -or
+        [string]$pullRequest.baseRefName -cne "main" -or
+        [string]$pullRequest.headRefOid -cne $expectedHead -or
+        [string]$pullRequest.mergeable -cne "MERGEABLE" -or
+        [string]$pullRequest.mergeStateStatus -cne "CLEAN" -or
+        $validateChecks.Count -ne 1 -or
+        [string]$validateChecks[0].status -cne "COMPLETED" -or
+        [string]$validateChecks[0].conclusion -cne "SUCCESS") {
+        throw "The TrackGRN pull request is not eligible for human-approved squash merge."
+    }
+
+    & gh pr merge "$number" `
+        --repo "mishrarishav/TraceGRN" `
+        --squash `
+        --match-head-commit $expectedHead `
+        *> $null
+    if ($LASTEXITCODE -ne 0) {
+        throw "The human-approved TrackGRN squash merge failed."
+    }
+    $merged = Invoke-GitHubJson @(
+        "pr", "view", "$number",
+        "--repo", "mishrarishav/TraceGRN",
+        "--json", "number,url,state,headRefOid,mergeCommit"
+    )
+    if ([string]$merged.state -cne "MERGED" -or
+        [string]$merged.headRefOid -cne $expectedHead -or
+        [string]::IsNullOrWhiteSpace([string]$merged.mergeCommit.oid)) {
+        throw "The TrackGRN squash merge result could not be verified."
+    }
+    Invoke-Git @("fetch", "origin", "main") | Out-Null
+    Invoke-Git @("switch", "main") | Out-Null
+    Invoke-Git @("merge", "--ff-only", "origin/main") | Out-Null
+    $localMain = (Invoke-Git @("rev-parse", "HEAD") | Select-Object -First 1).Trim()
+    return [ordered]@{
+        pullRequestNumber = $number
+        pullRequestUrl = [string]$merged.url
+        reviewedHeadSha = $expectedHead
+        mergeCommitSha = [string]$merged.mergeCommit.oid
+        validateCheck = "SUCCESS"
+        state = "MERGED"
+        localBranch = "main"
+        localHeadSha = $localMain
+        mergedByHumanConfirmation = $true
     }
 }
 
@@ -405,6 +566,8 @@ function Invoke-Operation([object]$Operation, [hashtable]$Environment) {
         "repository.inspect" { return Get-RepositorySnapshot }
         "repository.propose-commit" { return Get-CommitProposal }
         "repository.commit-push" { return Commit-AndPush $Operation }
+        "repository.open-pull-request" { return Open-PullRequest $Operation }
+        "repository.squash-merge" { return Squash-MergePullRequest $Operation }
         "project.build" { return Build-TrackGrn ([string]$Operation.operationId) $Environment }
         "uat.deploy" { return Deploy-TrackGrn $Operation $Environment }
         default { throw "The requested operation is not allowlisted by this agent." }

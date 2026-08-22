@@ -414,6 +414,12 @@ async function validateWindowsUat() {
       "utf8",
     ),
   );
+  const trackGrnHumanMergeMigration = normalizeNewlines(
+    await readFile(
+      join(repositoryRoot, "apps/control-plane/migrations/0005_trackgrn_human_merge.sql"),
+      "utf8",
+    ),
+  );
 
   for (const required of [
     'basePath = "/frevos"',
@@ -514,6 +520,8 @@ async function validateWindowsUat() {
     '"repository.inspect"',
     '"repository.propose-commit"',
     '"repository.commit-push"',
+    '"repository.open-pull-request"',
+    '"repository.squash-merge"',
     '"project.build"',
     '"uat.deploy"',
     "expectedChangeDigest",
@@ -524,14 +532,38 @@ async function validateWindowsUat() {
     "gh api repos/mishrarishav/TraceGRN --jq .id",
     '"frevos/trackgrn-$suffix"',
     'Invoke-Git @("push", "--set-upstream", "origin", "HEAD")',
+    'snapshot.branch -cne "main"',
+    "refs/heads/main",
+    "--match-head-commit",
+    'mergeStateStatus -cne "CLEAN"',
+    'name -ceq "validate"',
+    'confirmation -cne "squash-merge"',
   ]) {
     if (!trackGrnAgent.includes(required)) {
       errors.push(`TrackGRN Windows agent is missing: ${required}`);
     }
   }
-  for (const prohibited of ["Invoke-Expression", "cmd.exe", 'push", "origin", "main"']) {
+  for (const prohibited of [
+    "Invoke-Expression",
+    "cmd.exe",
+    'push", "origin", "main"',
+    "--auto",
+    "--admin",
+    '"--merge"',
+    '"--rebase"',
+  ]) {
     if (trackGrnAgent.includes(prohibited)) {
       errors.push(`TrackGRN Windows agent exposes a prohibited execution path: ${prohibited}`);
+    }
+  }
+  for (const required of [
+    "repository.open-pull-request",
+    "repository.squash-merge",
+    "project_automation_profiles_allowed_actions_check",
+    "project_automation_operations_action_check",
+  ]) {
+    if (!trackGrnHumanMergeMigration.includes(required)) {
+      errors.push(`TrackGRN human-merge migration is missing: ${required}`);
     }
   }
   for (const required of [

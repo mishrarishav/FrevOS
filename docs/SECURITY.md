@@ -195,6 +195,11 @@ workspace-authorized and CSRF-protected. The separate laptop companion uses a
 distinct token digest, polls outbound, verifies the exact repository remote,
 accepts no command or path input, and runs only registered TrackGRN actions.
 Commit/push additionally binds the human-reviewed HEAD and change digest;
+PR creation binds the pushed branch and exact head. ADR 0023 permits squash
+merge only after a separate explicit human confirmation and immediate checks
+for the pinned repository, `main`, exact PR head, open non-draft state,
+`MERGEABLE`/`CLEAN`, and successful `validate`. Auto-merge, administrator
+bypass, merge commits, and rebases remain prohibited;
 deployment binds a clean source SHA, fixed server release root, VPN/WinRM
 preflight, artifact digest, and health endpoint. Raw command output and secret
 values are never accepted as evidence. This pilot does not weaken Production,

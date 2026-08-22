@@ -230,7 +230,8 @@ beforeAll(async () => {
           '/apiTrackGrn/health/live', '/apiTrackGrn/swagger',
           ARRAY[
             'repository.inspect', 'repository.propose-commit',
-            'repository.commit-push', 'project.build', 'uat.deploy'
+            'repository.commit-push', 'repository.open-pull-request',
+            'repository.squash-merge', 'project.build', 'uat.deploy'
           ], $4
         )
       `,
@@ -1123,6 +1124,10 @@ describe("TrackGRN UAT automation pilot", () => {
         projectId: TRACKGRN_PROJECT_ID,
         repository: { providerRepositoryId: "1334902237" },
         environment: "uat",
+        allowedActions: expect.arrayContaining([
+          "repository.open-pull-request",
+          "repository.squash-merge",
+        ]),
       });
 
       const missingProfileUrl = `/v1/workspaces/${TRACKGRN_WORKSPACE_ID}/projects/prj_missing_profile/automation`;
@@ -1300,6 +1305,50 @@ describe("TrackGRN UAT automation pilot", () => {
         status: "failed",
         errorCode: "operation-failed",
       });
+
+      for (const request of [
+        {
+          action: "repository.open-pull-request",
+          input: {
+            expectedHeadSha: "b".repeat(40),
+            branch: "frevos/trackgrn-automation01",
+            title: "Open reviewed TrackGRN pull request",
+          },
+        },
+        {
+          action: "repository.squash-merge",
+          input: {
+            pullRequestNumber: 42,
+            expectedHeadSha: "b".repeat(40),
+            confirmation: "squash-merge",
+          },
+        },
+      ] as const) {
+        const queued = await server.inject({
+          method: "POST",
+          url: createUrl,
+          headers: browserHeaders,
+          payload: request,
+        });
+        expect(queued.statusCode).toBe(202);
+        const nextClaim = await server.inject({
+          method: "POST",
+          url: "/v1/agents/trackgrn/claim",
+          headers: agentHeaders,
+        });
+        expect(nextClaim.json()).toMatchObject({
+          operationId: queued.json().operationId,
+          action: request.action,
+          status: "claimed",
+        });
+        const nextCompletion = await server.inject({
+          method: "POST",
+          url: `/v1/agents/trackgrn/operations/${queued.json().operationId}/complete`,
+          headers: agentHeaders,
+          payload: { status: "succeeded", result: { verified: true } },
+        });
+        expect(nextCompletion.statusCode).toBe(200);
+      }
     } finally {
       await server.close();
     }

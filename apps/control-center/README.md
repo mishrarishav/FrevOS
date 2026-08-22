@@ -14,8 +14,10 @@ The browser receives only the hardened server-session cookie; it does not store
 provider or session tokens and does not submit membership evidence or
 permission scopes. Generic commands, tasks, Agent Activity, approvals, and audit
 entries remain explicitly labeled planned examples. The sole exception is the
-ADR 0022 TrackGRN project panel, whose explicit buttons call the bounded,
+ADR 0022/0023 TrackGRN project panel, whose explicit buttons call the bounded,
 workspace-authorized UAT automation API and display durable operation status.
+Pull-request merge additionally requires a human confirmation checkbox and is
+rejected unless the exact head and required provider check are clean.
 
 The deployed Control Center and BFF must share the exact HTTPS origin. This
 package does not add a development proxy or weaken secure host-cookie behavior.

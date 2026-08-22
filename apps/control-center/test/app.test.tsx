@@ -176,6 +176,7 @@ describe("Control Center rendering", () => {
     );
     expect(html).toContain("TrackGRN UAT operations");
     expect(html).toContain("Exact repository 1334902237");
+    expect(html).toContain("human-approved merges only");
     expect(html).toContain("Loading the TrackGRN automation profile");
   });
 

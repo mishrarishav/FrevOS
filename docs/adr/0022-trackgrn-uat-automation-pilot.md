@@ -86,6 +86,10 @@ database-connectivity evidence.
 - Sending repository changes to Gemini before model/data policy is accepted.
 - Treating the UAT pilot artifact flow as Production promotion evidence.
 
+ADR 0023 later supersedes only this decision's PR-merge prohibition for an
+explicit, exact-head, green-check, human-approved TrackGRN squash merge. All
+other fixed pilot boundaries remain in force.
+
 ## Related decisions
 
 - [ADR 0003](0003-controlled-tool-gateway.md)
@@ -94,3 +98,4 @@ database-connectivity evidence.
 - [ADR 0008](0008-default-branch-and-merge-governance.md)
 - [ADR 0020](0020-windows-iis-uat-operating-model.md)
 - [ADR 0021](0021-local-credentials-for-personal-windows-uat.md)
+- [ADR 0023](0023-trackgrn-human-approved-squash-merge.md)
