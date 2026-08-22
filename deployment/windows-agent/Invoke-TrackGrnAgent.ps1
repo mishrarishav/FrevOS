@@ -589,7 +589,11 @@ if ([string]::IsNullOrWhiteSpace($agentToken) -or $agentToken.Length -lt 32) {
 
 do {
     try {
-        $claim = Invoke-AgentRequest "POST" "/v1/agents/trackgrn/claim" $agentToken
+        $claim = Invoke-AgentRequest `
+            "POST" `
+            "/v1/agents/trackgrn/claim" `
+            $agentToken `
+            ([ordered]@{})
         if ([int]$claim.StatusCode -eq 204 -or [string]::IsNullOrWhiteSpace($claim.Content)) {
             if (-not $Once) { Start-Sleep -Seconds $pollSeconds }
             continue

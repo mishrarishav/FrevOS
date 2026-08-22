@@ -28,6 +28,9 @@ The laptop-local `D:\TrackGRN\server.env` must contain
 runtime as `FREVOS_TRACKGRN_AGENT_TOKEN`. Never commit or paste that value into
 logs or reports.
 
+The claim poll sends an explicit empty JSON object. This keeps the request
+compatible with the IIS/ARR boundary, which rejects bodyless POST requests.
+
 Validate the fixed local repository boundary without connecting to FrevOS:
 
 ```powershell
