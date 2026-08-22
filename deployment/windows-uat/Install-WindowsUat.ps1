@@ -57,6 +57,7 @@ function Read-Utf8([string]$Path) {
 
 function Set-ControlledAcl(
     [string]$Path,
+    [switch]$AllowCurrentUserRead,
     [switch]$AllowLocalService,
     [switch]$AllowNetworkServiceRead,
     [switch]$AllowNetworkServiceModify
@@ -76,6 +77,17 @@ function Set-ControlledAcl(
         $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new(
             [Security.Principal.SecurityIdentifier]::new($sid),
             [Security.AccessControl.FileSystemRights]::FullControl,
+            $inheritance,
+            $propagation,
+            [Security.AccessControl.AccessControlType]::Allow
+        ))
+    }
+    if ($AllowCurrentUserRead) {
+        $currentUserSid = [Security.Principal.WindowsIdentity]::GetCurrent().User
+        if ($null -eq $currentUserSid) { throw "The current installer identity has no Windows SID." }
+        $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new(
+            $currentUserSid,
+            [Security.AccessControl.FileSystemRights]::Read,
             $inheritance,
             $propagation,
             [Security.AccessControl.AccessControlType]::Allow
@@ -108,6 +120,28 @@ function Set-ControlledAcl(
         ))
     }
     Set-Acl -LiteralPath $Path -AclObject $acl
+}
+
+function Set-InstallerOwnedDirectory([string]$Path) {
+    $item = Get-Item -LiteralPath $Path
+    if ($item -isnot [IO.DirectoryInfo]) { throw "Installer-owned path must be a directory." }
+
+    $currentUserSid = [Security.Principal.WindowsIdentity]::GetCurrent().User
+    if ($null -eq $currentUserSid) { throw "The current installer identity has no Windows SID." }
+
+    $ownerAcl = Get-Acl -LiteralPath $Path
+    $ownerAcl.SetOwner($currentUserSid)
+    Set-Acl -LiteralPath $Path -AclObject $ownerAcl
+
+    $accessAcl = Get-Acl -LiteralPath $Path
+    $accessAcl.SetAccessRule([Security.AccessControl.FileSystemAccessRule]::new(
+        $currentUserSid,
+        [Security.AccessControl.FileSystemRights]::FullControl,
+        [Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [Security.AccessControl.InheritanceFlags]::ObjectInherit,
+        [Security.AccessControl.PropagationFlags]::None,
+        [Security.AccessControl.AccessControlType]::Allow
+    ))
+    Set-Acl -LiteralPath $Path -AclObject $accessAcl
 }
 
 function Test-ReleaseManifest {
@@ -257,6 +291,10 @@ if ($newDatabase -and ((Test-Path -LiteralPath $runtimeConfigFile) -or (Test-Pat
 if (-not $newDatabase -and ((-not (Test-Path -LiteralPath $runtimeConfigFile)) -or (-not (Test-Path -LiteralPath $operationsConfigFile)))) {
     throw "PostgreSQL data exists without both controlled configuration files. Stop for operator review."
 }
+if ($newDatabase -and (Test-Path -LiteralPath $dataDirectory -PathType Container) -and
+    @(Get-ChildItem -LiteralPath $dataDirectory -Force).Count -gt 0) {
+    throw "A partial PostgreSQL data directory exists without PG_VERSION. Stop for operator review."
+}
 
 if ($newDatabase) {
     $migratorPassword = New-RandomSecret
@@ -267,10 +305,11 @@ if ($newDatabase) {
     $databaseUrl = "postgresql://frevos_runtime:${encodedRuntimePassword}@127.0.0.1:$postgresPort/frevos"
 
     New-Item -ItemType Directory -Path $dataDirectory -Force | Out-Null
+    Set-InstallerOwnedDirectory -Path $dataDirectory
     $passwordFile = Join-Path $configDirectory ("initdb-" + [guid]::NewGuid().ToString("N") + ".tmp")
     try {
         Write-Utf8NoBom $passwordFile $migratorPassword
-        Set-ControlledAcl -Path $passwordFile
+        Set-ControlledAcl -Path $passwordFile -AllowCurrentUserRead
         & (Join-Path $postgresBin "initdb.exe") --pgdata $dataDirectory --username frevos_migrator `
             --encoding UTF8 --auth-host scram-sha-256 --auth-local scram-sha-256 --pwfile $passwordFile
         if ($LASTEXITCODE -ne 0) { throw "PostgreSQL initialization failed." }
@@ -333,7 +372,7 @@ try {
     $databaseExists = & $psql --host 127.0.0.1 --port $postgresPort --username frevos_migrator `
         --dbname postgres --tuples-only --no-align --command "SELECT 1 FROM pg_database WHERE datname = 'frevos'"
     if ($LASTEXITCODE -ne 0) { throw "Could not inspect the FrevOS database." }
-    if ($databaseExists.Trim() -ne "1") {
+    if ([string]::IsNullOrWhiteSpace([string]$databaseExists) -or ([string]$databaseExists).Trim() -ne "1") {
         & $createdb --host 127.0.0.1 --port $postgresPort --username frevos_migrator --owner frevos_migrator frevos
         if ($LASTEXITCODE -ne 0) { throw "Could not create the FrevOS database." }
     }
@@ -350,7 +389,7 @@ $$;
     $roleFile = Join-Path $configDirectory ("role-" + [guid]::NewGuid().ToString("N") + ".tmp.sql")
     try {
         Write-Utf8NoBom $roleFile $roleSql
-        Set-ControlledAcl -Path $roleFile
+        Set-ControlledAcl -Path $roleFile -AllowCurrentUserRead
         & $psql --host 127.0.0.1 --port $postgresPort --username frevos_migrator --dbname frevos `
             --set ON_ERROR_STOP=on --file $roleFile
         if ($LASTEXITCODE -ne 0) { throw "Could not prepare the runtime database role." }

@@ -147,8 +147,8 @@ default-branch CI, and its task branch was deleted.
 
 ## Phase 4 — Authentication, workspaces, clients, and isolation
 
-Status: **in progress — implementation and exit-support packages are merged;
-hosted deployment, recovery, and independent acceptance remain**
+Status: **in progress — implementation is merged and the selected hosted UAT
+is live; clean installer replay, recovery, and independent acceptance remain**
 
 Implement authentication and the workspace membership boundary. Add clients
 and projects only with authorization and data-layer isolation tests, including
@@ -180,11 +180,19 @@ merge commits passed default-branch CI. Core PR
 [#10](https://github.com/mishrarishav/FrevOS/pull/10) merged the same-origin UAT
 packaging and original paid non-Production operating model as `2b334bb`. Core PR
 [#11](https://github.com/mishrarishav/FrevOS/pull/11) merged the optional local
-Preview stack as `9ded1f1`. The active bounded change supersedes the paid hosted
-selection with an Oracle Always Free ARM64 target, while preserving the
-same-origin, private PostgreSQL, secret-boundary, and recovery requirements.
-Full Phase 4 exit still requires an authorized live hosted deployment, recovery
-evidence, and separately reviewed independent black-box acceptance.
+Preview stack as `9ded1f1`; Core PR
+[#13](https://github.com/mishrarishav/FrevOS/pull/13) merged an unactivated Oracle
+route as `5fccb6e`; Core PR
+[#15](https://github.com/mishrarishav/FrevOS/pull/15) merged the selected Windows
+IIS route as `713093c`; and Core PRs
+[#16](https://github.com/mishrarishav/FrevOS/pull/16) and
+[#17](https://github.com/mishrarishav/FrevOS/pull/17) merged local credentials
+and PowerShell 5.1 ACL compatibility.
+The selected Windows UAT is live at exact source
+`228ebaa5073769a57769e0b0f650be88c49c4af3`; initial activation required
+recorded manual installer interventions. Full Phase 4 exit still requires a
+clean replay of the reviewed installer fix, recovery evidence, and separately
+reviewed independent black-box acceptance.
 
 The merged optional laptop Preview follow-up packages the same product runtime
 with PostgreSQL 18, Keycloak, and Caddy local HTTPS. It improves authenticated

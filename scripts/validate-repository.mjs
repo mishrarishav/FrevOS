@@ -457,6 +457,17 @@ async function validateWindowsUat() {
     );
   }
   for (const required of [
+    "Set-InstallerOwnedDirectory -Path $dataDirectory",
+    "Set-ControlledAcl -Path $passwordFile -AllowCurrentUserRead",
+    "Set-ControlledAcl -Path $roleFile -AllowCurrentUserRead",
+    "[string]::IsNullOrWhiteSpace([string]$databaseExists)",
+    "A partial PostgreSQL data directory exists without PG_VERSION",
+  ]) {
+    if (!installer.includes(required)) {
+      errors.push(`Windows UAT first-install reliability guard is missing: ${required}`);
+    }
+  }
+  for (const required of [
     "usr_windows_admin",
     "wsm_windows_admin",
     "workspace:read",

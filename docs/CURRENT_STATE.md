@@ -1,6 +1,6 @@
 # FrevOS Current State
 
-Last updated: 2026-08-21
+Last updated: 2026-08-22
 
 ## Snapshot
 
@@ -8,8 +8,8 @@ Last updated: 2026-08-21
 | --- | --- |
 | Production repository | `https://github.com/mishrarishav/FrevOS` |
 | Detected default branch | `main` |
-| Phase branch | `phase/4-local-table-auth` |
-| Base commit | `713093c01e8126345c87cc4457b943e4189d4d09` |
+| Phase branch | `hotfix/windows-uat-first-install-reliability` |
+| Base commit | `228ebaa5073769a57769e0b0f650be88c49c4af3` |
 | Active phase | Phase 4 exit — Preview/UAT deployment and independent acceptance |
 | Phase 3 merge | Core PR [#5](https://github.com/mishrarishav/FrevOS/pull/5) was human squash-merged as `13f3cd2`; its task branch was deleted |
 | Phase 4A merge | Core PR [#7](https://github.com/mishrarishav/FrevOS/pull/7) was human squash-merged as `425c1f3`; its task branch was deleted |
@@ -17,15 +17,16 @@ Last updated: 2026-08-21
 | Phase 4C merge | Core PR [#9](https://github.com/mishrarishav/FrevOS/pull/9) was human squash-merged as `3973c59`; its task branch was deleted |
 | Phase 4 UAT-package merge | Core PR [#10](https://github.com/mishrarishav/FrevOS/pull/10) was human squash-merged as `2b334bb` |
 | Phase 4 local-preview merge | Core PR [#11](https://github.com/mishrarishav/FrevOS/pull/11) was human squash-merged as `9ded1f1` |
-| Runtime capability | The authenticated Control Center, Fastify BFF, PostgreSQL forced RLS, protected workspace APIs, Preview routes, and Windows/IIS UAT route are merged; local table-backed credentials for the personal Windows target are under review |
+| Runtime capability | The authenticated Control Center, Fastify BFF, PostgreSQL forced RLS, protected workspace APIs, Preview routes, local table-backed credentials, and Windows/IIS UAT route are merged and live on the selected personal UAT target |
 | Dependency manifests | pnpm workspace and committed lockfile on `main` |
-| CI/CD | `CI / validate` passed on local-preview merge commit `9ded1f1` in [run 31797404612](https://github.com/mishrarishav/FrevOS/actions/runs/31797404612) and is a strict required check; UAT deployment remains manual and unexecuted |
+| CI/CD | `CI / validate` passed on local-credential merge `0b3718a` and ACL-compatibility merge `228ebaa`; default-branch [run 32535926915](https://github.com/mishrarishav/FrevOS/actions/runs/32535926915) is green and the Windows UAT deployment remains operator-executed |
+| Windows UAT evidence | Source `228ebaa5073769a57769e0b0f650be88c49c4af3` is active at `https://tserver2.eeslindia.org/frevos/`; public health, application assets, local login, protected UI, PostgreSQL service, control-plane task, loopback health, and the TrackGRN sibling health probe passed. Initial activation required recorded manual ACL and database-creation interventions that this active hotfix addresses |
 | Independent QA harness | Merged through Acceptance PR [#1](https://github.com/mishrarishav/FrevOS-Acceptance/pull/1); exact-head and default-branch CI passed |
 | Acceptance repository | Public `main` at completion-state squash commit `ffc85babed5f0e8deaf8af8d0194b9d3734d23be` |
 | Acceptance merge governance | Active `Protect main` ruleset `20623785` enforces squash-only pull requests, conversation resolution, strict up-to-date `validate`, and deletion and force-push prevention |
 | UI reference | Approved private repository ID `1329600731`, `mishrarishav/neural-command-lab`, commit `85f3ba2271ba381fc0520108365c5bb48fe386a7` |
 | GitHub authentication | Verified for account `mishrarishav` during Phase 0A |
-| Completed publications | Core PRs [#1](https://github.com/mishrarishav/FrevOS/pull/1), [#2](https://github.com/mishrarishav/FrevOS/pull/2), [#4](https://github.com/mishrarishav/FrevOS/pull/4), [#5](https://github.com/mishrarishav/FrevOS/pull/5), [#7](https://github.com/mishrarishav/FrevOS/pull/7), [#8](https://github.com/mishrarishav/FrevOS/pull/8), [#9](https://github.com/mishrarishav/FrevOS/pull/9), [#10](https://github.com/mishrarishav/FrevOS/pull/10), [#11](https://github.com/mishrarishav/FrevOS/pull/11), and Acceptance PRs [#1](https://github.com/mishrarishav/FrevOS-Acceptance/pull/1), [#3](https://github.com/mishrarishav/FrevOS-Acceptance/pull/3) squash-merged |
+| Completed publications | Core PRs [#1](https://github.com/mishrarishav/FrevOS/pull/1), [#2](https://github.com/mishrarishav/FrevOS/pull/2), [#4](https://github.com/mishrarishav/FrevOS/pull/4), [#5](https://github.com/mishrarishav/FrevOS/pull/5), [#7](https://github.com/mishrarishav/FrevOS/pull/7), [#8](https://github.com/mishrarishav/FrevOS/pull/8), [#9](https://github.com/mishrarishav/FrevOS/pull/9), [#10](https://github.com/mishrarishav/FrevOS/pull/10), [#11](https://github.com/mishrarishav/FrevOS/pull/11), [#13](https://github.com/mishrarishav/FrevOS/pull/13), [#15](https://github.com/mishrarishav/FrevOS/pull/15), [#16](https://github.com/mishrarishav/FrevOS/pull/16), [#17](https://github.com/mishrarishav/FrevOS/pull/17), and Acceptance PRs [#1](https://github.com/mishrarishav/FrevOS-Acceptance/pull/1), [#3](https://github.com/mishrarishav/FrevOS-Acceptance/pull/3) squash-merged |
 | Merge governance | Active `Protect main`; PR, squash, resolution, strict `validate`, deletion, and force-push controls verified |
 
 This snapshot distinguishes target architecture from implemented software. The
@@ -233,9 +234,24 @@ non-Production Windows IIS host. Core PR
 [#15](https://github.com/mishrarishav/FrevOS/pull/15) merged same-origin
 `/frevos` support and the offline Windows deployment and recovery package as
 `713093c01e8126345c87cc4457b943e4189d4d09`. ARR installation on the UAT server
-was observed with exit code 0, while FrevOS activation, credentials, recovery,
-and independent acceptance remain unexecuted. The active branch replaces only
-the hosted identity dependency with bounded local credentials.
+was observed with exit code 0. Core PR
+[#16](https://github.com/mishrarishav/FrevOS/pull/16) merged bounded local
+credentials as `0b3718a48e152da5b62bed29ff953a737d3e0212`; Core PR
+[#17](https://github.com/mishrarishav/FrevOS/pull/17) merged the concrete
+PowerShell 5.1 ACL type correction as
+`228ebaa5073769a57769e0b0f650be88c49c4af3`.
+
+That exact source is active on the selected Windows UAT host. Public and
+loopback health returned `200`, PostgreSQL and the control-plane task reported
+`Running`, the local administrator completed a real browser login, protected
+workspace UI rendered, static assets loaded, and the existing TrackGRN sibling
+health probe remained `200`. First activation exposed three deterministic
+installer defects: the installing user lacked explicit read access to ephemeral
+PostgreSQL input files, the new data directory was not owned by the `initdb`
+process identity, and an empty database-existence query was dereferenced as a
+non-null string. Operator interventions were recorded without changing packaged
+files; the active hotfix makes those steps reproducible. Recovery and independent
+acceptance remain intentionally unexecuted.
 
 ## Open decision register
 
@@ -261,18 +277,18 @@ to completing Phase 0A:
 
 ## Known limitations
 
-- Phase 4 has merged the original, local, Oracle, and Windows packaging. The
-  active branch changes personal Windows UAT authentication; no Windows FrevOS
-  credential, live application, recovery exercise, or external acceptance has
-  been observed.
+- Phase 4 has a live personal Windows UAT application and observed local login,
+  but the first activation required manual installer interventions. A clean
+  deployment of the reviewed reliability fix, recovery exercise, and external
+  acceptance have not yet been observed.
 - Phase 1 implements contract and CI guardrails only; it does not implement the
   later runtime authorization, isolation, approval, audit, or deployment controls.
 - The independent acceptance harness has no merged Phase 4 product-facing
   authentication specifications and has not run against an authorized deployed
   Phase 4 target.
 - Chromium emulation does not prove Firefox, WebKit, or physical-device behavior.
-- External preview/UAT execution and authenticated browser state are not yet
-  authorized or validated.
+- The selected Windows UAT target and authenticated browser state are validated;
+  other external Preview or Production targets are not authorized or validated.
 - Quantitative service objectives and compliance requirements are not defined.
 - The current GitHub integration token can read repository rulesets but returns
   `403 Resource not accessible by integration` for ruleset and merge-setting
@@ -280,10 +296,11 @@ to completing Phase 0A:
 
 ## Readiness rule
 
-Phases 0A through 4C implementation and the prior Phase 4 exit-support packages
-are merged. Phase 4 remains incomplete until the local-credential Windows
-change is reviewed and merged, the exact merged source is healthy on one HTTPS origin,
-logical backup and isolated recovery evidence is recorded, sibling IIS
-applications remain healthy, and a separately reviewed independent black-box
-acceptance change passes against that exact target. Phase 5 must not start
-before those gates.
+Phases 0A through 4C implementation and the Phase 4 local-credential Windows
+route are merged. Exact source `228ebaa5073769a57769e0b0f650be88c49c4af3`
+is healthy on one HTTPS origin and the observed sibling IIS application remains
+healthy. Phase 4 remains incomplete until the first-install reliability hotfix
+is reviewed, merged, and cleanly deployed; logical backup and isolated recovery
+evidence is recorded; and a separately reviewed independent black-box acceptance
+change passes against that exact target. The product owner postponed recovery
+execution to a later task. Phase 5 must not start before those gates.
