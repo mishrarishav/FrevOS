@@ -64,6 +64,7 @@ const automationOperation = {
   claimedAt: null,
   completedAt: null,
 };
+const inspectRequest = { action: "repository.inspect", input: {} } as const;
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -224,8 +225,7 @@ describe("authenticated Control Center API", () => {
     ).resolves.toEqual([]);
     await expect(
       api.createProjectAutomationOperation("ws_uat_demo", "prj_uat_trackgrn", {
-        action: "repository.inspect",
-        input: {},
+        ...inspectRequest,
       }),
     ).resolves.toEqual(automationOperation);
     expect(requests[2]).toEqual({
@@ -245,10 +245,131 @@ describe("authenticated Control Center API", () => {
     );
     await expect(
       denied.createProjectAutomationOperation("ws_uat_demo", "prj_uat_trackgrn", {
-        action: "repository.inspect",
-        input: {},
+        ...inspectRequest,
       }),
     ).rejects.toMatchObject({ kind: "denied" });
+  });
+
+  it.each([
+    [401, "unauthenticated"],
+    [403, "denied"],
+    [404, "denied"],
+    [500, "unavailable"],
+  ] as const)("maps automation POST HTTP %s to %s", async (status, kind) => {
+    const api = createControlCenterApi(
+      async () => new Response("private-error-details", { status }),
+      undefined,
+      () => "csrf-value",
+    );
+    await expect(
+      api.createProjectAutomationOperation("ws_uat_demo", "prj_uat_trackgrn", inspectRequest),
+    ).rejects.toMatchObject({ kind });
+  });
+
+  it("fails closed for automation POST transport and response failures", async () => {
+    const unavailable = createControlCenterApi(
+      async () => {
+        throw new Error("network details");
+      },
+      undefined,
+      () => "csrf-value",
+    );
+    await expect(
+      unavailable.createProjectAutomationOperation(
+        "ws_uat_demo",
+        "prj_uat_trackgrn",
+        inspectRequest,
+      ),
+    ).rejects.toMatchObject({ kind: "unavailable" });
+
+    const controller = new AbortController();
+    const cancellation = new Error("cancelled");
+    controller.abort();
+    const aborted = createControlCenterApi(
+      async (_input, init) => {
+        expect(init?.signal).toBe(controller.signal);
+        throw cancellation;
+      },
+      undefined,
+      () => "csrf-value",
+    );
+    await expect(
+      aborted.createProjectAutomationOperation(
+        "ws_uat_demo",
+        "prj_uat_trackgrn",
+        inspectRequest,
+        controller.signal,
+      ),
+    ).rejects.toBe(cancellation);
+
+    const malformed = createControlCenterApi(
+      async () => new Response("not-json", { status: 202 }),
+      undefined,
+      () => "csrf-value",
+    );
+    await expect(
+      malformed.createProjectAutomationOperation("ws_uat_demo", "prj_uat_trackgrn", inspectRequest),
+    ).rejects.toMatchObject({ kind: "invalid-response" });
+
+    const invalid = createControlCenterApi(
+      async () => jsonResponse({ ...automationOperation, unexpected: true }, 202),
+      undefined,
+      () => "csrf-value",
+    );
+    await expect(
+      invalid.createProjectAutomationOperation("ws_uat_demo", "prj_uat_trackgrn", inspectRequest),
+    ).rejects.toMatchObject({ kind: "invalid-response" });
+  });
+
+  it("reads the CSRF token from the browser cookie without exposing it elsewhere", async () => {
+    const originalDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
+    try {
+      const noDocument = createControlCenterApi(async () => jsonResponse(automationOperation, 202));
+      await expect(
+        noDocument.createProjectAutomationOperation(
+          "ws_uat_demo",
+          "prj_uat_trackgrn",
+          inspectRequest,
+        ),
+      ).rejects.toMatchObject({ kind: "denied" });
+
+      Object.defineProperty(globalThis, "document", {
+        configurable: true,
+        value: { cookie: "unrelated=value" },
+      });
+      const missingCookie = createControlCenterApi(async () =>
+        jsonResponse(automationOperation, 202),
+      );
+      await expect(
+        missingCookie.createProjectAutomationOperation(
+          "ws_uat_demo",
+          "prj_uat_trackgrn",
+          inspectRequest,
+        ),
+      ).rejects.toMatchObject({ kind: "denied" });
+
+      Object.defineProperty(globalThis, "document", {
+        configurable: true,
+        value: { cookie: "unrelated=value; __Host-frevos-csrf=encoded%20csrf" },
+      });
+      const withCookie = createControlCenterApi(async (_input, init) => {
+        expect(init?.headers).toMatchObject({ "x-csrf-token": "encoded csrf" });
+        return jsonResponse(automationOperation, 202);
+      });
+      await expect(
+        withCookie.createProjectAutomationOperation(
+          "ws_uat_demo",
+          "prj_uat_trackgrn",
+          inspectRequest,
+        ),
+      ).resolves.toEqual(automationOperation);
+    } finally {
+      if (originalDocument === undefined) {
+        Reflect.deleteProperty(globalThis, "document");
+      } else {
+        Object.defineProperty(globalThis, "document", originalDocument);
+      }
+    }
   });
 
   it.each([
