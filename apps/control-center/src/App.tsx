@@ -753,7 +753,8 @@ function ControlCenter({
         {receipt ? <LocalReceipt>{receipt}</LocalReceipt> : null}
       </section>
 
-      <section className="health-strip" aria-label="System boundary status">
+      {/* biome-ignore lint/a11y/noNoninteractiveTabindex: mobile horizontal scrolling needs keyboard access */}
+      <section className="health-strip" aria-label="System boundary status" tabIndex={0}>
         <div className="health-heading">
           <span className="pulse-ring" aria-hidden="true" />
           <span>System boundary</span>
@@ -1402,10 +1403,13 @@ function TrackGrnAutomationPanel({
             className="button secondary"
             type="button"
             disabled={
-              busy ||
-              expectedHeadSha === undefined ||
-              expectedChangeDigest === undefined ||
-              commitMessage.trim().length < 3
+              !canCommitReviewedChanges({
+                busy,
+                clean,
+                expectedHeadSha,
+                expectedChangeDigest,
+                commitMessage,
+              })
             }
             onClick={() => {
               if (expectedHeadSha !== undefined && expectedChangeDigest !== undefined) {
@@ -1496,8 +1500,7 @@ function TrackGrnAutomationPanel({
                 </div>
                 <StatusBadge
                   status={{
-                    label:
-                      operation.errorCode === "vpn-required" ? "Connect VPN" : operation.status,
+                    label: projectAutomationStatusLabel(operation),
                     tone:
                       operation.status === "succeeded"
                         ? "verified"
@@ -1513,6 +1516,48 @@ function TrackGrnAutomationPanel({
         </div>
       ) : null}
     </Panel>
+  );
+}
+
+export function projectAutomationStatusLabel(operation: ProjectAutomationOperation): string {
+  if (operation.status !== "failed") {
+    return operation.status;
+  }
+  switch (operation.errorCode) {
+    case "vpn-required":
+      return "Connect VPN";
+    case "ui-build-failed":
+      return "UI build failed";
+    case "api-tests-failed":
+      return "API tests failed";
+    case "artifact-already-exists":
+      return "Artifact conflict";
+    case "api-publish-failed":
+      return "API publish failed";
+    default:
+      return "Failed";
+  }
+}
+
+export function canCommitReviewedChanges({
+  busy,
+  clean,
+  expectedHeadSha,
+  expectedChangeDigest,
+  commitMessage,
+}: {
+  busy: boolean;
+  clean: boolean | undefined;
+  expectedHeadSha: string | undefined;
+  expectedChangeDigest: string | undefined;
+  commitMessage: string;
+}): boolean {
+  return (
+    !busy &&
+    clean === false &&
+    expectedHeadSha !== undefined &&
+    expectedChangeDigest !== undefined &&
+    commitMessage.trim().length >= 3
   );
 }
 

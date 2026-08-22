@@ -1,13 +1,14 @@
 import {
   ClientSchema,
   ProjectSchema,
+  ProjectAutomationOperationSchema,
   SessionSummarySchema,
   WorkspaceSchema,
 } from "@frevos/contracts";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { App } from "../src/App.js";
+import { App, canCommitReviewedChanges, projectAutomationStatusLabel } from "../src/App.js";
 import type { ExperienceState } from "../src/experience.js";
 import {
   addBasePath,
@@ -107,6 +108,7 @@ describe("Control Center rendering", () => {
     expect(html).toContain("Alpha Project");
     expect(html).toContain("Planned examples · no external work executed");
     expect(html).not.toContain("No action was executed");
+    expect(html).toContain('class="health-strip" aria-label="System boundary status" tabindex="0"');
   });
 
   it.each([
@@ -195,5 +197,49 @@ describe("Control Center rendering", () => {
     );
     expect(html).toContain("No FrevOS surface is registered here.");
     expect(html).toContain("/not-a-route");
+  });
+});
+
+describe("TrackGRN operation status", () => {
+  it.each([
+    ["vpn-required", "Connect VPN"],
+    ["ui-build-failed", "UI build failed"],
+    ["api-tests-failed", "API tests failed"],
+    ["artifact-already-exists", "Artifact conflict"],
+    ["api-publish-failed", "API publish failed"],
+    ["operation-failed", "Failed"],
+  ])("renders %s as an actionable failure", (errorCode, expected) => {
+    const operation = ProjectAutomationOperationSchema.parse({
+      operationId: "op_1234567890abcdef1234567890abcdef1234567890abcdef",
+      workspaceId: "ws_alpha",
+      projectId: "prj_alpha",
+      agentId: "svc_trackgrn_windows_agent",
+      requestedBy: "usr_primary",
+      action: "project.build",
+      status: "failed",
+      input: {},
+      result: { failureStage: errorCode },
+      errorCode,
+      createdAt: "2026-08-23T00:00:00.000Z",
+      claimedAt: "2026-08-23T00:00:01.000Z",
+      completedAt: "2026-08-23T00:00:02.000Z",
+    });
+    expect(projectAutomationStatusLabel(operation)).toBe(expected);
+  });
+
+  it("enables commit only for a reviewed dirty repository", () => {
+    const reviewed = {
+      busy: false,
+      expectedHeadSha: "a".repeat(40),
+      expectedChangeDigest: "b".repeat(64),
+      commitMessage: "Update TrackGRN UI",
+    };
+    expect(canCommitReviewedChanges({ ...reviewed, clean: false })).toBe(true);
+    expect(canCommitReviewedChanges({ ...reviewed, clean: true })).toBe(false);
+    expect(canCommitReviewedChanges({ ...reviewed, clean: undefined })).toBe(false);
+    expect(canCommitReviewedChanges({ ...reviewed, clean: false, busy: true })).toBe(false);
+    expect(canCommitReviewedChanges({ ...reviewed, clean: false, commitMessage: "  " })).toBe(
+      false,
+    );
   });
 });

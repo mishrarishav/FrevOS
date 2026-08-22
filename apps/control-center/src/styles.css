@@ -11,7 +11,7 @@
   --surface-3: oklch(0.275 0.014 265);
   --foreground: oklch(0.96 0.005 265);
   --muted: oklch(0.69 0.018 265);
-  --subtle: oklch(0.54 0.018 265);
+  --subtle: oklch(0.66 0.018 265);
   --border: oklch(1 0 0 / 0.09);
   --border-strong: oklch(1 0 0 / 0.16);
   --signal: oklch(0.82 0.14 200);
