@@ -2,13 +2,15 @@
 
 This companion is a bounded UAT-only executor for the approved
 `mishrarishav/TraceGRN` repository. It polls the FrevOS control plane over HTTPS
-and implements only five fixed actions: repository inspection, deterministic
-commit proposal, reviewed commit/push to a dedicated branch, build, and UAT API
-deployment.
+and implements only seven fixed actions: repository inspection, deterministic
+commit proposal, reviewed commit/push to a dedicated branch, pull-request
+creation, human-approved squash merge, build, and UAT API deployment.
 
 It does not expose shell, accept a repository path or deployment target from an
-API request, push `main`, merge pull requests, deploy Production, run arbitrary
-SQL, or perform backup and rollback.
+API request, push `main`, auto-merge, bypass protection, deploy Production, run
+arbitrary SQL, or perform backup and rollback. Squash merge requires an exact
+PR/head binding, explicit human confirmation, clean provider state, and the
+successful TrackGRN `validate` check.
 
 The laptop requires Git, GitHub CLI authenticated as `mishrarishav`, Node.js
 with `npm.cmd`, the .NET 8 SDK, and the existing VPN/WinRM settings in ignored

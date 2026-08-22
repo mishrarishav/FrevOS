@@ -29,6 +29,8 @@ const profile = {
     "repository.inspect",
     "repository.propose-commit",
     "repository.commit-push",
+    "repository.open-pull-request",
+    "repository.squash-merge",
     "project.build",
     "uat.deploy",
   ],
@@ -62,6 +64,36 @@ describe("TrackGRN automation contracts", () => {
         },
       }),
     ).toMatchObject({ action: "repository.commit-push" });
+    expect(
+      ProjectAutomationRequestSchema.parse({
+        action: "repository.open-pull-request",
+        input: {
+          expectedHeadSha: "c".repeat(40),
+          branch: "frevos/trackgrn-automation01",
+          title: "Update TrackGRN API",
+        },
+      }),
+    ).toMatchObject({ action: "repository.open-pull-request" });
+    expect(
+      ProjectAutomationRequestSchema.parse({
+        action: "repository.squash-merge",
+        input: {
+          pullRequestNumber: 42,
+          expectedHeadSha: "c".repeat(40),
+          confirmation: "squash-merge",
+        },
+      }),
+    ).toMatchObject({ action: "repository.squash-merge" });
+    expect(() =>
+      ProjectAutomationRequestSchema.parse({
+        action: "repository.squash-merge",
+        input: {
+          pullRequestNumber: 42,
+          expectedHeadSha: "c".repeat(40),
+          confirmation: "merge-without-review",
+        },
+      }),
+    ).toThrow();
     expect(() =>
       ProjectAutomationRequestSchema.parse({ action: "shell.run", input: { command: "whoami" } }),
     ).toThrow();

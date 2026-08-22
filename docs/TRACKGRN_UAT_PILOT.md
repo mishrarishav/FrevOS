@@ -5,7 +5,9 @@
 This activates the bounded pilot accepted in
 [ADR 0022](adr/0022-trackgrn-uat-automation-pilot.md). It is only for the
 approved laptop checkout and UAT target. It does not authorize Production,
-arbitrary repositories or commands, backup, restore, rollback, or PR merge.
+arbitrary repositories or commands, backup, restore, or rollback. ADR 0023
+adds only an explicit human-approved squash merge for the pinned TrackGRN
+repository.
 
 ## One-time secret provisioning
 
@@ -75,12 +77,18 @@ On the Projects surface:
 3. Review files and edit the message.
 4. **Commit and push dedicated branch** works only while HEAD and digest match.
    The companion also verifies GitHub CLI is authenticated as `mishrarishav`
-   and resolves repository ID `1334902237`. A human owner reviews and squash
-   merges the PR.
-5. **Build and test** runs UI build, non-destructive .NET tests, and API
+   and resolves repository ID `1334902237`. The reviewed checkout must be the
+   current remote `main`; stale or stacked feature branches fail closed.
+5. **Open pull request** creates or returns the PR for the exact pushed branch
+   and reviewed head.
+6. Review the PR, then check the explicit confirmation and click **Squash &
+   Merge**. The companion re-verifies `main`, exact head, non-draft open state,
+   `MERGEABLE`/`CLEAN`, and a successful `validate` check. It never enables
+   auto-merge or bypasses protection.
+7. **Build and test** runs UI build, non-destructive .NET tests, and API
    publish. The result explicitly records that the destructive local
    SQLEXPRESS fixture was not run.
-6. **Deploy API to UAT** checks VPN/WinRM, deploys a SHA-addressed IIS release,
+8. **Deploy API to UAT** checks VPN/WinRM, deploys a SHA-addressed IIS release,
    runs reviewed migrations, and records both service-health and database
    connectivity evidence.
 

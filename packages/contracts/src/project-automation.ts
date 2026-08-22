@@ -12,6 +12,8 @@ export const ProjectAutomationActionSchema = z.enum([
   "repository.inspect",
   "repository.propose-commit",
   "repository.commit-push",
+  "repository.open-pull-request",
+  "repository.squash-merge",
   "project.build",
   "uat.deploy",
 ]);
@@ -64,6 +66,25 @@ const ReviewedChangesInputSchema = z
       .refine((value) => value === value.trim() && !/[\r\n]/.test(value)),
   })
   .strict();
+const PullRequestTitleSchema = z
+  .string()
+  .min(3)
+  .max(120)
+  .refine((value) => value === value.trim() && !/[\r\n]/.test(value));
+const ReviewedBranchInputSchema = z
+  .object({
+    expectedHeadSha: Sha1Schema,
+    branch: z.string().regex(/^frevos\/trackgrn-[A-Za-z0-9_-]{12}$/),
+    title: PullRequestTitleSchema,
+  })
+  .strict();
+const SquashMergeInputSchema = z
+  .object({
+    pullRequestNumber: z.number().int().min(1).max(2_147_483_647),
+    expectedHeadSha: Sha1Schema,
+    confirmation: z.literal("squash-merge"),
+  })
+  .strict();
 const DeployInputSchema = z
   .object({
     expectedHeadSha: Sha1Schema,
@@ -77,6 +98,12 @@ export const ProjectAutomationRequestSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("repository.propose-commit"), input: NoInputSchema }).strict(),
   z
     .object({ action: z.literal("repository.commit-push"), input: ReviewedChangesInputSchema })
+    .strict(),
+  z
+    .object({ action: z.literal("repository.open-pull-request"), input: ReviewedBranchInputSchema })
+    .strict(),
+  z
+    .object({ action: z.literal("repository.squash-merge"), input: SquashMergeInputSchema })
     .strict(),
   z.object({ action: z.literal("project.build"), input: NoInputSchema }).strict(),
   z.object({ action: z.literal("uat.deploy"), input: DeployInputSchema }).strict(),

@@ -89,10 +89,11 @@ availability, region, and recovery choices remain open.
 
 ## TrackGRN UAT automation pilot
 
-ADR 0022 adds a workspace-scoped operation queue for the fixed TrackGRN project
+ADRs 0022 and 0023 add a workspace-scoped operation queue for the fixed TrackGRN project
 and a separately installed outbound Windows companion. Agent authentication,
 repository identity, allowed actions, reviewed change digest, dedicated branch,
-UAT release root, and health endpoint are deterministic. See the
+human-approved exact-head squash merge, UAT release root, and health endpoint
+are deterministic. See the
 [TrackGRN UAT pilot runbook](../../docs/TRACKGRN_UAT_PILOT.md).
 
 ## Same-origin delivery

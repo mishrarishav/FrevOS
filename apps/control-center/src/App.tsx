@@ -1230,6 +1230,7 @@ function TrackGrnAutomationPanel({
   const [operations, setOperations] = useState<ProjectAutomationOperation[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "unavailable">("loading");
   const [commitMessage, setCommitMessage] = useState("");
+  const [mergeConfirmed, setMergeConfirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const refresh = useCallback(
@@ -1300,6 +1301,25 @@ function TrackGrnAutomationPanel({
   const expectedHeadSha = stringResult(repositoryEvidence, "headSha");
   const expectedChangeDigest = stringResult(proposal, "changeDigest");
   const clean = booleanResult(repositoryEvidence, "clean");
+  const committed = operations.find(
+    (operation) =>
+      operation.action === "repository.commit-push" && operation.status === "succeeded",
+  );
+  const committedHeadSha = stringResult(committed, "commitSha");
+  const committedBranch = stringResult(committed, "branch");
+  const committedMessage = stringResult(committed, "commitMessage") ?? commitMessage.trim();
+  const pullRequest = operations.find(
+    (operation) =>
+      operation.action === "repository.open-pull-request" && operation.status === "succeeded",
+  );
+  const pullRequestNumber = numberResult(pullRequest, "pullRequestNumber");
+  const pullRequestUrl = stringResult(pullRequest, "pullRequestUrl");
+  const pullRequestHeadSha = stringResult(pullRequest, "headSha");
+  const merged = operations.find(
+    (operation) =>
+      operation.action === "repository.squash-merge" && operation.status === "succeeded",
+  );
+  const mergedPullRequestNumber = numberResult(merged, "pullRequestNumber");
   const busy =
     submitting ||
     operations.some((operation) => operation.status === "queued" || operation.status === "claimed");
@@ -1307,7 +1327,7 @@ function TrackGrnAutomationPanel({
   return (
     <Panel
       title="TrackGRN UAT operations"
-      description="Exact repository 1334902237 · fixed Windows agent · no direct main push"
+      description="Exact repository 1334902237 · fixed Windows agent · human-approved merges only"
       action={
         <button className="button secondary" type="button" onClick={() => void refresh()}>
           Refresh
@@ -1402,9 +1422,73 @@ function TrackGrnAutomationPanel({
           >
             Commit and push dedicated branch
           </button>
+          <div className="trackgrn-review-actions">
+            <button
+              className="button secondary"
+              type="button"
+              disabled={
+                busy ||
+                committedHeadSha === undefined ||
+                committedBranch === undefined ||
+                committedMessage.length < 3
+              }
+              onClick={() => {
+                if (committedHeadSha !== undefined && committedBranch !== undefined) {
+                  void requestOperation({
+                    action: "repository.open-pull-request",
+                    input: {
+                      expectedHeadSha: committedHeadSha,
+                      branch: committedBranch,
+                      title: committedMessage,
+                    },
+                  });
+                }
+              }}
+            >
+              Open pull request
+            </button>
+            {pullRequestUrl !== undefined && pullRequestNumber !== undefined ? (
+              <a href={pullRequestUrl} target="_blank" rel="noreferrer">
+                Review PR #{pullRequestNumber}
+              </a>
+            ) : null}
+          </div>
+          {pullRequestNumber !== undefined && pullRequestHeadSha !== undefined ? (
+            <div className="trackgrn-merge-gate">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={mergeConfirmed}
+                  onChange={(event) => setMergeConfirmed(event.target.checked)}
+                />
+                <span>
+                  I reviewed PR #{pullRequestNumber} and authorize squash merge only after the
+                  required validate check passes.
+                </span>
+              </label>
+              <button
+                className="button primary"
+                type="button"
+                disabled={busy || !mergeConfirmed || mergedPullRequestNumber === pullRequestNumber}
+                onClick={() => {
+                  setMergeConfirmed(false);
+                  void requestOperation({
+                    action: "repository.squash-merge",
+                    input: {
+                      pullRequestNumber,
+                      expectedHeadSha: pullRequestHeadSha,
+                      confirmation: "squash-merge",
+                    },
+                  });
+                }}
+              >
+                Squash &amp; Merge PR #{pullRequestNumber}
+              </button>
+            </div>
+          ) : null}
           <div className="trackgrn-operation-list" aria-live="polite">
             {operations.length === 0 ? <p>No TrackGRN operation has been requested yet.</p> : null}
-            {operations.slice(0, 8).map((operation) => (
+            {operations.slice(0, 12).map((operation) => (
               <article key={operation.operationId}>
                 <div>
                   <strong>{operation.action}</strong>
@@ -1446,6 +1530,14 @@ function booleanResult(
 ): boolean | undefined {
   const value = operation?.result?.[key];
   return typeof value === "boolean" ? value : undefined;
+}
+
+function numberResult(
+  operation: ProjectAutomationOperation | undefined,
+  key: string,
+): number | undefined {
+  const value = operation?.result?.[key];
+  return typeof value === "number" ? value : undefined;
 }
 
 function NotFound({ pathname, navigate }: { pathname: string; navigate: (to: string) => void }) {

@@ -65,6 +65,8 @@ INSERT INTO frevos.project_automation_profiles (
     'repository.inspect',
     'repository.propose-commit',
     'repository.commit-push',
+    'repository.open-pull-request',
+    'repository.squash-merge',
     'project.build',
     'uat.deploy'
   ],

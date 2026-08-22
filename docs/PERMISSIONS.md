@@ -144,10 +144,14 @@ Within `ws_uat_demo/prj_uat_trackgrn`, an authenticated user holding
 That request is action-, project-, requester-, and correlation-bound. A
 commit/push request also contains the reviewed source SHA, change digest, and
 edited commit message. It authorizes only a new `frevos/trackgrn-*` branch; it
-does not authorize a default-branch push or merge. A deploy request authorizes
-only the fixed non-Production IIS target and reviewed source SHA. Production,
-rollback, backup, restore, secret changes, and arbitrary commands remain outside
-this delegation.
+does not authorize a default-branch push. ADR 0023 separately permits the human
+owner to request one exact TrackGRN squash merge after reviewing the PR. The
+persisted request binds PR number, exact head SHA, and explicit confirmation;
+the companion must independently verify clean provider state and successful
+`validate`. It cannot auto-merge or bypass protection. A deploy request
+authorizes only the fixed non-Production IIS target and reviewed source SHA.
+Production, rollback, backup, restore, secret changes, and arbitrary commands
+remain outside this delegation.
 
 ## Decisions deferred
 
