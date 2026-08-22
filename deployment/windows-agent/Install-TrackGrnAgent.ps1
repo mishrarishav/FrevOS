@@ -24,6 +24,9 @@ $action = New-ScheduledTaskAction `
     -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$destination`""
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $identity.Name
 $settings = New-ScheduledTaskSettingsSet `
+    -AllowStartIfOnBatteries `
+    -DontStopIfGoingOnBatteries `
+    -StartWhenAvailable `
     -RestartCount 5 `
     -RestartInterval (New-TimeSpan -Minutes 1) `
     -ExecutionTimeLimit ([TimeSpan]::Zero)
