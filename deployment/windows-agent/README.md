@@ -45,3 +45,7 @@ agent from an Administrator PowerShell session:
 powershell.exe -NoProfile -ExecutionPolicy Bypass `
   -File .\deployment\windows-agent\Install-TrackGrnAgent.ps1
 ```
+
+The registered task starts when the laptop is available and remains eligible
+to run on battery power, so companion polling does not silently queue until AC
+power returns.

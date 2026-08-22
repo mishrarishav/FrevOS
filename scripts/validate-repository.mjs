@@ -513,6 +513,15 @@ async function validateWindowsUat() {
     errors.push("Windows UAT startup must explicitly allow the TrackGRN agent token");
   }
   for (const required of [
+    "-AllowStartIfOnBatteries",
+    "-DontStopIfGoingOnBatteries",
+    "-StartWhenAvailable",
+  ]) {
+    if (!trackGrnAgentInstaller.includes(required)) {
+      errors.push(`TrackGRN Windows agent installer is missing: ${required}`);
+    }
+  }
+  for (const required of [
     '$workspaceRoot = "D:\\TrackGRN"',
     '$expectedRemote = "https://github.com/mishrarishav/TraceGRN.git"',
     '$agentId = "svc_trackgrn_windows_agent"',
