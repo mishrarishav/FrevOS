@@ -28,6 +28,43 @@ const project = {
   status: "active",
   createdAt: "2026-08-11T08:00:00.000Z",
 };
+const automationProfile = {
+  workspaceId: "ws_uat_demo",
+  projectId: "prj_uat_trackgrn",
+  repository: {
+    provider: "github",
+    providerRepositoryId: "1334902237",
+    owner: "mishrarishav",
+    name: "TraceGRN",
+    url: "https://github.com/mishrarishav/TraceGRN",
+    defaultBranch: "main",
+  },
+  agentId: "svc_trackgrn_windows_agent",
+  environment: "uat",
+  application: {
+    publicOrigin: "https://tserver2.eeslindia.org",
+    apiBasePath: "/apiTrackGrn",
+    healthPath: "/apiTrackGrn/health/live",
+    swaggerPath: "/apiTrackGrn/swagger",
+  },
+  allowedActions: ["repository.inspect"],
+};
+const automationOperation = {
+  operationId: "op_trackgrn_01",
+  workspaceId: "ws_uat_demo",
+  projectId: "prj_uat_trackgrn",
+  agentId: "svc_trackgrn_windows_agent",
+  requestedBy: "usr_windows_admin",
+  action: "repository.inspect",
+  status: "queued",
+  input: {},
+  result: null,
+  errorCode: null,
+  createdAt: "2026-08-23T08:00:00.000Z",
+  claimedAt: null,
+  completedAt: null,
+};
+const inspectRequest = { action: "repository.inspect", input: {} } as const;
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -163,6 +200,176 @@ describe("authenticated Control Center API", () => {
 
     await api.getSession();
     expect(paths).toEqual(["/frevos/v1/session"]);
+  });
+
+  it("loads and requests TrackGRN automation through CSRF-protected same-origin routes", async () => {
+    const requests: Array<{ path: string; init: RequestInit | undefined }> = [];
+    const api = createControlCenterApi(
+      async (input, init) => {
+        const path = String(input);
+        requests.push({ path, init });
+        if (init?.method === "POST") {
+          return jsonResponse(automationOperation, 202);
+        }
+        return jsonResponse(path.endsWith("/operations") ? [] : automationProfile);
+      },
+      "/frevos",
+      (name) => (name === "__Host-frevos-csrf" ? "csrf-value" : undefined),
+    );
+
+    await expect(api.getProjectAutomation("ws_uat_demo", "prj_uat_trackgrn")).resolves.toEqual(
+      automationProfile,
+    );
+    await expect(
+      api.listProjectAutomationOperations("ws_uat_demo", "prj_uat_trackgrn"),
+    ).resolves.toEqual([]);
+    await expect(
+      api.createProjectAutomationOperation("ws_uat_demo", "prj_uat_trackgrn", {
+        ...inspectRequest,
+      }),
+    ).resolves.toEqual(automationOperation);
+    expect(requests[2]).toEqual({
+      path: "/frevos/v1/workspaces/ws_uat_demo/projects/prj_uat_trackgrn/automation/operations",
+      init: expect.objectContaining({
+        method: "POST",
+        credentials: "same-origin",
+        headers: expect.objectContaining({ "x-csrf-token": "csrf-value" }),
+        body: JSON.stringify({ action: "repository.inspect", input: {} }),
+      }),
+    });
+
+    const denied = createControlCenterApi(
+      async () => jsonResponse(automationOperation, 202),
+      undefined,
+      () => undefined,
+    );
+    await expect(
+      denied.createProjectAutomationOperation("ws_uat_demo", "prj_uat_trackgrn", {
+        ...inspectRequest,
+      }),
+    ).rejects.toMatchObject({ kind: "denied" });
+  });
+
+  it.each([
+    [401, "unauthenticated"],
+    [403, "denied"],
+    [404, "denied"],
+    [500, "unavailable"],
+  ] as const)("maps automation POST HTTP %s to %s", async (status, kind) => {
+    const api = createControlCenterApi(
+      async () => new Response("private-error-details", { status }),
+      undefined,
+      () => "csrf-value",
+    );
+    await expect(
+      api.createProjectAutomationOperation("ws_uat_demo", "prj_uat_trackgrn", inspectRequest),
+    ).rejects.toMatchObject({ kind });
+  });
+
+  it("fails closed for automation POST transport and response failures", async () => {
+    const unavailable = createControlCenterApi(
+      async () => {
+        throw new Error("network details");
+      },
+      undefined,
+      () => "csrf-value",
+    );
+    await expect(
+      unavailable.createProjectAutomationOperation(
+        "ws_uat_demo",
+        "prj_uat_trackgrn",
+        inspectRequest,
+      ),
+    ).rejects.toMatchObject({ kind: "unavailable" });
+
+    const controller = new AbortController();
+    const cancellation = new Error("cancelled");
+    controller.abort();
+    const aborted = createControlCenterApi(
+      async (_input, init) => {
+        expect(init?.signal).toBe(controller.signal);
+        throw cancellation;
+      },
+      undefined,
+      () => "csrf-value",
+    );
+    await expect(
+      aborted.createProjectAutomationOperation(
+        "ws_uat_demo",
+        "prj_uat_trackgrn",
+        inspectRequest,
+        controller.signal,
+      ),
+    ).rejects.toBe(cancellation);
+
+    const malformed = createControlCenterApi(
+      async () => new Response("not-json", { status: 202 }),
+      undefined,
+      () => "csrf-value",
+    );
+    await expect(
+      malformed.createProjectAutomationOperation("ws_uat_demo", "prj_uat_trackgrn", inspectRequest),
+    ).rejects.toMatchObject({ kind: "invalid-response" });
+
+    const invalid = createControlCenterApi(
+      async () => jsonResponse({ ...automationOperation, unexpected: true }, 202),
+      undefined,
+      () => "csrf-value",
+    );
+    await expect(
+      invalid.createProjectAutomationOperation("ws_uat_demo", "prj_uat_trackgrn", inspectRequest),
+    ).rejects.toMatchObject({ kind: "invalid-response" });
+  });
+
+  it("reads the CSRF token from the browser cookie without exposing it elsewhere", async () => {
+    const originalDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
+    try {
+      const noDocument = createControlCenterApi(async () => jsonResponse(automationOperation, 202));
+      await expect(
+        noDocument.createProjectAutomationOperation(
+          "ws_uat_demo",
+          "prj_uat_trackgrn",
+          inspectRequest,
+        ),
+      ).rejects.toMatchObject({ kind: "denied" });
+
+      Object.defineProperty(globalThis, "document", {
+        configurable: true,
+        value: { cookie: "unrelated=value" },
+      });
+      const missingCookie = createControlCenterApi(async () =>
+        jsonResponse(automationOperation, 202),
+      );
+      await expect(
+        missingCookie.createProjectAutomationOperation(
+          "ws_uat_demo",
+          "prj_uat_trackgrn",
+          inspectRequest,
+        ),
+      ).rejects.toMatchObject({ kind: "denied" });
+
+      Object.defineProperty(globalThis, "document", {
+        configurable: true,
+        value: { cookie: "unrelated=value; __Host-frevos-csrf=encoded%20csrf" },
+      });
+      const withCookie = createControlCenterApi(async (_input, init) => {
+        expect(init?.headers).toMatchObject({ "x-csrf-token": "encoded csrf" });
+        return jsonResponse(automationOperation, 202);
+      });
+      await expect(
+        withCookie.createProjectAutomationOperation(
+          "ws_uat_demo",
+          "prj_uat_trackgrn",
+          inspectRequest,
+        ),
+      ).resolves.toEqual(automationOperation);
+    } finally {
+      if (originalDocument === undefined) {
+        Reflect.deleteProperty(globalThis, "document");
+      } else {
+        Object.defineProperty(globalThis, "document", originalDocument);
+      }
+    }
   });
 
   it.each([

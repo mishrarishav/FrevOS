@@ -25,7 +25,55 @@ INSERT INTO frevos.clients (client_id, workspace_id, display_name, status, creat
 ON CONFLICT (workspace_id, client_id) DO UPDATE SET display_name = EXCLUDED.display_name;
 
 INSERT INTO frevos.projects (project_id, workspace_id, client_id, display_name, status, created_at) VALUES
-  ('prj_uat_frevos', 'ws_uat_demo', 'cli_uat_personal', 'FrevOS', 'active', CURRENT_TIMESTAMP)
+  ('prj_uat_frevos', 'ws_uat_demo', 'cli_uat_personal', 'FrevOS', 'active', CURRENT_TIMESTAMP),
+  ('prj_uat_trackgrn', 'ws_uat_demo', 'cli_uat_personal', 'TrackGRN', 'active', CURRENT_TIMESTAMP)
 ON CONFLICT (workspace_id, project_id) DO UPDATE SET display_name = EXCLUDED.display_name;
+
+INSERT INTO frevos.project_automation_profiles (
+  workspace_id,
+  project_id,
+  provider,
+  provider_repository_id,
+  repository_owner,
+  repository_name,
+  repository_url,
+  default_branch,
+  agent_id,
+  environment,
+  public_origin,
+  api_base_path,
+  health_path,
+  swagger_path,
+  allowed_actions,
+  created_at
+) VALUES (
+  'ws_uat_demo',
+  'prj_uat_trackgrn',
+  'github',
+  '1334902237',
+  'mishrarishav',
+  'TraceGRN',
+  'https://github.com/mishrarishav/TraceGRN',
+  'main',
+  'svc_trackgrn_windows_agent',
+  'uat',
+  'https://tserver2.eeslindia.org',
+  '/apiTrackGrn',
+  '/apiTrackGrn/health/live',
+  '/apiTrackGrn/swagger',
+  ARRAY[
+    'repository.inspect',
+    'repository.propose-commit',
+    'repository.commit-push',
+    'project.build',
+    'uat.deploy'
+  ],
+  CURRENT_TIMESTAMP
+)
+ON CONFLICT (workspace_id, project_id) DO UPDATE SET
+  provider_repository_id = EXCLUDED.provider_repository_id,
+  repository_url = EXCLUDED.repository_url,
+  default_branch = EXCLUDED.default_branch,
+  allowed_actions = EXCLUDED.allowed_actions;
 
 COMMIT;

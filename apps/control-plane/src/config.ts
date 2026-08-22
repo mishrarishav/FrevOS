@@ -1,6 +1,6 @@
 import { IdentityIssuerSchema } from "@frevos/contracts";
 import { z } from "zod";
-import { decodeEncryptionKey } from "./crypto.js";
+import { decodeEncryptionKey, sha256 } from "./crypto.js";
 
 const EnvironmentSchema = z
   .object({
@@ -14,6 +14,7 @@ const EnvironmentSchema = z
     FREVOS_OIDC_CLIENT_ID: z.string().min(1).max(255).optional(),
     FREVOS_OIDC_CLIENT_SECRET: z.string().min(1).max(4096).optional(),
     FREVOS_OIDC_TRANSACTION_KEY: z.string().min(43).max(64).optional(),
+    FREVOS_TRACKGRN_AGENT_TOKEN: z.string().min(32).max(256).optional(),
     FREVOS_BASE_PATH: z
       .string()
       .regex(/^$|^\/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/)
@@ -29,6 +30,7 @@ interface BaseControlPlaneConfig {
   readonly basePath: string;
   readonly host: string;
   readonly port: number;
+  readonly trackGrnAgentTokenHash?: Buffer;
 }
 
 export type ControlPlaneConfig = BaseControlPlaneConfig &
@@ -62,6 +64,9 @@ export function loadConfig(environment: NodeJS.ProcessEnv): ControlPlaneConfig {
     basePath: parsed.FREVOS_BASE_PATH,
     host: parsed.HOST,
     port: parsed.PORT,
+    ...(parsed.FREVOS_TRACKGRN_AGENT_TOKEN === undefined
+      ? {}
+      : { trackGrnAgentTokenHash: sha256(parsed.FREVOS_TRACKGRN_AGENT_TOKEN) }),
   };
   if (parsed.FREVOS_AUTH_MODE === "local") {
     return { ...base, authMode: "local" };

@@ -44,6 +44,9 @@ export type ArtifactId = z.infer<typeof ArtifactIdSchema>;
 export const CorrelationIdSchema = identifierSchema("cor", "CorrelationId");
 export type CorrelationId = z.infer<typeof CorrelationIdSchema>;
 
+export const OperationIdSchema = identifierSchema("op", "OperationId");
+export type OperationId = z.infer<typeof OperationIdSchema>;
+
 export const ActorIdSchema = z.union([UserIdSchema, ServiceIdentityIdSchema]);
 export type ActorId = z.infer<typeof ActorIdSchema>;
 

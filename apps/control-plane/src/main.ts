@@ -4,6 +4,7 @@ import { registerControlCenter } from "./control-center.js";
 import { OidcTransactionCodec } from "./crypto.js";
 import { createDatabasePool, verifyApplicationRole, verifyDatabaseReadiness } from "./database.js";
 import { OpenIdClientProvider } from "./oidc.js";
+import { ProjectAutomationRepository } from "./project-automation.js";
 import { IdentitySessionRepository, WorkspaceRepository } from "./repositories.js";
 import { buildServer } from "./server.js";
 
@@ -31,6 +32,10 @@ try {
     ...authentication,
     identitySessions: new IdentitySessionRepository(pool),
     workspaces: new WorkspaceRepository(pool),
+    automation: new ProjectAutomationRepository(pool),
+    ...(config.trackGrnAgentTokenHash === undefined
+      ? {}
+      : { trackGrnAgentTokenHash: config.trackGrnAgentTokenHash }),
     readiness: () => verifyDatabaseReadiness(pool),
   });
   await registerControlCenter(

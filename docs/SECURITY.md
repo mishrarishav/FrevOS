@@ -188,6 +188,18 @@ PostgreSQL. This evidence covers the control-plane boundary only; it does not
 claim a deployed provider, cloud database, external acceptance, or later tool,
 agent, approval, audit, artifact, and deployment controls.
 
+### TrackGRN UAT pilot boundary
+
+ADR 0022 authorizes one fixed UAT pilot. Its browser operations remain
+workspace-authorized and CSRF-protected. The separate laptop companion uses a
+distinct token digest, polls outbound, verifies the exact repository remote,
+accepts no command or path input, and runs only registered TrackGRN actions.
+Commit/push additionally binds the human-reviewed HEAD and change digest;
+deployment binds a clean source SHA, fixed server release root, VPN/WinRM
+preflight, artifact digest, and health endpoint. Raw command output and secret
+values are never accepted as evidence. This pilot does not weaken Production,
+generic worker, artifact-promotion, backup, or rollback requirements.
+
 ## Open security decisions
 
 ADR 0019 supersedes the paid hosted UAT selection in ADR 0017. It selects Auth0

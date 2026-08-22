@@ -402,6 +402,18 @@ async function validateWindowsUat() {
   const personalSeed = normalizeNewlines(
     await readFile(join(repositoryRoot, "deployment/windows-uat/seed.sql"), "utf8"),
   );
+  const trackGrnAgent = normalizeNewlines(
+    await readFile(
+      join(repositoryRoot, "deployment/windows-agent/Invoke-TrackGrnAgent.ps1"),
+      "utf8",
+    ),
+  );
+  const trackGrnAgentInstaller = normalizeNewlines(
+    await readFile(
+      join(repositoryRoot, "deployment/windows-agent/Install-TrackGrnAgent.ps1"),
+      "utf8",
+    ),
+  );
 
   for (const required of [
     'basePath = "/frevos"',
@@ -416,6 +428,7 @@ async function validateWindowsUat() {
     'VITE_FREVOS_AUTH_MODE = "local"',
     '"bootstrap-local-user.js"',
     "Compiled control-plane entry point is missing after release pruning",
+    '"deployment\\windows-agent"',
   ]) {
     if (!builder.includes(required)) {
       errors.push(`Windows UAT release builder is missing: ${required}`);
@@ -439,6 +452,7 @@ async function validateWindowsUat() {
     "Set-ControlledAcl -Path $operationsConfigFile",
     "applicationHost.config",
     "Wait-ForLocalHealth",
+    "FREVOS_TRACKGRN_AGENT_TOKEN = $trackGrnAgentToken",
   ]) {
     if (!installer.includes(required)) {
       errors.push(`Windows UAT installer is missing: ${required}`);
@@ -473,6 +487,9 @@ async function validateWindowsUat() {
     "workspace:read",
     "client:write",
     "project:write",
+    "prj_uat_trackgrn",
+    "1334902237",
+    "svc_trackgrn_windows_agent",
   ]) {
     if (!personalSeed.includes(required)) {
       errors.push(`Windows personal UAT seed is missing: ${required}`);
@@ -485,6 +502,46 @@ async function validateWindowsUat() {
     errors.push(
       "Windows UAT web startup must clear migration authority and never load operations configuration",
     );
+  }
+  if (!startup.includes('"FREVOS_TRACKGRN_AGENT_TOKEN"')) {
+    errors.push("Windows UAT startup must explicitly allow the TrackGRN agent token");
+  }
+  for (const required of [
+    '$workspaceRoot = "D:\\TrackGRN"',
+    '$expectedRemote = "https://github.com/mishrarishav/TraceGRN.git"',
+    '$agentId = "svc_trackgrn_windows_agent"',
+    '$serverReleaseRoot = "D:\\TrackGRN-UAT\\releases"',
+    '"repository.inspect"',
+    '"repository.propose-commit"',
+    '"repository.commit-push"',
+    '"project.build"',
+    '"uat.deploy"',
+    "expectedChangeDigest",
+    "FullyQualifiedName!~APItrackGRN.Tests.SqlEndToEndTests",
+    "/apiTrackGrn/api/system/status",
+    'databaseStatus = "available"',
+    "function Assert-GitHubOperator",
+    "gh api repos/mishrarishav/TraceGRN --jq .id",
+    '"frevos/trackgrn-$suffix"',
+    'Invoke-Git @("push", "--set-upstream", "origin", "HEAD")',
+  ]) {
+    if (!trackGrnAgent.includes(required)) {
+      errors.push(`TrackGRN Windows agent is missing: ${required}`);
+    }
+  }
+  for (const prohibited of ["Invoke-Expression", "cmd.exe", 'push", "origin", "main"']) {
+    if (trackGrnAgent.includes(prohibited)) {
+      errors.push(`TrackGRN Windows agent exposes a prohibited execution path: ${prohibited}`);
+    }
+  }
+  for (const required of [
+    '$taskName = "FrevOS-TrackGRN-Agent"',
+    '"D:\\TrackGRN\\server.env"',
+    "Register-ScheduledTask",
+  ]) {
+    if (!trackGrnAgentInstaller.includes(required)) {
+      errors.push(`TrackGRN Windows agent installer is missing: ${required}`);
+    }
   }
   for (const required of [
     "[switch]$ConfirmSharedIisRestart",

@@ -99,6 +99,7 @@ try {
         (Join-Path $packageRoot "apps\control-center"),
         (Join-Path $packageRoot "database"),
         (Join-Path $packageRoot "deployment\windows-uat"),
+        (Join-Path $packageRoot "deployment\windows-agent"),
         (Join-Path $packageRoot "prerequisites"),
         $PrerequisiteCache,
         $OutputDirectory
@@ -135,6 +136,10 @@ try {
         -Destination (Join-Path $packageRoot "deployment\windows-uat")
     Copy-Item -LiteralPath (Join-Path $repositoryRoot "deployment\windows-uat\web.config.template") `
         -Destination (Join-Path $packageRoot "deployment\windows-uat")
+    Copy-Item -Path (Join-Path $repositoryRoot "deployment\windows-agent\*.ps1") `
+        -Destination (Join-Path $packageRoot "deployment\windows-agent")
+    Copy-Item -LiteralPath (Join-Path $repositoryRoot "deployment\windows-agent\README.md") `
+        -Destination (Join-Path $packageRoot "deployment\windows-agent")
 
     foreach ($prerequisite in $prerequisites) {
         $cachedFile = Join-Path $PrerequisiteCache $prerequisite.Name

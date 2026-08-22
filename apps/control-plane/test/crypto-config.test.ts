@@ -108,6 +108,26 @@ describe("control-plane configuration", () => {
     expect("oidcClientSecret" in config).toBe(false);
   });
 
+  it("stores only the TrackGRN agent token digest in runtime configuration", () => {
+    const token = "synthetic-trackgrn-agent-token-0001";
+    const config = loadConfig({
+      DATABASE_URL: "postgresql://runtime.invalid/frevos",
+      FREVOS_PUBLIC_ORIGIN: "https://control.frevos.example",
+      FREVOS_AUTH_MODE: "local",
+      FREVOS_TRACKGRN_AGENT_TOKEN: token,
+    });
+    expect(config.trackGrnAgentTokenHash).toEqual(sha256(token));
+    expect(JSON.stringify(config)).not.toContain(token);
+    expect(() =>
+      loadConfig({
+        DATABASE_URL: "postgresql://runtime.invalid/frevos",
+        FREVOS_PUBLIC_ORIGIN: "https://control.frevos.example",
+        FREVOS_AUTH_MODE: "local",
+        FREVOS_TRACKGRN_AGENT_TOKEN: "too-short",
+      }),
+    ).toThrow();
+  });
+
   it("rejects non-HTTPS and path-bearing public origins", () => {
     expect(() =>
       loadConfig({ ...validEnvironment, FREVOS_PUBLIC_ORIGIN: "http://control.invalid" }),

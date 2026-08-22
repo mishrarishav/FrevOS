@@ -42,7 +42,8 @@ $allowedVariables = @(
     "FREVOS_AUTH_MODE",
     "FREVOS_BASE_PATH",
     "HOST",
-    "PORT"
+    "PORT",
+    "FREVOS_TRACKGRN_AGENT_TOKEN"
 )
 $configuredVariables = @($runtime.PSObject.Properties.Name)
 if (($configuredVariables | Where-Object { $_ -notin $allowedVariables }).Count -ne 0 -or
