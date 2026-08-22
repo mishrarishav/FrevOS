@@ -17,6 +17,19 @@ $iisScriptRelativePath = "APItrackGRN\scripts\configure-iis-production.ps1"
 $apiProjectRelativePath = "APItrackGRN\src\APItrackGRN.Api\APItrackGRN.Api.csproj"
 $solutionRelativePath = "APItrackGRN\APItrackGRN.sln"
 $pollSeconds = 5
+$agentLogRoot = "D:\FrevOS-Agent\logs"
+$gitExecutable = "C:\Program Files\Git\cmd\git.exe"
+$githubCliExecutable = "C:\Program Files\GitHub CLI\gh.exe"
+$npmExecutable = "C:\Program Files\nodejs\npm.cmd"
+$dotnetExecutable = "C:\Program Files\dotnet\dotnet.exe"
+
+function Assert-AgentTooling {
+    foreach ($path in @($gitExecutable, $githubCliExecutable, $npmExecutable, $dotnetExecutable)) {
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+            throw "An approved TrackGRN agent tool is unavailable."
+        }
+    }
+}
 
 function Read-EnvironmentFile([string]$Path) {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
@@ -52,14 +65,14 @@ function Assert-Workspace {
     if (-not (Test-Path -LiteralPath (Join-Path $workspaceRoot ".git"))) {
         throw "The allowlisted TrackGRN workspace is not a Git checkout."
     }
-    $remote = (& git -C $workspaceRoot remote get-url origin 2>$null).Trim()
+    $remote = (& $gitExecutable -C $workspaceRoot remote get-url origin 2>$null).Trim()
     if ($LASTEXITCODE -ne 0 -or $remote -ine $expectedRemote) {
         throw "The TrackGRN origin does not match the approved GitHub repository."
     }
 }
 
 function Invoke-Git([string[]]$Arguments) {
-    $output = @(& git -C $workspaceRoot @Arguments 2>&1)
+    $output = @(& $gitExecutable -C $workspaceRoot @Arguments 2>&1)
     if ($LASTEXITCODE -ne 0) {
         throw "An allowlisted Git operation failed."
     }
@@ -67,18 +80,18 @@ function Invoke-Git([string[]]$Arguments) {
 }
 
 function Assert-GitHubOperator {
-    $login = @(& gh api user --jq .login 2>$null)
+    $login = @(& $githubCliExecutable api user --jq .login 2>$null)
     if ($LASTEXITCODE -ne 0 -or ([string]($login | Select-Object -First 1)).Trim() -cne "mishrarishav") {
         throw "The approved GitHub operator credential is unavailable."
     }
-    $repositoryId = @(& gh api repos/mishrarishav/TraceGRN --jq .id 2>$null)
+    $repositoryId = @(& $githubCliExecutable api repos/mishrarishav/TraceGRN --jq .id 2>$null)
     if ($LASTEXITCODE -ne 0 -or ([string]($repositoryId | Select-Object -First 1)).Trim() -cne "1334902237") {
         throw "The GitHub provider repository identity could not be verified."
     }
 }
 
 function Invoke-GitHubJson([string[]]$Arguments) {
-    $output = @(& gh @Arguments 2>$null)
+    $output = @(& $githubCliExecutable @Arguments 2>$null)
     if ($LASTEXITCODE -ne 0) {
         throw "An allowlisted GitHub operation failed."
     }
@@ -171,12 +184,43 @@ function Get-CommitProposal {
     }
 }
 
-function Invoke-CheckedNative([string]$FilePath, [string[]]$Arguments) {
+function Invoke-CheckedNative(
+    [string]$FilePath,
+    [string[]]$Arguments,
+    [string]$FailureCode,
+    [string]$OperationId
+) {
+    if ($OperationId -cnotmatch "^op_[a-f0-9]{48}$") {
+        throw "invalid-operation-id"
+    }
     Push-Location $workspaceRoot
     try {
-        & $FilePath @Arguments *> $null
-        if ($LASTEXITCODE -ne 0) {
-            throw "An allowlisted build command failed with exit code $LASTEXITCODE."
+        try {
+            $previousErrorActionPreference = $ErrorActionPreference
+            try {
+                # Windows PowerShell 5.1 surfaces native stderr as ErrorRecord objects.
+                # Tool warnings are not failures; the native exit code is authoritative.
+                $ErrorActionPreference = "Continue"
+                $output = @(& $FilePath @Arguments 2>&1)
+                $exitCode = $LASTEXITCODE
+            }
+            finally {
+                $ErrorActionPreference = $previousErrorActionPreference
+            }
+            if ($exitCode -ne 0) {
+                New-Item -ItemType Directory -Path $agentLogRoot -Force | Out-Null
+                $logPath = Join-Path $agentLogRoot "$OperationId-$FailureCode.log"
+                @($output | Select-Object -Last 200) | Set-Content -LiteralPath $logPath -Encoding UTF8
+                throw $FailureCode
+            }
+        }
+        catch {
+            if ($_.Exception.Message -cne $FailureCode) {
+                New-Item -ItemType Directory -Path $agentLogRoot -Force | Out-Null
+                $logPath = Join-Path $agentLogRoot "$OperationId-$FailureCode.log"
+                @([string]$_.Exception.Message) | Set-Content -LiteralPath $logPath -Encoding UTF8
+            }
+            throw $FailureCode
         }
     }
     finally {
@@ -204,32 +248,32 @@ function Get-ArtifactDigest([string]$Path) {
 
 function Build-TrackGrn([string]$OperationId, [hashtable]$Environment) {
     $snapshot = Get-RepositorySnapshot
-    Invoke-CheckedNative "npm.cmd" @("run", "ui:build")
+    Invoke-CheckedNative $npmExecutable @("run", "ui:build") "ui-build-failed" $OperationId
     # SqlEndToEndTests intentionally create and delete TrackGRN_IntegrationTests
     # on a developer-owned SQLEXPRESS instance. The UAT companion must never
     # redirect that destructive fixture to the live TrackGRN database.
-    Invoke-CheckedNative "dotnet" @(
+    Invoke-CheckedNative $dotnetExecutable @(
         "test",
         $solutionRelativePath,
         "--configuration",
         "Release",
         "--filter",
         "FullyQualifiedName!~APItrackGRN.Tests.SqlEndToEndTests"
-    )
+    ) "api-tests-failed" $OperationId
 
     $artifactRoot = Join-Path "D:\FrevOS-Agent\artifacts" $OperationId
     if (Test-Path -LiteralPath $artifactRoot) {
-        throw "The immutable local artifact directory already exists."
+        throw "artifact-already-exists"
     }
     New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
-    Invoke-CheckedNative "dotnet" @(
+    Invoke-CheckedNative $dotnetExecutable @(
         "publish",
         $apiProjectRelativePath,
         "--configuration",
         "Release",
         "--output",
         $artifactRoot
-    )
+    ) "api-publish-failed" $OperationId
     return [ordered]@{
         sourceSha = $snapshot.headSha
         sourceBranch = $snapshot.branch
@@ -319,7 +363,7 @@ function Open-PullRequest([object]$Operation) {
         throw "Multiple open pull requests exist for the reviewed branch."
     }
     if ($pullRequests.Count -eq 0) {
-        $createdUrl = @(& gh pr create `
+        $createdUrl = @(& $githubCliExecutable pr create `
             --repo "mishrarishav/TraceGRN" `
             --base "main" `
             --head $branch `
@@ -388,7 +432,7 @@ function Squash-MergePullRequest([object]$Operation) {
         throw "The TrackGRN pull request is not eligible for human-approved squash merge."
     }
 
-    & gh pr merge "$number" `
+    & $githubCliExecutable pr merge "$number" `
         --repo "mishrarishav/TraceGRN" `
         --squash `
         --match-head-commit $expectedHead `
@@ -574,6 +618,7 @@ function Invoke-Operation([object]$Operation, [hashtable]$Environment) {
     }
 }
 
+Assert-AgentTooling
 Assert-Workspace
 if ($SelfTest) {
     Assert-GitHubOperator
@@ -604,16 +649,22 @@ do {
             $completion = [ordered]@{ status = "succeeded"; result = $result }
         }
         catch {
-            $errorCode = if ($_.Exception.Message -eq "vpn-required") {
-                "vpn-required"
-            }
-            else {
-                "operation-failed"
-            }
+            $knownErrorCodes = @(
+                "vpn-required",
+                "ui-build-failed",
+                "api-tests-failed",
+                "artifact-already-exists",
+                "api-publish-failed"
+            )
+            $failure = [string]$_.Exception.Message
+            $errorCode = if ($knownErrorCodes -ccontains $failure) { $failure } else { "operation-failed" }
             $completion = [ordered]@{
                 status = "failed"
                 errorCode = $errorCode
-                result = [ordered]@{ message = "The allowlisted TrackGRN operation failed." }
+                result = [ordered]@{
+                    message = "The allowlisted TrackGRN operation failed."
+                    failureStage = $errorCode
+                }
             }
         }
         Invoke-AgentRequest "POST" `
