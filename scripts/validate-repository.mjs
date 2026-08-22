@@ -538,6 +538,8 @@ async function validateWindowsUat() {
     'mergeStateStatus -cne "CLEAN"',
     'name -ceq "validate"',
     'confirmation -cne "squash-merge"',
+    '"/v1/agents/trackgrn/claim"',
+    "([ordered]@{})",
   ]) {
     if (!trackGrnAgent.includes(required)) {
       errors.push(`TrackGRN Windows agent is missing: ${required}`);
