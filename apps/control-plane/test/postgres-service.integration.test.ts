@@ -209,8 +209,14 @@ beforeAll(async () => {
     displayName: "TrackGRN",
     now: NOW,
   });
-  await withApplicationTransaction(pool, TRACKGRN_WORKSPACE_ID, async (client) =>
-    client.query(
+  const automationSeedClient = await adminPool.connect();
+  try {
+    await automationSeedClient.query("BEGIN");
+    await automationSeedClient.query("SET LOCAL ROLE frevos_owner");
+    await automationSeedClient.query("SELECT set_config('frevos.workspace_id', $1, true)", [
+      TRACKGRN_WORKSPACE_ID,
+    ]);
+    await automationSeedClient.query(
       `
         INSERT INTO frevos.project_automation_profiles (
           workspace_id, project_id, provider, provider_repository_id,
@@ -229,8 +235,14 @@ beforeAll(async () => {
         )
       `,
       [TRACKGRN_WORKSPACE_ID, TRACKGRN_PROJECT_ID, TRACKGRN_AGENT_ID, NOW],
-    ),
-  );
+    );
+    await automationSeedClient.query("COMMIT");
+  } catch (error) {
+    await automationSeedClient.query("ROLLBACK");
+    throw error;
+  } finally {
+    automationSeedClient.release();
+  }
 }, 120_000);
 
 afterAll(async () => {
