@@ -12,8 +12,10 @@ unavailable service, and invalid-response states fail closed.
 
 The browser receives only the hardened server-session cookie; it does not store
 provider or session tokens and does not submit membership evidence or
-permission scopes. Commands, tasks, Agent Activity, approvals, and audit entries
-remain explicitly labeled planned examples and trigger no external side effect.
+permission scopes. Generic commands, tasks, Agent Activity, approvals, and audit
+entries remain explicitly labeled planned examples. The sole exception is the
+ADR 0022 TrackGRN project panel, whose explicit buttons call the bounded,
+workspace-authorized UAT automation API and display durable operation status.
 
 The deployed Control Center and BFF must share the exact HTTPS origin. This
 package does not add a development proxy or weaken secure host-cookie behavior.

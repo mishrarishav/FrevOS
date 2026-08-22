@@ -201,6 +201,11 @@ independent acceptance exit gates.
 
 ## Phase 5 — GitHub App and repository onboarding
 
+An owner-authorized UAT-only TrackGRN vertical pilot is defined by
+[ADR 0022](adr/0022-trackgrn-uat-automation-pilot.md). It validates one fixed
+repository and Windows companion path without declaring Phases 5 through 11
+complete or generalizing their security decisions.
+
 Implement URL normalization, GitHub App authorization, immutable repository
 identity, permission snapshots, webhook verification, isolated analysis, and
 reviewable project configuration proposals.

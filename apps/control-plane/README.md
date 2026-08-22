@@ -78,6 +78,7 @@ Normal runtime configuration is:
 | `FREVOS_OIDC_CLIENT_ID` | Confidential OIDC client identifier, required only in `oidc` mode |
 | `FREVOS_OIDC_CLIENT_SECRET` | Confidential OIDC client secret, required only in `oidc` mode |
 | `FREVOS_OIDC_TRANSACTION_KEY` | Base64url-encoded 32-byte pre-authentication cookie key, required only in `oidc` mode |
+| `FREVOS_TRACKGRN_AGENT_TOKEN` | Distinct 32–256 character secret for the fixed TrackGRN UAT companion; optional elsewhere |
 | `HOST` / `PORT` | Listener address and port; default `127.0.0.1:3001` |
 
 Do not put real values in committed files, shell history, logs, screenshots, or
@@ -85,6 +86,14 @@ test fixtures. The selected non-Production operating model and exact bootstrap
 sequence are in the
 [Phase 4 UAT runbook](../../docs/PHASE_4_UAT_RUNBOOK.md). Production provider,
 availability, region, and recovery choices remain open.
+
+## TrackGRN UAT automation pilot
+
+ADR 0022 adds a workspace-scoped operation queue for the fixed TrackGRN project
+and a separately installed outbound Windows companion. Agent authentication,
+repository identity, allowed actions, reviewed change digest, dedicated branch,
+UAT release root, and health endpoint are deterministic. See the
+[TrackGRN UAT pilot runbook](../../docs/TRACKGRN_UAT_PILOT.md).
 
 ## Same-origin delivery
 

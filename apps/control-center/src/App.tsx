@@ -1,4 +1,10 @@
-import type { Client, Project, Workspace } from "@frevos/contracts";
+import type {
+  Client,
+  Project,
+  ProjectAutomationOperation,
+  ProjectAutomationRequest,
+  Workspace,
+} from "@frevos/contracts";
 import {
   Activity,
   Bell,
@@ -299,6 +305,7 @@ export function App({
           ) : null}
           {route?.id === "projects" ? (
             <ProjectsSurface
+              api={api}
               workspace={experience.workspace}
               clients={experience.clients}
               projects={experience.projects}
@@ -1122,11 +1129,13 @@ function PlannedSurface({
 }
 
 function ProjectsSurface({
+  api,
   workspace,
   clients,
   projects,
   navigate,
 }: {
+  api: ControlCenterApi;
   workspace: Workspace;
   clients: Client[];
   projects: Project[];
@@ -1135,9 +1144,9 @@ function ProjectsSurface({
   return (
     <div className="page-stack">
       <PageHeader
-        eyebrow="Phase 4 authenticated records"
+        eyebrow="Authenticated project operations"
         title={`${workspace.displayName} projects`}
-        description="Read-only clients and projects returned through the verified workspace boundary."
+        description="Authorized records plus the bounded TrackGRN UAT pilot where configured."
         action={
           <button className="button secondary" type="button" onClick={() => navigate("/")}>
             Return to Control Center
@@ -1203,8 +1212,240 @@ function ProjectsSurface({
           })}
         </div>
       </Panel>
+      {projects.some((project) => project.projectId === "prj_uat_trackgrn") ? (
+        <TrackGrnAutomationPanel api={api} workspaceId={workspace.workspaceId} />
+      ) : null}
     </div>
   );
+}
+
+function TrackGrnAutomationPanel({
+  api,
+  workspaceId,
+}: {
+  api: ControlCenterApi;
+  workspaceId: string;
+}) {
+  const projectId = "prj_uat_trackgrn";
+  const [operations, setOperations] = useState<ProjectAutomationOperation[]>([]);
+  const [state, setState] = useState<"loading" | "ready" | "unavailable">("loading");
+  const [commitMessage, setCommitMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const refresh = useCallback(
+    async (signal?: AbortSignal) => {
+      try {
+        await api.getProjectAutomation(workspaceId, projectId, signal);
+        const next = await api.listProjectAutomationOperations(workspaceId, projectId, signal);
+        setOperations(next);
+        setState("ready");
+        const proposal = next.find(
+          (operation) =>
+            operation.action === "repository.propose-commit" && operation.status === "succeeded",
+        );
+        const proposedMessage = stringResult(proposal, "proposedCommitMessage");
+        if (proposedMessage !== undefined) {
+          setCommitMessage((current) => current || proposedMessage);
+        }
+      } catch {
+        if (signal?.aborted !== true) {
+          setState("unavailable");
+        }
+      }
+    },
+    [api, workspaceId],
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void refresh(controller.signal);
+    return () => controller.abort();
+  }, [refresh]);
+
+  useEffect(() => {
+    if (
+      !operations.some(
+        (operation) => operation.status === "queued" || operation.status === "claimed",
+      )
+    ) {
+      return;
+    }
+    const timer = window.setInterval(() => void refresh(), 3000);
+    return () => window.clearInterval(timer);
+  }, [operations, refresh]);
+
+  const requestOperation = async (request: ProjectAutomationRequest) => {
+    setSubmitting(true);
+    try {
+      const operation = await api.createProjectAutomationOperation(workspaceId, projectId, request);
+      setOperations((current) => [operation, ...current]);
+      setState("ready");
+    } catch {
+      setState("unavailable");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const proposal = operations.find(
+    (operation) =>
+      operation.action === "repository.propose-commit" && operation.status === "succeeded",
+  );
+  const repositoryEvidence = operations.find(
+    (operation) =>
+      (operation.action === "repository.inspect" ||
+        operation.action === "repository.propose-commit") &&
+      operation.status === "succeeded",
+  );
+  const expectedHeadSha = stringResult(repositoryEvidence, "headSha");
+  const expectedChangeDigest = stringResult(proposal, "changeDigest");
+  const clean = booleanResult(repositoryEvidence, "clean");
+  const busy =
+    submitting ||
+    operations.some((operation) => operation.status === "queued" || operation.status === "claimed");
+
+  return (
+    <Panel
+      title="TrackGRN UAT operations"
+      description="Exact repository 1334902237 · fixed Windows agent · no direct main push"
+      action={
+        <button className="button secondary" type="button" onClick={() => void refresh()}>
+          Refresh
+        </button>
+      }
+    >
+      {state === "loading" ? <p>Loading the TrackGRN automation profile…</p> : null}
+      {state === "unavailable" ? (
+        <div className="resource-empty">
+          <WifiOff aria-hidden="true" size={19} />
+          <div>
+            <h3>TrackGRN agent or API is unavailable</h3>
+            <p>Connect the VPN and confirm the laptop companion task is running.</p>
+          </div>
+        </div>
+      ) : null}
+      {state === "ready" ? (
+        <div className="trackgrn-automation">
+          <div className="trackgrn-actions">
+            <button
+              className="button secondary"
+              type="button"
+              disabled={busy}
+              onClick={() => void requestOperation({ action: "repository.inspect", input: {} })}
+            >
+              Inspect repository
+            </button>
+            <button
+              className="button secondary"
+              type="button"
+              disabled={busy}
+              onClick={() =>
+                void requestOperation({ action: "repository.propose-commit", input: {} })
+              }
+            >
+              Prepare commit
+            </button>
+            <button
+              className="button secondary"
+              type="button"
+              disabled={busy}
+              onClick={() => void requestOperation({ action: "project.build", input: {} })}
+            >
+              Build and test
+            </button>
+            <button
+              className="button primary"
+              type="button"
+              disabled={busy || expectedHeadSha === undefined || clean !== true}
+              onClick={() => {
+                if (expectedHeadSha !== undefined) {
+                  void requestOperation({
+                    action: "uat.deploy",
+                    input: { expectedHeadSha, migrate: true, seed: false },
+                  });
+                }
+              }}
+            >
+              Deploy API to UAT
+            </button>
+          </div>
+          <label className="trackgrn-commit-field">
+            <span>Reviewed commit message</span>
+            <input
+              value={commitMessage}
+              maxLength={120}
+              onChange={(event) => setCommitMessage(event.target.value)}
+              placeholder="Prepare commit to generate a suggestion"
+            />
+          </label>
+          <button
+            className="button secondary"
+            type="button"
+            disabled={
+              busy ||
+              expectedHeadSha === undefined ||
+              expectedChangeDigest === undefined ||
+              commitMessage.trim().length < 3
+            }
+            onClick={() => {
+              if (expectedHeadSha !== undefined && expectedChangeDigest !== undefined) {
+                void requestOperation({
+                  action: "repository.commit-push",
+                  input: {
+                    expectedHeadSha,
+                    expectedChangeDigest,
+                    commitMessage: commitMessage.trim(),
+                  },
+                });
+              }
+            }}
+          >
+            Commit and push dedicated branch
+          </button>
+          <div className="trackgrn-operation-list" aria-live="polite">
+            {operations.length === 0 ? <p>No TrackGRN operation has been requested yet.</p> : null}
+            {operations.slice(0, 8).map((operation) => (
+              <article key={operation.operationId}>
+                <div>
+                  <strong>{operation.action}</strong>
+                  <span className="mono-copy">{operation.operationId}</span>
+                </div>
+                <StatusBadge
+                  status={{
+                    label:
+                      operation.errorCode === "vpn-required" ? "Connect VPN" : operation.status,
+                    tone:
+                      operation.status === "succeeded"
+                        ? "verified"
+                        : operation.status === "failed"
+                          ? "failure"
+                          : "signal",
+                  }}
+                  compact
+                />
+              </article>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </Panel>
+  );
+}
+
+function stringResult(
+  operation: ProjectAutomationOperation | undefined,
+  key: string,
+): string | undefined {
+  const value = operation?.result?.[key];
+  return typeof value === "string" ? value : undefined;
+}
+
+function booleanResult(
+  operation: ProjectAutomationOperation | undefined,
+  key: string,
+): boolean | undefined {
+  const value = operation?.result?.[key];
+  return typeof value === "boolean" ? value : undefined;
 }
 
 function NotFound({ pathname, navigate }: { pathname: string; navigate: (to: string) => void }) {

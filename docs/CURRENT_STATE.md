@@ -1,6 +1,6 @@
 # FrevOS Current State
 
-Last updated: 2026-08-22
+Last updated: 2026-08-23
 
 ## Snapshot
 
@@ -8,8 +8,8 @@ Last updated: 2026-08-22
 | --- | --- |
 | Production repository | `https://github.com/mishrarishav/FrevOS` |
 | Detected default branch | `main` |
-| Phase branch | `hotfix/windows-uat-first-install-reliability` |
-| Base commit | `228ebaa5073769a57769e0b0f650be88c49c4af3` |
+| Phase branch | `feature/trackgrn-uat-pilot-foundation` |
+| Base commit | `9a42fdcc4c2e561d54878e588067d9adb3e9b3d2` |
 | Active phase | Phase 4 exit — Preview/UAT deployment and independent acceptance |
 | Phase 3 merge | Core PR [#5](https://github.com/mishrarishav/FrevOS/pull/5) was human squash-merged as `13f3cd2`; its task branch was deleted |
 | Phase 4A merge | Core PR [#7](https://github.com/mishrarishav/FrevOS/pull/7) was human squash-merged as `425c1f3`; its task branch was deleted |
@@ -21,6 +21,7 @@ Last updated: 2026-08-22
 | Dependency manifests | pnpm workspace and committed lockfile on `main` |
 | CI/CD | `CI / validate` passed on local-credential merge `0b3718a` and ACL-compatibility merge `228ebaa`; default-branch [run 32535926915](https://github.com/mishrarishav/FrevOS/actions/runs/32535926915) is green and the Windows UAT deployment remains operator-executed |
 | Windows UAT evidence | Source `228ebaa5073769a57769e0b0f650be88c49c4af3` is active at `https://tserver2.eeslindia.org/frevos/`; public health, application assets, local login, protected UI, PostgreSQL service, control-plane task, loopback health, and the TrackGRN sibling health probe passed. Initial activation required recorded manual ACL and database-creation interventions that this active hotfix addresses |
+| TrackGRN pilot | Owner-authorized UAT-only implementation is in progress on a dedicated branch; repository ID `1334902237`, project `prj_uat_trackgrn`, fixed companion identity, allowlisted operations, and `/apiTrackGrn/health/live` are pinned by ADR 0022. It is not deployed or claimed complete |
 | Independent QA harness | Merged through Acceptance PR [#1](https://github.com/mishrarishav/FrevOS-Acceptance/pull/1); exact-head and default-branch CI passed |
 | Acceptance repository | Public `main` at completion-state squash commit `ffc85babed5f0e8deaf8af8d0194b9d3734d23be` |
 | Acceptance merge governance | Active `Protect main` ruleset `20623785` enforces squash-only pull requests, conversation resolution, strict up-to-date `validate`, and deletion and force-push prevention |
@@ -254,6 +255,10 @@ files; the active hotfix makes those steps reproducible. Recovery and independen
 acceptance remain intentionally unexecuted.
 
 ## Open decision register
+
+The TrackGRN pilot resolves only its fixed single-project UAT transport and
+operation boundary. Generic GitHub App, model, worker, artifact, and Production
+decisions below remain open.
 
 These are deliberate blockers to implementing the affected phases, not blockers
 to completing Phase 0A:

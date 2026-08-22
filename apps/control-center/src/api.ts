@@ -2,6 +2,11 @@ import {
   type Client,
   ClientSchema,
   type Project,
+  type ProjectAutomationOperation,
+  ProjectAutomationOperationSchema,
+  type ProjectAutomationProfile,
+  ProjectAutomationProfileSchema,
+  type ProjectAutomationRequest,
   ProjectSchema,
   type SessionSummary,
   SessionSummarySchema,
@@ -38,6 +43,22 @@ export interface ControlCenterApi {
   getSession(signal?: AbortSignal): Promise<SessionSummary>;
   listWorkspaces(signal?: AbortSignal): Promise<Workspace[]>;
   getWorkspaceSnapshot(workspaceId: string, signal?: AbortSignal): Promise<WorkspaceSnapshot>;
+  getProjectAutomation(
+    workspaceId: string,
+    projectId: string,
+    signal?: AbortSignal,
+  ): Promise<ProjectAutomationProfile>;
+  listProjectAutomationOperations(
+    workspaceId: string,
+    projectId: string,
+    signal?: AbortSignal,
+  ): Promise<ProjectAutomationOperation[]>;
+  createProjectAutomationOperation(
+    workspaceId: string,
+    projectId: string,
+    request: ProjectAutomationRequest,
+    signal?: AbortSignal,
+  ): Promise<ProjectAutomationOperation>;
 }
 
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
@@ -48,6 +69,7 @@ type RuntimeSchema<Output> = {
 export function createControlCenterApi(
   fetcher: Fetcher = globalThis.fetch,
   basePath?: string,
+  cookieReader: (name: string) => string | undefined = readBrowserCookie,
 ): ControlCenterApi {
   const get = async <Output>(
     path: string,
@@ -93,6 +115,58 @@ export function createControlCenterApi(
     return parsed.data;
   };
 
+  const post = async <Output>(
+    path: string,
+    body: unknown,
+    schema: RuntimeSchema<Output>,
+    signal?: AbortSignal,
+  ): Promise<Output> => {
+    const csrfToken = cookieReader("__Host-frevos-csrf");
+    if (csrfToken === undefined) {
+      throw new ApiFailure("denied");
+    }
+    let response: Response;
+    try {
+      response = await fetcher(addBasePath(path, basePath), {
+        method: "POST",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: {
+          accept: "application/json",
+          "content-type": "application/json",
+          "x-csrf-token": csrfToken,
+        },
+        body: JSON.stringify(body),
+        ...(signal === undefined ? {} : { signal }),
+      });
+    } catch (error) {
+      if (signal?.aborted === true) {
+        throw error;
+      }
+      throw new ApiFailure("unavailable");
+    }
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new ApiFailure("unauthenticated");
+      }
+      if (response.status === 403 || response.status === 404) {
+        throw new ApiFailure("denied");
+      }
+      throw new ApiFailure("unavailable");
+    }
+    let responseBody: unknown;
+    try {
+      responseBody = await response.json();
+    } catch {
+      throw new ApiFailure("invalid-response");
+    }
+    const parsed = schema.safeParse(responseBody);
+    if (!parsed.success) {
+      throw new ApiFailure("invalid-response");
+    }
+    return parsed.data;
+  };
+
   return {
     async login(username, password, signal) {
       let response: Response;
@@ -129,5 +203,30 @@ export function createControlCenterApi(
       ]);
       return { workspace, clients, projects };
     },
+    getProjectAutomation(workspaceId, projectId, signal) {
+      const path = automationPath(workspaceId, projectId);
+      return get(path, ProjectAutomationProfileSchema, signal);
+    },
+    listProjectAutomationOperations(workspaceId, projectId, signal) {
+      const path = `${automationPath(workspaceId, projectId)}/operations`;
+      return get(path, ProjectAutomationOperationSchema.array(), signal);
+    },
+    createProjectAutomationOperation(workspaceId, projectId, request, signal) {
+      const path = `${automationPath(workspaceId, projectId)}/operations`;
+      return post(path, request, ProjectAutomationOperationSchema, signal);
+    },
   };
+}
+
+function automationPath(workspaceId: string, projectId: string): string {
+  return `/v1/workspaces/${encodeURIComponent(workspaceId)}/projects/${encodeURIComponent(projectId)}/automation`;
+}
+
+function readBrowserCookie(name: string): string | undefined {
+  if (typeof document === "undefined") {
+    return undefined;
+  }
+  const prefix = `${encodeURIComponent(name)}=`;
+  const item = document.cookie.split("; ").find((candidate) => candidate.startsWith(prefix));
+  return item === undefined ? undefined : decodeURIComponent(item.slice(prefix.length));
 }

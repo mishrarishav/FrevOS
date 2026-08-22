@@ -1,23 +1,24 @@
 import {
+  type Client,
   ClientIdSchema,
   ClientSchema,
+  type ExternalIdentity,
   ExternalIdentitySchema,
   IdentityIdSchema,
   IdentityIssuerSchema,
   IdentitySubjectSchema,
-  ProjectSchema,
-  SessionContextSchema,
-  UserIdSchema,
-  WorkspaceMembershipSchema,
-  WorkspaceIdSchema,
-  WorkspaceSchema,
-  type Client,
-  type ExternalIdentity,
   type Project,
+  ProjectIdSchema,
+  ProjectSchema,
   type SessionContext,
+  SessionContextSchema,
   type UserId,
+  UserIdSchema,
   type Workspace,
+  WorkspaceIdSchema,
   type WorkspaceMembership,
+  WorkspaceMembershipSchema,
+  WorkspaceSchema,
 } from "@frevos/contracts";
 import type { QueryResultRow } from "pg";
 import { z } from "zod";
@@ -683,11 +684,13 @@ export class WorkspaceRepository {
 
   async createProject(input: {
     workspaceId: string;
+    projectId?: string;
     clientId?: string;
     displayName: string;
     now?: Date;
   }): Promise<Project> {
     const workspaceId = WorkspaceIdSchema.parse(input.workspaceId);
+    const projectId = ProjectIdSchema.parse(input.projectId ?? randomIdentifier("prj"));
     const clientId = input.clientId === undefined ? null : ClientIdSchema.parse(input.clientId);
     const displayName = DisplayNameSchema.parse(input.displayName);
     const now = input.now ?? new Date();
@@ -699,7 +702,7 @@ export class WorkspaceRepository {
           ) VALUES ($1, $2, $3, $4, 'active', $5)
           RETURNING project_id, workspace_id, client_id, display_name, status, created_at
         `,
-        [randomIdentifier("prj"), workspaceId, clientId, displayName, now],
+        [projectId, workspaceId, clientId, displayName, now],
       );
       return projectFromRow(requiredRow(result.rows[0], "Project insert"));
     });

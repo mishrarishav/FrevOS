@@ -28,6 +28,42 @@ const project = {
   status: "active",
   createdAt: "2026-08-11T08:00:00.000Z",
 };
+const automationProfile = {
+  workspaceId: "ws_uat_demo",
+  projectId: "prj_uat_trackgrn",
+  repository: {
+    provider: "github",
+    providerRepositoryId: "1334902237",
+    owner: "mishrarishav",
+    name: "TraceGRN",
+    url: "https://github.com/mishrarishav/TraceGRN",
+    defaultBranch: "main",
+  },
+  agentId: "svc_trackgrn_windows_agent",
+  environment: "uat",
+  application: {
+    publicOrigin: "https://tserver2.eeslindia.org",
+    apiBasePath: "/apiTrackGrn",
+    healthPath: "/apiTrackGrn/health/live",
+    swaggerPath: "/apiTrackGrn/swagger",
+  },
+  allowedActions: ["repository.inspect"],
+};
+const automationOperation = {
+  operationId: "op_trackgrn_01",
+  workspaceId: "ws_uat_demo",
+  projectId: "prj_uat_trackgrn",
+  agentId: "svc_trackgrn_windows_agent",
+  requestedBy: "usr_windows_admin",
+  action: "repository.inspect",
+  status: "queued",
+  input: {},
+  result: null,
+  errorCode: null,
+  createdAt: "2026-08-23T08:00:00.000Z",
+  claimedAt: null,
+  completedAt: null,
+};
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -163,6 +199,56 @@ describe("authenticated Control Center API", () => {
 
     await api.getSession();
     expect(paths).toEqual(["/frevos/v1/session"]);
+  });
+
+  it("loads and requests TrackGRN automation through CSRF-protected same-origin routes", async () => {
+    const requests: Array<{ path: string; init: RequestInit | undefined }> = [];
+    const api = createControlCenterApi(
+      async (input, init) => {
+        const path = String(input);
+        requests.push({ path, init });
+        if (init?.method === "POST") {
+          return jsonResponse(automationOperation, 202);
+        }
+        return jsonResponse(path.endsWith("/operations") ? [] : automationProfile);
+      },
+      "/frevos",
+      (name) => (name === "__Host-frevos-csrf" ? "csrf-value" : undefined),
+    );
+
+    await expect(api.getProjectAutomation("ws_uat_demo", "prj_uat_trackgrn")).resolves.toEqual(
+      automationProfile,
+    );
+    await expect(
+      api.listProjectAutomationOperations("ws_uat_demo", "prj_uat_trackgrn"),
+    ).resolves.toEqual([]);
+    await expect(
+      api.createProjectAutomationOperation("ws_uat_demo", "prj_uat_trackgrn", {
+        action: "repository.inspect",
+        input: {},
+      }),
+    ).resolves.toEqual(automationOperation);
+    expect(requests[2]).toEqual({
+      path: "/frevos/v1/workspaces/ws_uat_demo/projects/prj_uat_trackgrn/automation/operations",
+      init: expect.objectContaining({
+        method: "POST",
+        credentials: "same-origin",
+        headers: expect.objectContaining({ "x-csrf-token": "csrf-value" }),
+        body: JSON.stringify({ action: "repository.inspect", input: {} }),
+      }),
+    });
+
+    const denied = createControlCenterApi(
+      async () => jsonResponse(automationOperation, 202),
+      undefined,
+      () => undefined,
+    );
+    await expect(
+      denied.createProjectAutomationOperation("ws_uat_demo", "prj_uat_trackgrn", {
+        action: "repository.inspect",
+        input: {},
+      }),
+    ).rejects.toMatchObject({ kind: "denied" });
   });
 
   it.each([

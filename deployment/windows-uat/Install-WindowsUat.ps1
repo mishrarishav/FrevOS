@@ -334,6 +334,24 @@ if ($newDatabase) {
     $runtimePassword = [Uri]::UnescapeDataString(([Uri]$databaseUrl).UserInfo.Split(":", 2)[1])
 }
 
+$trackGrnAgentToken = $null
+if (Test-Path -LiteralPath $runtimeConfigFile -PathType Leaf) {
+    $existingRuntimeConfig = Read-Utf8 $runtimeConfigFile | ConvertFrom-Json
+    if ($null -ne $existingRuntimeConfig.PSObject.Properties["FREVOS_TRACKGRN_AGENT_TOKEN"]) {
+        $trackGrnAgentToken = [string]$existingRuntimeConfig.FREVOS_TRACKGRN_AGENT_TOKEN
+    }
+}
+if ([string]::IsNullOrWhiteSpace($trackGrnAgentToken)) {
+    $secureTrackGrnAgentToken = Read-Host `
+        "TrackGRN companion token (minimum 32 characters; use the same value in D:\TrackGRN\server.env)" `
+        -AsSecureString
+    $trackGrnAgentToken = ConvertFrom-SecureValue $secureTrackGrnAgentToken
+    $secureTrackGrnAgentToken = $null
+}
+if ($trackGrnAgentToken.Length -lt 32 -or $trackGrnAgentToken.Length -gt 256) {
+    throw "The TrackGRN companion token must contain between 32 and 256 characters."
+}
+
 $runtimeConfig = [ordered]@{
     DATABASE_URL = $databaseUrl
     FREVOS_PUBLIC_ORIGIN = $publicOrigin
@@ -341,6 +359,7 @@ $runtimeConfig = [ordered]@{
     FREVOS_BASE_PATH = $basePath
     HOST = "127.0.0.1"
     PORT = "$listenPort"
+    FREVOS_TRACKGRN_AGENT_TOKEN = $trackGrnAgentToken
 }
 $operationsConfig = [ordered]@{
     MIGRATION_DATABASE_URL = $migrationDatabaseUrl
@@ -349,6 +368,7 @@ Write-Utf8NoBom $runtimeConfigFile ($runtimeConfig | ConvertTo-Json)
 Write-Utf8NoBom $operationsConfigFile ($operationsConfig | ConvertTo-Json)
 Set-ControlledAcl -Path $runtimeConfigFile -AllowLocalService
 Set-ControlledAcl -Path $operationsConfigFile
+$trackGrnAgentToken = $null
 
 $postgresService = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
 if ($null -eq $postgresService) {

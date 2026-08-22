@@ -1028,6 +1028,64 @@ kbd,
   margin: 0;
 }
 
+.trackgrn-automation {
+  display: grid;
+  gap: 1rem;
+}
+
+.trackgrn-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.trackgrn-commit-field {
+  display: grid;
+  gap: 0.45rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.trackgrn-commit-field input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface-2);
+  color: var(--foreground);
+  padding: 0.78rem 0.9rem;
+  font: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.trackgrn-commit-field input:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+}
+
+.trackgrn-operation-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.trackgrn-operation-list article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.7rem;
+}
+
+.trackgrn-operation-list article > div {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
 .resource-empty h3 {
   color: var(--foreground);
   font-size: 11px;

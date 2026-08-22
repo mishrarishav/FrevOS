@@ -51,6 +51,13 @@ function api(overrides: Partial<ControlCenterApi> = {}): ControlCenterApi {
       workspaceId === otherWorkspace.workspaceId
         ? { workspace: otherWorkspace, clients: [], projects: [] }
         : { workspace, clients: [client], projects: [project] },
+    getProjectAutomation: async () => {
+      throw new Error("not used by experience tests");
+    },
+    listProjectAutomationOperations: async () => [],
+    createProjectAutomationOperation: async () => {
+      throw new Error("not used by experience tests");
+    },
     ...overrides,
   };
 }

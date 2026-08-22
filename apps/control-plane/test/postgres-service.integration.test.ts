@@ -7,7 +7,7 @@ import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testconta
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { registerControlCenter } from "../src/control-center.js";
-import { OidcTransactionCodec, type OidcTransaction } from "../src/crypto.js";
+import { type OidcTransaction, OidcTransactionCodec, sha256 } from "../src/crypto.js";
 import {
   createDatabasePool,
   prepareApplicationLoginRole,
@@ -19,15 +19,21 @@ import {
 } from "../src/database.js";
 import type { AuthenticatedIdentity, OidcProvider } from "../src/oidc.js";
 import {
+  ProjectAutomationRepository,
+  TRACKGRN_AGENT_ID,
+  TRACKGRN_PROJECT_ID,
+  TRACKGRN_WORKSPACE_ID,
+} from "../src/project-automation.js";
+import {
+  type IdentityPrincipal,
   IdentitySessionRepository,
   WorkspaceRepository,
-  type IdentityPrincipal,
 } from "../src/repositories.js";
 import {
+  buildServer,
   CSRF_COOKIE,
   OIDC_TRANSACTION_COOKIE,
   SESSION_COOKIE,
-  buildServer,
 } from "../src/server.js";
 
 const POSTGRES_IMAGE =
@@ -64,6 +70,7 @@ let adminPool: Pool;
 let pool: Pool;
 let identities: IdentitySessionRepository;
 let workspaces: WorkspaceRepository;
+let automation: ProjectAutomationRepository;
 let principalA: IdentityPrincipal;
 let principalB: IdentityPrincipal;
 let localPrincipal: IdentityPrincipal;
@@ -92,6 +99,7 @@ beforeAll(async () => {
   await verifyApplicationRole(pool);
   identities = new IdentitySessionRepository(pool);
   workspaces = new WorkspaceRepository(pool);
+  automation = new ProjectAutomationRepository(pool);
   principalA = await identities.upsertIdentity({
     issuer: "https://identity.example",
     subject: "principal-a",
@@ -178,6 +186,51 @@ beforeAll(async () => {
     displayName: "Beta Project",
     now: NOW,
   });
+  await workspaces.createWorkspace({
+    workspaceId: TRACKGRN_WORKSPACE_ID,
+    displayName: "TrackGRN UAT Workspace",
+    now: NOW,
+  });
+  await workspaces.createMembership({
+    workspaceId: TRACKGRN_WORKSPACE_ID,
+    userId: localPrincipal.userId,
+    grantedScopes: ["workspace:read", "project:read", "project:write"],
+    now: NOW,
+  });
+  const trackGrnClient = await workspaces.createClient({
+    workspaceId: TRACKGRN_WORKSPACE_ID,
+    displayName: "TrackGRN Pilot",
+    now: NOW,
+  });
+  await workspaces.createProject({
+    workspaceId: TRACKGRN_WORKSPACE_ID,
+    clientId: trackGrnClient.clientId,
+    projectId: TRACKGRN_PROJECT_ID,
+    displayName: "TrackGRN",
+    now: NOW,
+  });
+  await withApplicationTransaction(pool, TRACKGRN_WORKSPACE_ID, async (client) =>
+    client.query(
+      `
+        INSERT INTO frevos.project_automation_profiles (
+          workspace_id, project_id, provider, provider_repository_id,
+          repository_owner, repository_name, repository_url, default_branch,
+          agent_id, environment, public_origin, api_base_path, health_path,
+          swagger_path, allowed_actions, created_at
+        ) VALUES (
+          $1, $2, 'github', '1334902237', 'mishrarishav', 'TraceGRN',
+          'https://github.com/mishrarishav/TraceGRN', 'main', $3, 'uat',
+          'https://tserver2.eeslindia.org', '/apiTrackGrn',
+          '/apiTrackGrn/health/live', '/apiTrackGrn/swagger',
+          ARRAY[
+            'repository.inspect', 'repository.propose-commit',
+            'repository.commit-push', 'project.build', 'uat.deploy'
+          ], $4
+        )
+      `,
+      [TRACKGRN_WORKSPACE_ID, TRACKGRN_PROJECT_ID, TRACKGRN_AGENT_ID, NOW],
+    ),
+  );
 }, 120_000);
 
 afterAll(async () => {
@@ -972,6 +1025,189 @@ describe("Fastify BFF and protected workspace APIs", () => {
       });
       expect(failed.statusCode).toBe(400);
       expect(failed.json()).toEqual({ error: "invalid-auth-callback" });
+    } finally {
+      await server.close();
+    }
+  });
+});
+
+describe("TrackGRN UAT automation pilot", () => {
+  const agentToken = "synthetic-trackgrn-agent-token-0001";
+
+  it("authorizes the exact agent, preserves workspace scope, and completes one claimed job", async () => {
+    const server = await buildServer({
+      publicOrigin: PUBLIC_ORIGIN,
+      authMode: "local",
+      identitySessions: identities,
+      workspaces,
+      automation,
+      trackGrnAgentTokenHash: sha256(agentToken),
+      now: () => NOW,
+    });
+    try {
+      const agentHeaders = {
+        authorization: `Bearer ${agentToken}`,
+        "x-frevos-agent-id": TRACKGRN_AGENT_ID,
+      };
+      expect(
+        (
+          await server.inject({
+            method: "POST",
+            url: "/v1/agents/trackgrn/claim",
+            headers: {
+              ...agentHeaders,
+              authorization: "Bearer wrong-token-that-is-long-enough-000",
+            },
+          })
+        ).statusCode,
+      ).toBe(401);
+      expect(
+        (
+          await server.inject({
+            method: "POST",
+            url: "/v1/agents/trackgrn/claim",
+            headers: agentHeaders,
+          })
+        ).statusCode,
+      ).toBe(204);
+
+      const login = await server.inject({
+        method: "POST",
+        url: "/auth/login",
+        headers: { origin: PUBLIC_ORIGIN },
+        payload: { username: "personal.admin", password: "personal-password" },
+      });
+      const sessionCookie = cookiePair(login, SESSION_COOKIE);
+      const csrfCookie = cookiePair(login, CSRF_COOKIE);
+      const csrfToken = csrfCookie.slice(`${CSRF_COOKIE}=`.length);
+      const browserHeaders = {
+        cookie: `${sessionCookie}; ${csrfCookie}`,
+        origin: PUBLIC_ORIGIN,
+        "x-csrf-token": csrfToken,
+      };
+      const profile = await server.inject({
+        method: "GET",
+        url: `/v1/workspaces/${TRACKGRN_WORKSPACE_ID}/projects/${TRACKGRN_PROJECT_ID}/automation`,
+        headers: { cookie: sessionCookie },
+      });
+      expect(profile.statusCode).toBe(200);
+      expect(profile.json()).toMatchObject({
+        workspaceId: TRACKGRN_WORKSPACE_ID,
+        projectId: TRACKGRN_PROJECT_ID,
+        repository: { providerRepositoryId: "1334902237" },
+        environment: "uat",
+      });
+
+      const createUrl = `/v1/workspaces/${TRACKGRN_WORKSPACE_ID}/projects/${TRACKGRN_PROJECT_ID}/automation/operations`;
+      expect(
+        (
+          await server.inject({
+            method: "POST",
+            url: createUrl,
+            headers: { cookie: sessionCookie },
+            payload: { action: "repository.inspect", input: {} },
+          })
+        ).statusCode,
+      ).toBe(403);
+      const created = await server.inject({
+        method: "POST",
+        url: createUrl,
+        headers: browserHeaders,
+        payload: { action: "repository.inspect", input: {} },
+      });
+      expect(created.statusCode).toBe(202);
+      expect(created.json()).toMatchObject({
+        action: "repository.inspect",
+        status: "queued",
+        requestedBy: localPrincipal.userId,
+      });
+
+      const claimed = await server.inject({
+        method: "POST",
+        url: "/v1/agents/trackgrn/claim",
+        headers: agentHeaders,
+      });
+      expect(claimed.statusCode).toBe(200);
+      expect(claimed.json()).toMatchObject({
+        operationId: created.json().operationId,
+        status: "claimed",
+        agentId: TRACKGRN_AGENT_ID,
+      });
+      expect(
+        (
+          await server.inject({
+            method: "POST",
+            url: "/v1/agents/trackgrn/claim",
+            headers: agentHeaders,
+          })
+        ).statusCode,
+      ).toBe(204);
+
+      const completion = await server.inject({
+        method: "POST",
+        url: `/v1/agents/trackgrn/operations/${created.json().operationId}/complete`,
+        headers: agentHeaders,
+        payload: {
+          status: "succeeded",
+          result: {
+            repository: "mishrarishav/TraceGRN",
+            headSha: "a".repeat(40),
+            clean: true,
+          },
+        },
+      });
+      expect(completion.statusCode).toBe(200);
+      expect(completion.json()).toMatchObject({ status: "succeeded", errorCode: null });
+      expect(
+        (
+          await server.inject({
+            method: "POST",
+            url: `/v1/agents/trackgrn/operations/${created.json().operationId}/complete`,
+            headers: agentHeaders,
+            payload: { status: "succeeded", result: { repeated: true } },
+          })
+        ).statusCode,
+      ).toBe(409);
+
+      const operations = await server.inject({
+        method: "GET",
+        url: createUrl,
+        headers: { cookie: sessionCookie },
+      });
+      expect(operations.statusCode).toBe(200);
+      expect(operations.json()).toEqual([
+        expect.objectContaining({
+          operationId: created.json().operationId,
+          status: "succeeded",
+        }),
+      ]);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("keeps the agent route disabled when no runtime token is configured", async () => {
+    const server = await buildServer({
+      publicOrigin: PUBLIC_ORIGIN,
+      authMode: "local",
+      identitySessions: identities,
+      workspaces,
+      automation,
+      now: () => NOW,
+    });
+    try {
+      expect(
+        (
+          await server.inject({
+            method: "POST",
+            url: "/v1/agents/trackgrn/claim",
+            headers: {
+              authorization: `Bearer ${agentToken}`,
+              "x-frevos-agent-id": TRACKGRN_AGENT_ID,
+            },
+          })
+        ).json(),
+      ).toEqual({ error: "trackgrn-agent-disabled" });
     } finally {
       await server.close();
     }

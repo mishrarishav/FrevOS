@@ -156,10 +156,27 @@ describe("Control Center rendering", () => {
       <App initialPath="/projects/frevos" initialExperience={readyExperience} />,
     );
     expect(html).toContain("Alpha Workspace projects");
-    expect(html).toContain("Phase 4 authenticated records");
+    expect(html).toContain("Authenticated project operations");
     expect(html).toContain("Alpha Client");
     expect(html).toContain("Alpha Project");
     expect(html).not.toContain("This route is reserved, not simulated.");
+  });
+
+  it("renders the bounded TrackGRN project panel only for the pinned project", () => {
+    const trackGrnProject = ProjectSchema.parse({
+      ...project,
+      projectId: "prj_uat_trackgrn",
+      displayName: "TrackGRN",
+    });
+    const html = renderToStaticMarkup(
+      <App
+        initialPath="/projects/frevos"
+        initialExperience={{ ...readyExperience, projects: [trackGrnProject] }}
+      />,
+    );
+    expect(html).toContain("TrackGRN UAT operations");
+    expect(html).toContain("Exact repository 1334902237");
+    expect(html).toContain("Loading the TrackGRN automation profile");
   });
 
   it("renders later-phase routes as honest planned surfaces", () => {

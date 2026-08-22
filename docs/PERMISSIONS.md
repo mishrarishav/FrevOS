@@ -137,6 +137,18 @@ Tool output is filtered to the caller's workspace and task. A successful
 provider API response does not prove FrevOS authorization and cannot replace a
 local permission decision.
 
+## TrackGRN UAT pilot delegation
+
+Within `ws_uat_demo/prj_uat_trackgrn`, an authenticated user holding
+`project:write` may explicitly click to request one registered pilot operation.
+That request is action-, project-, requester-, and correlation-bound. A
+commit/push request also contains the reviewed source SHA, change digest, and
+edited commit message. It authorizes only a new `frevos/trackgrn-*` branch; it
+does not authorize a default-branch push or merge. A deploy request authorizes
+only the fixed non-Production IIS target and reviewed source SHA. Production,
+rollback, backup, restore, secret changes, and arbitrary commands remain outside
+this delegation.
+
 ## Decisions deferred
 
 Product roles, membership invitation policy, service-account lifecycle,

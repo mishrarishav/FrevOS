@@ -1,8 +1,14 @@
 import cookie from "@fastify/cookie";
 import {
+  AgentOperationCompletionSchema,
   authorizeWorkspaceAction,
   ClientSchema,
+  OperationIdSchema,
   type PermissionScope,
+  ProjectAutomationOperationSchema,
+  ProjectAutomationProfileSchema,
+  ProjectAutomationRequestSchema,
+  ProjectIdSchema,
   ProjectSchema,
   type SessionContext,
   SessionContextSchema,
@@ -14,6 +20,7 @@ import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest }
 import { z } from "zod";
 import { hashesMatch, type OidcTransaction, type OidcTransactionCodec } from "./crypto.js";
 import { type AuthenticatedIdentity, createOidcTransaction, type OidcProvider } from "./oidc.js";
+import { type ProjectAutomationStore, TRACKGRN_AGENT_ID } from "./project-automation.js";
 import type {
   AuthenticatedSession,
   IdentitySessionRepository,
@@ -109,12 +116,26 @@ interface BuildServerOptions {
   readonly transactionCodec?: OidcTransactionCodec;
   readonly identitySessions: IdentitySessionRepository;
   readonly workspaces: WorkspaceRepository;
+  readonly automation?: ProjectAutomationStore;
+  readonly trackGrnAgentTokenHash?: Buffer;
   readonly readiness?: () => Promise<void>;
   readonly now?: () => Date;
 }
 
 interface WorkspaceParams {
   workspaceId: string;
+}
+
+interface ProjectAutomationParams extends WorkspaceParams {
+  projectId: string;
+}
+
+interface ProjectAutomationOperationParams extends ProjectAutomationParams {
+  operationId: string;
+}
+
+interface AgentOperationParams {
+  operationId: string;
 }
 
 interface SessionEvidence {
@@ -478,7 +499,135 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
     },
   );
 
+  server.get<{ Params: ProjectAutomationParams }>(
+    route("/v1/workspaces/:workspaceId/projects/:projectId/automation"),
+    async (request) => {
+      const { workspaceId } = await requireWorkspace(request, options, "project:read", now());
+      const projectId = ProjectIdSchema.parse(request.params.projectId);
+      const automation = requireAutomation(options);
+      const profile = await automation.getProfile(workspaceId, projectId);
+      if (profile === null) {
+        throw new HttpError(404, "project-automation-not-found");
+      }
+      return ProjectAutomationProfileSchema.parse(profile);
+    },
+  );
+
+  server.get<{ Params: ProjectAutomationParams }>(
+    route("/v1/workspaces/:workspaceId/projects/:projectId/automation/operations"),
+    async (request) => {
+      const { workspaceId } = await requireWorkspace(request, options, "project:read", now());
+      const projectId = ProjectIdSchema.parse(request.params.projectId);
+      const automation = requireAutomation(options);
+      const profile = await automation.getProfile(workspaceId, projectId);
+      if (profile === null) {
+        throw new HttpError(404, "project-automation-not-found");
+      }
+      return (await automation.listOperations(workspaceId, projectId)).map((operation) =>
+        ProjectAutomationOperationSchema.parse(operation),
+      );
+    },
+  );
+
+  server.get<{ Params: ProjectAutomationOperationParams }>(
+    route("/v1/workspaces/:workspaceId/projects/:projectId/automation/operations/:operationId"),
+    async (request) => {
+      const { workspaceId } = await requireWorkspace(request, options, "project:read", now());
+      const projectId = ProjectIdSchema.parse(request.params.projectId);
+      const operationId = OperationIdSchema.parse(request.params.operationId);
+      const operation = await requireAutomation(options).getOperation(
+        workspaceId,
+        projectId,
+        operationId,
+      );
+      if (operation === null) {
+        throw new HttpError(404, "automation-operation-not-found");
+      }
+      return ProjectAutomationOperationSchema.parse(operation);
+    },
+  );
+
+  server.post<{ Params: ProjectAutomationParams }>(
+    route("/v1/workspaces/:workspaceId/projects/:projectId/automation/operations"),
+    async (request, reply) => {
+      const { workspaceId, session } = await requireWorkspace(
+        request,
+        options,
+        "project:write",
+        now(),
+      );
+      requireCsrf(request, session.session, options.publicOrigin);
+      const projectId = ProjectIdSchema.parse(request.params.projectId);
+      const operation = await requireAutomation(options).createOperation({
+        workspaceId,
+        projectId,
+        requestedBy: session.session.context.userId,
+        request: ProjectAutomationRequestSchema.parse(request.body),
+        now: now(),
+      });
+      if (operation === null) {
+        throw new HttpError(404, "project-automation-not-found");
+      }
+      return reply.status(202).send(ProjectAutomationOperationSchema.parse(operation));
+    },
+  );
+
+  server.post(route("/v1/agents/trackgrn/claim"), async (request, reply) => {
+    requireTrackGrnAgent(request, options.trackGrnAgentTokenHash);
+    const operation = await requireAutomation(options).claimNext(TRACKGRN_AGENT_ID, now());
+    if (operation === null) {
+      return reply.status(204).send();
+    }
+    return ProjectAutomationOperationSchema.parse(operation);
+  });
+
+  server.post<{ Params: AgentOperationParams }>(
+    route("/v1/agents/trackgrn/operations/:operationId/complete"),
+    async (request) => {
+      requireTrackGrnAgent(request, options.trackGrnAgentTokenHash);
+      const operationId = OperationIdSchema.parse(request.params.operationId);
+      const completion = AgentOperationCompletionSchema.parse(request.body);
+      if (Buffer.byteLength(JSON.stringify(completion.result), "utf8") > 60_000) {
+        throw new HttpError(400, "agent-result-too-large");
+      }
+      const operation = await requireAutomation(options).complete(
+        TRACKGRN_AGENT_ID,
+        operationId,
+        completion,
+        now(),
+      );
+      if (operation === null) {
+        throw new HttpError(409, "automation-operation-not-claimable");
+      }
+      return ProjectAutomationOperationSchema.parse(operation);
+    },
+  );
+
   return server;
+}
+
+function requireAutomation(options: BuildServerOptions): ProjectAutomationStore {
+  if (options.automation === undefined) {
+    throw new HttpError(503, "project-automation-unavailable");
+  }
+  return options.automation;
+}
+
+function requireTrackGrnAgent(request: FastifyRequest, expectedTokenHash?: Buffer): void {
+  if (expectedTokenHash === undefined) {
+    throw new HttpError(503, "trackgrn-agent-disabled");
+  }
+  if (request.headers["x-frevos-agent-id"] !== TRACKGRN_AGENT_ID) {
+    throw new HttpError(401, "agent-authentication-required");
+  }
+  const authorization = request.headers.authorization;
+  if (authorization === undefined || !authorization.startsWith("Bearer ")) {
+    throw new HttpError(401, "agent-authentication-required");
+  }
+  const token = authorization.slice("Bearer ".length);
+  if (token.length < 32 || !hashesMatch(token, expectedTokenHash)) {
+    throw new HttpError(401, "agent-authentication-required");
+  }
 }
 
 async function requireSession(

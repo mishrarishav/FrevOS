@@ -36,6 +36,7 @@ decision receives a new ADR that names the record it supersedes.
 | [0019](0019-oracle-free-uat-operating-model.md) | Superseded | Operate hosted Phase 4 UAT on Oracle Always Free and Auth0 |
 | [0020](0020-windows-iis-uat-operating-model.md) | Superseded | Operate hosted Phase 4 UAT on the existing Windows IIS host |
 | [0021](0021-local-credentials-for-personal-windows-uat.md) | Accepted | Use local credentials for personal Windows UAT |
+| [0022](0022-trackgrn-uat-automation-pilot.md) | Accepted | Authorize a bounded TrackGRN UAT automation pilot |
 
 ## Creating an ADR
 
