@@ -16,6 +16,19 @@ if (-not (Test-Path -LiteralPath "D:\TrackGRN\server.env" -PathType Leaf)) {
     throw "D:\TrackGRN\server.env is required before installing the agent."
 }
 
+$existingTask = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+if ($null -ne $existingTask -and $existingTask.State -eq "Running") {
+    Stop-ScheduledTask -TaskName $taskName
+    $stopDeadline = [DateTime]::UtcNow.AddSeconds(10)
+    do {
+        Start-Sleep -Milliseconds 200
+        $existingTask = Get-ScheduledTask -TaskName $taskName
+    } while ($existingTask.State -eq "Running" -and [DateTime]::UtcNow -lt $stopDeadline)
+    if ($existingTask.State -eq "Running") {
+        throw "The existing FrevOS companion did not stop cleanly."
+    }
+}
+
 New-Item -ItemType Directory -Path $installRoot -Force | Out-Null
 Copy-Item -LiteralPath $source -Destination $destination -Force
 
@@ -43,6 +56,14 @@ Register-ScheduledTask `
     -Principal $taskPrincipal `
     -Force | Out-Null
 Start-ScheduledTask -TaskName $taskName
+$startDeadline = [DateTime]::UtcNow.AddSeconds(10)
+do {
+    Start-Sleep -Milliseconds 200
+    $installedTask = Get-ScheduledTask -TaskName $taskName
+} while ($installedTask.State -ne "Running" -and [DateTime]::UtcNow -lt $startDeadline)
+if ($installedTask.State -ne "Running") {
+    throw "The FrevOS companion did not enter the running state."
+}
 
 Write-Host "FrevOS TrackGRN agent installed and started."
 Write-Host "Task: $taskName"
