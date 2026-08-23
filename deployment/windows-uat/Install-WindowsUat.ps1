@@ -14,6 +14,7 @@ $listenPort = 10000
 $postgresPort = 5433
 $serviceName = "FrevOS-UAT-PostgreSQL-18"
 $taskName = "FrevOS-UAT-ControlPlane"
+$deployAgentTaskName = "FrevOS-UAT-DeployAgent"
 $publicOrigin = "https://tserver2.eeslindia.org"
 $basePath = "/frevos"
 $packageRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
@@ -241,6 +242,7 @@ $runtimeDirectory = Join-Path $uatRoot "runtime"
 $binDirectory = Join-Path $uatRoot "bin"
 $backupDirectory = Join-Path $uatRoot "backups"
 $iisBackupDirectory = Join-Path $uatRoot "iis-backups"
+$automationDirectory = Join-Path $uatRoot "automation"
 $activeReleaseFile = Join-Path $stateDirectory "active-release.txt"
 $runtimeConfigFile = Join-Path $configDirectory "runtime.json"
 $operationsConfigFile = Join-Path $configDirectory "operations.json"
@@ -248,7 +250,7 @@ $previousRelease = if (Test-Path -LiteralPath $activeReleaseFile) {
     (Read-Utf8 $activeReleaseFile).Trim()
 } else { $null }
 
-foreach ($directory in @($uatRoot, $stateDirectory, $configDirectory, $runtimeDirectory, $binDirectory, $backupDirectory, $iisBackupDirectory, (Split-Path $releaseDirectory))) {
+foreach ($directory in @($uatRoot, $stateDirectory, $configDirectory, $runtimeDirectory, $binDirectory, $backupDirectory, $iisBackupDirectory, $automationDirectory, (Split-Path $releaseDirectory))) {
     New-Item -ItemType Directory -Path $directory -Force | Out-Null
 }
 
@@ -282,6 +284,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $postgresBin "postgres.exe") -PathTy
 
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot "Start-WindowsUat.ps1") -Destination $binDirectory -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot "Invoke-WindowsUat.ps1") -Destination $binDirectory -Force
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot "Invoke-FrevOsUatDeployAgent.ps1") -Destination $binDirectory -Force
 
 $dataDirectory = Join-Path $uatRoot "postgres-data"
 $newDatabase = -not (Test-Path -LiteralPath (Join-Path $dataDirectory "PG_VERSION") -PathType Leaf)
@@ -509,6 +512,7 @@ Set-ControlledAcl -Path $binDirectory -AllowLocalService
 Set-ControlledAcl -Path $releaseDirectory -AllowLocalService
 Set-ControlledAcl -Path $stateDirectory -AllowLocalService
 Set-ControlledAcl -Path $activeReleaseFile -AllowLocalService
+Set-ControlledAcl -Path $automationDirectory
 
 $taskBackup = Join-Path $stateDirectory "previous-task.xml"
 $existingTask = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
@@ -520,6 +524,18 @@ $taskTrigger = New-ScheduledTaskTrigger -AtStartup
 $taskPrincipal = New-ScheduledTaskPrincipal -UserId "NT AUTHORITY\LOCAL SERVICE" -LogonType ServiceAccount -RunLevel Highest
 $taskSettings = New-ScheduledTaskSettingsSet -RestartCount 5 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero)
 Register-ScheduledTask -TaskName $taskName -Action $taskAction -Trigger $taskTrigger -Principal $taskPrincipal -Settings $taskSettings -Force | Out-Null
+
+$existingDeployAgentTask = Get-ScheduledTask -TaskName $deployAgentTaskName -ErrorAction SilentlyContinue
+if ($null -eq $existingDeployAgentTask) {
+    $deployAgentAction = New-ScheduledTaskAction -Execute "powershell.exe" -Argument (
+        '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{0}"' -f (Join-Path $binDirectory "Invoke-FrevOsUatDeployAgent.ps1")
+    )
+    $deployAgentTrigger = New-ScheduledTaskTrigger -AtStartup
+    $deployAgentPrincipal = New-ScheduledTaskPrincipal -UserId "NT AUTHORITY\SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+    $deployAgentSettings = New-ScheduledTaskSettingsSet -RestartCount 5 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero)
+    Register-ScheduledTask -TaskName $deployAgentTaskName -Action $deployAgentAction -Trigger $deployAgentTrigger -Principal $deployAgentPrincipal -Settings $deployAgentSettings | Out-Null
+    Start-ScheduledTask -TaskName $deployAgentTaskName
+}
 
 try {
     Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue

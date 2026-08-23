@@ -31,8 +31,17 @@ separate automation identity or additional trusted reviewer exists:
 
 - the repository ruleset requires a pull request but zero approving reviews;
 - the automated implementation session leaves the PR unmerged;
-- the human owner performs the squash merge in GitHub after reviewing evidence;
+- the human owner either performs the squash merge in GitHub or, after reviewing
+  the exact PR/head evidence, explicitly enables CI-gated squash auto-merge from
+  the authenticated FrevOS Control Center;
 - the PR body and audit trail provide the handoff evidence.
+
+The FrevOS self-maintenance path does not authorize an authoring automation
+session to request its own merge. Its merge operation is accepted only from the
+logged-in owner, binds the PR number and exact head SHA, records the requesting
+user, expires after ten minutes, uses GitHub auto-merge, and remains subject to the protected branch and
+required `validate` check. The first PR that introduces this boundary must still
+be merged through the pre-existing human bootstrap path.
 
 When a separate bot/service identity or trusted reviewer is introduced, raise
 the ruleset to at least one approval, require approval of the last reviewable
@@ -50,7 +59,8 @@ push, and add CODEOWNERS where ownership boundaries are meaningful.
 8. Keep the PR draft until its description and available evidence are complete.
 9. Resolve review threads and revalidate changes made after review.
 10. Verify the PR head SHA, changed-file list, mergeability, and required checks.
-11. The human owner marks the PR ready and performs a squash merge.
+11. The human owner marks the PR ready and performs a squash merge, or records
+    the exact-head FrevOS auto-merge instruction when that bounded profile is active.
 12. Delete the merged branch and verify the default branch contains the result.
 13. Update `docs/CURRENT_STATE.md` in the next authorized state-changing task if
     the merge changes phase readiness or durable project facts.

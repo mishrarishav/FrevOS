@@ -30,7 +30,11 @@ import {
   WINDOWS_GITHUB_AGENT_ID,
 } from "./github-onboarding.js";
 import { type AuthenticatedIdentity, createOidcTransaction, type OidcProvider } from "./oidc.js";
-import { type ProjectAutomationStore, TRACKGRN_AGENT_ID } from "./project-automation.js";
+import {
+  FREVOS_AGENT_ID,
+  type ProjectAutomationStore,
+  TRACKGRN_AGENT_ID,
+} from "./project-automation.js";
 import type {
   AuthenticatedSession,
   IdentitySessionRepository,
@@ -647,20 +651,23 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
   server.post<{ Params: ProjectAutomationParams }>(
     route("/v1/workspaces/:workspaceId/projects/:projectId/automation/operations"),
     async (request, reply) => {
+      const evaluatedAt = now();
       const { workspaceId, session } = await requireWorkspace(
         request,
         options,
         "project:write",
-        now(),
+        evaluatedAt,
       );
       requireCsrf(request, session.session, options.publicOrigin);
       const projectId = ProjectIdSchema.parse(request.params.projectId);
+      const automationRequest = ProjectAutomationRequestSchema.parse(request.body);
+      requireFreshAutoMergeApproval(automationRequest, evaluatedAt);
       const operation = await requireAutomation(options).createOperation({
         workspaceId,
         projectId,
         requestedBy: session.session.context.userId,
-        request: ProjectAutomationRequestSchema.parse(request.body),
-        now: now(),
+        request: automationRequest,
+        now: evaluatedAt,
       });
       if (operation === null) {
         throw new HttpError(404, "project-automation-not-found");
@@ -670,8 +677,13 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
   );
 
   server.post(route("/v1/agents/trackgrn/claim"), async (request, reply) => {
-    requireTrackGrnAgent(request, options.trackGrnAgentTokenHash);
-    const operation = await requireAutomation(options).claimNext(TRACKGRN_AGENT_ID, now());
+    requireWindowsAgent(request, options.trackGrnAgentTokenHash, TRACKGRN_AGENT_ID);
+    const workspaceId = requireAgentWorkspace(request);
+    const operation = await requireAutomation(options).claimNext(
+      workspaceId,
+      TRACKGRN_AGENT_ID,
+      now(),
+    );
     if (operation === null) {
       return reply.status(204).send();
     }
@@ -681,13 +693,15 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
   server.post<{ Params: AgentOperationParams }>(
     route("/v1/agents/trackgrn/operations/:operationId/complete"),
     async (request) => {
-      requireTrackGrnAgent(request, options.trackGrnAgentTokenHash);
+      requireWindowsAgent(request, options.trackGrnAgentTokenHash, TRACKGRN_AGENT_ID);
       const operationId = OperationIdSchema.parse(request.params.operationId);
       const completion = AgentOperationCompletionSchema.parse(request.body);
+      const workspaceId = requireAgentWorkspace(request);
       if (Buffer.byteLength(JSON.stringify(completion.result), "utf8") > 60_000) {
         throw new HttpError(400, "agent-result-too-large");
       }
       const operation = await requireAutomation(options).complete(
+        workspaceId,
         TRACKGRN_AGENT_ID,
         operationId,
         completion,
@@ -700,8 +714,46 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
     },
   );
 
+  server.post(route("/v1/agents/frevos/claim"), async (request, reply) => {
+    requireWindowsAgent(request, options.trackGrnAgentTokenHash, FREVOS_AGENT_ID);
+    const workspaceId = requireAgentWorkspace(request);
+    const operation = await requireAutomation(options).claimNext(
+      workspaceId,
+      FREVOS_AGENT_ID,
+      now(),
+    );
+    if (operation === null) {
+      return reply.status(204).send();
+    }
+    return ProjectAutomationOperationSchema.parse(operation);
+  });
+
+  server.post<{ Params: AgentOperationParams }>(
+    route("/v1/agents/frevos/operations/:operationId/complete"),
+    async (request) => {
+      requireWindowsAgent(request, options.trackGrnAgentTokenHash, FREVOS_AGENT_ID);
+      const workspaceId = requireAgentWorkspace(request);
+      const operationId = OperationIdSchema.parse(request.params.operationId);
+      const completion = AgentOperationCompletionSchema.parse(request.body);
+      if (Buffer.byteLength(JSON.stringify(completion.result), "utf8") > 60_000) {
+        throw new HttpError(400, "agent-result-too-large");
+      }
+      const operation = await requireAutomation(options).complete(
+        workspaceId,
+        FREVOS_AGENT_ID,
+        operationId,
+        completion,
+        now(),
+      );
+      if (operation === null) {
+        throw new HttpError(409, "automation-operation-not-claimable");
+      }
+      return ProjectAutomationOperationSchema.parse(operation);
+    },
+  );
+
   server.post(route("/v1/agents/github/claim"), async (request, reply) => {
-    requireTrackGrnAgent(request, options.trackGrnAgentTokenHash);
+    requireWindowsAgent(request, options.trackGrnAgentTokenHash, TRACKGRN_AGENT_ID);
     const workspaceId = requireAgentWorkspace(request);
     const operation = await requireGithubOnboarding(options).claimNextDiscovery(
       workspaceId,
@@ -717,7 +769,7 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
   server.post<{ Params: AgentOperationParams }>(
     route("/v1/agents/github/discovery/:operationId/complete"),
     async (request) => {
-      requireTrackGrnAgent(request, options.trackGrnAgentTokenHash);
+      requireWindowsAgent(request, options.trackGrnAgentTokenHash, TRACKGRN_AGENT_ID);
       const workspaceId = requireAgentWorkspace(request);
       const operationId = OperationIdSchema.parse(request.params.operationId);
       const completion = GithubDiscoveryCompletionSchema.parse(request.body);
@@ -739,6 +791,20 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
   );
 
   return server;
+}
+
+function requireFreshAutoMergeApproval(
+  request: z.infer<typeof ProjectAutomationRequestSchema>,
+  evaluatedAt: Date,
+): void {
+  if (request.action !== "repository.enable-auto-merge") return;
+  const expiresAt = new Date(request.input.approvalExpiresAt);
+  if (
+    expiresAt.getTime() <= evaluatedAt.getTime() ||
+    expiresAt.getTime() > evaluatedAt.getTime() + 15 * 60 * 1000
+  ) {
+    throw new HttpError(400, "merge-approval-expiry-invalid");
+  }
 }
 
 function requireAutomation(options: BuildServerOptions): ProjectAutomationStore {
@@ -763,11 +829,15 @@ function requireAgentWorkspace(request: FastifyRequest): string {
   return workspaceId;
 }
 
-function requireTrackGrnAgent(request: FastifyRequest, expectedTokenHash?: Buffer): void {
+function requireWindowsAgent(
+  request: FastifyRequest,
+  expectedTokenHash: Buffer | undefined,
+  expectedAgentId: string,
+): void {
   if (expectedTokenHash === undefined) {
     throw new HttpError(503, "trackgrn-agent-disabled");
   }
-  if (request.headers["x-frevos-agent-id"] !== TRACKGRN_AGENT_ID) {
+  if (request.headers["x-frevos-agent-id"] !== expectedAgentId) {
     throw new HttpError(401, "agent-authentication-required");
   }
   const authorization = request.headers.authorization;

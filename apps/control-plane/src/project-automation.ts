@@ -21,6 +21,7 @@ import { type DatabasePool, withApplicationTransaction } from "./database.js";
 export const TRACKGRN_WORKSPACE_ID = "ws_uat_demo";
 export const TRACKGRN_PROJECT_ID = "prj_uat_trackgrn";
 export const TRACKGRN_AGENT_ID = "svc_trackgrn_windows_agent";
+export const FREVOS_AGENT_ID = "svc_frevos_windows_agent";
 
 interface AutomationProfileRow extends QueryResultRow {
   workspace_id: string;
@@ -71,8 +72,13 @@ export interface ProjectAutomationStore {
     projectId: string,
     operationId: string,
   ): Promise<ProjectAutomationOperation | null>;
-  claimNext(agentId: string, now: Date): Promise<ProjectAutomationOperation | null>;
+  claimNext(
+    workspaceId: string,
+    agentId: string,
+    now: Date,
+  ): Promise<ProjectAutomationOperation | null>;
   complete(
+    workspaceId: string,
     agentId: string,
     operationId: string,
     completion: AgentOperationCompletion,
@@ -133,6 +139,15 @@ export class ProjectAutomationRepository implements ProjectAutomationStore {
     const projectId = ProjectIdSchema.parse(input.projectId);
     const requestedBy = UserIdSchema.parse(input.requestedBy);
     const request = ProjectAutomationRequestSchema.parse(input.request);
+    if (request.action === "repository.enable-auto-merge") {
+      const expiresAt = new Date(request.input.approvalExpiresAt);
+      if (
+        expiresAt.getTime() <= input.now.getTime() ||
+        expiresAt.getTime() > input.now.getTime() + 15 * 60 * 1000
+      ) {
+        throw new Error("Auto-merge approval expiry is outside the allowed window");
+      }
+    }
     return withApplicationTransaction(this.#pool, workspaceId, async (client) => {
       const profile = await client.query<AutomationProfileRow>(
         `
@@ -219,29 +234,33 @@ export class ProjectAutomationRepository implements ProjectAutomationStore {
     });
   }
 
-  async claimNext(agentId: string, now: Date): Promise<ProjectAutomationOperation | null> {
+  async claimNext(
+    workspaceId: string,
+    agentId: string,
+    now: Date,
+  ): Promise<ProjectAutomationOperation | null> {
+    const parsedWorkspaceId = WorkspaceIdSchema.parse(workspaceId);
     const parsedAgentId = ServiceIdentityIdSchema.parse(agentId);
-    return withApplicationTransaction(this.#pool, TRACKGRN_WORKSPACE_ID, async (client) => {
+    return withApplicationTransaction(this.#pool, parsedWorkspaceId, async (client) => {
       const result = await client.query<AutomationOperationRow>(
         `
           WITH candidate AS (
             SELECT operation_id
             FROM frevos.project_automation_operations
             WHERE workspace_id = $1
-              AND project_id = $2
-              AND agent_id = $3
+              AND agent_id = $2
               AND status = 'queued'
             ORDER BY created_at, operation_id
             FOR UPDATE SKIP LOCKED
             LIMIT 1
           )
           UPDATE frevos.project_automation_operations AS operation
-          SET status = 'claimed', claimed_at = $4
+          SET status = 'claimed', claimed_at = $3
           FROM candidate
           WHERE operation.operation_id = candidate.operation_id
           RETURNING operation.*
         `,
-        [TRACKGRN_WORKSPACE_ID, TRACKGRN_PROJECT_ID, parsedAgentId, now],
+        [parsedWorkspaceId, parsedAgentId, now],
       );
       const row = result.rows[0];
       return row === undefined ? null : operationFromRow(row);
@@ -249,29 +268,29 @@ export class ProjectAutomationRepository implements ProjectAutomationStore {
   }
 
   async complete(
+    workspaceId: string,
     agentId: string,
     operationId: string,
     completion: AgentOperationCompletion,
     now: Date,
   ): Promise<ProjectAutomationOperation | null> {
+    const parsedWorkspaceId = WorkspaceIdSchema.parse(workspaceId);
     const parsedAgentId = ServiceIdentityIdSchema.parse(agentId);
     const parsedOperationId = OperationIdSchema.parse(operationId);
     const parsedCompletion = AgentOperationCompletionSchema.parse(completion);
-    return withApplicationTransaction(this.#pool, TRACKGRN_WORKSPACE_ID, async (client) => {
+    return withApplicationTransaction(this.#pool, parsedWorkspaceId, async (client) => {
       const result = await client.query<AutomationOperationRow>(
         `
           UPDATE frevos.project_automation_operations
-          SET status = $4, result = $5, error_code = $6, completed_at = $7
+          SET status = $3, result = $4, error_code = $5, completed_at = $6
           WHERE workspace_id = $1
-            AND project_id = $2
-            AND operation_id = $3
-            AND agent_id = $8
+            AND operation_id = $2
+            AND agent_id = $7
             AND status = 'claimed'
           RETURNING *
         `,
         [
-          TRACKGRN_WORKSPACE_ID,
-          TRACKGRN_PROJECT_ID,
+          parsedWorkspaceId,
           parsedOperationId,
           parsedCompletion.status,
           parsedCompletion.result,
