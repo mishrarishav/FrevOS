@@ -185,6 +185,23 @@ describe("Control Center rendering", () => {
     expect(html).toContain("Loading the TrackGRN automation profile");
   });
 
+  it("renders the FrevOS self-maintenance pipeline for its pinned project", () => {
+    const frevOsProject = ProjectSchema.parse({
+      ...project,
+      projectId: "prj_uat_frevos",
+      displayName: "FrevOS",
+    });
+    const html = renderToStaticMarkup(
+      <App
+        initialPath="/projects/frevos"
+        initialExperience={{ ...readyExperience, projects: [frevOsProject] }}
+      />,
+    );
+    expect(html).toContain("FrevOS self-maintenance");
+    expect(html).toContain("CI-gated squash merge");
+    expect(html).toContain("Loading the FrevOS maintenance pipeline");
+  });
+
   it("renders later-phase routes as honest planned surfaces", () => {
     const html = renderToStaticMarkup(
       <App initialPath="/deployments/deploy-72" initialExperience={readyExperience} />,
@@ -210,6 +227,11 @@ describe("TrackGRN operation status", () => {
     ["api-tests-failed", "API tests failed"],
     ["artifact-already-exists", "Artifact conflict"],
     ["api-publish-failed", "API publish failed"],
+    ["validation-failed", "Validation failed"],
+    ["release-build-failed", "Release build failed"],
+    ["server-deploy-failed", "Server deploy failed"],
+    ["auto-merge-enable-failed", "Auto-merge failed"],
+    ["merge-approval-expired", "Merge approval expired"],
     ["operation-failed", "Failed"],
   ])("renders %s as an actionable failure", (errorCode, expected) => {
     const operation = ProjectAutomationOperationSchema.parse({

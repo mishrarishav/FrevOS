@@ -8,8 +8,8 @@ Last updated: 2026-08-23
 | --- | --- |
 | Production repository | `https://github.com/mishrarishav/FrevOS` |
 | Detected default branch | `main` |
-| Phase branch | `feature/github-repository-onboarding` |
-| Base commit | `52ce49e` |
+| Phase branch | `feature/frevos-button-release-automation` |
+| Base commit | `43eb9a0` |
 | Active phase | Phase 4 exit — Preview/UAT deployment and independent acceptance |
 | Phase 3 merge | Core PR [#5](https://github.com/mishrarishav/FrevOS/pull/5) was human squash-merged as `13f3cd2`; its task branch was deleted |
 | Phase 4A merge | Core PR [#7](https://github.com/mishrarishav/FrevOS/pull/7) was human squash-merged as `425c1f3`; its task branch was deleted |
@@ -20,8 +20,9 @@ Last updated: 2026-08-23
 | Runtime capability | The authenticated Control Center, Fastify BFF, PostgreSQL forced RLS, protected workspace APIs, Preview routes, local table-backed credentials, and Windows/IIS UAT route are merged and live on the selected personal UAT target |
 | Dependency manifests | pnpm workspace and committed lockfile on `main` |
 | CI/CD | Live UAT and companion build fixes PR [#23](https://github.com/mishrarishav/FrevOS/pull/23) passed `validate` and was human squash-merged as `52ce49e`; Windows UAT deployment remains operator-executed |
-| Windows UAT evidence | Source `228ebaa5073769a57769e0b0f650be88c49c4af3` is active at `https://tserver2.eeslindia.org/frevos/`; public health, application assets, local login, protected UI, PostgreSQL service, control-plane task, loopback health, and the TrackGRN sibling health probe passed. Initial activation required recorded manual ACL and database-creation interventions that this active hotfix addresses |
+| Windows UAT evidence | Source `43eb9a0e29ec88882c9a1a922e03d7b8a28113fa` is active at `https://tserver2.eeslindia.org/frevos/`; its deployment reported successful migrations/seeds and IIS loopback HTTP 200. The laptop TrackGRN companion was reinstalled and started from the matching source |
 | TrackGRN pilot | The companion is installed on the laptop and its repository inspection, commit proposal, UI build, non-destructive API tests, and API publish path have passed. Generic GitHub account discovery and repository registration are active on a dedicated branch; newly connected repositories do not inherit TrackGRN execution authority |
+| FrevOS maintenance pipeline | Active task branch adds a pinned FrevOS laptop agent, authenticated exact-head auto-merge request, immutable package build, fixed SMB inbox, out-of-process server updater and UAT health result. This remains unmerged and requires one bootstrap deployment before button-driven self-update is active |
 | Independent QA harness | Merged through Acceptance PR [#1](https://github.com/mishrarishav/FrevOS-Acceptance/pull/1); exact-head and default-branch CI passed |
 | Acceptance repository | Public `main` at completion-state squash commit `ffc85babed5f0e8deaf8af8d0194b9d3734d23be` |
 | Acceptance merge governance | Active `Protect main` ruleset `20623785` enforces squash-only pull requests, conversation resolution, strict up-to-date `validate`, and deletion and force-push prevention |

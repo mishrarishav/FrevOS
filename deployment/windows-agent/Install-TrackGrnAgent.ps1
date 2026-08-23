@@ -68,3 +68,9 @@ if ($installedTask.State -ne "Running") {
 Write-Host "FrevOS TrackGRN agent installed and started."
 Write-Host "Task: $taskName"
 Write-Host "Workspace: D:\TrackGRN"
+
+$maintenanceInstaller = Join-Path $PSScriptRoot "Install-FrevOsMaintenanceAgent.ps1"
+if (-not (Test-Path -LiteralPath $maintenanceInstaller -PathType Leaf)) {
+    throw "The FrevOS maintenance-agent installer is missing."
+}
+& $maintenanceInstaller

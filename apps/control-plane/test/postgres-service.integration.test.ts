@@ -24,6 +24,7 @@ import {
 } from "../src/github-onboarding.js";
 import type { AuthenticatedIdentity, OidcProvider } from "../src/oidc.js";
 import {
+  FREVOS_AGENT_ID,
   ProjectAutomationRepository,
   TRACKGRN_AGENT_ID,
   TRACKGRN_PROJECT_ID,
@@ -45,6 +46,7 @@ const POSTGRES_IMAGE =
   "postgres:18.4-alpine3.23@sha256:996d0920e4ff9df1fc19dacb904492f3c1ec0ec1cc338f0ad7123be7731c5f5e";
 const NOW = new Date("2026-08-10T10:00:00.000Z");
 const PUBLIC_ORIGIN = "https://control.frevos.example";
+const FREVOS_PROJECT_ID = "prj_uat_frevos";
 
 class FakeOidcProvider implements OidcProvider {
   lastTransaction: OidcTransaction | undefined;
@@ -216,6 +218,13 @@ beforeAll(async () => {
     displayName: "TrackGRN",
     now: NOW,
   });
+  await workspaces.createProject({
+    workspaceId: TRACKGRN_WORKSPACE_ID,
+    clientId: trackGrnClient.clientId,
+    projectId: FREVOS_PROJECT_ID,
+    displayName: "FrevOS",
+    now: NOW,
+  });
   const automationSeedClient = await adminPool.connect();
   try {
     await automationSeedClient.query("BEGIN");
@@ -243,6 +252,26 @@ beforeAll(async () => {
         )
       `,
       [TRACKGRN_WORKSPACE_ID, TRACKGRN_PROJECT_ID, TRACKGRN_AGENT_ID, NOW],
+    );
+    await automationSeedClient.query(
+      `
+        INSERT INTO frevos.project_automation_profiles (
+          workspace_id, project_id, provider, provider_repository_id,
+          repository_owner, repository_name, repository_url, default_branch,
+          agent_id, environment, public_origin, api_base_path, health_path,
+          swagger_path, allowed_actions, created_at
+        ) VALUES (
+          $1, $2, 'github', '1329122983', 'mishrarishav', 'FrevOS',
+          'https://github.com/mishrarishav/FrevOS', 'main', $3, 'uat',
+          'https://tserver2.eeslindia.org', '/frevos', '/frevos/health', '/frevos/',
+          ARRAY[
+            'repository.inspect', 'repository.propose-commit',
+            'repository.commit-push', 'repository.open-pull-request',
+            'repository.enable-auto-merge', 'project.build', 'uat.release'
+          ], $4
+        )
+      `,
+      [TRACKGRN_WORKSPACE_ID, FREVOS_PROJECT_ID, FREVOS_AGENT_ID, NOW],
     );
     await automationSeedClient.query("COMMIT");
   } catch (error) {
@@ -1068,6 +1097,7 @@ describe("TrackGRN UAT automation pilot", () => {
       const agentHeaders = {
         authorization: `Bearer ${agentToken}`,
         "x-frevos-agent-id": TRACKGRN_AGENT_ID,
+        "x-frevos-workspace-id": TRACKGRN_WORKSPACE_ID,
       };
       for (const headers of [
         { authorization: `Bearer ${agentToken}`, "x-frevos-agent-id": "svc_wrong_agent" },
@@ -1356,6 +1386,126 @@ describe("TrackGRN UAT automation pilot", () => {
         });
         expect(nextCompletion.statusCode).toBe(200);
       }
+
+      const frevOsProfileUrl = `/v1/workspaces/${TRACKGRN_WORKSPACE_ID}/projects/${FREVOS_PROJECT_ID}/automation`;
+      const frevOsProfile = await server.inject({
+        method: "GET",
+        url: frevOsProfileUrl,
+        headers: { cookie: sessionCookie },
+      });
+      expect(frevOsProfile.statusCode).toBe(200);
+      expect(frevOsProfile.json()).toMatchObject({
+        projectId: FREVOS_PROJECT_ID,
+        agentId: FREVOS_AGENT_ID,
+        repository: { providerRepositoryId: "1329122983" },
+        allowedActions: expect.arrayContaining(["repository.enable-auto-merge", "uat.release"]),
+      });
+      const frevOsCreateUrl = `${frevOsProfileUrl}/operations`;
+      const expiredMerge = await server.inject({
+        method: "POST",
+        url: frevOsCreateUrl,
+        headers: browserHeaders,
+        payload: {
+          action: "repository.enable-auto-merge",
+          input: {
+            pullRequestNumber: 44,
+            expectedHeadSha: "d".repeat(40),
+            confirmation: "enable-auto-merge",
+            approvalExpiresAt: "2026-08-10T09:59:59.000Z",
+          },
+        },
+      });
+      expect(expiredMerge.statusCode).toBe(400);
+      expect(expiredMerge.json()).toEqual({ error: "merge-approval-expiry-invalid" });
+      const excessiveMergeWindow = await server.inject({
+        method: "POST",
+        url: frevOsCreateUrl,
+        headers: browserHeaders,
+        payload: {
+          action: "repository.enable-auto-merge",
+          input: {
+            pullRequestNumber: 44,
+            expectedHeadSha: "d".repeat(40),
+            confirmation: "enable-auto-merge",
+            approvalExpiresAt: "2026-08-10T10:30:00.000Z",
+          },
+        },
+      });
+      expect(excessiveMergeWindow.statusCode).toBe(400);
+      const approvedMerge = await server.inject({
+        method: "POST",
+        url: frevOsCreateUrl,
+        headers: browserHeaders,
+        payload: {
+          action: "repository.enable-auto-merge",
+          input: {
+            pullRequestNumber: 44,
+            expectedHeadSha: "d".repeat(40),
+            confirmation: "enable-auto-merge",
+            approvalExpiresAt: "2026-08-10T10:10:00.000Z",
+          },
+        },
+      });
+      expect(approvedMerge.statusCode).toBe(202);
+      const frevOsAgentHeaders = {
+        ...agentHeaders,
+        "x-frevos-agent-id": FREVOS_AGENT_ID,
+      };
+      const mergeClaim = await server.inject({
+        method: "POST",
+        url: "/v1/agents/frevos/claim",
+        headers: frevOsAgentHeaders,
+      });
+      expect(mergeClaim.json()).toMatchObject({
+        operationId: approvedMerge.json().operationId,
+        action: "repository.enable-auto-merge",
+        status: "claimed",
+      });
+      expect(
+        (
+          await server.inject({
+            method: "POST",
+            url: `/v1/agents/frevos/operations/${approvedMerge.json().operationId}/complete`,
+            headers: frevOsAgentHeaders,
+            payload: { status: "succeeded", result: { autoMergeEnabled: true } },
+          })
+        ).statusCode,
+      ).toBe(200);
+      const release = await server.inject({
+        method: "POST",
+        url: frevOsCreateUrl,
+        headers: browserHeaders,
+        payload: { action: "uat.release", input: {} },
+      });
+      expect(release.statusCode).toBe(202);
+      expect(
+        (
+          await server.inject({
+            method: "POST",
+            url: "/v1/agents/trackgrn/claim",
+            headers: agentHeaders,
+          })
+        ).statusCode,
+      ).toBe(204);
+      const frevOsClaim = await server.inject({
+        method: "POST",
+        url: "/v1/agents/frevos/claim",
+        headers: frevOsAgentHeaders,
+      });
+      expect(frevOsClaim.json()).toMatchObject({
+        operationId: release.json().operationId,
+        projectId: FREVOS_PROJECT_ID,
+        agentId: FREVOS_AGENT_ID,
+        action: "uat.release",
+        status: "claimed",
+      });
+      const frevOsCompletion = await server.inject({
+        method: "POST",
+        url: `/v1/agents/frevos/operations/${release.json().operationId}/complete`,
+        headers: frevOsAgentHeaders,
+        payload: { status: "succeeded", result: { healthStatus: 200 } },
+      });
+      expect(frevOsCompletion.statusCode).toBe(200);
     } finally {
       await server.close();
     }
@@ -1379,6 +1529,7 @@ describe("TrackGRN UAT automation pilot", () => {
             headers: {
               authorization: `Bearer ${agentToken}`,
               "x-frevos-agent-id": TRACKGRN_AGENT_ID,
+              "x-frevos-workspace-id": TRACKGRN_WORKSPACE_ID,
             },
           })
         ).json(),
@@ -1404,6 +1555,7 @@ describe("TrackGRN UAT automation pilot", () => {
         headers: {
           authorization: `Bearer ${agentToken}`,
           "x-frevos-agent-id": TRACKGRN_AGENT_ID,
+          "x-frevos-workspace-id": TRACKGRN_WORKSPACE_ID,
         },
       });
       expect(response.statusCode).toBe(503);
