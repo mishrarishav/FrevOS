@@ -1283,7 +1283,7 @@ function GithubOnboardingPanel({
         .getGithubDiscovery(workspaceId, discovery.operationId, controller.signal)
         .then((operation) => {
           setDiscovery(operation);
-          if (operation.status === "succeeded") void refresh(controller.signal);
+          if (operation.status === "succeeded") void refresh();
         })
         .catch(() => {
           if (!controller.signal.aborted) setState("unavailable");
