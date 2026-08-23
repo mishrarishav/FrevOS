@@ -1454,6 +1454,31 @@ describe("generic GitHub repository onboarding", () => {
         action: "github.account.discover",
         status: "queued",
       });
+      const repeatedQueue = await server.inject({
+        method: "POST",
+        url: `${workspacePath}/github/discovery`,
+        headers: browserHeaders,
+        payload: {},
+      });
+      expect(repeatedQueue.json()).toMatchObject({ operationId: queued.json().operationId });
+      expect(
+        (
+          await server.inject({
+            method: "GET",
+            url: `${workspacePath}/github/discovery/${queued.json().operationId}`,
+            headers: { cookie: sessionCookie },
+          })
+        ).json(),
+      ).toMatchObject({ status: "queued" });
+      expect(
+        (
+          await server.inject({
+            method: "GET",
+            url: `${workspacePath}/github/discovery/op_missing_github_01`,
+            headers: { cookie: sessionCookie },
+          })
+        ).statusCode,
+      ).toBe(404);
 
       const agentHeaders = {
         authorization: `Bearer ${agentToken}`,
@@ -1474,6 +1499,15 @@ describe("generic GitHub repository onboarding", () => {
       });
       expect(claimed.statusCode).toBe(200);
       expect(claimed.json()).toMatchObject({ status: "claimed" });
+      expect(
+        (
+          await server.inject({
+            method: "POST",
+            url: "/v1/agents/github/claim",
+            headers: agentHeaders,
+          })
+        ).statusCode,
+      ).toBe(204);
 
       const repository = {
         providerRepositoryId: "987654321",
@@ -1499,6 +1533,23 @@ describe("generic GitHub repository onboarding", () => {
       });
       expect(completed.statusCode).toBe(200);
       expect(completed.json()).toMatchObject({ status: "succeeded" });
+      expect(
+        (
+          await server.inject({
+            method: "POST",
+            url: `/v1/agents/github/discovery/${claimed.json().operationId}/complete`,
+            headers: agentHeaders,
+            payload: {
+              status: "succeeded",
+              result: {
+                provider: "github",
+                account: { providerAccountId: "123456789", login: "synthetic-owner" },
+                repositories: [repository],
+              },
+            },
+          })
+        ).statusCode,
+      ).toBe(409);
 
       const connections = await server.inject({
         method: "GET",
@@ -1510,6 +1561,20 @@ describe("generic GitHub repository onboarding", () => {
         expect.objectContaining({ login: "synthetic-owner", repositories: [repository] }),
       ]);
       const connectionId = connections.json()[0].connectionId;
+      expect(
+        (
+          await server.inject({
+            method: "POST",
+            url: `${workspacePath}/repository-connections`,
+            headers: browserHeaders,
+            payload: {
+              connectionId,
+              providerRepositoryId: "999999999",
+              displayName: "Unknown Repository",
+            },
+          })
+        ).statusCode,
+      ).toBe(409);
       const connected = await server.inject({
         method: "POST",
         url: `${workspacePath}/repository-connections`,
@@ -1522,6 +1587,20 @@ describe("generic GitHub repository onboarding", () => {
       });
       expect(connected.statusCode).toBe(201);
       expect(connected.json()).toMatchObject({ repository, status: "connected" });
+      expect(
+        (
+          await server.inject({
+            method: "POST",
+            url: `${workspacePath}/repository-connections`,
+            headers: browserHeaders,
+            payload: {
+              connectionId,
+              providerRepositoryId: repository.providerRepositoryId,
+              displayName: "Duplicate Repository",
+            },
+          })
+        ).statusCode,
+      ).toBe(409);
 
       const persisted = await server.inject({
         method: "GET",
@@ -1532,6 +1611,34 @@ describe("generic GitHub repository onboarding", () => {
       expect(persisted.json()).toEqual([
         expect.objectContaining({ projectId: connected.json().projectId, repository }),
       ]);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("fails closed when GitHub onboarding is not installed", async () => {
+    const server = await buildServer({
+      publicOrigin: PUBLIC_ORIGIN,
+      authMode: "local",
+      identitySessions: identities,
+      workspaces,
+      trackGrnAgentTokenHash: sha256(agentToken),
+      now: () => NOW,
+    });
+    try {
+      const login = await server.inject({
+        method: "POST",
+        url: "/auth/login",
+        headers: { origin: PUBLIC_ORIGIN },
+        payload: { username: "personal.admin", password: "personal-password" },
+      });
+      const response = await server.inject({
+        method: "GET",
+        url: `/v1/workspaces/${PERSONAL_AGENT_WORKSPACE_ID}/github/connections`,
+        headers: { cookie: cookiePair(login, SESSION_COOKIE) },
+      });
+      expect(response.statusCode).toBe(503);
+      expect(response.json()).toEqual({ error: "github-onboarding-unavailable" });
     } finally {
       await server.close();
     }
