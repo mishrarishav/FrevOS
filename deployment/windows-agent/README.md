@@ -28,6 +28,14 @@ The laptop-local `D:\TrackGRN\server.env` must contain
 runtime as `FREVOS_TRACKGRN_AGENT_TOKEN`. Never commit or paste that value into
 logs or reports.
 
+The companion also supports provider-neutral project onboarding for this
+personal UAT workspace. The Control Center can queue a GitHub account discovery;
+the companion uses the existing `gh` login and returns at most 50 repositories.
+Only account and repository metadata is persisted. The GitHub credential never
+leaves the Windows GitHub CLI credential store. Connecting a discovered
+repository creates its FrevOS project record, but does not grant the repository
+TrackGRN's pinned build, deploy, push, or merge actions.
+
 The claim poll sends an explicit empty JSON object. This keeps the request
 compatible with the IIS/ARR boundary, which rejects bodyless POST requests.
 
@@ -36,6 +44,14 @@ Validate the fixed local repository boundary without connecting to FrevOS:
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass `
   -File .\deployment\windows-agent\Invoke-TrackGrnAgent.ps1 -SelfTest
+```
+
+Verify only the current GitHub account and bounded repository discovery without
+printing or transmitting a credential:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\deployment\windows-agent\Invoke-TrackGrnAgent.ps1 -DiscoverySelfTest
 ```
 
 After the matching control-plane release and token are provisioned, install the

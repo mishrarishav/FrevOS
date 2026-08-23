@@ -1007,6 +1007,85 @@ kbd,
   font-size: 9.5px;
 }
 
+.github-onboarding {
+  display: grid;
+  gap: 12px;
+}
+
+.github-onboarding p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.github-boundary-note {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  padding: 10px 12px;
+}
+
+.github-account {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 10px;
+}
+
+.github-account span,
+.github-connected-list {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.github-connect-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+}
+
+.github-connect-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.github-connect-form input,
+.github-connect-form select {
+  min-width: 0;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--foreground);
+  padding: 9px 10px;
+  font: inherit;
+}
+
+.github-connect-form input:focus-visible,
+.github-connect-form select:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+}
+
+.github-connected-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px;
+}
+
+.github-connected-list a {
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
 .resource-empty {
   display: flex;
   grid-column: 1 / -1;
@@ -2297,6 +2376,14 @@ kbd,
 }
 
 @media (max-width: 620px) {
+  .github-connect-form {
+    grid-template-columns: 1fr;
+  }
+
+  .github-connect-form .button {
+    width: 100%;
+  }
+
   .top-bar-spacer {
     min-width: 0;
   }

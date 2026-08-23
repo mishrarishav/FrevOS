@@ -17,6 +17,11 @@ import {
   withApplicationPrincipalTransaction,
   withApplicationTransaction,
 } from "../src/database.js";
+import {
+  GithubOnboardingRepository,
+  PERSONAL_AGENT_WORKSPACE_ID,
+  WINDOWS_GITHUB_AGENT_ID,
+} from "../src/github-onboarding.js";
 import type { AuthenticatedIdentity, OidcProvider } from "../src/oidc.js";
 import {
   ProjectAutomationRepository,
@@ -71,6 +76,7 @@ let pool: Pool;
 let identities: IdentitySessionRepository;
 let workspaces: WorkspaceRepository;
 let automation: ProjectAutomationRepository;
+let githubOnboarding: GithubOnboardingRepository;
 let principalA: IdentityPrincipal;
 let principalB: IdentityPrincipal;
 let localPrincipal: IdentityPrincipal;
@@ -100,6 +106,7 @@ beforeAll(async () => {
   identities = new IdentitySessionRepository(pool);
   workspaces = new WorkspaceRepository(pool);
   automation = new ProjectAutomationRepository(pool);
+  githubOnboarding = new GithubOnboardingRepository(pool);
   principalA = await identities.upsertIdentity({
     issuer: "https://identity.example",
     subject: "principal-a",
@@ -1401,6 +1408,237 @@ describe("TrackGRN UAT automation pilot", () => {
       });
       expect(response.statusCode).toBe(503);
       expect(response.json()).toEqual({ error: "project-automation-unavailable" });
+    } finally {
+      await server.close();
+    }
+  });
+});
+
+describe("generic GitHub repository onboarding", () => {
+  const agentToken = "synthetic-github-discovery-token-0001";
+
+  it("discovers the laptop account and persists a selected repository as a project", async () => {
+    const server = await buildServer({
+      publicOrigin: PUBLIC_ORIGIN,
+      authMode: "local",
+      identitySessions: identities,
+      workspaces,
+      automation,
+      githubOnboarding,
+      trackGrnAgentTokenHash: sha256(agentToken),
+      now: () => NOW,
+    });
+    try {
+      const login = await server.inject({
+        method: "POST",
+        url: "/auth/login",
+        headers: { origin: PUBLIC_ORIGIN },
+        payload: { username: "personal.admin", password: "personal-password" },
+      });
+      const sessionCookie = cookiePair(login, SESSION_COOKIE);
+      const csrfCookie = cookiePair(login, CSRF_COOKIE);
+      const browserHeaders = {
+        cookie: `${sessionCookie}; ${csrfCookie}`,
+        origin: PUBLIC_ORIGIN,
+        "x-csrf-token": csrfCookie.slice(`${CSRF_COOKIE}=`.length),
+      };
+      const workspacePath = `/v1/workspaces/${PERSONAL_AGENT_WORKSPACE_ID}`;
+      const queued = await server.inject({
+        method: "POST",
+        url: `${workspacePath}/github/discovery`,
+        headers: browserHeaders,
+        payload: {},
+      });
+      expect(queued.statusCode).toBe(202);
+      expect(queued.json()).toMatchObject({
+        action: "github.account.discover",
+        status: "queued",
+      });
+      const repeatedQueue = await server.inject({
+        method: "POST",
+        url: `${workspacePath}/github/discovery`,
+        headers: browserHeaders,
+        payload: {},
+      });
+      expect(repeatedQueue.json()).toMatchObject({ operationId: queued.json().operationId });
+      expect(
+        (
+          await server.inject({
+            method: "GET",
+            url: `${workspacePath}/github/discovery/${queued.json().operationId}`,
+            headers: { cookie: sessionCookie },
+          })
+        ).json(),
+      ).toMatchObject({ status: "queued" });
+      expect(
+        (
+          await server.inject({
+            method: "GET",
+            url: `${workspacePath}/github/discovery/op_missing_github_01`,
+            headers: { cookie: sessionCookie },
+          })
+        ).statusCode,
+      ).toBe(404);
+
+      const agentHeaders = {
+        authorization: `Bearer ${agentToken}`,
+        "x-frevos-agent-id": WINDOWS_GITHUB_AGENT_ID,
+        "x-frevos-workspace-id": PERSONAL_AGENT_WORKSPACE_ID,
+      };
+      const deniedWorkspace = await server.inject({
+        method: "POST",
+        url: "/v1/agents/github/claim",
+        headers: { ...agentHeaders, "x-frevos-workspace-id": "ws_alpha" },
+      });
+      expect(deniedWorkspace.statusCode).toBe(403);
+
+      const claimed = await server.inject({
+        method: "POST",
+        url: "/v1/agents/github/claim",
+        headers: agentHeaders,
+      });
+      expect(claimed.statusCode).toBe(200);
+      expect(claimed.json()).toMatchObject({ status: "claimed" });
+      expect(
+        (
+          await server.inject({
+            method: "POST",
+            url: "/v1/agents/github/claim",
+            headers: agentHeaders,
+          })
+        ).statusCode,
+      ).toBe(204);
+
+      const repository = {
+        providerRepositoryId: "987654321",
+        owner: "synthetic-owner",
+        name: "sample-repository",
+        url: "https://github.com/synthetic-owner/sample-repository",
+        defaultBranch: "main",
+        visibility: "private",
+        archived: false,
+      };
+      const completed = await server.inject({
+        method: "POST",
+        url: `/v1/agents/github/discovery/${claimed.json().operationId}/complete`,
+        headers: agentHeaders,
+        payload: {
+          status: "succeeded",
+          result: {
+            provider: "github",
+            account: { providerAccountId: "123456789", login: "synthetic-owner" },
+            repositories: [repository],
+          },
+        },
+      });
+      expect(completed.statusCode).toBe(200);
+      expect(completed.json()).toMatchObject({ status: "succeeded" });
+      expect(
+        (
+          await server.inject({
+            method: "POST",
+            url: `/v1/agents/github/discovery/${claimed.json().operationId}/complete`,
+            headers: agentHeaders,
+            payload: {
+              status: "succeeded",
+              result: {
+                provider: "github",
+                account: { providerAccountId: "123456789", login: "synthetic-owner" },
+                repositories: [repository],
+              },
+            },
+          })
+        ).statusCode,
+      ).toBe(409);
+
+      const connections = await server.inject({
+        method: "GET",
+        url: `${workspacePath}/github/connections`,
+        headers: { cookie: sessionCookie },
+      });
+      expect(connections.statusCode).toBe(200);
+      expect(connections.json()).toEqual([
+        expect.objectContaining({ login: "synthetic-owner", repositories: [repository] }),
+      ]);
+      const connectionId = connections.json()[0].connectionId;
+      expect(
+        (
+          await server.inject({
+            method: "POST",
+            url: `${workspacePath}/repository-connections`,
+            headers: browserHeaders,
+            payload: {
+              connectionId,
+              providerRepositoryId: "999999999",
+              displayName: "Unknown Repository",
+            },
+          })
+        ).statusCode,
+      ).toBe(409);
+      const connected = await server.inject({
+        method: "POST",
+        url: `${workspacePath}/repository-connections`,
+        headers: browserHeaders,
+        payload: {
+          connectionId,
+          providerRepositoryId: repository.providerRepositoryId,
+          displayName: "Sample Repository",
+        },
+      });
+      expect(connected.statusCode).toBe(201);
+      expect(connected.json()).toMatchObject({ repository, status: "connected" });
+      expect(
+        (
+          await server.inject({
+            method: "POST",
+            url: `${workspacePath}/repository-connections`,
+            headers: browserHeaders,
+            payload: {
+              connectionId,
+              providerRepositoryId: repository.providerRepositoryId,
+              displayName: "Duplicate Repository",
+            },
+          })
+        ).statusCode,
+      ).toBe(409);
+
+      const persisted = await server.inject({
+        method: "GET",
+        url: `${workspacePath}/repository-connections`,
+        headers: { cookie: sessionCookie },
+      });
+      expect(persisted.statusCode).toBe(200);
+      expect(persisted.json()).toEqual([
+        expect.objectContaining({ projectId: connected.json().projectId, repository }),
+      ]);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("fails closed when GitHub onboarding is not installed", async () => {
+    const server = await buildServer({
+      publicOrigin: PUBLIC_ORIGIN,
+      authMode: "local",
+      identitySessions: identities,
+      workspaces,
+      trackGrnAgentTokenHash: sha256(agentToken),
+      now: () => NOW,
+    });
+    try {
+      const login = await server.inject({
+        method: "POST",
+        url: "/auth/login",
+        headers: { origin: PUBLIC_ORIGIN },
+        payload: { username: "personal.admin", password: "personal-password" },
+      });
+      const response = await server.inject({
+        method: "GET",
+        url: `/v1/workspaces/${PERSONAL_AGENT_WORKSPACE_ID}/github/connections`,
+        headers: { cookie: cookiePair(login, SESSION_COOKIE) },
+      });
+      expect(response.statusCode).toBe(503);
+      expect(response.json()).toEqual({ error: "github-onboarding-unavailable" });
     } finally {
       await server.close();
     }

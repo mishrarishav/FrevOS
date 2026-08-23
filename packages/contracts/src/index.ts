@@ -11,6 +11,22 @@ export {
   TargetReferenceSchema,
 } from "./approvals.js";
 export {
+  type ConnectGithubRepositoryRequest,
+  ConnectGithubRepositoryRequestSchema,
+  type GithubConnection,
+  GithubConnectionSchema,
+  type GithubDiscoveryCompletion,
+  GithubDiscoveryCompletionSchema,
+  type GithubDiscoveryOperation,
+  GithubDiscoveryOperationSchema,
+  type GithubDiscoveryResult,
+  GithubDiscoveryResultSchema,
+  type GithubRepository,
+  GithubRepositorySchema,
+  type ProjectRepositoryConnection,
+  ProjectRepositoryConnectionSchema,
+} from "./github-onboarding.js";
+export {
   type ActorId,
   ActorIdSchema,
   type ApprovalId,
@@ -21,6 +37,8 @@ export {
   ClientIdSchema,
   type CorrelationId,
   CorrelationIdSchema,
+  type GithubConnectionId,
+  GithubConnectionIdSchema,
   type IdentityId,
   IdentityIdSchema,
   type OpaqueResourceId,

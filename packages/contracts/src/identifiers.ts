@@ -35,6 +35,9 @@ export type ClientId = z.infer<typeof ClientIdSchema>;
 export const ProjectIdSchema = identifierSchema("prj", "ProjectId");
 export type ProjectId = z.infer<typeof ProjectIdSchema>;
 
+export const GithubConnectionIdSchema = identifierSchema("ghc", "GithubConnectionId");
+export type GithubConnectionId = z.infer<typeof GithubConnectionIdSchema>;
+
 export const ApprovalIdSchema = identifierSchema("apr", "ApprovalId");
 export type ApprovalId = z.infer<typeof ApprovalIdSchema>;
 

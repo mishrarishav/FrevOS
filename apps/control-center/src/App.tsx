@@ -1,8 +1,11 @@
 import type {
   Client,
+  GithubConnection,
+  GithubDiscoveryOperation,
   Project,
   ProjectAutomationOperation,
   ProjectAutomationRequest,
+  ProjectRepositoryConnection,
   Workspace,
 } from "@frevos/contracts";
 import {
@@ -310,6 +313,7 @@ export function App({
               clients={experience.clients}
               projects={experience.projects}
               navigate={navigate}
+              onRepositoryConnected={retryExperience}
             />
           ) : null}
           {route &&
@@ -1135,12 +1139,14 @@ function ProjectsSurface({
   clients,
   projects,
   navigate,
+  onRepositoryConnected,
 }: {
   api: ControlCenterApi;
   workspace: Workspace;
   clients: Client[];
   projects: Project[];
   navigate: (to: string) => void;
+  onRepositoryConnected: () => void;
 }) {
   return (
     <div className="page-stack">
@@ -1213,10 +1219,237 @@ function ProjectsSurface({
           })}
         </div>
       </Panel>
+      <GithubOnboardingPanel
+        api={api}
+        workspaceId={workspace.workspaceId}
+        clients={clients}
+        onRepositoryConnected={onRepositoryConnected}
+      />
       {projects.some((project) => project.projectId === "prj_uat_trackgrn") ? (
         <TrackGrnAutomationPanel api={api} workspaceId={workspace.workspaceId} />
       ) : null}
     </div>
+  );
+}
+
+function GithubOnboardingPanel({
+  api,
+  workspaceId,
+  clients,
+  onRepositoryConnected,
+}: {
+  api: ControlCenterApi;
+  workspaceId: string;
+  clients: Client[];
+  onRepositoryConnected: () => void;
+}) {
+  const [connections, setConnections] = useState<GithubConnection[]>([]);
+  const [projectConnections, setProjectConnections] = useState<ProjectRepositoryConnection[]>([]);
+  const [discovery, setDiscovery] = useState<GithubDiscoveryOperation | null>(null);
+  const [selectedRepository, setSelectedRepository] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [clientId, setClientId] = useState("");
+  const [state, setState] = useState<"loading" | "ready" | "unavailable">("loading");
+  const [busy, setBusy] = useState(false);
+
+  const refresh = useCallback(
+    async (signal?: AbortSignal) => {
+      try {
+        const [nextConnections, nextProjectConnections] = await Promise.all([
+          api.listGithubConnections(workspaceId, signal),
+          api.listProjectRepositoryConnections(workspaceId, signal),
+        ]);
+        setConnections(nextConnections);
+        setProjectConnections(nextProjectConnections);
+        setState("ready");
+      } catch {
+        if (signal?.aborted !== true) setState("unavailable");
+      }
+    },
+    [api, workspaceId],
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void refresh(controller.signal);
+    return () => controller.abort();
+  }, [refresh]);
+
+  useEffect(() => {
+    if (discovery === null || !["queued", "claimed"].includes(discovery.status)) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      void api
+        .getGithubDiscovery(workspaceId, discovery.operationId, controller.signal)
+        .then((operation) => {
+          setDiscovery(operation);
+          if (operation.status === "succeeded") void refresh(controller.signal);
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setState("unavailable");
+        });
+    }, 2_500);
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [api, discovery, refresh, workspaceId]);
+
+  const availableRepositories = connections.flatMap((connection) =>
+    connection.repositories
+      .filter(
+        (repository) =>
+          !repository.archived &&
+          !projectConnections.some(
+            (connected) =>
+              connected.repository.providerRepositoryId === repository.providerRepositoryId,
+          ),
+      )
+      .map((repository) => ({ connection, repository })),
+  );
+  const selected = availableRepositories.find(
+    ({ connection, repository }) =>
+      `${connection.connectionId}|${repository.providerRepositoryId}` === selectedRepository,
+  );
+
+  const discover = async () => {
+    setBusy(true);
+    try {
+      setDiscovery(await api.createGithubDiscovery(workspaceId));
+      setState("ready");
+    } catch {
+      setState("unavailable");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const chooseRepository = (value: string) => {
+    setSelectedRepository(value);
+    const candidate = availableRepositories.find(
+      ({ connection, repository }) =>
+        `${connection.connectionId}|${repository.providerRepositoryId}` === value,
+    );
+    if (candidate !== undefined) setDisplayName(candidate.repository.name);
+  };
+
+  const connect = async () => {
+    if (selected === undefined || displayName.trim().length === 0) return;
+    const selectedClient = clients.find((client) => client.clientId === clientId);
+    setBusy(true);
+    try {
+      await api.connectGithubRepository(workspaceId, {
+        connectionId: selected.connection.connectionId,
+        providerRepositoryId: selected.repository.providerRepositoryId,
+        displayName: displayName.trim(),
+        ...(selectedClient === undefined ? {} : { clientId: selectedClient.clientId }),
+      });
+      await refresh();
+      setSelectedRepository("");
+      setDisplayName("");
+      onRepositoryConnected();
+    } catch {
+      setState("unavailable");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Panel
+      title="GitHub accounts & repositories"
+      description="Discover the signed-in Windows GitHub CLI account, then register a repository as a FrevOS project."
+      action={
+        <button className="button secondary" type="button" disabled={busy} onClick={discover}>
+          {discovery !== null && ["queued", "claimed"].includes(discovery.status)
+            ? "Discovering..."
+            : "Discover laptop GitHub account"}
+        </button>
+      }
+    >
+      <div className="github-onboarding">
+        <p className="github-boundary-note">
+          GitHub credentials remain in the Windows GitHub CLI. FrevOS stores only verified account
+          and repository metadata.
+        </p>
+        {state === "loading" ? <p>Loading GitHub connections...</p> : null}
+        {state === "unavailable" ? (
+          <p role="alert">GitHub onboarding is temporarily unavailable. Check the laptop agent.</p>
+        ) : null}
+        {discovery?.status === "failed" ? (
+          <p role="alert">GitHub discovery failed: {discovery.errorCode}</p>
+        ) : null}
+        {connections.map((connection) => (
+          <div className="github-account" key={connection.connectionId}>
+            <strong>@{connection.login}</strong>
+            <span>{connection.repositories.length} repositories verified</span>
+          </div>
+        ))}
+        {availableRepositories.length > 0 ? (
+          <div className="github-connect-form">
+            <label>
+              Repository
+              <select
+                value={selectedRepository}
+                onChange={(event) => chooseRepository(event.target.value)}
+              >
+                <option value="">Select a repository</option>
+                {availableRepositories.map(({ connection, repository }) => (
+                  <option
+                    key={`${connection.connectionId}|${repository.providerRepositoryId}`}
+                    value={`${connection.connectionId}|${repository.providerRepositoryId}`}
+                  >
+                    {repository.owner}/{repository.name} - {repository.visibility}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Project name
+              <input
+                value={displayName}
+                maxLength={120}
+                onChange={(event) => setDisplayName(event.target.value)}
+              />
+            </label>
+            <label>
+              Client (optional)
+              <select value={clientId} onChange={(event) => setClientId(event.target.value)}>
+                <option value="">Unassigned</option>
+                {clients.map((client) => (
+                  <option key={client.clientId} value={client.clientId}>
+                    {client.displayName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              className="button primary"
+              type="button"
+              disabled={busy || selected === undefined || displayName.trim().length === 0}
+              onClick={connect}
+            >
+              Connect repository
+            </button>
+          </div>
+        ) : null}
+        {projectConnections.length > 0 ? (
+          <div className="github-connected-list">
+            <strong>Connected repositories</strong>
+            {projectConnections.map((connection) => (
+              <a
+                key={connection.projectId}
+                href={connection.repository.url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {connection.repository.owner}/{connection.repository.name}
+              </a>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </Panel>
   );
 }
 

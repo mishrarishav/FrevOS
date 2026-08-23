@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [switch]$Once,
-    [switch]$SelfTest
+    [switch]$SelfTest,
+    [switch]$DiscoverySelfTest
 )
 
 $ErrorActionPreference = "Stop"
@@ -12,6 +13,7 @@ $workspaceRoot = "D:\TrackGRN"
 $environmentFile = "D:\TrackGRN\server.env"
 $expectedRemote = "https://github.com/mishrarishav/TraceGRN.git"
 $agentId = "svc_trackgrn_windows_agent"
+$agentWorkspaceId = "ws_uat_demo"
 $serverReleaseRoot = "D:\TrackGRN-UAT\releases"
 $iisScriptRelativePath = "APItrackGRN\scripts\configure-iis-production.ps1"
 $apiProjectRelativePath = "APItrackGRN\src\APItrackGRN.Api\APItrackGRN.Api.csproj"
@@ -100,6 +102,57 @@ function Invoke-GitHubJson([string[]]$Arguments) {
     }
     catch {
         throw "GitHub returned an invalid response."
+    }
+}
+
+function Get-GitHubDiscovery {
+    $account = Invoke-GitHubJson @("api", "user")
+    $rawRepositories = @(Invoke-GitHubJson @("api", "user/repos?per_page=50&sort=updated"))
+    $login = ([string]$account.login).Trim()
+    $providerAccountId = ([string]$account.id).Trim()
+    if ($login -notmatch "^[A-Za-z0-9][A-Za-z0-9-]{0,38}$" -or
+        $providerAccountId -notmatch "^\d{1,20}$") {
+        throw "github-account-unavailable"
+    }
+
+    $repositories = @(
+        foreach ($repository in $rawRepositories | Select-Object -First 50) {
+            $owner = ([string]$repository.owner.login).Trim()
+            $name = ([string]$repository.name).Trim()
+            $providerRepositoryId = ([string]$repository.id).Trim()
+            $defaultBranch = ([string]$repository.default_branch).Trim()
+            if ($owner -notmatch "^[A-Za-z0-9][A-Za-z0-9-]{0,38}$" -or
+                $name -notmatch "^[A-Za-z0-9._-]{1,100}$" -or
+                $providerRepositoryId -notmatch "^\d{1,20}$" -or
+                $defaultBranch -notmatch "^[A-Za-z0-9][A-Za-z0-9._/-]{0,119}$") {
+                continue
+            }
+            $visibility = ([string]$repository.visibility).Trim().ToLowerInvariant()
+            if ([string]::IsNullOrWhiteSpace($visibility)) {
+                $visibility = if ([bool]$repository.private) { "private" } else { "public" }
+            }
+            if ($visibility -notin @("public", "private", "internal")) {
+                throw "github-repository-catalog-invalid"
+            }
+            [ordered]@{
+                providerRepositoryId = $providerRepositoryId
+                owner = $owner
+                name = $name
+                url = "https://github.com/$owner/$name"
+                defaultBranch = $defaultBranch
+                visibility = $visibility
+                archived = [bool]$repository.archived
+            }
+        }
+    )
+
+    return [ordered]@{
+        provider = "github"
+        account = [ordered]@{
+            providerAccountId = $providerAccountId
+            login = $login
+        }
+        repositories = $repositories
     }
 }
 
@@ -590,6 +643,7 @@ function Invoke-AgentRequest(
     $headers = @{
         Authorization = "Bearer $Token"
         "X-FrevOS-Agent-Id" = $agentId
+        "X-FrevOS-Workspace-Id" = $agentWorkspaceId
     }
     $parameters = @{
         Method = $Method
@@ -620,6 +674,16 @@ function Invoke-Operation([object]$Operation, [hashtable]$Environment) {
 
 Assert-AgentTooling
 Assert-Workspace
+if ($DiscoverySelfTest) {
+    $discovery = Get-GitHubDiscovery
+    [ordered]@{
+        provider = $discovery.provider
+        login = $discovery.account.login
+        repositoryCount = @($discovery.repositories).Count
+        credentialExported = $false
+    } | ConvertTo-Json
+    exit 0
+}
 if ($SelfTest) {
     Assert-GitHubOperator
     Get-RepositorySnapshot | ConvertTo-Json -Depth 6
@@ -634,6 +698,41 @@ if ([string]::IsNullOrWhiteSpace($agentToken) -or $agentToken.Length -lt 32) {
 
 do {
     try {
+        $githubClaim = Invoke-AgentRequest `
+            "POST" `
+            "/v1/agents/github/claim" `
+            $agentToken `
+            ([ordered]@{})
+        if ([int]$githubClaim.StatusCode -ne 204 -and
+            -not [string]::IsNullOrWhiteSpace($githubClaim.Content)) {
+            $githubOperation = $githubClaim.Content | ConvertFrom-Json
+            try {
+                $githubResult = Get-GitHubDiscovery
+                $githubCompletion = [ordered]@{ status = "succeeded"; result = $githubResult }
+            }
+            catch {
+                $githubFailure = [string]$_.Exception.Message
+                $githubErrorCode = if ($githubFailure -in @(
+                    "github-account-unavailable",
+                    "github-repository-catalog-invalid"
+                )) { $githubFailure } else { "github-account-unavailable" }
+                $githubCompletion = [ordered]@{
+                    status = "failed"
+                    errorCode = $githubErrorCode
+                    result = [ordered]@{
+                        message = "The Windows GitHub CLI account could not be discovered."
+                        failureStage = $githubErrorCode
+                    }
+                }
+            }
+            Invoke-AgentRequest "POST" `
+                "/v1/agents/github/discovery/$($githubOperation.operationId)/complete" `
+                $agentToken `
+                $githubCompletion | Out-Null
+            if (-not $Once) { continue }
+            break
+        }
+
         $claim = Invoke-AgentRequest `
             "POST" `
             "/v1/agents/trackgrn/claim" `

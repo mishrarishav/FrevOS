@@ -1,5 +1,11 @@
 import { z } from "zod";
 import { ApprovalGrantSchema } from "./approvals.js";
+import {
+  ConnectGithubRepositoryRequestSchema,
+  GithubConnectionSchema,
+  GithubDiscoveryOperationSchema,
+  ProjectRepositoryConnectionSchema,
+} from "./github-onboarding.js";
 import { ExternalIdentitySchema, SessionContextSchema } from "./identity.js";
 import { ProjectScopeSchema, WorkspaceScopeSchema } from "./permissions.js";
 import {
@@ -24,6 +30,13 @@ export const contractJsonSchemas = Object.freeze({
   approvalGrant: z.toJSONSchema(ApprovalGrantSchema, { target: "draft-2020-12" }),
   client: z.toJSONSchema(ClientSchema, { target: "draft-2020-12" }),
   externalIdentity: z.toJSONSchema(ExternalIdentitySchema, { target: "draft-2020-12" }),
+  githubConnection: z.toJSONSchema(GithubConnectionSchema, { target: "draft-2020-12" }),
+  githubDiscoveryOperation: z.toJSONSchema(GithubDiscoveryOperationSchema, {
+    target: "draft-2020-12",
+  }),
+  connectGithubRepositoryRequest: z.toJSONSchema(ConnectGithubRepositoryRequestSchema, {
+    target: "draft-2020-12",
+  }),
   project: z.toJSONSchema(ProjectSchema, { target: "draft-2020-12" }),
   projectAutomationOperation: z.toJSONSchema(ProjectAutomationOperationSchema, {
     target: "draft-2020-12",
@@ -32,6 +45,9 @@ export const contractJsonSchemas = Object.freeze({
     target: "draft-2020-12",
   }),
   projectAutomationRequest: z.toJSONSchema(ProjectAutomationRequestSchema, {
+    target: "draft-2020-12",
+  }),
+  projectRepositoryConnection: z.toJSONSchema(ProjectRepositoryConnectionSchema, {
     target: "draft-2020-12",
   }),
   projectScope: z.toJSONSchema(ProjectScopeSchema, { target: "draft-2020-12" }),

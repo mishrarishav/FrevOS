@@ -58,6 +58,17 @@ function api(overrides: Partial<ControlCenterApi> = {}): ControlCenterApi {
     createProjectAutomationOperation: async () => {
       throw new Error("not used by experience tests");
     },
+    listGithubConnections: async () => [],
+    createGithubDiscovery: async () => {
+      throw new Error("not used by experience tests");
+    },
+    getGithubDiscovery: async () => {
+      throw new Error("not used by experience tests");
+    },
+    listProjectRepositoryConnections: async () => [],
+    connectGithubRepository: async () => {
+      throw new Error("not used by experience tests");
+    },
     ...overrides,
   };
 }
