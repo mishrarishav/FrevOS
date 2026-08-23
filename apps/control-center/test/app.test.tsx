@@ -1,7 +1,7 @@
 import {
   ClientSchema,
-  ProjectSchema,
   ProjectAutomationOperationSchema,
+  ProjectSchema,
   SessionSummarySchema,
   WorkspaceSchema,
 } from "@frevos/contracts";
@@ -161,6 +161,9 @@ describe("Control Center rendering", () => {
     expect(html).toContain("Authenticated project operations");
     expect(html).toContain("Alpha Client");
     expect(html).toContain("Alpha Project");
+    expect(html).toContain("GitHub accounts &amp; repositories");
+    expect(html).toContain("Discover laptop GitHub account");
+    expect(html).toContain("GitHub credentials remain in the Windows GitHub CLI");
     expect(html).not.toContain("This route is reserved, not simulated.");
   });
 

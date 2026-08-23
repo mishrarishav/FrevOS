@@ -3,6 +3,7 @@ import { loadConfig } from "./config.js";
 import { registerControlCenter } from "./control-center.js";
 import { OidcTransactionCodec } from "./crypto.js";
 import { createDatabasePool, verifyApplicationRole, verifyDatabaseReadiness } from "./database.js";
+import { GithubOnboardingRepository } from "./github-onboarding.js";
 import { OpenIdClientProvider } from "./oidc.js";
 import { ProjectAutomationRepository } from "./project-automation.js";
 import { IdentitySessionRepository, WorkspaceRepository } from "./repositories.js";
@@ -33,6 +34,7 @@ try {
     identitySessions: new IdentitySessionRepository(pool),
     workspaces: new WorkspaceRepository(pool),
     automation: new ProjectAutomationRepository(pool),
+    githubOnboarding: new GithubOnboardingRepository(pool),
     ...(config.trackGrnAgentTokenHash === undefined
       ? {}
       : { trackGrnAgentTokenHash: config.trackGrnAgentTokenHash }),

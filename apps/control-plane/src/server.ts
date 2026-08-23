@@ -3,12 +3,17 @@ import {
   AgentOperationCompletionSchema,
   authorizeWorkspaceAction,
   ClientSchema,
+  ConnectGithubRepositoryRequestSchema,
+  GithubConnectionSchema,
+  GithubDiscoveryCompletionSchema,
+  GithubDiscoveryOperationSchema,
   OperationIdSchema,
   type PermissionScope,
   ProjectAutomationOperationSchema,
   ProjectAutomationProfileSchema,
   ProjectAutomationRequestSchema,
   ProjectIdSchema,
+  ProjectRepositoryConnectionSchema,
   ProjectSchema,
   type SessionContext,
   SessionContextSchema,
@@ -19,6 +24,11 @@ import {
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import { z } from "zod";
 import { hashesMatch, type OidcTransaction, type OidcTransactionCodec } from "./crypto.js";
+import {
+  type GithubOnboardingStore,
+  PERSONAL_AGENT_WORKSPACE_ID,
+  WINDOWS_GITHUB_AGENT_ID,
+} from "./github-onboarding.js";
 import { type AuthenticatedIdentity, createOidcTransaction, type OidcProvider } from "./oidc.js";
 import { type ProjectAutomationStore, TRACKGRN_AGENT_ID } from "./project-automation.js";
 import type {
@@ -107,6 +117,7 @@ const LocalLoginBodySchema = z
     password: z.string().min(1).max(128),
   })
   .strict();
+const EmptyBodySchema = z.object({}).strict();
 
 interface BuildServerOptions {
   readonly publicOrigin: string;
@@ -117,6 +128,7 @@ interface BuildServerOptions {
   readonly identitySessions: IdentitySessionRepository;
   readonly workspaces: WorkspaceRepository;
   readonly automation?: ProjectAutomationStore;
+  readonly githubOnboarding?: GithubOnboardingStore;
   readonly trackGrnAgentTokenHash?: Buffer;
   readonly readiness?: () => Promise<void>;
   readonly now?: () => Date;
@@ -135,6 +147,10 @@ interface ProjectAutomationOperationParams extends ProjectAutomationParams {
 }
 
 interface AgentOperationParams {
+  operationId: string;
+}
+
+interface GithubDiscoveryOperationParams extends WorkspaceParams {
   operationId: string;
 }
 
@@ -448,6 +464,87 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
   );
 
   server.get<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/github/connections"),
+    async (request) => {
+      const { workspaceId } = await requireWorkspace(request, options, "project:read", now());
+      return (await requireGithubOnboarding(options).listConnections(workspaceId)).map(
+        (connection) => GithubConnectionSchema.parse(connection),
+      );
+    },
+  );
+
+  server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/github/discovery"),
+    async (request, reply) => {
+      const { workspaceId, session } = await requireWorkspace(
+        request,
+        options,
+        "project:write",
+        now(),
+      );
+      requireCsrf(request, session.session, options.publicOrigin);
+      EmptyBodySchema.parse(request.body);
+      if (workspaceId !== PERSONAL_AGENT_WORKSPACE_ID) {
+        throw new HttpError(409, "github-companion-unavailable");
+      }
+      const operation = await requireGithubOnboarding(options).createDiscoveryOperation({
+        workspaceId,
+        requestedBy: session.session.context.userId,
+        now: now(),
+      });
+      return reply.status(202).send(GithubDiscoveryOperationSchema.parse(operation));
+    },
+  );
+
+  server.get<{ Params: GithubDiscoveryOperationParams }>(
+    route("/v1/workspaces/:workspaceId/github/discovery/:operationId"),
+    async (request) => {
+      const { workspaceId } = await requireWorkspace(request, options, "project:read", now());
+      const operationId = OperationIdSchema.parse(request.params.operationId);
+      const operation = await requireGithubOnboarding(options).getDiscoveryOperation(
+        workspaceId,
+        operationId,
+      );
+      if (operation === null) {
+        throw new HttpError(404, "github-discovery-not-found");
+      }
+      return GithubDiscoveryOperationSchema.parse(operation);
+    },
+  );
+
+  server.get<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/repository-connections"),
+    async (request) => {
+      const { workspaceId } = await requireWorkspace(request, options, "project:read", now());
+      return (await requireGithubOnboarding(options).listProjectConnections(workspaceId)).map(
+        (connection) => ProjectRepositoryConnectionSchema.parse(connection),
+      );
+    },
+  );
+
+  server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/repository-connections"),
+    async (request, reply) => {
+      const { workspaceId, session } = await requireWorkspace(
+        request,
+        options,
+        "project:write",
+        now(),
+      );
+      requireCsrf(request, session.session, options.publicOrigin);
+      const connection = await requireGithubOnboarding(options).connectRepository({
+        workspaceId,
+        request: ConnectGithubRepositoryRequestSchema.parse(request.body),
+        now: now(),
+      });
+      if (connection === null) {
+        throw new HttpError(409, "repository-connection-unavailable");
+      }
+      return reply.status(201).send(ProjectRepositoryConnectionSchema.parse(connection));
+    },
+  );
+
+  server.get<{ Params: WorkspaceParams }>(
     route("/v1/workspaces/:workspaceId/projects"),
     {
       schema: {
@@ -603,6 +700,44 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
     },
   );
 
+  server.post(route("/v1/agents/github/claim"), async (request, reply) => {
+    requireTrackGrnAgent(request, options.trackGrnAgentTokenHash);
+    const workspaceId = requireAgentWorkspace(request);
+    const operation = await requireGithubOnboarding(options).claimNextDiscovery(
+      workspaceId,
+      WINDOWS_GITHUB_AGENT_ID,
+      now(),
+    );
+    if (operation === null) {
+      return reply.status(204).send();
+    }
+    return GithubDiscoveryOperationSchema.parse(operation);
+  });
+
+  server.post<{ Params: AgentOperationParams }>(
+    route("/v1/agents/github/discovery/:operationId/complete"),
+    async (request) => {
+      requireTrackGrnAgent(request, options.trackGrnAgentTokenHash);
+      const workspaceId = requireAgentWorkspace(request);
+      const operationId = OperationIdSchema.parse(request.params.operationId);
+      const completion = GithubDiscoveryCompletionSchema.parse(request.body);
+      if (Buffer.byteLength(JSON.stringify(completion.result), "utf8") > 60_000) {
+        throw new HttpError(400, "agent-result-too-large");
+      }
+      const operation = await requireGithubOnboarding(options).completeDiscovery({
+        workspaceId,
+        agentId: WINDOWS_GITHUB_AGENT_ID,
+        operationId,
+        completion,
+        now: now(),
+      });
+      if (operation === null) {
+        throw new HttpError(409, "github-discovery-not-claimable");
+      }
+      return GithubDiscoveryOperationSchema.parse(operation);
+    },
+  );
+
   return server;
 }
 
@@ -611,6 +746,21 @@ function requireAutomation(options: BuildServerOptions): ProjectAutomationStore 
     throw new HttpError(503, "project-automation-unavailable");
   }
   return options.automation;
+}
+
+function requireGithubOnboarding(options: BuildServerOptions): GithubOnboardingStore {
+  if (options.githubOnboarding === undefined) {
+    throw new HttpError(503, "github-onboarding-unavailable");
+  }
+  return options.githubOnboarding;
+}
+
+function requireAgentWorkspace(request: FastifyRequest): string {
+  const workspaceId = WorkspaceIdSchema.parse(request.headers["x-frevos-workspace-id"]);
+  if (workspaceId !== PERSONAL_AGENT_WORKSPACE_ID) {
+    throw new HttpError(403, "agent-workspace-denied");
+  }
+  return workspaceId;
 }
 
 function requireTrackGrnAgent(request: FastifyRequest, expectedTokenHash?: Buffer): void {

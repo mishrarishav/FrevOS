@@ -38,6 +38,7 @@ decision receives a new ADR that names the record it supersedes.
 | [0021](0021-local-credentials-for-personal-windows-uat.md) | Accepted | Use local credentials for personal Windows UAT |
 | [0022](0022-trackgrn-uat-automation-pilot.md) | Accepted | Authorize a bounded TrackGRN UAT automation pilot |
 | [0023](0023-trackgrn-human-approved-squash-merge.md) | Accepted | Allow exact-head, green-check, human-approved TrackGRN squash merge |
+| [0024](0024-personal-github-repository-onboarding.md) | Accepted | Discover personal GitHub repositories through the Windows companion |
 
 ## Creating an ADR
 

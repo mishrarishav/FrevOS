@@ -1,12 +1,19 @@
 import {
   type Client,
   ClientSchema,
+  type ConnectGithubRepositoryRequest,
+  type GithubConnection,
+  GithubConnectionSchema,
+  type GithubDiscoveryOperation,
+  GithubDiscoveryOperationSchema,
   type Project,
   type ProjectAutomationOperation,
   ProjectAutomationOperationSchema,
   type ProjectAutomationProfile,
   ProjectAutomationProfileSchema,
   type ProjectAutomationRequest,
+  type ProjectRepositoryConnection,
+  ProjectRepositoryConnectionSchema,
   ProjectSchema,
   type SessionSummary,
   SessionSummarySchema,
@@ -59,6 +66,25 @@ export interface ControlCenterApi {
     request: ProjectAutomationRequest,
     signal?: AbortSignal,
   ): Promise<ProjectAutomationOperation>;
+  listGithubConnections(workspaceId: string, signal?: AbortSignal): Promise<GithubConnection[]>;
+  createGithubDiscovery(
+    workspaceId: string,
+    signal?: AbortSignal,
+  ): Promise<GithubDiscoveryOperation>;
+  getGithubDiscovery(
+    workspaceId: string,
+    operationId: string,
+    signal?: AbortSignal,
+  ): Promise<GithubDiscoveryOperation>;
+  listProjectRepositoryConnections(
+    workspaceId: string,
+    signal?: AbortSignal,
+  ): Promise<ProjectRepositoryConnection[]>;
+  connectGithubRepository(
+    workspaceId: string,
+    request: ConnectGithubRepositoryRequest,
+    signal?: AbortSignal,
+  ): Promise<ProjectRepositoryConnection>;
 }
 
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
@@ -215,7 +241,48 @@ export function createControlCenterApi(
       const path = `${automationPath(workspaceId, projectId)}/operations`;
       return post(path, request, ProjectAutomationOperationSchema, signal);
     },
+    listGithubConnections(workspaceId, signal) {
+      return get(
+        `${workspacePath(workspaceId)}/github/connections`,
+        GithubConnectionSchema.array(),
+        signal,
+      );
+    },
+    createGithubDiscovery(workspaceId, signal) {
+      return post(
+        `${workspacePath(workspaceId)}/github/discovery`,
+        {},
+        GithubDiscoveryOperationSchema,
+        signal,
+      );
+    },
+    getGithubDiscovery(workspaceId, operationId, signal) {
+      return get(
+        `${workspacePath(workspaceId)}/github/discovery/${encodeURIComponent(operationId)}`,
+        GithubDiscoveryOperationSchema,
+        signal,
+      );
+    },
+    listProjectRepositoryConnections(workspaceId, signal) {
+      return get(
+        `${workspacePath(workspaceId)}/repository-connections`,
+        ProjectRepositoryConnectionSchema.array(),
+        signal,
+      );
+    },
+    connectGithubRepository(workspaceId, request, signal) {
+      return post(
+        `${workspacePath(workspaceId)}/repository-connections`,
+        request,
+        ProjectRepositoryConnectionSchema,
+        signal,
+      );
+    },
   };
+}
+
+function workspacePath(workspaceId: string): string {
+  return `/v1/workspaces/${encodeURIComponent(workspaceId)}`;
 }
 
 function automationPath(workspaceId: string, projectId: string): string {

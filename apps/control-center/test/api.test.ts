@@ -1,3 +1,4 @@
+import { GithubConnectionSchema } from "@frevos/contracts";
 import { describe, expect, it } from "vitest";
 import { createControlCenterApi } from "../src/api.js";
 
@@ -65,6 +66,48 @@ const automationOperation = {
   completedAt: null,
 };
 const inspectRequest = { action: "repository.inspect", input: {} } as const;
+const githubRepository = {
+  providerRepositoryId: "1334902237",
+  owner: "mishrarishav",
+  name: "TraceGRN",
+  url: "https://github.com/mishrarishav/TraceGRN",
+  defaultBranch: "main",
+  visibility: "private",
+  archived: false,
+} as const;
+const githubConnection = GithubConnectionSchema.parse({
+  connectionId: "ghc_primary",
+  workspaceId: "ws_alpha",
+  provider: "github",
+  providerAccountId: "1234567",
+  login: "mishrarishav",
+  agentId: "svc_trackgrn_windows_agent",
+  status: "active",
+  repositories: [githubRepository],
+  verifiedAt: "2026-08-23T08:00:00.000Z",
+  createdAt: "2026-08-23T08:00:00.000Z",
+});
+const githubDiscovery = {
+  operationId: "op_github_01",
+  workspaceId: "ws_alpha",
+  agentId: "svc_trackgrn_windows_agent",
+  requestedBy: "usr_primary",
+  action: "github.account.discover",
+  status: "queued",
+  result: null,
+  errorCode: null,
+  createdAt: "2026-08-23T08:00:00.000Z",
+  claimedAt: null,
+  completedAt: null,
+} as const;
+const projectRepositoryConnection = {
+  workspaceId: "ws_alpha",
+  projectId: "prj_tracegrn",
+  connectionId: "ghc_primary",
+  repository: githubRepository,
+  status: "connected",
+  createdAt: "2026-08-23T08:00:00.000Z",
+} as const;
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -248,6 +291,64 @@ describe("authenticated Control Center API", () => {
         ...inspectRequest,
       }),
     ).rejects.toMatchObject({ kind: "denied" });
+  });
+
+  it("discovers GitHub metadata and connects a repository without browser credentials", async () => {
+    const requests: Array<{ path: string; init: RequestInit | undefined }> = [];
+    const api = createControlCenterApi(
+      async (input, init) => {
+        const path = String(input);
+        requests.push({ path, init });
+        if (path.endsWith("/github/connections")) return jsonResponse([githubConnection]);
+        if (path.endsWith("/github/discovery") && init?.method === "POST") {
+          return jsonResponse(githubDiscovery, 202);
+        }
+        if (path.includes("/github/discovery/")) return jsonResponse(githubDiscovery);
+        if (path.endsWith("/repository-connections") && init?.method === "POST") {
+          return jsonResponse(projectRepositoryConnection, 201);
+        }
+        return jsonResponse([projectRepositoryConnection]);
+      },
+      "/frevos",
+      () => "csrf-value",
+    );
+
+    await expect(api.listGithubConnections("ws_alpha")).resolves.toEqual([githubConnection]);
+    await expect(api.createGithubDiscovery("ws_alpha")).resolves.toEqual(githubDiscovery);
+    await expect(api.getGithubDiscovery("ws_alpha", "op_github_01")).resolves.toEqual(
+      githubDiscovery,
+    );
+    await expect(api.listProjectRepositoryConnections("ws_alpha")).resolves.toEqual([
+      projectRepositoryConnection,
+    ]);
+    await expect(
+      api.connectGithubRepository("ws_alpha", {
+        connectionId: githubConnection.connectionId,
+        providerRepositoryId: githubRepository.providerRepositoryId,
+        displayName: "TraceGRN",
+      }),
+    ).resolves.toEqual(projectRepositoryConnection);
+
+    expect(requests.map((request) => request.path)).toEqual([
+      "/frevos/v1/workspaces/ws_alpha/github/connections",
+      "/frevos/v1/workspaces/ws_alpha/github/discovery",
+      "/frevos/v1/workspaces/ws_alpha/github/discovery/op_github_01",
+      "/frevos/v1/workspaces/ws_alpha/repository-connections",
+      "/frevos/v1/workspaces/ws_alpha/repository-connections",
+    ]);
+    const connectRequest = requests[4]?.init;
+    expect(connectRequest).toMatchObject({
+      method: "POST",
+      headers: expect.objectContaining({ "x-csrf-token": "csrf-value" }),
+    });
+    expect(connectRequest?.body).toBe(
+      JSON.stringify({
+        connectionId: "ghc_primary",
+        providerRepositoryId: "1334902237",
+        displayName: "TraceGRN",
+      }),
+    );
+    expect(JSON.stringify(requests)).not.toMatch(/password|github[_-]?token|authorization/i);
   });
 
   it.each([
