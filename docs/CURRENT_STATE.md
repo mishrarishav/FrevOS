@@ -1,6 +1,27 @@
 # FrevOS Current State
 
-Last updated: 2026-08-23
+Last updated: 2026-10-07
+
+## Server 20 dependency prerequisite (publication candidate)
+
+The dedicated `fix/server20-dependency-audit` branch starts from merged `main`
+at `43eb9a0e29ec88882c9a1a922e03d7b8a28113fa`. It updates Fastify within major
+5, Vitest/coverage within 4.1, and affected indirect dependencies within their
+existing parent ranges. No runtime source, tests, permissions, or audit gates
+were weakened or changed. The active roadmap remains Phase 4 exit.
+
+Frozen installation and `pnpm run ci` passed locally: 178 unit/integration
+tests, required coverage, formatting, lint, types, application build, and a
+dependency audit reporting no known vulnerabilities. This is evidence for the
+merged-baseline dependency branch only, not the other unmerged feature branches
+or a live Production deployment. Publication, human merge, final release
+integration, native server setup and live browser verification remain separate.
+See [dependency task handoff](SERVER20_DEPENDENCY_HANDOFF.md).
+
+On 2026-10-07 the owner authorized committing, pushing and creating a draft PR
+for this dependency fix. Human merge and Production deployment remain separate
+actions. The same reply selected the server20 IP-HTTPS/fresh-DB/new-admin hosting
+profile; that rollout decision is separate from this dependency-only patch.
 
 ## Snapshot
 
