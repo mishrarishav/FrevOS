@@ -15,7 +15,7 @@
     "@fastify/cookie": "11.1.2",
     "@fastify/static": "10.1.2",
     "@frevos/contracts": "workspace:*",
-    "fastify": "5.11.3",
+    "fastify": "5.12.5",
     "openid-client": "6.8.4",
     "pg": "8.23.0",
     "zod": "4.4.3"
