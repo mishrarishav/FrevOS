@@ -8,6 +8,7 @@ import type {
   ProjectRepositoryConnection,
   Workspace,
 } from "@frevos/contracts";
+import { IsoTimestampSchema } from "@frevos/contracts";
 import {
   Activity,
   Bell,
@@ -1225,10 +1226,312 @@ function ProjectsSurface({
         clients={clients}
         onRepositoryConnected={onRepositoryConnected}
       />
+      {projects.some((project) => project.projectId === "prj_uat_frevos") ? (
+        <FrevOsMaintenancePanel api={api} workspaceId={workspace.workspaceId} />
+      ) : null}
       {projects.some((project) => project.projectId === "prj_uat_trackgrn") ? (
         <TrackGrnAutomationPanel api={api} workspaceId={workspace.workspaceId} />
       ) : null}
     </div>
+  );
+}
+
+function FrevOsMaintenancePanel({
+  api,
+  workspaceId,
+}: {
+  api: ControlCenterApi;
+  workspaceId: string;
+}) {
+  const projectId = "prj_uat_frevos";
+  const [operations, setOperations] = useState<ProjectAutomationOperation[]>([]);
+  const [state, setState] = useState<"loading" | "ready" | "unavailable">("loading");
+  const [commitMessage, setCommitMessage] = useState("");
+  const [autoMergeConfirmed, setAutoMergeConfirmed] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const refresh = useCallback(
+    async (signal?: AbortSignal) => {
+      try {
+        await api.getProjectAutomation(workspaceId, projectId, signal);
+        const next = await api.listProjectAutomationOperations(workspaceId, projectId, signal);
+        setOperations(next);
+        setState("ready");
+        const proposal = next.find(
+          (operation) =>
+            operation.action === "repository.propose-commit" && operation.status === "succeeded",
+        );
+        const proposedMessage = stringResult(proposal, "proposedCommitMessage");
+        if (proposedMessage !== undefined) {
+          setCommitMessage((current) => current || proposedMessage);
+        }
+      } catch {
+        if (signal?.aborted !== true) setState("unavailable");
+      }
+    },
+    [api, workspaceId],
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void refresh(controller.signal);
+    return () => controller.abort();
+  }, [refresh]);
+
+  useEffect(() => {
+    if (
+      !operations.some(
+        (operation) => operation.status === "queued" || operation.status === "claimed",
+      )
+    )
+      return;
+    const timer = window.setInterval(() => void refresh(), 3000);
+    return () => window.clearInterval(timer);
+  }, [operations, refresh]);
+
+  const requestOperation = async (request: ProjectAutomationRequest) => {
+    setSubmitting(true);
+    try {
+      const operation = await api.createProjectAutomationOperation(workspaceId, projectId, request);
+      setOperations((current) => [operation, ...current]);
+      setState("ready");
+    } catch {
+      setState("unavailable");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const proposal = operations.find(
+    (operation) =>
+      operation.action === "repository.propose-commit" && operation.status === "succeeded",
+  );
+  const repositoryEvidence = operations.find(
+    (operation) =>
+      (operation.action === "repository.inspect" ||
+        operation.action === "repository.propose-commit") &&
+      operation.status === "succeeded",
+  );
+  const expectedHeadSha = stringResult(repositoryEvidence, "headSha");
+  const expectedChangeDigest = stringResult(proposal, "changeDigest");
+  const clean = booleanResult(repositoryEvidence, "clean");
+  const committed = operations.find(
+    (operation) =>
+      operation.action === "repository.commit-push" && operation.status === "succeeded",
+  );
+  const committedHeadSha = stringResult(committed, "commitSha");
+  const committedBranch = stringResult(committed, "branch");
+  const committedMessage = stringResult(committed, "commitMessage") ?? commitMessage.trim();
+  const pullRequest = operations.find(
+    (operation) =>
+      (operation.action === "repository.open-pull-request" ||
+        operation.action === "repository.inspect" ||
+        operation.action === "repository.propose-commit") &&
+      operation.status === "succeeded" &&
+      numberResult(operation, "pullRequestNumber") !== undefined,
+  );
+  const pullRequestNumber = numberResult(pullRequest, "pullRequestNumber");
+  const pullRequestUrl = stringResult(pullRequest, "pullRequestUrl");
+  const pullRequestHeadSha =
+    stringResult(pullRequest, "headSha") ?? stringResult(pullRequest, "pullRequestHeadSha");
+  const autoMerge = operations.find(
+    (operation) =>
+      operation.action === "repository.enable-auto-merge" && operation.status === "succeeded",
+  );
+  const autoMergePullRequest = numberResult(autoMerge, "pullRequestNumber");
+  const busy =
+    submitting ||
+    operations.some((operation) => operation.status === "queued" || operation.status === "claimed");
+
+  return (
+    <Panel
+      title="FrevOS self-maintenance"
+      description="Reviewed changes · CI-gated squash merge · immutable package · automatic UAT activation"
+      action={
+        <button className="button secondary" type="button" onClick={() => void refresh()}>
+          Refresh
+        </button>
+      }
+    >
+      {state === "loading" ? <p>Loading the FrevOS maintenance pipeline…</p> : null}
+      {state === "unavailable" ? (
+        <div className="resource-empty">
+          <WifiOff aria-hidden="true" size={19} />
+          <div>
+            <h3>Maintenance agent is unavailable</h3>
+            <p>Connect the VPN and confirm both FrevOS Windows agents are running.</p>
+          </div>
+        </div>
+      ) : null}
+      {state === "ready" ? (
+        <div className="trackgrn-automation">
+          <div className="trackgrn-actions">
+            <button
+              className="button secondary"
+              type="button"
+              disabled={busy}
+              onClick={() => void requestOperation({ action: "repository.inspect", input: {} })}
+            >
+              Inspect FrevOS
+            </button>
+            <button
+              className="button secondary"
+              type="button"
+              disabled={busy}
+              onClick={() =>
+                void requestOperation({ action: "repository.propose-commit", input: {} })
+              }
+            >
+              Prepare commit
+            </button>
+            <button
+              className="button secondary"
+              type="button"
+              disabled={busy}
+              onClick={() => void requestOperation({ action: "project.build", input: {} })}
+            >
+              Validate &amp; build package
+            </button>
+            <button
+              className="button primary"
+              type="button"
+              disabled={busy}
+              onClick={() => void requestOperation({ action: "uat.release", input: {} })}
+            >
+              Update FrevOS UAT
+            </button>
+          </div>
+          <label className="trackgrn-commit-field">
+            <span>Reviewed commit message</span>
+            <input
+              value={commitMessage}
+              maxLength={120}
+              onChange={(event) => setCommitMessage(event.target.value)}
+              placeholder="Prepare commit to generate a suggestion"
+            />
+          </label>
+          <button
+            className="button secondary"
+            type="button"
+            disabled={
+              !canCommitReviewedChanges({
+                busy,
+                clean,
+                expectedHeadSha,
+                expectedChangeDigest,
+                commitMessage,
+              })
+            }
+            onClick={() => {
+              if (expectedHeadSha !== undefined && expectedChangeDigest !== undefined) {
+                void requestOperation({
+                  action: "repository.commit-push",
+                  input: {
+                    expectedHeadSha,
+                    expectedChangeDigest,
+                    commitMessage: commitMessage.trim(),
+                  },
+                });
+              }
+            }}
+          >
+            Commit &amp; push reviewed branch
+          </button>
+          <div className="trackgrn-review-actions">
+            <button
+              className="button secondary"
+              type="button"
+              disabled={
+                busy ||
+                committedHeadSha === undefined ||
+                committedBranch === undefined ||
+                committedMessage.length < 3
+              }
+              onClick={() => {
+                if (committedHeadSha !== undefined && committedBranch !== undefined) {
+                  void requestOperation({
+                    action: "repository.open-pull-request",
+                    input: {
+                      expectedHeadSha: committedHeadSha,
+                      branch: committedBranch,
+                      title: committedMessage,
+                    },
+                  });
+                }
+              }}
+            >
+              Create reviewed PR
+            </button>
+            {pullRequestUrl !== undefined && pullRequestNumber !== undefined ? (
+              <a href={pullRequestUrl} target="_blank" rel="noreferrer">
+                PR #{pullRequestNumber} evidence
+              </a>
+            ) : null}
+          </div>
+          {pullRequestNumber !== undefined && pullRequestHeadSha !== undefined ? (
+            <div className="trackgrn-merge-gate">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={autoMergeConfirmed}
+                  onChange={(event) => setAutoMergeConfirmed(event.target.checked)}
+                />
+                <span>
+                  I reviewed PR #{pullRequestNumber}. Squash-merge it automatically only after
+                  required checks pass.
+                </span>
+              </label>
+              <button
+                className="button primary"
+                type="button"
+                disabled={busy || !autoMergeConfirmed || autoMergePullRequest === pullRequestNumber}
+                onClick={() => {
+                  setAutoMergeConfirmed(false);
+                  void requestOperation({
+                    action: "repository.enable-auto-merge",
+                    input: {
+                      pullRequestNumber,
+                      expectedHeadSha: pullRequestHeadSha,
+                      confirmation: "enable-auto-merge",
+                      approvalExpiresAt: IsoTimestampSchema.parse(
+                        new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+                      ),
+                    },
+                  });
+                }}
+              >
+                Auto squash-merge after CI
+              </button>
+            </div>
+          ) : null}
+          <div className="trackgrn-operation-list" aria-live="polite">
+            {operations.length === 0 ? (
+              <p>No FrevOS maintenance operation has been requested yet.</p>
+            ) : null}
+            {operations.slice(0, 12).map((operation) => (
+              <article key={operation.operationId}>
+                <div>
+                  <strong>{operation.action}</strong>
+                  <span className="mono-copy">{operation.operationId}</span>
+                </div>
+                <StatusBadge
+                  status={{
+                    label: projectAutomationStatusLabel(operation),
+                    tone:
+                      operation.status === "succeeded"
+                        ? "verified"
+                        : operation.status === "failed"
+                          ? "failure"
+                          : "signal",
+                  }}
+                  compact
+                />
+              </article>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </Panel>
   );
 }
 
@@ -1767,6 +2070,24 @@ export function projectAutomationStatusLabel(operation: ProjectAutomationOperati
       return "Artifact conflict";
     case "api-publish-failed":
       return "API publish failed";
+    case "validation-failed":
+      return "Validation failed";
+    case "required-check-missing":
+      return "Required CI check missing";
+    case "release-build-failed":
+      return "Release build failed";
+    case "source-not-clean":
+      return "Review local changes";
+    case "server-deploy-timeout":
+      return "Server deploy timed out";
+    case "server-deploy-failed":
+      return "Server deploy failed";
+    case "health-check-failed":
+      return "Health check failed";
+    case "auto-merge-enable-failed":
+      return "Auto-merge failed";
+    case "merge-approval-expired":
+      return "Merge approval expired";
     default:
       return "Failed";
   }

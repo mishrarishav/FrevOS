@@ -71,8 +71,34 @@ INSERT INTO frevos.project_automation_profiles (
     'uat.deploy'
   ],
   CURRENT_TIMESTAMP
+), (
+  'ws_uat_demo',
+  'prj_uat_frevos',
+  'github',
+  '1329122983',
+  'mishrarishav',
+  'FrevOS',
+  'https://github.com/mishrarishav/FrevOS',
+  'main',
+  'svc_frevos_windows_agent',
+  'uat',
+  'https://tserver2.eeslindia.org',
+  '/frevos',
+  '/frevos/health',
+  '/frevos/',
+  ARRAY[
+    'repository.inspect',
+    'repository.propose-commit',
+    'repository.commit-push',
+    'repository.open-pull-request',
+    'repository.enable-auto-merge',
+    'project.build',
+    'uat.release'
+  ],
+  CURRENT_TIMESTAMP
 )
 ON CONFLICT (workspace_id, project_id) DO UPDATE SET
+  agent_id = EXCLUDED.agent_id,
   provider_repository_id = EXCLUDED.provider_repository_id,
   repository_url = EXCLUDED.repository_url,
   default_branch = EXCLUDED.default_branch,

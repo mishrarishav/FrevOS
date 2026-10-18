@@ -14,8 +14,10 @@ export const ProjectAutomationActionSchema = z.enum([
   "repository.commit-push",
   "repository.open-pull-request",
   "repository.squash-merge",
+  "repository.enable-auto-merge",
   "project.build",
   "uat.deploy",
+  "uat.release",
 ]);
 export type ProjectAutomationAction = z.infer<typeof ProjectAutomationActionSchema>;
 
@@ -32,26 +34,38 @@ export const ProjectAutomationProfileSchema = z
     repository: z
       .object({
         provider: z.literal("github"),
-        providerRepositoryId: z.literal("1334902237"),
-        owner: z.literal("mishrarishav"),
-        name: z.literal("TraceGRN"),
-        url: z.literal("https://github.com/mishrarishav/TraceGRN"),
-        defaultBranch: z.literal("main"),
+        providerRepositoryId: z.string().regex(/^\d{1,20}$/),
+        owner: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/),
+        name: z.string().regex(/^[A-Za-z0-9._-]{1,100}$/),
+        url: z.string().url().startsWith("https://github.com/"),
+        defaultBranch: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._/-]{0,119}$/),
       })
       .strict(),
-    agentId: ServiceIdentityIdSchema.refine((value) => value === "svc_trackgrn_windows_agent"),
+    agentId: ServiceIdentityIdSchema,
     environment: z.literal("uat"),
     application: z
       .object({
-        publicOrigin: z.literal("https://tserver2.eeslindia.org"),
-        apiBasePath: z.literal("/apiTrackGrn"),
-        healthPath: z.literal("/apiTrackGrn/health/live"),
-        swaggerPath: z.literal("/apiTrackGrn/swagger"),
+        publicOrigin: z.string().url().startsWith("https://"),
+        apiBasePath: z.string().regex(/^\/[A-Za-z0-9._/-]{1,199}$/),
+        healthPath: z.string().regex(/^\/[A-Za-z0-9._/-]{1,199}$/),
+        swaggerPath: z.string().regex(/^\/[A-Za-z0-9._/-]{1,199}$/),
       })
       .strict(),
     allowedActions: z.array(ProjectAutomationActionSchema).min(1),
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    if (
+      value.repository.url !==
+      `https://github.com/${value.repository.owner}/${value.repository.name}`
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["repository", "url"],
+        message: "Repository URL does not match its owner and name",
+      });
+    }
+  });
 export type ProjectAutomationProfile = z.infer<typeof ProjectAutomationProfileSchema>;
 
 const NoInputSchema = z.object({}).strict();
@@ -74,7 +88,7 @@ const PullRequestTitleSchema = z
 const ReviewedBranchInputSchema = z
   .object({
     expectedHeadSha: Sha1Schema,
-    branch: z.string().regex(/^frevos\/trackgrn-[A-Za-z0-9_-]{12}$/),
+    branch: z.string().regex(/^frevos\/(?:trackgrn|frevos)-[A-Za-z0-9_-]{12}$/),
     title: PullRequestTitleSchema,
   })
   .strict();
@@ -83,6 +97,14 @@ const SquashMergeInputSchema = z
     pullRequestNumber: z.number().int().min(1).max(2_147_483_647),
     expectedHeadSha: Sha1Schema,
     confirmation: z.literal("squash-merge"),
+  })
+  .strict();
+const EnableAutoMergeInputSchema = z
+  .object({
+    pullRequestNumber: z.number().int().min(1).max(2_147_483_647),
+    expectedHeadSha: Sha1Schema,
+    confirmation: z.literal("enable-auto-merge"),
+    approvalExpiresAt: IsoTimestampSchema,
   })
   .strict();
 const DeployInputSchema = z
@@ -105,8 +127,15 @@ export const ProjectAutomationRequestSchema = z.discriminatedUnion("action", [
   z
     .object({ action: z.literal("repository.squash-merge"), input: SquashMergeInputSchema })
     .strict(),
+  z
+    .object({
+      action: z.literal("repository.enable-auto-merge"),
+      input: EnableAutoMergeInputSchema,
+    })
+    .strict(),
   z.object({ action: z.literal("project.build"), input: NoInputSchema }).strict(),
   z.object({ action: z.literal("uat.deploy"), input: DeployInputSchema }).strict(),
+  z.object({ action: z.literal("uat.release"), input: NoInputSchema }).strict(),
 ]);
 export type ProjectAutomationRequest = z.infer<typeof ProjectAutomationRequestSchema>;
 

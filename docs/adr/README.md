@@ -39,6 +39,7 @@ decision receives a new ADR that names the record it supersedes.
 | [0022](0022-trackgrn-uat-automation-pilot.md) | Accepted | Authorize a bounded TrackGRN UAT automation pilot |
 | [0023](0023-trackgrn-human-approved-squash-merge.md) | Accepted | Allow exact-head, green-check, human-approved TrackGRN squash merge |
 | [0024](0024-personal-github-repository-onboarding.md) | Accepted | Discover personal GitHub repositories through the Windows companion |
+| [0025](0025-personal-uat-self-maintenance-pipeline.md) | Accepted | Operate the personal FrevOS UAT release pipeline from bounded product actions |
 
 ## Creating an ADR
 

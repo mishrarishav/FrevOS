@@ -65,3 +65,27 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 The registered task starts when the laptop is available and remains eligible
 to run on battery power, so companion polling does not silently queue until AC
 power returns.
+
+## FrevOS maintenance companion
+
+The separate `FrevOS-Maintenance-Agent` is pinned to repository ID `1329122983`
+and `D:\FREVOS`. It supports reviewed commit/PR preparation, owner-confirmed
+CI-gated squash auto-merge, validation/package build, and one-click personal UAT
+release. It does not grant these actions to newly connected repositories.
+
+`uat.release` uses the existing ignored server credential boundary only at the
+laptop executor. It copies an exact SHA-256-bound package to the fixed
+`D:\FrevOS-UAT\automation` inbox through the server administrative share. The
+server-side `FrevOS-UAT-DeployAgent` validates and activates it outside the web
+process, then writes a bounded result for the laptop agent to report.
+
+The familiar installer now installs both laptop tasks:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\deployment\windows-agent\Install-TrackGrnAgent.ps1
+```
+
+The first UAT deployment containing the server task is the only bootstrap
+release that still uses the manual package installer. Later healthy releases
+are requested with **Update FrevOS UAT** in the Control Center.

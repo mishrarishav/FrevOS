@@ -36,8 +36,8 @@ const profile = {
   ],
 };
 
-describe("TrackGRN automation contracts", () => {
-  it("pins one GitHub repository, agent, application path, and UAT environment", () => {
+describe("project automation contracts", () => {
+  it("validates a bound GitHub repository, agent, application path, and UAT environment", () => {
     expect(ProjectAutomationProfileSchema.parse(profile)).toEqual(profile);
     expect(() =>
       ProjectAutomationProfileSchema.parse({
@@ -48,6 +48,36 @@ describe("TrackGRN automation contracts", () => {
     expect(() =>
       ProjectAutomationProfileSchema.parse({ ...profile, environment: "production" }),
     ).toThrow();
+  });
+
+  it("accepts the bounded FrevOS self-maintenance profile", () => {
+    expect(
+      ProjectAutomationProfileSchema.parse({
+        ...profile,
+        projectId: "prj_uat_frevos",
+        repository: {
+          provider: "github",
+          providerRepositoryId: "1329122983",
+          owner: "mishrarishav",
+          name: "FrevOS",
+          url: "https://github.com/mishrarishav/FrevOS",
+          defaultBranch: "main",
+        },
+        agentId: "svc_frevos_windows_agent",
+        application: {
+          publicOrigin: "https://tserver2.eeslindia.org",
+          apiBasePath: "/frevos",
+          healthPath: "/frevos/health",
+          swaggerPath: "/frevos/",
+        },
+        allowedActions: [
+          "repository.inspect",
+          "repository.enable-auto-merge",
+          "project.build",
+          "uat.release",
+        ],
+      }),
+    ).toMatchObject({ projectId: "prj_uat_frevos", agentId: "svc_frevos_windows_agent" });
   });
 
   it("allows only versioned business actions and binds commit to reviewed changes", () => {
@@ -94,6 +124,21 @@ describe("TrackGRN automation contracts", () => {
         },
       }),
     ).toThrow();
+    expect(
+      ProjectAutomationRequestSchema.parse({
+        action: "repository.enable-auto-merge",
+        input: {
+          pullRequestNumber: 43,
+          expectedHeadSha: "d".repeat(40),
+          confirmation: "enable-auto-merge",
+          approvalExpiresAt: "2026-08-23T10:10:00.000Z",
+        },
+      }),
+    ).toMatchObject({ action: "repository.enable-auto-merge" });
+    expect(ProjectAutomationRequestSchema.parse({ action: "uat.release", input: {} })).toEqual({
+      action: "uat.release",
+      input: {},
+    });
     expect(() =>
       ProjectAutomationRequestSchema.parse({ action: "shell.run", input: { command: "whoami" } }),
     ).toThrow();
