@@ -2,35 +2,32 @@
 
 Last updated: 2026-10-23
 
-## Configured component deployments (in progress, 2026-10-22)
+## Configured component deployments (final native rollback checks, 2026-10-23)
 
-The owner requests configurable microservice destinations and the same source
-connector workflow for DevSetu. Work is stacked on
-`feature/configured-component-deployments`, ADR 0049. Add a revisioned component
-model and independently enrolled build/destination workers while preserving the
-existing Servix compatibility path and production exclusion. Implementation and
-verification are in progress. Do not infer
-remote acceptance or full source-pipeline readiness from new configuration UI.
+The owner's configuration-driven component engine and DevSetu source pipeline
+are implemented on `feature/configured-component-deployments`, ADRs 0049–0052.
+Native release A is active: source `5dbe2a323a013369c8039b7727c17a968f9c97b8`,
+manifest `d0eb1691c62fec887d5e901315c7f0011215ccae94d764c632eebf91af10773b`.
+Actual dashboard Deploy all completed automatic Git publication, isolated frozen
+installation/full CI, immutable packaging/private publication and independent
+server20 activation. Receipt: health/UI 200, no operator database write, sibling
+IIS preserved. The exact packaged Windows Node/real-PG smoke passed.
 
-Resume evidence: the verified component-engine HTTP correction `9a62b20e` is now
-active after an actual maintenance-popup submission. Health/UI returned 200;
-the activation receipt records no database write and preserved sibling IIS.
-Full CI passed 246 tests and required coverage gates; real local Playwright
-passed source/build/split deployment, repeated rollback, protection, offline and
-responsive checks, including internal HTTP without `crypto.randomUUID`.
-The laptop source and unprivileged builder, and independent server20 destination,
-are enrolled; all three configuration checks passed. Actual split-host frontend/API
-deployment, Windows runtime health, component-only partial recovery and repeated
-saved-artifact rollback passed. Synthetic connections were revoked, tasks removed
-and the fixture project archived. Native source commit `945682f4` published, but
-its builder was terminated during VPN baseline copying and retained a claim
-without an output or destination job. ADR 0051 adds bounded owner closure of that
-build and a verified local baseline cache. That request was closed through the
-actual owner popup without replay. A fresh source request passed import and CI,
-then failed Windows MAX_PATH during nested packaging; ADR 0052 enrolls a short
-output directory and completes the installer operator bundle. A local diagnostic
-package passed with that output scope and is not a deployment substitute.
-Native acceptance is still in progress. See
+Full local CI passed 247 tests and unchanged coverage/security gates. Real local
+Playwright passed split components, repeated rollback, protection, offline,
+internal HTTP and responsive layouts. Actual cross-host laptop frontend/server20
+Windows API, component-only partial recovery and repeated rollback passed with
+synthetic persistent data preserved. Test connections were revoked, runtime tasks
+removed and the fixture project archived. Source/build/destination checks pass;
+DevSetu configuration revision 3 uses its public browser URL.
+
+Retained failures include an interrupted build (closed through a bounded owner
+popup without replay), a transient Git import timeout and MAX_PATH packaging.
+Verified local baseline cache, short enrolled release output and complete native
+operator sidecars are in place. Native release B and saved-artifact A/B rollback
+are still being verified. Servix source/current release/settings remain unchanged;
+server21 Production is excluded. This is the owner development pilot, not Phase 4
+or Production completion. See
 [the current component handoff](COMPONENT_DEPLOYMENTS_HANDOFF.md) for exact
 artifacts, nonsecret recovery context and remaining work.
 

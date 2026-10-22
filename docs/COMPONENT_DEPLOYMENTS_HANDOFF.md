@@ -1,4 +1,4 @@
-﻿# Configured component deployment handoff
+# Configured component deployment handoff
 
 Status: IN PROGRESS — native release A passed; release B and native rollback acceptance remain.
 Owner-requested development pilot, 2026-10-23 IST. This does not complete Phase 4 or authorize Production.
@@ -66,7 +66,7 @@ Actual dashboard Deploy all completed source publication, isolated frozen instal
 - ZIP: `0908f64bc793f179380ea867d08e9e2d7721bc978919e976b12e6dfcb40a4eb6`, 78,194,826 bytes.
 - Pipeline reference: `7bae1e1462428ded9ed68e4eb6bace4cae8ad51a4bcd467fb75607512ce7c96d`.
 
-ZIP, reference and manifest are different digests. Actual active readback matched this manifest. Evidence: `.local/components-native-a5-{request,result,verified,release}.json`, live screenshot/log and exact packaged smoke. Servix settings/current source/current request remained unchanged.
+ZIP, reference and manifest are different digests. Actual active readback matched this manifest. The independent Apply receipt reports HTTP/UI 200, no operator database write and sibling IIS preserved. Evidence: `.local/components-native-a5-{request,result,verified,release,operator}.json`, live screenshot/log and exact packaged smoke. Servix settings/current source/current request remained unchanged.
 
 Prepared component bootstrap `0f9db4ff`, HTTP correction `9a62b20e` and build-resolution correction `a7b8f52e` were each separately tested and activated through the actual maintenance popup. Their receipts record health/UI 200, no operator database write and preserved sibling IIS. These prepared activations are distinct from the successful source pipeline above.
 
@@ -79,6 +79,7 @@ Prepared component bootstrap `0f9db4ff`, HTTP correction `9a62b20e` and build-re
 - `pr_c009728270ec6388138baf512a1fb8bb` published `4fd344c0` and passed CI, then package copying failed MAX_PATH. A locally enrolled short output directory and full operator sidecars fixed that execution path. The manual diagnostic package was retained only for inspection; it was not substituted for the native pipeline artifact.
 - Cross-host inspection initially received a byte array; the verifier decoded it. Replacing transient local verification connections also required an explicit checked ownership-record handoff. The real partial outcome was retained and recovered with component-only API rollback.
 - One local browser refresh failed while another run rebuilt its served assets. A subsequent run with stable build outputs passed all checks; the failed log remains available.
+- The first B request `pr_4589dc0094c0e8cfa1c7a3ad48038d9e`, source `762af5d0`, failed repository validation because this handoff had been written with a UTF-8 BOM. Its retained checkout reproduced exit 1; no output or destination job existed. The file was rewritten as UTF-8 without BOM and local validation passed. A fresh B request verifies the corrected snapshot; no validator or gate was weakened.
 
 ## Preservation, limitations and next boundary
 
