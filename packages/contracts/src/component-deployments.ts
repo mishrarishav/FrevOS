@@ -179,6 +179,15 @@ export const ComponentResultSchema = z
   })
   .strict();
 export const PipelineRunSchema = PipelineRequestSchema.extend({
+  buildResolution: z
+    .object({
+      resolvedBy: z.string(),
+      resolvedAt: z.iso.datetime(),
+      sourceHead: z.string().regex(/^[a-f0-9]{40}$/),
+      changeDetails: DeploymentChangeSchema,
+    })
+    .strict()
+    .optional(),
   sourceRequestId: z.string().regex(/^sd_[a-f0-9]{32}$/),
   workspaceId: z.string(),
   requestedBy: z.string(),
@@ -194,6 +203,14 @@ export const PipelineRunSchema = PipelineRequestSchema.extend({
   components: z.array(ComponentResultSchema).max(32),
 }).strict();
 export type PipelineRun = z.infer<typeof PipelineRunSchema>;
+export const BuildResolutionInputSchema = z
+  .object({
+    requestId: PipelineRunIdSchema,
+    sourceHead: z.string().regex(/^[a-f0-9]{40}$/),
+    changeDetails: DeploymentChangeSchema,
+  })
+  .strict();
+export type BuildResolutionInput = z.infer<typeof BuildResolutionInputSchema>;
 export const PipelineStateSchema = z
   .object({
     profiles: z.array(PipelineSchema).max(100),

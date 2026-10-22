@@ -13,7 +13,7 @@ export function DeploymentActionDialog({
   onConfirm,
   projectName = "Servix development",
 }: {
-  operation: "deploy" | "rollback" | "restore";
+  operation: "deploy" | "rollback" | "restore" | "close-build";
   initial: DeploymentChange | undefined;
   locked: boolean;
   busy: boolean;
@@ -26,7 +26,13 @@ export function DeploymentActionDialog({
   const [approvedBy, setApprovedBy] = useState(initial?.approvedBy ?? "");
   const [validation, setValidation] = useState("");
   const title =
-    operation === "deploy" ? "Deploy" : operation === "rollback" ? "Rollback" : "Restore build";
+    operation === "close-build"
+      ? "Close interrupted build"
+      : operation === "deploy"
+        ? "Deploy"
+        : operation === "rollback"
+          ? "Rollback"
+          : "Restore build";
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (busy) return;
@@ -93,9 +99,11 @@ export function DeploymentActionDialog({
             recorded as provided; this does not request approval from that person.
           </p>
           <p className="record-muted">
-            {operation === "deploy"
-              ? "These details are saved in deployment history and the Git commit message."
-              : "These details are saved in deployment history. Restoring a saved build creates no new Git commit."}
+            {operation === "close-build"
+              ? "Only an interrupted build with no published artifact or destination job can be marked failed. Existing work is retained; this action does not retry or deploy it."
+              : operation === "deploy"
+                ? "These details are saved in deployment history and the Git commit message."
+                : "These details are saved in deployment history. Restoring a saved build creates no new Git commit."}
           </p>
           {locked ? <p>Retry retains the original details and request.</p> : null}
           {validation || notice ? (

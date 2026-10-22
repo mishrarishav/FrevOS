@@ -13,6 +13,7 @@ import {
   type PipelineRun,
   PipelineRunSchema,
   PipelineRunIdSchema,
+  BuildResolutionInputSchema,
   ExecutorIdSchema,
   type DeploymentSettings,
   type DeploymentConnectionTest,
@@ -498,6 +499,61 @@ export class ComponentDeployments {
       await this.write(`run-${run.requestId}.json`, run, true);
       await this.advance(run);
       return PipelineRunSchema.parse(await this.read(`run-${run.requestId}.json`));
+    });
+  }
+  async closeInterruptedBuild(actor: string, input: unknown) {
+    return this.serial(async () => {
+      await this.permission(actor, true);
+      const body = BuildResolutionInputSchema.parse(input);
+      const run = (await this.runs()).find((r) => r.requestId === body.requestId);
+      if (!run) throw new ServixDeploymentError("component-run-not-found", 404);
+      if (run.requestedBy !== actor || run.sourceHead !== body.sourceHead)
+        throw new ServixDeploymentError("component-build-resolution-denied", 403);
+      const jobs = (await this.jobs()).filter((j) => j.runId === run.requestId);
+      if (run.buildResolution) {
+        if (
+          JSON.stringify(run.buildResolution.changeDetails) !== JSON.stringify(body.changeDetails)
+        )
+          throw new ServixDeploymentError("component-build-resolution-conflict");
+      } else {
+        if (
+          run.status !== "recovery-required" ||
+          !jobs.length ||
+          jobs.some(
+            (j) =>
+              j.kind !== "build" || j.output || !["recovery-required", "failed"].includes(j.status),
+          ) ||
+          !jobs.some(
+            (j) =>
+              j.status === "recovery-required" && j.errorCode === "component-worker-interrupted",
+          ) ||
+          run.components.some((c) => c.status === "succeeded" || c.artifactDigest)
+        )
+          throw new ServixDeploymentError("component-build-resolution-unavailable");
+        run.status = "failed";
+        run.updatedAt = this.now().toISOString();
+        run.buildResolution = {
+          resolvedBy: actor,
+          resolvedAt: run.updatedAt,
+          sourceHead: body.sourceHead,
+          changeDetails: body.changeDetails,
+        };
+        for (const c of run.components) {
+          c.status = "failed";
+          c.errorCode = "component-build-interrupted-closed";
+        }
+        // Persist the actor-bound resolution before closing claims. A retry
+        // completes these writes; no existing source/build/deploy is replayed.
+        await this.write(`run-${run.requestId}.json`, run);
+      }
+      for (const job of jobs)
+        if (job.status === "recovery-required")
+          await this.write(`job-${job.id}.json`, {
+            ...job,
+            status: "failed",
+            errorCode: "component-build-interrupted-closed",
+          });
+      return run;
     });
   }
   private async blobInfo(file: string) {

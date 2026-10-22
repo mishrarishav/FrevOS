@@ -74,7 +74,19 @@ module.exports = {
     );
     if (!/^[a-f0-9]{64}$/.test(state.manifestSha256)) throw Error("native-current-release-invalid");
     const previous = path.join(directory, "baseline");
-    const upstream = path.join(options.baselineRoot, "releases", state.manifestSha256);
+    let upstream = path.join(options.baselineRoot, "releases", state.manifestSha256);
+    if (options.baselineCache) {
+      if (!path.isAbsolute(options.baselineCache))
+        throw Error("native-baseline-cache-not-enrolled");
+      await plain(options.baselineCache);
+      const cached = path.join(options.baselineCache, state.manifestSha256);
+      try {
+        await fs.lstat(cached);
+        upstream = cached;
+      } catch (error) {
+        if (error.code !== "ENOENT") throw error;
+      }
+    }
     const verifier = path.join(__dirname, "Verify-HttpManifest.mjs");
     await processFile(process.execPath, [verifier, upstream, state.manifestSha256], directory);
     // Import the pinned baseline as data. Execute operator scripts only from
@@ -131,6 +143,15 @@ module.exports = {
     };
     descriptor(Buffer.from(JSON.stringify(reference)), job.sourceHead);
     if (archiveSha256 !== receipt.archiveSha256) throw Error("native-build-output-changed");
+    if (options.baselineCache) {
+      const cached = path.join(options.baselineCache, reference.manifestSha256);
+      try {
+        await fs.cp(receipt.package, cached, { recursive: true, force: false, errorOnExist: true });
+      } catch (error) {
+        if (error.code !== "ERR_FS_CP_EEXIST" && error.code !== "EEXIST") throw error;
+      }
+      await processFile(process.execPath, [verifier, cached, reference.manifestSha256], directory);
+    }
     await plain(options.artifactStore);
     const stored = path.join(options.artifactStore, archiveSha256 + ".zip");
     try {

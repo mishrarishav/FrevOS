@@ -19,8 +19,14 @@ Full CI passed 246 tests and required coverage gates; real local Playwright
 passed source/build/split deployment, repeated rollback, protection, offline and
 responsive checks, including internal HTTP without `crypto.randomUUID`.
 The laptop source and unprivileged builder, and independent server20 destination,
-are enrolled and online; all three configuration checks pass. Actual native source
-pipeline acceptance is still in progress. See
+are enrolled; all three configuration checks passed. Actual split-host frontend/API
+deployment, Windows runtime health, component-only partial recovery and repeated
+saved-artifact rollback passed. Synthetic connections were revoked, tasks removed
+and the fixture project archived. Native source commit `945682f4` published, but
+its builder was terminated during VPN baseline copying and retained a claim
+without an output or destination job. ADR 0051 adds bounded owner closure of that
+build and a verified local baseline cache. Native acceptance is still in progress;
+never replay that interrupted request. See
 [the current component handoff](COMPONENT_DEPLOYMENTS_HANDOFF.md) for exact
 artifacts, nonsecret recovery context and remaining work.
 

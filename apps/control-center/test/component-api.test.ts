@@ -74,7 +74,7 @@ it("uses workspace-scoped validated component APIs with CSRF and exact change/re
       calls.push({ url: String(url), init });
       const data = String(url).endsWith("/configuration")
         ? profile
-        : String(url).endsWith("/runs")
+        : String(url).endsWith("/runs") || String(url).endsWith("/close-interrupted-build")
           ? run
           : String(url).endsWith("/test")
             ? connection
@@ -108,4 +108,15 @@ it("uses workspace-scoped validated component APIs with CSRF and exact change/re
     expect(call.init?.headers).toMatchObject({ "x-csrf-token": "csrf-fixture" });
   expect(JSON.parse(String(calls[2]?.init?.body))).toEqual(request);
   expect(JSON.parse(String(calls[3]?.init?.body))).toEqual({ deviceId: request.connectorId });
+  const resolution = {
+    requestId: request.requestId,
+    sourceHead: "a".repeat(40),
+    changeDetails: { message: "Inspect interrupted build", approvedBy: "Owner" },
+  };
+  expect(await api.closeInterruptedBuild?.("ws_server20", resolution)).toEqual(run);
+  expect(calls.at(-1)?.url).toBe(
+    "/frevos/v1/workspaces/ws_server20/component-deployments/close-interrupted-build",
+  );
+  expect(JSON.parse(String(calls.at(-1)?.init?.body))).toEqual(resolution);
+  expect(calls.at(-1)?.init?.headers).toMatchObject({ "x-csrf-token": "csrf-fixture" });
 });

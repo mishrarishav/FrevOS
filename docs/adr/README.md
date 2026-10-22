@@ -91,3 +91,6 @@ deployments and the platform source pipeline for the development pilot.
 [0050: bounded native artifact transfer](0050-bounded-native-artifact-transfer.md)
 pins configured native archive storage and small digest-bound control-plane
 references without changing shared IIS request limits.
+
+[0051: Interrupted build resolution](0051-interrupted-build-resolution.md)
+adds an actor/source-bound, non-replaying closure for interrupted builds only.

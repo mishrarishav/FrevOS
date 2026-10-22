@@ -975,6 +975,11 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
         .status(202)
         .send(await components().request(await connectorActor(request, true), request.body)),
   );
+  server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/component-deployments/close-interrupted-build"),
+    async (request) =>
+      components().closeInterruptedBuild(await connectorActor(request, true), request.body),
+  );
   server.post(route("/v1/executor/heartbeat"), async (request) =>
     components().heartbeat(connectorCredential(request), request.body),
   );

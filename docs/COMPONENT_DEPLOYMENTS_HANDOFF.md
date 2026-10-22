@@ -106,6 +106,25 @@ The failed request is retained, and verification uses a fresh request ID.
 
 ## Remaining work and recovery context
 
+Actual cross-server acceptance passed with a synthetic project: frontend on
+`L-1770`, API under a scoped server20 ProgramData verification root with a pinned
+Windows task and loopback health. A/B, component-only API rollback after a real
+partial outcome, repeated whole-project A/B rollback with source/builder offline,
+and synthetic environment/uploads/attachments preservation passed. The first
+inspection needed byte-array decoding; replacing transient local enrollments also
+required an explicit verified ownership-record handoff. The resulting partial run
+was retained and recovered through component-only rollback. Verification tasks
+were removed, connections revoked and the fixture project archived. Evidence:
+`.local/component-crosshost-result.json`, `component-crosshost-recovery-final.log`.
+
+Native request `pr_4d35e313e47557c6ae76c65a3a140486` published source
+`945682f40f859778a62f0b33258bc7d29bfd6bc3`, then the Windows builder task exited
+with `0xc000013a` while copying the baseline. The cause remains unproven.
+The restarted worker correctly marked its retained claim recovery-required;
+no output, destination job or activation existed. ADR 0051 adds bounded owner
+closure and an enrolled, fully verified local baseline cache. Do not replay
+that request. Finish with a fresh source request after closing it.
+
 Enrollment and initial source binding are complete. Source-seed acknowledgement
 loss must be resolved by authenticated readback, never by replaying the seed
 mutation.
@@ -123,7 +142,7 @@ artifacts, target receipts and preservation evidence. Re-run relevant CI and
 Playwright after the enrollment corrections. The activated bootstrap is not
 evidence of completed source-to-deploy or remote microservice acceptance.
 
-Cross-server customer component deployment and the .NET recipe are not yet
+Customer-specific remote configuration and the .NET recipe are not yet
 accepted on real remote targets. Do not touch `D:\Servix` Production, run database
 migrations, include unrelated worktrees or claim Phase 4 completion. This remains
 the owner-authorized development pilot; broader isolation/Production gates stay

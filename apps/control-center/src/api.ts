@@ -12,6 +12,7 @@ import {
   type PipelineInput,
   type PipelineRequest,
   type PipelineRun,
+  type BuildResolutionInput,
   PipelineRunSchema,
   type Client,
   ClientSchema,
@@ -89,6 +90,7 @@ export interface ControlCenterApi {
   revokeExecutor?(workspaceId: string, executorId: string): Promise<{ revoked: true }>;
   savePipeline?(workspaceId: string, input: PipelineInput): Promise<Pipeline>;
   runPipeline?(workspaceId: string, input: PipelineRequest): Promise<PipelineRun>;
+  closeInterruptedBuild?(workspaceId: string, input: BuildResolutionInput): Promise<PipelineRun>;
   accountProfile?(signal?: AbortSignal): Promise<AccountProfile>;
   listUsers?(workspaceId: string, signal?: AbortSignal): Promise<LocalAccount[]>;
   changePassword?(
@@ -307,6 +309,12 @@ export function createControlCenterApi(
       ),
     runPipeline: (workspaceId, input) =>
       post(`${workspacePath(workspaceId)}/component-deployments/runs`, input, PipelineRunSchema),
+    closeInterruptedBuild: (workspaceId, input) =>
+      post(
+        `${workspacePath(workspaceId)}/component-deployments/close-interrupted-build`,
+        input,
+        PipelineRunSchema,
+      ),
     accountProfile: (signal) => get("/v1/account", AccountProfileSchema, signal),
     listUsers: (workspaceId, signal) =>
       get(`${workspacePath(workspaceId)}/users`, LocalAccountsSchema, signal),

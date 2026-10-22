@@ -83,6 +83,8 @@ export function ConfiguredProject({
   userId: string;
 }) {
   const [connectorId, setConnectorId] = useState("");
+  const [closing, setClosing] = useState<PipelineRun | null>(null);
+  const closeDetails = useRef<DeploymentChange | undefined>(undefined);
   const [confirmation, setConfirmation] = useState<{
     operation: "deploy" | "rollback";
     componentId?: string;
@@ -196,6 +198,34 @@ export function ConfiguredProject({
       submitting.current = false;
     }
   }
+  async function closeBuild(details: DeploymentChange) {
+    if (!closing?.sourceHead || !api.closeInterruptedBuild || submitting.current) return;
+    submitting.current = true;
+    setBusy(true);
+    setNotice("");
+    closeDetails.current ??= details;
+    try {
+      await api.closeInterruptedBuild(workspaceId, {
+        requestId: closing.requestId,
+        sourceHead: closing.sourceHead,
+        changeDetails: closeDetails.current,
+      });
+      closeDetails.current = undefined;
+      setClosing(null);
+    } catch (error) {
+      if (
+        error instanceof ApiFailure &&
+        [400, 401, 403, 404, 409].includes(error.responseStatus ?? 0)
+      )
+        closeDetails.current = undefined;
+      setNotice(
+        "Build was not confirmed closed. Only an interrupted build without an artifact or destination job can be closed.",
+      );
+    } finally {
+      setBusy(false);
+      submitting.current = false;
+    }
+  }
   const actions = (id?: string) => (
     <div className="record-row-actions">
       <button
@@ -256,6 +286,21 @@ export function ConfiguredProject({
           <LoaderCircle size={14} className="deployment-spinner" /> {active.status} ·{" "}
           {Math.max(0, Math.floor((now - Date.parse(active.createdAt)) / 1000))}s
         </p>
+      ) : null}
+      {active?.status === "recovery-required" &&
+      active.requestedBy === userId &&
+      active.components.every((c) => !c.artifactDigest && c.status !== "succeeded") ? (
+        <button
+          className="button secondary"
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            setNotice("");
+            setClosing(active);
+          }}
+        >
+          Close interrupted build
+        </button>
       ) : null}
       {notice ? <p role="status">{notice}</p> : null}
       <details>
@@ -320,6 +365,13 @@ export function ConfiguredProject({
               Approval: {r.changeDetails.approvedBy} · Actor: {r.requestedBy}
               <br />
               {r.sourceHead?.slice(0, 12)}
+              {r.buildResolution ? (
+                <>
+                  <br />
+                  Build closed by {r.buildResolution.resolvedBy}:{" "}
+                  {r.buildResolution.changeDetails.message}
+                </>
+              ) : null}
             </p>
           ))}
       </details>
@@ -343,6 +395,20 @@ export function ConfiguredProject({
           onConfirm={(d) => void submit(d)}
           onClose={() => {
             if (!busy && !frozen.current) setConfirmation(null);
+          }}
+        />
+      ) : null}
+      {closing ? (
+        <DeploymentActionDialog
+          projectName={profile.displayName}
+          operation="close-build"
+          initial={closeDetails.current}
+          locked={!!closeDetails.current}
+          busy={busy}
+          notice={notice}
+          onConfirm={(d) => void closeBuild(d)}
+          onClose={() => {
+            if (!busy && !closeDetails.current) setClosing(null);
           }}
         />
       ) : null}
