@@ -1,161 +1,89 @@
-# Configured component deployment handoff
+﻿# Configured component deployment handoff
 
-Status: IN PROGRESS. Owner-requested development pilot, 2026-10-23 IST.
+Status: IN PROGRESS — native release A passed; release B and native rollback acceptance remain.
+Owner-requested development pilot, 2026-10-23 IST. This does not complete Phase 4 or authorize Production.
+
+## Delivery identity and scope
 
 Repository: `https://github.com/mishrarishav/FrevOS`.
 Worktree: `D:\FREVOS\.local\worktrees\servix-dashboard`.
 Branch: `feature/configured-component-deployments`.
 Base: `bc4530746c01269b3795a25edad63efad9364b9f`.
-The owner explicitly requested completion in goal mode with VPN access.
-ADR [0049](adr/0049-configured-component-deployments.md) permits this bounded
-stack over preceding uncommitted owner work. No GitHub push, PR or merge.
+First successful native source: `5dbe2a323a013369c8039b7727c17a968f9c97b8`.
+PR: none. No GitHub push or merge. Internal configured Git publication is performed by Deploy.
+ADR 0049 permits the bounded stack over preceding owner work; ADRs 0050–0052 record native transport and recovery decisions.
+The complete preserved branch inventory is [the changed-file list](COMPONENT_DEPLOYMENTS_CHANGED_FILES.md).
 
-## Implemented behavior
+In scope: revisioned project components, independent source/build/destination enrollment, dependency-ordered deployment, honest partial outcomes, protected paths, saved-artifact rollback and DevSetu self-source deployment. Servix's fixed compatibility adapter remains.
+Out of scope: server21 `D:\Servix` Production, database migrations, unrelated worktrees, GitHub publication/merge, broader sandbox and roadmap gates.
 
-Projects own revisioned components with an independent recipe, builder,
-destination binding, dependencies and persistent paths. Source publication uses
-an authenticated logical central repository ID and Git bundles. One publication
-is shared by dependency-ordered component jobs. Configuration, source commit,
-actor, change notes and destination enrollment are pinned; overlapping roots on
-the same system and changed enrollments are rejected. Partial success is
-reported honestly; dependent components stop after failure. Rollback uses saved
-artifacts without publishing source or changing database data.
+## Working behavior
 
-Source, build and destination setup reuse the System connector download.
-`Setup.cmd` enrolls source; `Setup-Executor.cmd` enrolls a builder or destination.
-Credentials are protected by DPAPI and worker jobs contain business data rather
-than browser-supplied commands. Builders run without administrator elevation.
-The native platform updater runs independently of the application it replaces.
-The native builder runs frozen installation and full CI before packaging.
-Servix's existing compatibility adapter and server21 Production exclusion remain.
+Each component has its own recipe, build context/output, enrolled builder/destination binding, health check, optional browser application URL, dependencies and persistent paths. One authenticated source publication is shared by dependency-ordered jobs. Source commit, configuration revision, authenticated actor, change notes and target binding are pinned. Overlapping destination ownership and changed enrollments are rejected. A failure stops dependents while retaining independently successful components.
 
-## Observed validation before bootstrap
+Source publication uses logical central repository identity and authenticated Git bundles. Deploy collects change/approval-reference text and automatically commits/publishes; there is no manual per-release add/commit/push. Rollback resolves saved immutable artifacts, creates no Git commit and preserves selected data. Source and builder can be offline during rollback. Presence comes from fresh authenticated observations; outage clears stale readiness.
 
-- `pnpm.cmd run ci`: exit 0, 245 tests (78 contracts, 79 UI/API, 88 backend),
-  formatting, lint, type checks, coverage and application build.
-- Backend coverage: statements 95.11%, branches 90.90%, functions 98.76%,
-  lines 96.22%. UI API/experience/routing coverage: 100% on all required metrics.
-- Dependency audit passes the unchanged high-severity gate; two moderate
-  advisories remain. This is not a full repository security scan.
-- Real Chromium/Playwright with real PostgreSQL, Git, npm and HTTP pull workers:
-  source publication, split API/frontend deployment, A/B/repeated rollback,
-  persistent `.env`/uploads/attachments, destination offline/restart, control-plane
-  outage, source/builder-offline rollback, table filter persistence and responsive
-  1366/768/390 layouts passed. No console, page or unexpected HTTP errors.
-- Real failed-health activation restored the previous code; drift, foreign
-  locks, traversal, archive aliases, protected content and control-file writes
-  were rejected. Interrupted claimed work remains recovery-required.
+`Setup.cmd` enrolls source. `Setup-Executor.cmd` enrolls an unprivileged builder or scoped destination. The download includes the complete native operator bundle. Credentials remain DPAPI protected. Native builder configuration includes the immutable baseline/cache, toolchain, private artifact store and short output directory. The server20 updater runs outside the application it replaces. Native ZIPs use the enrolled private store with a small digest-bound HTTP reference; shared IIS upload limits were not raised.
 
-Local evidence: `.local/component-final-ci3.log`,
-`.local/component-browser-result.json`, `.local/component-browser-final.log`.
+The owner's ongoing configuration-driven workflow is saved in `C:\Users\APPC0024\.codex\skills\devsetu-configured-deployment\SKILL.md`. UI follows the existing Frevo workspace components and design standard.
 
-## Activated server20 bootstrap
+## Actual configured DevSetu
 
-Manifest: `0f9db4ff4a5d8a9766af19ee2967000b83b0b9158cfbf2a84becfe891b024a4a`.
-ZIP SHA-256: `a61f48b8b68124d72b0941272e7005b3d13641934273f1827819fa6d46f4426b`.
-Package: `.local/servix-release-bac9b88c732d4f8a95b9f1f52fbd3a33/package`.
-Previous active manifest: `9f3ba5d706f53d3b143a765124320b36d3476721b3d71cfa4e5726c819b43252`.
+Profile `devsetu-platform`, revision 3, source folder is this worktree. Public application URL: `http://10.9.69.20/`.
 
-Exact package/delta verification and the wrong-digest/migration-delta denials
-passed. The packaged Windows Node 24.19.0 entry point passed isolated real-PG
-smoke, authenticated component APIs, revision conflict and combined project-list
-checks. All 85 source-inventory entries matched before staging; the source
-secret-pattern check found no matches. The full preserved worktree inventory is
-`.local/components-review.json` (149 files, +22,802/-199 at that observation;
-includes earlier work and a pre-existing command scratch file).
+- Source: `fc_a36e424f5355a31a00946ce3983ed064`.
+- Logical repository: `gitrepo_403e3e5a3cdd9ef309eec087f8369c91`, remote `devsetu`, central branch `devsetu-dev`; original GitHub origin is preserved.
+- Unprivileged laptop builder: `ex_e7fa8000834184a9deae261525c62f5f`.
+- Independent SYSTEM server20 destination: `ex_91ec09da1e90510d6e370dcd85a85864`, binding `platform`, root `E:\FrevOS`.
 
-An authenticated server20 Plan passed and its temporary task was removed. One
-actual DevSetu maintenance popup submitted this exact candidate with the owner's
-task reference. Apply and readback passed: HTTP health/UI 200, no database write,
-and sibling IIS configuration preserved. The component screen is live.
-Evidence: `.local/components-bootstrap-live.json`, the staged private operator
-receipt under correlation `d4e3aa4da4204504a7a482e4d0a8dc90`, and
-`.local/components-bootstrap-{plan,integrity2,smoke}.log`.
+Source/build/destination connection checks passed. Source, builder and destination were online for native acceptance. Actual UI configuration save verified the browser URL, revision and ready checks. Existing task/pairing was preserved during bounded worker upgrades; no credential values are included here.
 
-## Enrollment and HTTP correction
+## Observed validation
 
-Source `fc_a36e424f5355a31a00946ce3983ed064`, unprivileged laptop builder
-`ex_e7fa8000834184a9deae261525c62f5f`, and independent SYSTEM server20 destination
-`ex_91ec09da1e90510d6e370dcd85a85864` are installed and online. Profile
-`devsetu-platform` revision 2 pins them to logical repository
-`gitrepo_403e3e5a3cdd9ef309eec087f8369c91`. All three connection tests pass.
+| Command or actual action | Observed result |
+| --- | --- |
+| `pnpm.cmd run ci` | Exit 0; final local run `.local/component-final-ci9.log`; 247 tests: 78 contracts, 79 UI/API, 90 backend. Formatting, lint, types, required coverage, build and high-severity dependency gate passed. |
+| Backend coverage | Statements 95.13%, branches 90.98%, functions 98.58%, lines 96.22%; thresholds unchanged. |
+| UI required API/experience/routing coverage | 100% on all required metrics. |
+| `node .local/component-browser.mjs` | Exit 0, `.local/component-browser-recovery-final.log`: real PostgreSQL, Git, npm, HTTP workers and Chromium. Source/three workers, split API/frontend, A/B/repeated rollback, protected environment/uploads/attachments, offline/restart, outage, source/builder-offline rollback, table filter persistence and 1366/768/390 responsive checks passed. No console/page/unexpected HTTP errors. Internal HTTP was tested without `crypto.randomUUID`. |
+| Cross-host live Playwright | `.local/component-crosshost-result.json`: laptop frontend plus server20 API with a pinned Windows runtime and actual loopback HTTP health. A/B, per-component partial recovery, repeated rollback and protected synthetic data passed. Source head was unchanged on rollback. |
+| Cross-host cleanup | Scoped verification tasks removed, connections revoked, fixture project archived. Private synthetic files/receipts retained for review; customer folders were not used. |
+| Packaged production-entry smoke | Exit 0 for exact native A, `.local/components-native-a5-smoke.log`: Windows Node 24.19.0, isolated real PostgreSQL and authenticated APIs. |
+| Exact immutable package checks | Prepared bootstrap/corrections passed manifest/delta validation, wrong digest and migration-delta denials, operator syntax/reserved-name checks. Native builder and updater enforce exact manifest/source/ZIP digests. |
+| Operator PowerShell parser + generated connector ZIP | Exit 0 after the final operator changes; all scripts parsed and required native sidecars were present. |
+| Real failure/protection tests | Failed-health activation restored previous code; drift, links, traversal, aliases, control-file writes, foreign locks, ownership/revision conflicts and unauthorized/CSRF/cross-scope requests were rejected. |
+| `git diff --check` | Exit 0. CRLF normalization warnings retained; no whitespace errors. |
+| Source inventory / secret-pattern check | 85 runtime inputs verified before each prepared correction. Secret-pattern scans found no matches; this is not a full security scan. |
 
-Partial source installation was resumed only after exact package verification;
-lost seed acknowledgement is recovered by authenticated readback without replay.
-The real Playwright harness exercises that case. Native artifact transfer uses
-the enrolled private store and small immutable reference under ADR 0050; shared
-IIS upload limits were not raised.
+The dependency gate reports one low and two moderate advisories. No threshold was lowered. Independent `FrevOS-Acceptance` tests were not modified or claimed run.
 
-The first live Deploy attempt exposed internal HTTP's unavailable
-`crypto.randomUUID`; no run was submitted or source committed. The request ID
-helper now uses `crypto.getRandomValues`. Full CI passed 246 tests, and real
-Playwright passed with `randomUUID` explicitly unavailable. Exact packaged smoke,
-delta and digest/migration denial checks passed. The correction is active through
-the actual maintenance popup: manifest
-`9a62b20e810803787baa23dc2702d5244e1c098ec69455f13b084655c15ca037`, ZIP
-`db226d5aa084c2fee7c92080c3705de74abdf3f48331ae366cf8c16b355a69e1`.
-Its source inventory verified 85 inputs; secret-pattern matches: zero.
+## Native release A
 
-The first submitted native source run `pr_5cce734168bc83b7b30aac5369320562`
-failed before commit: Git rejects an explicit literal exclusion of an ignored
-`.local` directory, even while staging other files. Publication now uses exact
-glob character classes for protected paths. The real Git regression includes
-an ignored `.local` directory and case-insensitive tracked protection. It passed;
-the paired source worker was upgraded with task and credential bytes preserved.
-The failed request is retained, and verification uses a fresh request ID.
+Request: `pr_6ac242c17ab0df10b295148356004548`; source: `5dbe2a323a013369c8039b7727c17a968f9c97b8`.
+Actual dashboard Deploy all completed source publication, isolated frozen installation, full CI, native package, immutable private publication and independent activation.
 
-## Remaining work and recovery context
+- Manifest: `d0eb1691c62fec887d5e901315c7f0011215ccae94d764c632eebf91af10773b`.
+- ZIP: `0908f64bc793f179380ea867d08e9e2d7721bc978919e976b12e6dfcb40a4eb6`, 78,194,826 bytes.
+- Pipeline reference: `7bae1e1462428ded9ed68e4eb6bace4cae8ad51a4bcd467fb75607512ce7c96d`.
 
-Actual cross-server acceptance passed with a synthetic project: frontend on
-`L-1770`, API under a scoped server20 ProgramData verification root with a pinned
-Windows task and loopback health. A/B, component-only API rollback after a real
-partial outcome, repeated whole-project A/B rollback with source/builder offline,
-and synthetic environment/uploads/attachments preservation passed. The first
-inspection needed byte-array decoding; replacing transient local enrollments also
-required an explicit verified ownership-record handoff. The resulting partial run
-was retained and recovered through component-only rollback. Verification tasks
-were removed, connections revoked and the fixture project archived. Evidence:
-`.local/component-crosshost-result.json`, `component-crosshost-recovery-final.log`.
+ZIP, reference and manifest are different digests. Actual active readback matched this manifest. Evidence: `.local/components-native-a5-{request,result,verified,release}.json`, live screenshot/log and exact packaged smoke. Servix settings/current source/current request remained unchanged.
 
-Native request `pr_4d35e313e47557c6ae76c65a3a140486` published source
-`945682f40f859778a62f0b33258bc7d29bfd6bc3`, then the Windows builder task exited
-with `0xc000013a` while copying the baseline. The cause remains unproven.
-The restarted worker correctly marked its retained claim recovery-required;
-no output, destination job or activation existed. ADR 0051 adds bounded owner
-closure and an enrolled, fully verified local baseline cache. Do not replay
-that request. It was closed through the actual owner popup with an actor/source-
-bound resolution and no replay. Cancellation submitted no request.
+Prepared component bootstrap `0f9db4ff`, HTTP correction `9a62b20e` and build-resolution correction `a7b8f52e` were each separately tested and activated through the actual maintenance popup. Their receipts record health/UI 200, no operator database write and preserved sibling IIS. These prepared activations are distinct from the successful source pipeline above.
 
-Fresh request `pr_1a9c64575f353a606f1b7ddd574ce597` committed `eb3e33d3` but its
-central bundle import timed out; it failed with no destination job. Read-only
-identity and bundle checks plus an isolated fetch passed. A new request
-`pr_c009728270ec6388138baf512a1fb8bb` published source `4fd344c0` successfully
-and passed native CI, then packaging failed Windows MAX_PATH. No activation
-occurred. ADR 0052 adds a short, enrolled output directory, bounds archive/package
-receipts to it, and completes the operator sidecar bundle. The paired builder
-was upgraded without changing its public binding or credential. The short-output
-diagnostic package succeeded and is retained only as diagnostic evidence;
-the next native acceptance must build a fresh pipeline artifact.
+## Retained failures and recovery
 
-Enrollment and initial source binding are complete. Source-seed acknowledgement
-loss must be resolved by authenticated readback, never by replaying the seed
-mutation.
+- Internal HTTP lacked `crypto.randomUUID`; the initial button attempt submitted no run. The request ID helper now uses `crypto.getRandomValues`, with regression/browser coverage.
+- `pr_5cce734168bc83b7b30aac5369320562` failed before commit because Git rejected a literal exclusion of ignored `.local`. Exact glob exclusions now preserve ignored and tracked protected paths; the real Git regression passed.
+- `pr_4d35e313e47557c6ae76c65a3a140486` published `945682f4` but its Windows builder exited `0xc000013a` during VPN baseline copying. The cause remains unproven. Its claim had no output or destination job. Restart correctly retained recovery-required. The actual owner popup then closed only this build as failed with an actor/source-bound inspection record; cancel submitted nothing, and existing work was never replayed. A verified local baseline cache avoids repeated VPN file reads.
+- `pr_1a9c64575f353a606f1b7ddd574ce597` committed `eb3e33d3`; central import timed out and the request failed without activation. Read-only checks and an isolated fetch passed. A fresh request subsequently published successfully. The transient timeout cause remains unproven.
+- `pr_c009728270ec6388138baf512a1fb8bb` published `4fd344c0` and passed CI, then package copying failed MAX_PATH. A locally enrolled short output directory and full operator sidecars fixed that execution path. The manual diagnostic package was retained only for inspection; it was not substituted for the native pipeline artifact.
+- Cross-host inspection initially received a byte array; the verifier decoded it. Replacing transient local verification connections also required an explicit checked ownership-record handoff. The real partial outcome was retained and recovered with component-only API rollback.
+- One local browser refresh failed while another run rebuilt its served assets. A subsequent run with stable build outputs passed all checks; the failed log remains available.
 
-The existing paired enrollment is retained only in the opaque DPAPI reference
-`.local/components-enrollment.dpapi`; do not print or copy its plaintext into
-documentation, logs or model context. Nonsecret IDs and installation receipts
-are written to `.local/components-local-enrollment.json` as steps finish.
-The pre-existing root command scratch is retained and excluded locally from
-source publication; its prior Git exclude file is backed up in `.local/`.
+## Preservation, limitations and next boundary
 
-Perform actual dashboard-driven source deployments and saved-artifact rollback.
-Record exact source commits,
-artifacts, target receipts and preservation evidence. Re-run relevant CI and
-Playwright after the enrollment corrections. The activated bootstrap is not
-evidence of completed source-to-deploy or remote microservice acceptance.
+Servix remains at source `58e9359012b2326f9c627379c865157ae18c3835`, request `sd_a78d33690ccdf8db2db2a54df6a29237`, settings revision 3, destination server21 `D:\servixDev`. Its five configured protected paths remain selected. No Servix Deploy/Rollback request was submitted in this task. Server21 `D:\Servix` Production was excluded.
 
-Customer-specific remote configuration and the .NET recipe are not yet
-accepted on real remote targets. Do not touch `D:\Servix` Production, run database
-migrations, include unrelated worktrees or claim Phase 4 completion. This remains
-the owner-authorized development pilot; broader isolation/Production gates stay
-on the roadmap.
+The synthetic cross-server acceptance establishes the npm-static/node-source path on the tested hosts. Customer-specific remote configuration, the .NET recipe and large generic HTTP artifacts are unverified. Moving an active destination to a new enrollment requires explicit verified ownership-state migration. Uncertain destination mutations still require operator recovery; the new closure only handles builds with no output/target job. Broader hostile-code sandbox, independent QA and Production gates remain on the roadmap.
+
+Finish native release B and saved-artifact A/B rollback, record final active digest/source/receipts and diff stat, then mark this bounded pilot PASS. GitHub review/publication and any later roadmap phase remain separate actions requiring their own authorization.
