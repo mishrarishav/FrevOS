@@ -12,6 +12,7 @@ It is broader than the final component-only correction. No unrelated worktree is
 - `apps/control-center/src/ComponentDeployments.tsx`
 - `apps/control-center/src/DeploymentActionDialog.tsx`
 - `apps/control-center/src/DeploymentSettingsPage.tsx`
+- `apps/control-center/src/DeploymentSourceSelect.tsx`
 - `apps/control-center/src/DeploymentsPage.tsx`
 - `apps/control-center/src/DeveloperAccess.tsx`
 - `apps/control-center/src/PlatformProjectDetails.tsx`

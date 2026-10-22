@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { ApiFailure, type ControlCenterApi } from "./api.js";
 import { deploymentRequestId } from "./deployment-request-id.js";
 import { DeploymentActionDialog } from "./DeploymentActionDialog.js";
+import { DeploymentSourceSelect } from "./DeploymentSourceSelect.js";
 import { RecordBadge, type RecordColumn, RecordWorkspace } from "./RecordWorkspace.js";
 import { addBasePath } from "./routing.js";
 import { mergeServixDeploymentState } from "./servix-deployment-state.js";
@@ -511,26 +512,15 @@ export function DeploymentsPage({
     isPlatform(p) ? (
       <span className="record-muted">Prepared builds · server20 updater</span>
     ) : isServix(p) ? (
-      <label className="deployment-source-select">
-        <span className="sr-only">Source laptop</span>
-        <select
-          aria-label="Source laptop"
-          value={deviceId}
-          disabled={busy || active}
-          onChange={(event) => setDeviceId(event.target.value)}
-        >
-          <option value="">Choose laptop</option>
-          {devices
-            .filter(
-              (d) => d.status === "active" && (d.profileId ?? "servix-development") === p.profileId,
-            )
-            .map((d) => (
-              <option key={d.deviceId} value={d.deviceId}>
-                {d.name} — {d.online ? "Online" : "Offline"}
-              </option>
-            ))}
-        </select>
-      </label>
+      <DeploymentSourceSelect
+        projectName={p.displayName}
+        devices={devices.filter(
+          (d) => d.status === "active" && (d.profileId ?? "servix-development") === p.profileId,
+        )}
+        value={deviceId}
+        disabled={busy || !!active}
+        onChange={setDeviceId}
+      />
     ) : (
       <span className="record-muted">
         {devices.filter((d) => d.status === "active" && d.profileId === p.profileId).length}{" "}

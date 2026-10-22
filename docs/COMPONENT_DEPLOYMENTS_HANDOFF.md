@@ -1,6 +1,6 @@
 # Configured component deployment handoff
 
-Status: IN PROGRESS — native release A passed; release B and native rollback acceptance remain.
+Status: IN PROGRESS — native A/B and both saved-artifact rollbacks passed; the final source-selector UI consistency correction is awaiting live verification.
 Owner-requested development pilot, 2026-10-23 IST. This does not complete Phase 4 or authorize Production.
 
 ## Delivery identity and scope
@@ -10,6 +10,7 @@ Worktree: `D:\FREVOS\.local\worktrees\servix-dashboard`.
 Branch: `feature/configured-component-deployments`.
 Base: `bc4530746c01269b3795a25edad63efad9364b9f`.
 First successful native source: `5dbe2a323a013369c8039b7727c17a968f9c97b8`.
+Native B source: `b77eb777990fdefd82e54b741d7f5a1c2a67e3a3`.
 PR: none. No GitHub push or merge. Internal configured Git publication is performed by Deploy.
 ADR 0049 permits the bounded stack over preceding owner work; ADRs 0050–0052 record native transport and recovery decisions.
 The complete preserved branch inventory is [the changed-file list](COMPONENT_DEPLOYMENTS_CHANGED_FILES.md).
@@ -70,6 +71,18 @@ ZIP, reference and manifest are different digests. Actual active readback matche
 
 Prepared component bootstrap `0f9db4ff`, HTTP correction `9a62b20e` and build-resolution correction `a7b8f52e` were each separately tested and activated through the actual maintenance popup. Their receipts record health/UI 200, no operator database write and preserved sibling IIS. These prepared activations are distinct from the successful source pipeline above.
 
+## Native release B and saved-artifact rollback
+
+B request `pr_314071e668e8c4c5a44bf8477957cef7` completed the same actual source-to-deploy pipeline, including full CI. Exact packaged production-entry smoke passed (`.local/components-native-b2-smoke.log`).
+
+- Manifest: `793a24bead1efe24c085bbef8eb045dd298dbfd1b17d0c412363d68d2c08708f`.
+- ZIP: `bdbf70d73972ca88ef44e787fbac6c1028b1abdc594101ec3ba178ab0367e14a`, 78,194,862 bytes.
+- Pipeline reference: `15b653846a18c3275865f4a21106b8249e66bd206683c8ac6bd66ef048c31760`.
+
+Actual dashboard rollback requests `pr_a1efec69e29c2feb31bfee9e467fafac` (A) and `pr_3244cd1c348669e9e638d4a0630e5593` (B) each restored the exact original saved ZIP/reference/manifest without rebuilding or changing source. Both independent native Apply receipts report PASS, HTTP/UI 200, no operator database write and preserved sibling IIS. Final readback found three ready connections, no unresolved work, enabled actions and no unexpected browser errors at 1366/768/390 widths. Chromium emitted its expected ignored COOP-header warning for the approved internal HTTP origin; the verifier records it separately without weakening headers.
+
+The owner then identified inconsistent source-control presentation in the two project cards. A shared labeled source selector now renders the saved connector name and fresh Online/Offline state with the same styling on configured and legacy cards. Connector names, identity filtering and action guards remain intact. This correction requires a fresh source pipeline and final live responsive check before final PASS.
+
 ## Retained failures and recovery
 
 - Internal HTTP lacked `crypto.randomUUID`; the initial button attempt submitted no run. The request ID helper now uses `crypto.getRandomValues`, with regression/browser coverage.
@@ -78,8 +91,8 @@ Prepared component bootstrap `0f9db4ff`, HTTP correction `9a62b20e` and build-re
 - `pr_1a9c64575f353a606f1b7ddd574ce597` committed `eb3e33d3`; central import timed out and the request failed without activation. Read-only checks and an isolated fetch passed. A fresh request subsequently published successfully. The transient timeout cause remains unproven.
 - `pr_c009728270ec6388138baf512a1fb8bb` published `4fd344c0` and passed CI, then package copying failed MAX_PATH. A locally enrolled short output directory and full operator sidecars fixed that execution path. The manual diagnostic package was retained only for inspection; it was not substituted for the native pipeline artifact.
 - Cross-host inspection initially received a byte array; the verifier decoded it. Replacing transient local verification connections also required an explicit checked ownership-record handoff. The real partial outcome was retained and recovered with component-only API rollback.
-- One local browser refresh failed while another run rebuilt its served assets. A subsequent run with stable build outputs passed all checks; the failed log remains available.
-- The first B request `pr_4589dc0094c0e8cfa1c7a3ad48038d9e`, source `762af5d0`, failed repository validation because this handoff had been written with a UTF-8 BOM. Its retained checkout reproduced exit 1; no output or destination job existed. The file was rewritten as UTF-8 without BOM and local validation passed. A fresh B request verifies the corrected snapshot; no validator or gate was weakened.
+- One local browser refresh failed during a concurrent asset build; its cause remains unproven. A subsequent run with stable build outputs passed all checks; the failed log remains available.
+- The first B request `pr_4589dc0094c0e8cfa1c7a3ad48038d9e`, source `762af5d0`, failed repository validation because this handoff had been written with a UTF-8 BOM. Its retained checkout reproduced exit 1; no output or destination job existed. The file was rewritten as UTF-8 without BOM and local validation passed. Fresh B request `pr_314071e668e8c4c5a44bf8477957cef7` passed; no validator or gate was weakened.
 
 ## Preservation, limitations and next boundary
 
@@ -87,4 +100,4 @@ Servix remains at source `58e9359012b2326f9c627379c865157ae18c3835`, request `sd
 
 The synthetic cross-server acceptance establishes the npm-static/node-source path on the tested hosts. Customer-specific remote configuration, the .NET recipe and large generic HTTP artifacts are unverified. Moving an active destination to a new enrollment requires explicit verified ownership-state migration. Uncertain destination mutations still require operator recovery; the new closure only handles builds with no output/target job. Broader hostile-code sandbox, independent QA and Production gates remain on the roadmap.
 
-Finish native release B and saved-artifact A/B rollback, record final active digest/source/receipts and diff stat, then mark this bounded pilot PASS. GitHub review/publication and any later roadmap phase remain separate actions requiring their own authorization.
+Final source-selector live verification and delivery inventory remain. GitHub review/publication and any later roadmap phase remain separate actions requiring their own authorization.

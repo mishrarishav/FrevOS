@@ -2,12 +2,12 @@
 
 Last updated: 2026-10-23
 
-## Configured component deployments (final native rollback checks, 2026-10-23)
+## Configured component deployments (final UI verification, 2026-10-23)
 
 The owner's configuration-driven component engine and DevSetu source pipeline
 are implemented on `feature/configured-component-deployments`, ADRs 0049–0052.
-Native release A is active: source `5dbe2a323a013369c8039b7727c17a968f9c97b8`,
-manifest `d0eb1691c62fec887d5e901315c7f0011215ccae94d764c632eebf91af10773b`.
+Native release B is active: source `b77eb777990fdefd82e54b741d7f5a1c2a67e3a3`,
+manifest `793a24bead1efe24c085bbef8eb045dd298dbfd1b17d0c412363d68d2c08708f`.
 Actual dashboard Deploy all completed automatic Git publication, isolated frozen
 installation/full CI, immutable packaging/private publication and independent
 server20 activation. Receipt: health/UI 200, no operator database write, sibling
@@ -24,8 +24,9 @@ DevSetu configuration revision 3 uses its public browser URL.
 Retained failures include an interrupted build (closed through a bounded owner
 popup without replay), a transient Git import timeout and MAX_PATH packaging.
 Verified local baseline cache, short enrolled release output and complete native
-operator sidecars are in place. Native release B and saved-artifact A/B rollback
-are still being verified. Servix source/current release/settings remain unchanged;
+operator sidecars are in place. Native release B and exact saved-artifact A/B
+rollback passed. A final shared source-selector presentation correction is being
+verified after the owner's screenshot feedback. Servix source/current release/settings remain unchanged;
 server21 Production is excluded. This is the owner development pilot, not Phase 4
 or Production completion. See
 [the current component handoff](COMPONENT_DEPLOYMENTS_HANDOFF.md) for exact

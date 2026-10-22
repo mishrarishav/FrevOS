@@ -15,6 +15,7 @@ import { ApiFailure, type ControlCenterApi } from "./api.js";
 import { WorkspaceDialog } from "./WorkspaceDialog.js";
 import { RecordBadge, RecordWorkspace } from "./RecordWorkspace.js";
 import { DeploymentActionDialog } from "./DeploymentActionDialog.js";
+import { DeploymentSourceSelect } from "./DeploymentSourceSelect.js";
 import { addBasePath } from "./routing.js";
 import { deploymentRequestId } from "./deployment-request-id.js";
 
@@ -262,23 +263,14 @@ export function ConfiguredProject({
         <RecordBadge>{profile.components.length} components</RecordBadge>
         <RecordBadge>Revision {profile.revision}</RecordBadge>
       </div>
-      <div className="record-card-heading">
-        <label>
-          Source system{" "}
-          <select
-            aria-label={`${profile.displayName} source system`}
-            disabled={busy || !!active}
-            value={selected?.deviceId ?? ""}
-            onChange={(e) => setConnectorId(e.target.value)}
-          >
-            <option value="">Choose system</option>
-            {source.map((d) => (
-              <option key={d.deviceId} value={d.deviceId}>
-                {d.name} — {d.online ? "Online" : "Offline"}
-              </option>
-            ))}
-          </select>
-        </label>
+      <div className="deployment-card-footer">
+        <DeploymentSourceSelect
+          projectName={profile.displayName}
+          devices={source}
+          disabled={busy || !!active}
+          value={selected?.deviceId ?? ""}
+          onChange={setConnectorId}
+        />
         {actions()}
       </div>
       {active ? (
