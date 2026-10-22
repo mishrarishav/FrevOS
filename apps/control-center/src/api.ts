@@ -1,7 +1,34 @@
 import {
+  AccountProfileSchema,
+  type AccountProfile,
+  type LocalAccount,
+  LocalAccountsSchema,
+  PasswordChangedSchema,
+  authCookiePolicy,
+  type PipelineState,
+  PipelineStateSchema,
+  type Pipeline,
+  PipelineSchema,
+  type PipelineInput,
+  type PipelineRequest,
+  type PipelineRun,
+  PipelineRunSchema,
   type Client,
   ClientSchema,
   type ConnectGithubRepositoryRequest,
+  ConnectorListSchema,
+  ConnectorRevocationSchema,
+  type DeploymentConnectionTest,
+  type DeploymentChange,
+  DeploymentConnectionTestSchema,
+  type DeploymentSettings,
+  type DeploymentSettingsInput,
+  DeploymentSettingsListSchema,
+  DeploymentSettingsSchema,
+  type DeveloperConnector,
+  DeveloperInviteResultSchema,
+  type FolderSelection,
+  FolderSelectionSchema,
   type GithubConnection,
   GithubConnectionSchema,
   type GithubDiscoveryOperation,
@@ -15,6 +42,10 @@ import {
   type ProjectRepositoryConnection,
   ProjectRepositoryConnectionSchema,
   ProjectSchema,
+  type ServixDeployment,
+  ServixDeploymentSchema,
+  type ServixDeploymentState,
+  ServixDeploymentStateSchema,
   type SessionSummary,
   SessionSummarySchema,
   type Workspace,
@@ -32,7 +63,10 @@ export type ApiFailureKind =
 export class ApiFailure extends Error {
   readonly kind: ApiFailureKind;
 
-  constructor(kind: ApiFailureKind) {
+  constructor(
+    kind: ApiFailureKind,
+    readonly responseStatus?: number,
+  ) {
     super(kind);
     this.name = "ApiFailure";
     this.kind = kind;
@@ -46,6 +80,62 @@ export interface WorkspaceSnapshot {
 }
 
 export interface ControlCenterApi {
+  componentState?(workspaceId: string, signal?: AbortSignal): Promise<PipelineState>;
+  testPipeline?(
+    workspaceId: string,
+    profileId: string,
+    deviceId: string,
+  ): Promise<DeploymentConnectionTest>;
+  revokeExecutor?(workspaceId: string, executorId: string): Promise<{ revoked: true }>;
+  savePipeline?(workspaceId: string, input: PipelineInput): Promise<Pipeline>;
+  runPipeline?(workspaceId: string, input: PipelineRequest): Promise<PipelineRun>;
+  accountProfile?(signal?: AbortSignal): Promise<AccountProfile>;
+  listUsers?(workspaceId: string, signal?: AbortSignal): Promise<LocalAccount[]>;
+  changePassword?(
+    currentPassword: string,
+    newPassword: string,
+    target?: { workspaceId: string; userId: string },
+  ): Promise<{ changed: true }>;
+  logout?(): Promise<void>;
+  listDeploymentSettings?(workspaceId: string, signal?: AbortSignal): Promise<DeploymentSettings[]>;
+  saveDeploymentSettings?(
+    workspaceId: string,
+    input: DeploymentSettingsInput,
+  ): Promise<DeploymentSettings>;
+  testDeploymentSettings?(
+    workspaceId: string,
+    profileId: string,
+    deviceId?: string,
+  ): Promise<DeploymentConnectionTest>;
+  restoreServix?(
+    workspaceId: string,
+    requestId: string,
+    expectedCurrentRequestId: string,
+    restoreRequestId: string,
+    operation: "rollback" | "restore",
+    changeDetails: DeploymentChange,
+  ): Promise<ServixDeployment>;
+  getServixDeploymentState?(
+    workspaceId: string,
+    signal?: AbortSignal,
+  ): Promise<ServixDeploymentState>;
+  deployServix?(
+    workspaceId: string,
+    requestId: string,
+    changeDetails: DeploymentChange,
+    connectorId?: string,
+  ): Promise<ServixDeployment>;
+  listDeveloperConnectors?(
+    workspaceId: string,
+    signal?: AbortSignal,
+  ): Promise<DeveloperConnector[]>;
+  revokeDeveloperConnector?(workspaceId: string, deviceId: string): Promise<{ revoked: true }>;
+  chooseConnectorFolder?(workspaceId: string, deviceId: string): Promise<FolderSelection>;
+  inviteDeveloper?(
+    workspaceId: string,
+    username: string,
+    displayName: string,
+  ): Promise<{ version: 1; code: string; username: string; expiresAt: string }>;
   login(username: string, password: string, signal?: AbortSignal): Promise<void>;
   getSession(signal?: AbortSignal): Promise<SessionSummary>;
   listWorkspaces(signal?: AbortSignal): Promise<Workspace[]>;
@@ -97,6 +187,7 @@ export function createControlCenterApi(
   basePath?: string,
   cookieReader: (name: string) => string | undefined = readBrowserCookie,
 ): ControlCenterApi {
+  const authCookies = authCookiePolicy(globalThis.location?.protocol ?? "https:");
   const get = async <Output>(
     path: string,
     schema: RuntimeSchema<Output>,
@@ -120,12 +211,12 @@ export function createControlCenterApi(
 
     if (!response.ok) {
       if (response.status === 401) {
-        throw new ApiFailure("unauthenticated");
+        throw new ApiFailure("unauthenticated", response.status);
       }
       if (response.status === 403 || response.status === 404) {
-        throw new ApiFailure("denied");
+        throw new ApiFailure("denied", response.status);
       }
-      throw new ApiFailure("unavailable");
+      throw new ApiFailure("unavailable", response.status);
     }
 
     let body: unknown;
@@ -147,7 +238,7 @@ export function createControlCenterApi(
     schema: RuntimeSchema<Output>,
     signal?: AbortSignal,
   ): Promise<Output> => {
-    const csrfToken = cookieReader("__Host-frevos-csrf");
+    const csrfToken = cookieReader(authCookies.csrf);
     if (csrfToken === undefined) {
       throw new ApiFailure("denied");
     }
@@ -173,12 +264,12 @@ export function createControlCenterApi(
     }
     if (!response.ok) {
       if (response.status === 401) {
-        throw new ApiFailure("unauthenticated");
+        throw new ApiFailure("unauthenticated", response.status);
       }
       if (response.status === 403 || response.status === 404) {
-        throw new ApiFailure("denied");
+        throw new ApiFailure("denied", response.status);
       }
-      throw new ApiFailure("unavailable");
+      throw new ApiFailure("unavailable", response.status);
     }
     let responseBody: unknown;
     try {
@@ -194,6 +285,128 @@ export function createControlCenterApi(
   };
 
   return {
+    revokeExecutor: (workspaceId, executorId) =>
+      post(
+        `${workspacePath(workspaceId)}/component-deployments/executors/${encodeURIComponent(executorId)}/revoke`,
+        {},
+        ConnectorRevocationSchema,
+      ),
+    testPipeline: (workspaceId, profileId, deviceId) =>
+      post(
+        `${workspacePath(workspaceId)}/component-deployments/${encodeURIComponent(profileId)}/test`,
+        { deviceId },
+        DeploymentConnectionTestSchema,
+      ),
+    componentState: (workspaceId, signal) =>
+      get(`${workspacePath(workspaceId)}/component-deployments`, PipelineStateSchema, signal),
+    savePipeline: (workspaceId, input) =>
+      post(
+        `${workspacePath(workspaceId)}/component-deployments/configuration`,
+        input,
+        PipelineSchema,
+      ),
+    runPipeline: (workspaceId, input) =>
+      post(`${workspacePath(workspaceId)}/component-deployments/runs`, input, PipelineRunSchema),
+    accountProfile: (signal) => get("/v1/account", AccountProfileSchema, signal),
+    listUsers: (workspaceId, signal) =>
+      get(`${workspacePath(workspaceId)}/users`, LocalAccountsSchema, signal),
+    changePassword: (currentPassword, newPassword, target) =>
+      post(
+        target
+          ? `${workspacePath(target.workspaceId)}/users/${encodeURIComponent(target.userId)}/password`
+          : "/v1/account/password",
+        { currentPassword, newPassword },
+        PasswordChangedSchema,
+      ),
+    logout: async () => {
+      const csrfToken = cookieReader(authCookies.csrf);
+      if (!csrfToken) throw new ApiFailure("denied");
+      let response: Response;
+      try {
+        response = await fetcher(addBasePath("/auth/logout", basePath), {
+          method: "POST",
+          credentials: "same-origin",
+          cache: "no-store",
+          headers: { "x-csrf-token": csrfToken },
+        });
+      } catch {
+        throw new ApiFailure("unavailable");
+      }
+      if (response.status !== 204)
+        throw new ApiFailure(
+          response.status === 401 ? "unauthenticated" : "unavailable",
+          response.status,
+        );
+    },
+    listDeploymentSettings: (workspaceId, signal) =>
+      get(
+        `${workspacePath(workspaceId)}/deployment-settings`,
+        DeploymentSettingsListSchema,
+        signal,
+      ),
+    saveDeploymentSettings: (workspaceId, input) =>
+      post(`${workspacePath(workspaceId)}/deployment-settings`, input, DeploymentSettingsSchema),
+    testDeploymentSettings: (workspaceId, profileId, deviceId) =>
+      post(
+        `${workspacePath(workspaceId)}/deployment-settings/${encodeURIComponent(profileId)}/test`,
+        deviceId ? { deviceId } : {},
+        DeploymentConnectionTestSchema,
+      ),
+    getServixDeploymentState: (workspaceId, signal) =>
+      get(`${workspacePath(workspaceId)}/servix/deployments`, ServixDeploymentStateSchema, signal),
+    listDeveloperConnectors: (workspaceId, signal) =>
+      get(`${workspacePath(workspaceId)}/connectors`, ConnectorListSchema, signal),
+    chooseConnectorFolder: (workspaceId, deviceId) =>
+      post(
+        `${workspacePath(workspaceId)}/connectors/${encodeURIComponent(deviceId)}/choose-folder`,
+        {},
+        FolderSelectionSchema,
+      ),
+    revokeDeveloperConnector: (workspaceId, deviceId) =>
+      post(
+        `${workspacePath(workspaceId)}/connectors/${encodeURIComponent(deviceId)}/revoke`,
+        {},
+        ConnectorRevocationSchema,
+      ),
+    inviteDeveloper: (workspaceId, username, displayName) =>
+      post(
+        `${workspacePath(workspaceId)}/developers/invite`,
+        { version: 1, username, displayName },
+        DeveloperInviteResultSchema,
+      ),
+    deployServix: (workspaceId, requestId, changeDetails, connectorId) =>
+      post(
+        `${workspacePath(workspaceId)}/servix/deployments`,
+        {
+          version: 1,
+          requestId,
+          confirmation: "deploy-servix-development",
+          changeDetails,
+          ...(connectorId ? { connectorId } : {}),
+        },
+        ServixDeploymentSchema,
+      ),
+    restoreServix: (
+      workspaceId,
+      requestId,
+      expectedCurrentRequestId,
+      restoreRequestId,
+      operation,
+      changeDetails,
+    ) =>
+      post(
+        `${workspacePath(workspaceId)}/servix/restores`,
+        {
+          version: 1,
+          requestId,
+          expectedCurrentRequestId,
+          restoreRequestId,
+          operation,
+          confirmation: "restore-servix-development",
+          changeDetails,
+        },
+        ServixDeploymentSchema,
+      ),
     async login(username, password, signal) {
       let response: Response;
       try {

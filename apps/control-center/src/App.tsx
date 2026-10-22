@@ -53,6 +53,10 @@ import {
   useState,
 } from "react";
 import { type ControlCenterApi, createControlCenterApi } from "./api.js";
+import { AccountControls } from "./AccountControls.js";
+import { DeploymentSettingsPage } from "./DeploymentSettingsPage.js";
+import { DeploymentsPage } from "./DeploymentsPage.js";
+import { ComponentConfiguration } from "./ComponentDeployments.js";
 import {
   activity,
   approvals,
@@ -79,6 +83,13 @@ import {
   routes,
 } from "./routing.js";
 
+// Product-owned default label only; stored workspace identity and user labels stay intact.
+function workspaceDisplayName(workspace: Workspace): string {
+  return workspace.workspaceId === "ws_server20" && workspace.displayName === "FrevOS Internal"
+    ? "DevSetu Internal"
+    : workspace.displayName;
+}
+
 type OverlayName = "palette" | "activity" | "states" | "composer" | null;
 
 const browserApi = createControlCenterApi();
@@ -92,12 +103,15 @@ const routeIcons: Record<Exclude<RouteId, "not-found">, LucideIcon> = {
   "design-system": Settings2,
   onboarding: Plus,
   projects: Boxes,
+  "project-operations": GitBranch,
   intelligence: Sparkles,
   tasks: Activity,
   qa: FlaskConical,
   reviews: GitPullRequest,
   releases: Layers3,
   deployments: Rocket,
+  "deployment-setup": Settings2,
+  "component-setup": Settings2,
   approvals: ShieldCheck,
   audit: ScrollText,
   agents: Bot,
@@ -273,9 +287,12 @@ export function App({
   }
 
   const route = resolveRoute(pathname);
+  const projectWorkspace =
+    experience.workspace.workspaceId === "ws_server20" &&
+    ["projects", "deployment-setup", "component-setup", "deployments"].includes(route?.id ?? "");
 
   return (
-    <div className="app-canvas">
+    <div className={projectWorkspace ? "app-canvas record-app-canvas" : "app-canvas"}>
       <a className="skip-link" href="#main-content">
         Skip to main content
       </a>
@@ -286,10 +303,26 @@ export function App({
         onPalette={() => setOverlay("palette")}
         onActivity={() => setOverlay("activity")}
         onStates={() => setOverlay("states")}
+        accountControl={
+          <AccountControls
+            api={api}
+            workspaceId={experience.workspace.workspaceId}
+            onSignedOut={() => {
+              initialRequest.current?.abort();
+              selectionRequest.current?.abort();
+              setOverlay(null);
+              setExperience({ kind: "unauthenticated" });
+            }}
+          />
+        }
       />
 
       <div className="shell-grid">
-        <NavigationRail pathname={pathname} navigate={navigate} />
+        <NavigationRail
+          pathname={pathname}
+          navigate={navigate}
+          deploymentProfilesEnabled={experience.workspace.workspaceId === "ws_server20"}
+        />
         <main id="main-content" className="main-workspace">
           {route?.id === "control-center" ? (
             <ControlCenter
@@ -306,7 +339,8 @@ export function App({
           {route?.id === "design-system" ? (
             <DesignSystem onStates={() => setOverlay("states")} />
           ) : null}
-          {route?.id === "projects" ? (
+          {(route?.id === "projects" && experience.workspace.workspaceId !== "ws_server20") ||
+          route?.id === "project-operations" ? (
             <ProjectsSurface
               api={api}
               workspace={experience.workspace}
@@ -316,27 +350,61 @@ export function App({
               onRepositoryConnected={retryExperience}
             />
           ) : null}
+          {route?.id === "deployments" && experience.workspace.workspaceId === "ws_server20" ? (
+            <DeploymentsPage
+              key={experience.workspace.workspaceId}
+              api={api}
+              workspaceId={experience.workspace.workspaceId}
+              scopeName={workspaceDisplayName(experience.workspace)}
+            />
+          ) : null}
+          {route?.id === "component-setup" && experience.workspace.workspaceId === "ws_server20" ? (
+            <ComponentConfiguration
+              api={api}
+              workspaceId={experience.workspace.workspaceId}
+              scopeName={workspaceDisplayName(experience.workspace)}
+            />
+          ) : null}
+          {(route?.id === "deployment-setup" || route?.id === "projects") &&
+          experience.workspace.workspaceId === "ws_server20" ? (
+            <DeploymentSettingsPage
+              key={experience.workspace.workspaceId}
+              api={api}
+              workspaceId={experience.workspace.workspaceId}
+              scopeName={workspaceDisplayName(experience.workspace)}
+            />
+          ) : null}
           {route &&
           route.id !== "control-center" &&
           route.id !== "design-system" &&
           route.id !== "projects" ? (
-            <PlannedSurface route={route} navigate={navigate} />
+            route.id === "project-operations" ? null : (route.id === "deployments" ||
+                route.id === "deployment-setup" ||
+                route.id === "component-setup") &&
+              experience.workspace.workspaceId === "ws_server20" ? null : (
+              <PlannedSurface route={route} navigate={navigate} />
+            )
           ) : null}
           {!route ? <NotFound pathname={pathname} navigate={navigate} /> : null}
         </main>
-        <ActivityDock filter={activityFilter} onFilter={setActivityFilter} />
+        {!projectWorkspace ? (
+          <ActivityDock filter={activityFilter} onFilter={setActivityFilter} />
+        ) : null}
       </div>
 
-      <DesktopComposer
-        value={command}
-        receipt={receipt}
-        onChange={setCommand}
-        onSubmit={submitCommand}
-      />
+      {!projectWorkspace ? (
+        <DesktopComposer
+          value={command}
+          receipt={receipt}
+          onChange={setCommand}
+          onSubmit={submitCommand}
+        />
+      ) : null}
       <MobileNavigation
         pathname={pathname}
         navigate={navigate}
         onComposer={() => setOverlay("composer")}
+        projectWorkspace={projectWorkspace}
       />
 
       {overlay === "palette" ? (
@@ -381,13 +449,13 @@ function ExperienceBoundary({
           eyebrow: "Verifying session",
           title: "Resolving your workspace boundary",
           description:
-            "FrevOS is reconstructing session and workspace authority before showing protected data.",
+            "DevSetu is reconstructing session and workspace authority before showing protected data.",
         }
       : state.kind === "unauthenticated"
         ? {
             icon: ShieldCheck,
             eyebrow: "Authentication required",
-            title: "Sign in to FrevOS",
+            title: "Sign in to DevSetu",
             description:
               "The Control Center stays closed until the server verifies an authenticated session.",
           }
@@ -405,7 +473,7 @@ function ExperienceBoundary({
                 eyebrow: "No authorized workspace",
                 title: "Your session has no workspace access",
                 description:
-                  "Ask a workspace owner to grant access. FrevOS will not infer or guess a workspace identifier.",
+                  "Ask a workspace owner to grant access. DevSetu will not infer or guess a workspace identifier.",
               }
             : state.kind === "denied"
               ? {
@@ -413,7 +481,7 @@ function ExperienceBoundary({
                   eyebrow: "Access changed",
                   title: "Workspace access is unavailable",
                   description:
-                    "FrevOS stopped the request without revealing whether the selected resource still exists.",
+                    "DevSetu stopped the request without revealing whether the selected resource still exists.",
                 }
               : {
                   icon: state.reason === "unavailable" ? WifiOff : CircleAlert,
@@ -435,8 +503,8 @@ function ExperienceBoundary({
   return (
     <div className="app-canvas experience-canvas">
       <header className="experience-header">
-        <span className="brand-mark">F</span>
-        <span className="brand-name">FrevOS</span>
+        <span className="brand-mark">D</span>
+        <span className="brand-name">DevSetu</span>
         <span className="disclosure-chip experience-disclosure">
           Phase 4C · Protected experience
         </span>
@@ -551,6 +619,7 @@ function LocalLoginForm({
 }
 
 function TopBar({
+  accountControl,
   workspaces,
   workspaceId,
   onWorkspaceChange,
@@ -558,6 +627,7 @@ function TopBar({
   onActivity,
   onStates,
 }: {
+  accountControl?: ReactNode;
   workspaces: Workspace[];
   workspaceId: string;
   onWorkspaceChange: (id: string) => void;
@@ -568,8 +638,8 @@ function TopBar({
   return (
     <header className="top-bar">
       <div className="brand-lockup">
-        <span className="brand-mark">F</span>
-        <span className="brand-name">FrevOS</span>
+        <span className="brand-mark">D</span>
+        <span className="brand-name">DevSetu</span>
       </div>
 
       <label className="workspace-switcher">
@@ -577,7 +647,7 @@ function TopBar({
         <select value={workspaceId} onChange={(event) => onWorkspaceChange(event.target.value)}>
           {workspaces.map((workspace) => (
             <option key={workspace.workspaceId} value={workspace.workspaceId}>
-              {workspace.displayName}
+              {workspaceDisplayName(workspace)}
             </option>
           ))}
         </select>
@@ -585,6 +655,7 @@ function TopBar({
       </label>
 
       <div className="top-bar-spacer" />
+      {accountControl}
       <span className="disclosure-chip">Phase 4C · Authenticated workspace</span>
       <span className="system-state">
         <span className="status-orb verified" aria-hidden="true" />
@@ -618,9 +689,11 @@ function TopBar({
 function NavigationRail({
   pathname,
   navigate,
+  deploymentProfilesEnabled,
 }: {
   pathname: string;
   navigate: (to: string) => void;
+  deploymentProfilesEnabled: boolean;
 }) {
   return (
     <aside className="navigation-rail" aria-label="Primary navigation">
@@ -628,17 +701,69 @@ function NavigationRail({
         {railRouteIds.map((id) => {
           const route = routeById(id);
           const Icon = routeIcons[id];
+          const projectActive =
+            id === "projects" &&
+            deploymentProfilesEnabled &&
+            (resolveRoute(pathname)?.id === "deployment-setup" ||
+              resolveRoute(pathname)?.id === "component-setup" ||
+              resolveRoute(pathname)?.id === "project-operations");
           return (
-            <AppLink
-              key={route.path}
-              to={route.path}
-              navigate={navigate}
-              className={isPathActive(pathname, route.path) ? "rail-link active" : "rail-link"}
-              ariaCurrent={isPathActive(pathname, route.path) ? "page" : undefined}
-            >
-              <Icon aria-hidden="true" size={18} />
-              <span>{route.label}</span>
-            </AppLink>
+            <div key={route.path} className="rail-group">
+              <AppLink
+                key={route.path}
+                to={route.path}
+                navigate={navigate}
+                className={
+                  isPathActive(pathname, route.path) || projectActive
+                    ? "rail-link active"
+                    : "rail-link"
+                }
+                ariaCurrent={
+                  isPathActive(pathname, route.path) || projectActive ? "page" : undefined
+                }
+              >
+                <Icon aria-hidden="true" size={18} />
+                <span>{route.label}</span>
+              </AppLink>
+              {id === "projects" && deploymentProfilesEnabled ? (
+                <div className="rail-submenu">
+                  <AppLink
+                    to="/projects/configuration"
+                    navigate={navigate}
+                    className={
+                      resolveRoute(pathname)?.id === "deployment-setup" ||
+                      resolveRoute(pathname)?.id === "projects"
+                        ? "rail-link active"
+                        : "rail-link"
+                    }
+                  >
+                    Configuration
+                  </AppLink>
+                  <AppLink
+                    to="/projects/components"
+                    navigate={navigate}
+                    className={
+                      resolveRoute(pathname)?.id === "component-setup"
+                        ? "rail-link active"
+                        : "rail-link"
+                    }
+                  >
+                    Components
+                  </AppLink>
+                  <AppLink
+                    to="/projects/frevos/operations"
+                    navigate={navigate}
+                    className={
+                      resolveRoute(pathname)?.id === "project-operations"
+                        ? "rail-link active"
+                        : "rail-link"
+                    }
+                  >
+                    Repository operations
+                  </AppLink>
+                </div>
+              ) : null}
+            </div>
           );
         })}
       </nav>
@@ -654,22 +779,42 @@ function MobileNavigation({
   pathname,
   navigate,
   onComposer,
+  projectWorkspace,
 }: {
   pathname: string;
   navigate: (to: string) => void;
   onComposer: () => void;
+  projectWorkspace: boolean;
 }) {
   return (
     <nav className="mobile-navigation" aria-label="Mobile navigation">
-      {mobileRouteIds.slice(0, 2).map((id) => (
-        <MobileLink key={id} id={id} pathname={pathname} navigate={navigate} />
-      ))}
-      <button className="mobile-ask" type="button" onClick={onComposer} aria-label="Ask FrevOS">
-        <Sparkles aria-hidden="true" size={20} />
-      </button>
-      {mobileRouteIds.slice(2).map((id) => (
-        <MobileLink key={id} id={id} pathname={pathname} navigate={navigate} />
-      ))}
+      {projectWorkspace ? (
+        ["control-center", "projects", "deployments", "audit"].map((id) => (
+          <MobileLink
+            key={id}
+            id={id as RouteDefinition["id"]}
+            pathname={pathname}
+            navigate={navigate}
+          />
+        ))
+      ) : (
+        <>
+          {mobileRouteIds.slice(0, 2).map((id) => (
+            <MobileLink key={id} id={id} pathname={pathname} navigate={navigate} />
+          ))}
+          <button
+            className="mobile-ask"
+            type="button"
+            onClick={onComposer}
+            aria-label="Ask DevSetu"
+          >
+            <Sparkles aria-hidden="true" size={20} />
+          </button>
+          {mobileRouteIds.slice(2).map((id) => (
+            <MobileLink key={id} id={id} pathname={pathname} navigate={navigate} />
+          ))}
+        </>
+      )}
     </nav>
   );
 }
@@ -679,7 +824,7 @@ function MobileLink({
   pathname,
   navigate,
 }: {
-  id: (typeof mobileRouteIds)[number];
+  id: RouteDefinition["id"];
   pathname: string;
   navigate: (to: string) => void;
 }) {
@@ -726,7 +871,7 @@ function ControlCenter({
     <div className="page-stack">
       <PageHeader
         eyebrow="Neural Command OS"
-        title={`${workspace.displayName} is authorized.`}
+        title={`${workspaceDisplayName(workspace)} is authorized.`}
         description="Session-backed workspace context and server-authorized records, with later capabilities kept explicit."
         action={
           <AppLink to="/onboarding" navigate={navigate} className="button secondary">
@@ -742,7 +887,7 @@ function ControlCenter({
           <span className="agent-glyph orchestration">MO</span>
           <div>
             <p className="eyebrow">Master Orchestrator · demonstration</p>
-            <h2 id="command-title">What should FrevOS prepare?</h2>
+            <h2 id="command-title">What should DevSetu prepare?</h2>
           </div>
         </div>
         <CommandForm value={command} onChange={onCommandChange} onSubmit={onSubmit} prominent />
@@ -1099,7 +1244,7 @@ function PlannedSurface({
         <h2>This route is reserved, not simulated.</h2>
         <p>
           The approved UI vocabulary includes this surface, but its behavior belongs to{" "}
-          {route.phase}. FrevOS will add it only with the required authorization, data, API,
+          {route.phase}. DevSetu will add it only with the required authorization, data, API,
           security, and acceptance boundaries.
         </p>
         <div className="planned-facts">
@@ -1152,7 +1297,7 @@ function ProjectsSurface({
     <div className="page-stack">
       <PageHeader
         eyebrow="Authenticated project operations"
-        title={`${workspace.displayName} projects`}
+        title={`${workspaceDisplayName(workspace)} projects`}
         description="Authorized records plus the bounded TrackGRN UAT pilot where configured."
         action={
           <button className="button secondary" type="button" onClick={() => navigate("/")}>
@@ -1358,7 +1503,7 @@ function GithubOnboardingPanel({
   return (
     <Panel
       title="GitHub accounts & repositories"
-      description="Discover the signed-in Windows GitHub CLI account, then register a repository as a FrevOS project."
+      description="Discover the signed-in Windows GitHub CLI account, then register a repository as a DevSetu project."
       action={
         <button className="button secondary" type="button" disabled={busy} onClick={discover}>
           {discovery !== null && ["queued", "claimed"].includes(discovery.status)
@@ -1369,7 +1514,7 @@ function GithubOnboardingPanel({
     >
       <div className="github-onboarding">
         <p className="github-boundary-note">
-          GitHub credentials remain in the Windows GitHub CLI. FrevOS stores only verified account
+          GitHub credentials remain in the Windows GitHub CLI. DevSetu stores only verified account
           and repository metadata.
         </p>
         {state === "loading" ? <p>Loading GitHub connections...</p> : null}
@@ -1826,7 +1971,7 @@ function NotFound({ pathname, navigate }: { pathname: string; navigate: (to: str
           <CircleX aria-hidden="true" size={26} />
         </div>
         <span className="eyebrow">Route not found</span>
-        <h1>No FrevOS surface is registered here.</h1>
+        <h1>No DevSetu surface is registered here.</h1>
         <code>{pathname}</code>
         <button className="button primary" type="button" onClick={() => navigate("/")}>
           Return to Control Center
@@ -1989,7 +2134,7 @@ function DesktopComposer({
   onSubmit: (value: string) => void;
 }) {
   return (
-    <section className="desktop-composer" aria-label="Ask FrevOS">
+    <section className="desktop-composer" aria-label="Ask DevSetu">
       <CommandForm value={value} onChange={onChange} onSubmit={onSubmit} />
       {receipt ? <span className="composer-receipt">Local receipt ready</span> : null}
     </section>
@@ -2017,11 +2162,11 @@ function CommandForm({
         <Paperclip aria-hidden="true" size={17} />
       </button>
       <label>
-        <span className="sr-only">Ask FrevOS</span>
+        <span className="sr-only">Ask DevSetu</span>
         <input
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          placeholder="Ask FrevOS for a bounded outcome…"
+          placeholder="Ask DevSetu for a bounded outcome…"
         />
       </label>
       <span className="risk-readout">
@@ -2075,7 +2220,7 @@ function CommandPalette({
       <div className="palette-search">
         <Search aria-hidden="true" size={18} />
         <label>
-          <span className="sr-only">Search FrevOS routes</span>
+          <span className="sr-only">Search DevSetu routes</span>
           <input
             ref={searchInput}
             value={query}
@@ -2102,7 +2247,7 @@ function CommandPalette({
             </button>
           );
         })}
-        {matches.length === 0 ? <p className="empty-result">No matching FrevOS surface.</p> : null}
+        {matches.length === 0 ? <p className="empty-result">No matching DevSetu surface.</p> : null}
       </div>
     </Overlay>
   );
@@ -2186,7 +2331,7 @@ function ComposerOverlay({
   onClose: () => void;
 }) {
   return (
-    <Overlay title="Ask FrevOS" onClose={onClose} className="composer-dialog">
+    <Overlay title="Ask DevSetu" onClose={onClose} className="composer-dialog">
       <div className="composer-sheet-copy">
         <span className="agent-glyph orchestration">MO</span>
         <div>

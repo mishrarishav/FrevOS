@@ -3,12 +3,15 @@ export type RouteId =
   | "design-system"
   | "onboarding"
   | "projects"
+  | "project-operations"
   | "intelligence"
   | "tasks"
   | "qa"
   | "reviews"
   | "releases"
   | "deployments"
+  | "deployment-setup"
+  | "component-setup"
   | "approvals"
   | "audit"
   | "agents"
@@ -45,6 +48,22 @@ export function removeBasePath(pathname: string, basePath = applicationBasePath)
 
 export const routes: readonly RouteDefinition[] = [
   {
+    id: "component-setup",
+    path: "/projects/components",
+    label: "Components",
+    shortLabel: "Components",
+    phase: "Development pilot",
+    description: "Configured source, build systems and independent component destinations.",
+  },
+  {
+    id: "deployment-setup",
+    path: "/projects/configuration",
+    label: "Project configuration",
+    shortLabel: "Setup",
+    phase: "Development pilot",
+    description: "Project source folders, developer connectors, destinations and preserved files.",
+  },
+  {
     id: "control-center",
     path: "/",
     label: "Control Center",
@@ -59,6 +78,14 @@ export const routes: readonly RouteDefinition[] = [
     shortLabel: "Projects",
     phase: "Phase 4/5",
     description: "Workspace-scoped project command center and repository connection.",
+  },
+  {
+    id: "project-operations",
+    path: "/projects/frevos/operations",
+    label: "Repository operations",
+    shortLabel: "Repositories",
+    phase: "Phase 4/5",
+    description: "Authorized workspace records and repository operations.",
   },
   {
     id: "intelligence",
@@ -167,7 +194,10 @@ export function normalizePath(pathname: string): string {
 }
 
 export function resolveRoute(pathname: string): RouteDefinition | undefined {
-  const normalized = normalizePath(pathname);
+  const normalized =
+    normalizePath(pathname) === "/deployments/setup"
+      ? "/projects/configuration"
+      : normalizePath(pathname);
   return routes.find((route) => route.path === normalized);
 }
 

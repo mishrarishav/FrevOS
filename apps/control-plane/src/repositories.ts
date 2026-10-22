@@ -215,6 +215,8 @@ export class IdentitySessionRepository {
     displayName: string;
     userId?: string;
     identityId?: string;
+    requireNew?: boolean;
+    developerWorkspaceId?: string;
     now?: Date;
   }): Promise<IdentityPrincipal> {
     const username = LocalUsernameSchema.parse(input.username);
@@ -239,6 +241,7 @@ export class IdentitySessionRepository {
       );
       const current = existing.rows[0];
       if (current !== undefined) {
+        if (input.requireNew) throw new Error("Local account already exists");
         await client.query("UPDATE frevos.users SET display_name = $2 WHERE user_id = $1", [
           current.user_id,
           displayName,
@@ -279,6 +282,20 @@ export class IdentitySessionRepository {
         [requestedIdentityId, requestedUserId, username, digest.salt, digest.hash, now],
       );
       const row = requiredRow(inserted.rows[0], "Local identity insert");
+      if (input.developerWorkspaceId) {
+        const workspaceId = WorkspaceIdSchema.parse(input.developerWorkspaceId);
+        await client.query("SELECT set_config('frevos.workspace_id', $1, true)", [workspaceId]);
+        await client.query(
+          `INSERT INTO frevos.workspace_memberships(membership_id, workspace_id, user_id, status, granted_scopes, created_at) VALUES ($1,$2,$3,'active',$4,$5)`,
+          [
+            randomIdentifier("wsm"),
+            workspaceId,
+            requestedUserId,
+            ["workspace:read", "client:read", "project:read", "project:write"],
+            now,
+          ],
+        );
+      }
       return { identity: identityFromRow(row), userId: requestedUserId };
     });
   }

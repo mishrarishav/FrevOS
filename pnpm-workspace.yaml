@@ -11,6 +11,8 @@ autoInstallPeers: false
 engineStrict: true
 injectWorkspacePackages: true
 minimumReleaseAge: 1440
+overrides:
+  "vite@>=8.2.0 <8.2.4": 8.2.4
 onlyBuiltDependencies:
   - esbuild
 savePrefix: ""

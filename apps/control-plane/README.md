@@ -29,6 +29,15 @@ validation and are discarded afterward. Phase 4B does not request or persist
 provider API consent; later provider integrations require their own secret and
 consent decisions.
 
+## Internal HTTP mode
+
+The owner-selected internal HTTP mode requires `FREVOS_ALLOW_INTERNAL_HTTP=true`,
+`FREVOS_AUTH_MODE=local`, a private/loopback IPv4 public origin and a loopback
+backend. It uses separate `frevos-internal-session` and `frevos-internal-csrf`
+cookies while preserving HttpOnly session, SameSite Strict, exact-origin and
+session-bound CSRF checks. HTTPS remains the default; OIDC requires HTTPS.
+See [the server20 decision](../../docs/adr/0038-server20-internal-http.md).
+
 ## PostgreSQL boundary
 
 The migration creates separate `frevos_owner` and `frevos_app` roles. The
@@ -120,3 +129,19 @@ pnpm --filter @frevos/control-plane test:coverage
 
 Docker is required for these tests. Neither SQLite nor an in-memory database is
 accepted as storage-isolation evidence.
+
+## Servix development deployment pilot
+
+The owner-selected server20 Git/controller and server21 development flow is
+implemented on `feature/servix-dashboard-deploy`. Source Git is a private bare
+repository on server20; local normal commits/pushes supply an immutable commit.
+`FREVOS_SERVIX_DEPLOYMENT_ROOT=E:\FrevOS\servix` enables only this fixed Windows
+profile for `ws_server20`. The GET/POST `/v1/workspaces/:workspaceId/servix/deployments`
+endpoints enforce workspace permission; writes require project:write, exact-origin
+CSRF, version 1 and confirmation `deploy-servix-development`.
+
+This uses a server-side build and fixed privileged activation task. It does not
+create a laptop worker or expose an arbitrary shell/target endpoint. See
+[the deployment handoff](../../docs/SERVIX_DASHBOARD_HANDOFF.md) and
+[ADR 0039](../../docs/adr/0039-server20-servix-git-dashboard.md) for the target,
+credential boundary, source-only dependency mode, actual evidence and limitations.

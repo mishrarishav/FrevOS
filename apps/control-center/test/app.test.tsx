@@ -60,7 +60,12 @@ describe("Control Center route contract", () => {
   it("keeps route paths and identifiers unique", () => {
     expect(new Set(routes.map((route) => route.path)).size).toBe(routes.length);
     expect(new Set(routes.map((route) => route.id)).size).toBe(routes.length);
-    expect(routes).toHaveLength(14);
+    expect(routes).toHaveLength(17);
+    expect(
+      routes.some(
+        (route) => route.id === "component-setup" && route.path === "/projects/components",
+      ),
+    ).toBe(true);
   });
 
   it("normalizes relative and trailing-slash paths", () => {
@@ -112,7 +117,7 @@ describe("Control Center rendering", () => {
   });
 
   it.each([
-    [{ kind: "unauthenticated" }, "Sign in to FrevOS"],
+    [{ kind: "unauthenticated" }, "Sign in to DevSetu"],
     [{ kind: "session-expired" }, "Authenticate again"],
     [{ kind: "empty", session }, "Your session has no workspace access"],
     [{ kind: "denied" }, "Workspace access is unavailable"],
@@ -198,7 +203,7 @@ describe("Control Center rendering", () => {
     const html = renderToStaticMarkup(
       <App initialPath="/not-a-route" initialExperience={readyExperience} />,
     );
-    expect(html).toContain("No FrevOS surface is registered here.");
+    expect(html).toContain("No DevSetu surface is registered here.");
     expect(html).toContain("/not-a-route");
   });
 });

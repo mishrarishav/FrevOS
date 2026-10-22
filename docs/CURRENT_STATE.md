@@ -1,6 +1,237 @@
-# FrevOS Current State
+# DevSetu Current State
 
-Last updated: 2026-10-07
+Last updated: 2026-10-23
+
+## Configured component deployments (in progress, 2026-10-22)
+
+The owner requests configurable microservice destinations and the same source
+connector workflow for DevSetu. Work is stacked on
+`feature/configured-component-deployments`, ADR 0049. Add a revisioned component
+model and independently enrolled build/destination workers while preserving the
+existing Servix compatibility path and production exclusion. Implementation and
+verification are in progress. Do not infer
+remote acceptance or full source-pipeline readiness from new configuration UI.
+
+Resume evidence: the verified component-engine HTTP correction `9a62b20e` is now
+active after an actual maintenance-popup submission. Health/UI returned 200;
+the activation receipt records no database write and preserved sibling IIS.
+Full CI passed 246 tests and required coverage gates; real local Playwright
+passed source/build/split deployment, repeated rollback, protection, offline and
+responsive checks, including internal HTTP without `crypto.randomUUID`.
+The laptop source and unprivileged builder, and independent server20 destination,
+are enrolled and online; all three configuration checks pass. Actual native source
+pipeline acceptance is still in progress. See
+[the current component handoff](COMPONENT_DEPLOYMENTS_HANDOFF.md) for exact
+artifacts, nonsecret recovery context and remaining work.
+
+## Server20 Servix repository identity (2026-10-22)
+
+The owner explicitly requests server20 as the Servix repository instead of the
+stale GitHub URL. Work is stacked on `fix/server20-repository-identity`, ADR 0048.
+The existing central remote/ID and authenticated bundle transport are reused;
+source readiness, publication, installation and folder proof must agree on that
+binding. Preserve legacy origin, Git working tree/history and destination data.
+Manifest `9f3ba5d7` is active after one actual DevSetu update popup submission,
+with the change and owner-request approval reference persisted. The Servix profile
+now points to the central server20 repository at revision 3, with old settings in
+history. Connector/picker upgrade preserved task/pairing; all four live connection
+checks passed and Deploy is enabled. Its real popup opened and was cancelled:
+zero customer Deploy/Rollback POSTs. Current central/local source, Git working tree,
+destination and all five protected paths are unchanged. CI passed 234 tests;
+final connector-only boundary regressions, lint/types, native picker and exact
+artifact smoke passed. See [the handoff](SERVER20_REPOSITORY_HANDOFF.md).
+
+## Deployment change records (2026-10-22)
+
+The owner requests change-message and approval-reference popups on Deploy and
+Rollback. Work is stacked on `feature/deployment-change-notes`, ADR 0047. Context
+is required on new requests and retained in history; authenticated actor remains
+separate from declared approval text. Servix commits include the supplied context;
+restores create no Git commit. Platform activation also records context, preserving
+the existing native request boundary. Full CI passed 234 tests and required gates;
+exact artifact and packaged native entry-point smoke passed for prepared manifest
+`a2bc92d1`, now active after one real DevSetu updater click. After a VPN reconnect,
+fresh HTTP80/SMB445 and read-only Plan passed; native Apply reports health/UI200,
+no database write and sibling IIS preserved. The existing laptop connector was
+upgraded with task/pairing preserved and its message capability verified online.
+Live Rollback/Restore popup cancellation submitted no customer action; exact
+settings, current source and request remained unchanged. The existing Servix
+origin mismatch still disables its Deploy and was not changed in this task.
+See [the handoff](DEPLOYMENT_CHANGE_NOTES_HANDOFF.md) for the immutable artifact,
+executed evidence and coverage limits.
+
+## DevSetu project visibility (2026-10-22)
+
+The owner noted that Projects still listed only Servix. Work is stacked on
+`fix/devsetu-managed-project` under ADR 0046. Add the backend-owned, read-only
+platform record to Projects and Deployments; its owner deployment link opens the
+existing platform updater. No customer runner, database migration or local source
+publication is added. Manifest `733af544` is active after one actual dashboard
+update request. Live Projects and Deployments show DevSetu and Servix in cards and
+tables; the DevSetu row opens the updater. Full CI passed 233 tests and required
+gates, exact packaged/native-entrypoint checks passed, and live readback confirmed
+Servix configuration/current source/request unchanged with its connector online.
+See [the handoff](DEVSETU_PROJECT_HANDOFF.md) for scope and immutable receipts.
+
+## System connector, account controls and self-update (2026-10-22)
+
+The owner reported a stuck dirty new-project dialog and clipped connector panel,
+requested the System connector name, account logout/change/reset controls, and
+activation of updates through DevSetu itself. Work is stacked on
+`fix/system-connector-and-account-controls`; ADR 0045 records the bounded scope.
+Existing local hashing, memberships, sessions and invitations are reused without
+schema changes. VPN was reconnected and live HTTP/SMB verified. Manifest
+`2a01ac93` is active after one real Deploy DevSetu click; the independent native
+updater's result publisher was subsequently repaired and reconciled without an
+application redeploy. The dashboard reports success across a fresh login. Full
+CI passed 232 tests and required gates; subsequent native ACL/journal regressions
+and live controls/logout checks passed. Servix current source/request, configuration
+revision 2 and its five protected paths remain unchanged; connector online.
+This is activation of a prepared artifact, not automatic laptop source/build
+publication. See [the handoff](SYSTEM_CONNECTOR_ACCOUNTS_HANDOFF.md) for exact
+application/worker digests, recovery evidence and remaining limits.
+
+## DevSetu branding (2026-10-22)
+
+The owner selected DevSetu and requested a minimal display rename and server20
+deployment. Work is stacked on `feature/devsetu-branding`, preserving preceding
+uncommitted work. ADR 0044 keeps backend/database identities and all existing
+deployment behavior intact. Manifest `b9f712ee` is active; 76 UI tests, typecheck,
+build, artifact integrity and live branding checks passed. All 3,645 backend and
+migration/dependency files match the prior release. Saved settings and current
+Servix build are unchanged; the updated connector remains online. The existing
+Servix origin/allowlist mismatch still disables Deploy and was not changed in
+this display-only task. See
+[the branding handoff](DEVSETU_BRANDING_HANDOFF.md).
+
+## Project master and deployment workspace (2026-10-21)
+
+The owner supplied HRMS Applications references and requested Projects master-data
+configuration, card/table deployment lists, badges and a working folder picker.
+Work proceeds on stacked `feature/project-deployment-workspace`, preserving prior
+uncommitted work. ADR 0043 replaces the setup navigation/presentation while keeping
+Phase 4 development-pilot scope and fixed Servix destination authority. Archives
+are revisioned configuration state, never application or artifact deletion.
+Folder selection is a short-lived device-owner request with a native Windows
+picker, repository validation and backed-up local path configuration. Manifest
+`84911d3a` is active on server20. Live project/deployment views, source/destination
+tests, installed native selection/cancellation and persistence after connector
+restart passed. Servix request/source remained unchanged; no customer-app Deploy
+or Rollback was clicked. Full CI passed 228 tests and required gates; native
+Windows/UTF-8 bridge checks and final UI follow-up checks passed. Generic
+destination adapters and Production remain outside this task. See
+[the handoff](PROJECT_WORKSPACE_HANDOFF.md) for exact scope and evidence.
+
+## Project deployment settings (2026-10-21)
+
+The owner requests a setup page for other project sources, destinations, protected
+attachments and connector installation/testing. Work proceeds on the stacked
+`feature/project-deployment-settings` branch, preserving preceding uncommitted
+work. The active roadmap remains Phase 4 exit with the owner-selected development
+pilot exceptions described in ADR 0042. Other projects are explicitly draft
+destinations until an applicable runner is connected; no arbitrary remote command
+editor, Production target or credential reuse is added. The Servix adapter retains
+its exact approved target and consumes snapshotted preservation rules on deployment
+and saved-release restore. Manifest `9fee2a44` is active on server20; the live setup
+page saved/reloaded revision 2 and passed source/destination/preservation checks.
+The existing laptop connector was upgraded with its credentials/task preserved.
+The current Servix request/source remained unchanged; no customer-app deployment
+was triggered for acceptance. CI passed 223 tests and required gates. See
+[the project settings handoff](PROJECT_DEPLOYMENT_SETTINGS_HANDOFF.md) for exact
+evidence and limitations. No Phase 4 exit or whole-product readiness claim.
+
+## Servix saved-release rollback (2026-10-21)
+
+The owner requested repeatable rollback and later normal deployment of current
+source. Branch `feature/servix-release-rollback` preserves the preceding local
+work. Manifest `dbc684cd` is active on server20; the dashboard now provides
+Rollback previous build, history Restore this build and Currently deployed.
+Four live UI operations (rollback/restore twice) succeeded using retained immutable
+artifacts, with no source publication or rebuild. The current build was restored
+at the end: source `bad4403be655`, frontend `main.cdee177f.js`. Independent
+readback matched all 106 current code files, verified two obsolete tracked files
+absent and confirmed 145 existing persistent files, production listener and IIS
+preserved. The old build similarly matched 104 files and four obsolete removals.
+Health/full bootstrap passed. Laptop HEAD/branch/working tree and the central Git
+source ref were unchanged. Both dashboard actions re-enabled after completion.
+
+CI passed 210 tests and required gates; the additional UI regressions passed in
+its 73-test suite (212 distinct tests overall). Native journal tests exercised
+three A/B cycles, removed-file recovery, drift denial and data preservation.
+Rollback uses actor/target-bound fresh requests, private successful receipts,
+artifact hashes and a SYSTEM-owned current-release pointer. It changes code,
+not database state or installed dependencies. See
+[the handoff](SERVIX_ROLLBACK_HANDOFF.md) and
+[ADR 0041](adr/0041-servix-saved-release-rollback.md).
+
+## Portable developer connector (2026-10-21)
+
+The owner superseded manual commit/push with a one-click source publication
+requirement and selected FrevOS developer invitations (not Active Directory).
+Local implementation and CI pass on `feature/servix-dashboard-deploy`: 207 tests,
+required coverage, build and dependency audit. Windows download/setup, per-user
+device pairing/revocation, invitations and actor-bound Git bundle publication are
+implemented for the existing Servix development profile. Prior manifest `2a266bf0`
+passed HTTP download integrity, live controls, the owner's real
+installation, Limited per-user task, heartbeat and enabled Deploy button passed.
+No additional developer account was created. The owner's local HEAD/branch and
+working-tree status were preserved during installation. The owner's first Deploy
+created a commit but exposed missing Git root-lock permissions on server20. The
+bounded correction passed native LOCAL SERVICE Git prepare/abort checks while
+Git config remained unwritable. The UI now shows stage/spinner/elapsed time,
+retains active requests across stale polls and hides invitations behind Add
+developer. Separate authenticated heartbeats avoid false offline reports during
+Git import. The actual owner's Limited task automatically restarted after a
+controlled stop without a manual start; future installers include its one-minute
+recovery trigger. Retry `sd_8aa86bca8f6eb124373a34af559b6f09` published
+`bad4403be655` and succeeded on server21 development. All 106 deployed code files
+matched the sealed artifact; 145 existing files, production listener identity and
+IIS configuration were preserved. HTTP health/bootstrap checks passed and the
+served frontend contains the owner's white-text badge style. The browser showed
+progress throughout, retained its disabled button after refresh and re-enabled
+Deploy only after completion. Final acceptance is recorded in the handoff. The old manual-push
+workflow is superseded. See
+[the connector handoff](DEVELOPER_CONNECTOR_HANDOFF.md) and
+[ADR 0040](adr/0040-portable-developer-connectors.md).
+
+## Servix development Git/deploy pilot (2026-10-21)
+
+Owner-selected local commit/push -> server20 private Git -> server20 FrevOS
+Deploy -> server21 `D:\servixDev` is live on the dedicated
+`feature/servix-dashboard-deploy` worktree. The visible dashboard deployment of
+source `ce4b102efb66217ef5c8398975dfe4d7ad83119a` succeeded. Fresh readback matched
+104 code files and 145 protected files; all 139 uploads remained present and the
+production PID/creation time and IIS configuration were preserved. Browser health
+returned 200 / OK with full bootstrap ready. Same-request retry did not duplicate
+the deployment. No persistent laptop worker is needed; a scoped pre-push hook
+publishes locked public npm dependencies to the server20 cache.
+
+CI passed 193 tests, required coverage, types, build and audit; the final audit
+reported no known vulnerabilities after patching the Vite development dependency.
+Native Windows service-account regressions covered execution environment,
+stdout/stderr exit semantics and descendant cleanup. Credentials stay outside
+source/build/browser boundaries. The route is fixed to Servix development;
+backend dependency releases, generic project onboarding, whole-product readiness,
+Phase 4 exit and laptop-data import remain open. See
+[the handoff](SERVIX_DASHBOARD_HANDOFF.md) and
+[ADR 0039](adr/0039-server20-servix-git-dashboard.md) for complete evidence and limits.
+## Server20 internal HTTP correction (2026-10-21)
+
+The owner explicitly selected internal HTTP on an accessible port. Work is on
+`feature/server20-internal-http`, based on `bc45307`, applying a bounded access
+patch to the installed application with no database migrations/import. The
+selected origin is `http://10.9.69.20`; other IIS site bindings are preserved.
+Local CI passed 183 tests, build, coverage and audit. Actual packaged Windows
+Node/disposable PG/Edge HTTP login, reload, CSRF and logout passed. Live activation
+and visible external login-page acceptance passed: `http://10.9.69.20/`, UI 200,
+health 200 / ok. Final manifest is
+`d9cd4068832e8b5b5e4548a382f88b2cc1f812edad72473bee5696d794b5f4cf`.
+Database connection/auth mode and sibling-site configuration remained unchanged;
+temporary operator tasks were removed. Earlier operator failures and verified
+recovery are documented. Live authenticated login remains untested. See
+[the handoff](SERVER20_HTTP_HANDOFF.md) and [ADR 0038](adr/0038-server20-internal-http.md).
+The larger unified-deployment update and laptop-data import remain pending in
+their existing worktrees; Phase 4 exit remains open.
 
 ## Server 20 dependency prerequisite (publication candidate)
 
@@ -31,7 +262,7 @@ profile; that rollout decision is separate from this dependency-only patch.
 | Detected default branch | `main` |
 | Phase branch | `feature/github-repository-onboarding` |
 | Base commit | `52ce49e` |
-| Active phase | Phase 4 exit — Preview/UAT deployment and independent acceptance |
+| Active phase | Phase 4 exit â€” Preview/UAT deployment and independent acceptance |
 | Phase 3 merge | Core PR [#5](https://github.com/mishrarishav/FrevOS/pull/5) was human squash-merged as `13f3cd2`; its task branch was deleted |
 | Phase 4A merge | Core PR [#7](https://github.com/mishrarishav/FrevOS/pull/7) was human squash-merged as `425c1f3`; its task branch was deleted |
 | Phase 4B merge | Core PR [#8](https://github.com/mishrarishav/FrevOS/pull/8) was human squash-merged as `6bf5509`; its task branch was deleted |

@@ -10,6 +10,9 @@ export {
   type TargetReference,
   TargetReferenceSchema,
 } from "./approvals.js";
+export { type AuthCookiePolicy, authCookiePolicy } from "./auth-cookies.js";
+export * from "./deployment-settings.js";
+export * from "./developer-connectors.js";
 export {
   type ConnectGithubRepositoryRequest,
   ConnectGithubRepositoryRequestSchema,
@@ -99,6 +102,7 @@ export {
   type ProjectAutomationStatus,
   ProjectAutomationStatusSchema,
 } from "./project-automation.js";
+export * from "./servix-deployment.js";
 export {
   type ContractIssue,
   type ContractValidationResult,
@@ -133,3 +137,6 @@ export {
   type WorkspaceStatus,
   WorkspaceStatusSchema,
 } from "./workspaces.js";
+export * from "./local-accounts.js";
+export * from "./deployment-change.js";
+export * from "./component-deployments.js";

@@ -1,6 +1,12 @@
+import { createReadStream } from "node:fs";
+import { fileURLToPath } from "node:url";
 import cookie from "@fastify/cookie";
 import {
   AgentOperationCompletionSchema,
+  type AuthCookiePolicy,
+  authCookiePolicy,
+  ChangePasswordSchema,
+  DeploymentSettingsInputSchema,
   authorizeWorkspaceAction,
   ClientSchema,
   ConnectGithubRepositoryRequestSchema,
@@ -20,10 +26,15 @@ import {
   SessionSummarySchema,
   WorkspaceIdSchema,
   WorkspaceSchema,
+  UserIdSchema,
 } from "@frevos/contracts";
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import { z } from "zod";
 import { hashesMatch, type OidcTransaction, type OidcTransactionCodec } from "./crypto.js";
+import type { DeploymentSettingsStore } from "./deployment-settings.js";
+import type { ComponentDeployments } from "./component-deployments.js";
+import { AccountActionError, type LocalAccounts } from "./local-accounts.js";
+import type { DeveloperConnectorStore } from "./developer-connectors.js";
 import {
   type GithubOnboardingStore,
   PERSONAL_AGENT_WORKSPACE_ID,
@@ -37,6 +48,13 @@ import type {
   WorkspaceEvidence,
   WorkspaceRepository,
 } from "./repositories.js";
+import { ServixDeploymentError, type ServixDeploymentStore } from "./servix-deployment.js";
+import {
+  selfUpdateHtml,
+  selfUpdateScript,
+  selfUpdateStyle,
+  type SelfUpdates,
+} from "./self-updates.js";
 
 export const SESSION_COOKIE = "__Host-frevos-session";
 export const CSRF_COOKIE = "__Host-frevos-csrf";
@@ -120,6 +138,10 @@ const LocalLoginBodySchema = z
 const EmptyBodySchema = z.object({}).strict();
 
 interface BuildServerOptions {
+  readonly selfUpdates?: SelfUpdates;
+  readonly localAccounts?: LocalAccounts;
+  readonly deploymentSettings?: DeploymentSettingsStore;
+  readonly componentDeployments?: ComponentDeployments;
   readonly publicOrigin: string;
   readonly basePath?: string;
   readonly authMode?: "local" | "oidc";
@@ -132,6 +154,8 @@ interface BuildServerOptions {
   readonly trackGrnAgentTokenHash?: Buffer;
   readonly readiness?: () => Promise<void>;
   readonly now?: () => Date;
+  readonly servixDeployment?: ServixDeploymentStore;
+  readonly developerConnectors?: DeveloperConnectorStore;
 }
 
 interface WorkspaceParams {
@@ -170,7 +194,14 @@ class HttpError extends Error {
   }
 }
 
-export async function buildServer(options: BuildServerOptions): Promise<FastifyInstance> {
+type ServerContext = BuildServerOptions & { readonly authCookies: AuthCookiePolicy };
+
+export async function buildServer(input: BuildServerOptions): Promise<FastifyInstance> {
+  const authCookies = authCookiePolicy(new URL(input.publicOrigin).protocol);
+  if (!authCookies.secure && input.authMode !== "local") {
+    throw new Error("HTTP authentication requires local auth mode");
+  }
+  const options: ServerContext = { ...input, authCookies };
   const basePath = options.basePath ?? "";
   const route = (path: string) => `${basePath}${path}`;
   const server = Fastify({
@@ -187,6 +218,14 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
   const authMode = options.authMode ?? "oidc";
 
   server.setErrorHandler((error, _request, reply) => {
+    if (error instanceof AccountActionError) {
+      void reply.status(error.statusCode).send({ error: error.code });
+      return;
+    }
+    if (error instanceof ServixDeploymentError) {
+      void reply.status(error.statusCode).send({ error: error.code });
+      return;
+    }
     if (error instanceof HttpError) {
       void reply.status(error.statusCode).send({ error: error.publicMessage });
       return;
@@ -254,14 +293,13 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
         if (principal === null) {
           throw new HttpError(401, "invalid-credentials");
         }
+        const previousRawToken = request.cookies[options.authCookies.session];
         const session = await options.identitySessions.createSession({
           principal,
-          ...(request.cookies[SESSION_COOKIE] === undefined
-            ? {}
-            : { previousRawToken: request.cookies[SESSION_COOKIE] }),
+          ...(previousRawToken === undefined ? {} : { previousRawToken }),
           now: now(),
         });
-        setSessionCookies(reply, session.rawToken, session.rawCsrfToken);
+        setSessionCookies(reply, session.rawToken, session.rawCsrfToken, options.authCookies);
         return reply.status(204).send();
       },
     );
@@ -315,15 +353,14 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
           : { displayName: externalIdentity.displayName }),
         now: now(),
       });
+      const previousRawToken = request.cookies[options.authCookies.session];
       const session = await options.identitySessions.createSession({
         principal,
-        ...(request.cookies[SESSION_COOKIE] === undefined
-          ? {}
-          : { previousRawToken: request.cookies[SESSION_COOKIE] }),
+        ...(previousRawToken === undefined ? {} : { previousRawToken }),
         now: now(),
       });
 
-      setSessionCookies(reply, session.rawToken, session.rawCsrfToken);
+      setSessionCookies(reply, session.rawToken, session.rawCsrfToken, options.authCookies);
       clearCookie(reply, OIDC_TRANSACTION_COOKIE, true);
       return reply.redirect(`${options.publicOrigin}${basePath}/`, 302);
     });
@@ -335,7 +372,12 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
       schema: { response: { 200: SessionResponseJsonSchema, 401: ErrorResponseSchema } },
     },
     async (request) => {
-      const evidence = await requireSession(request, options.identitySessions, now());
+      const evidence = await requireSession(
+        request,
+        options.identitySessions,
+        now(),
+        options.authCookies.session,
+      );
       return SessionSummarySchema.parse(safeSessionResponse(evidence.session.context));
     },
   );
@@ -352,7 +394,12 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
     },
     async (request) => {
       const evaluatedAt = now();
-      const session = await requireSession(request, options.identitySessions, evaluatedAt);
+      const session = await requireSession(
+        request,
+        options.identitySessions,
+        evaluatedAt,
+        options.authCookies.session,
+      );
       const evidence = await options.workspaces.listEvidenceForPrincipal(
         session.session.context.userId,
       );
@@ -379,12 +426,197 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
       },
     },
     async (request, reply) => {
-      const evidence = await requireSession(request, options.identitySessions, now());
-      requireCsrf(request, evidence.session, options.publicOrigin);
+      const evidence = await requireSession(
+        request,
+        options.identitySessions,
+        now(),
+        options.authCookies.session,
+      );
+      requireCsrf(request, evidence.session, options.publicOrigin, options.authCookies.csrf);
       await options.identitySessions.revoke(evidence.rawToken, now());
-      clearCookie(reply, SESSION_COOKIE, true);
-      clearCookie(reply, CSRF_COOKIE, false);
+      clearCookie(reply, options.authCookies.session, true, options.authCookies.secure);
+      clearCookie(reply, options.authCookies.csrf, false, options.authCookies.secure);
       return reply.status(204).send();
+    },
+  );
+
+  server.get(route("/v1/account"), async (request) => {
+    const evidence = await requireSession(
+      request,
+      options.identitySessions,
+      now(),
+      options.authCookies.session,
+    );
+    if (authMode !== "local" || !options.localAccounts)
+      return { account: null, canManageUsers: false };
+    const context = evidence.session.context;
+    const workspace = await options.workspaces.getEvidence("ws_server20", context.userId);
+    return {
+      account: await options.localAccounts.profile(context),
+      canManageUsers:
+        context.userId === "usr_windows_admin" &&
+        !!workspace &&
+        authorizeWorkspaceAction({
+          session: context,
+          workspace: workspace.workspace,
+          membership: workspace.membership,
+          requiredScope: "project:write",
+          evaluatedAt: now().toISOString(),
+        }).allowed,
+    };
+  });
+  server.post(route("/v1/account/password"), async (request, reply) => {
+    const evidence = await requireSession(
+      request,
+      options.identitySessions,
+      now(),
+      options.authCookies.session,
+    );
+    requireCsrf(request, evidence.session, options.publicOrigin, options.authCookies.csrf);
+    if (authMode !== "local" || !options.localAccounts)
+      throw new HttpError(409, "local-account-unavailable");
+    const body = ChangePasswordSchema.parse(request.body);
+    await options.localAccounts.change(
+      evidence.session.context,
+      body.currentPassword,
+      body.newPassword,
+      evidence.session.context.userId,
+      undefined,
+      now(),
+    );
+    clearCookie(reply, options.authCookies.session, true, options.authCookies.secure);
+    clearCookie(reply, options.authCookies.csrf, false, options.authCookies.secure);
+    return { changed: true };
+  });
+  const accountOwner = async (
+    request: FastifyRequest<{ Params: WorkspaceParams }>,
+    write = false,
+  ) => {
+    const evidence = await requireWorkspace(request, options, "project:write", now());
+    if (
+      authMode !== "local" ||
+      !options.localAccounts ||
+      evidence.workspaceId !== "ws_server20" ||
+      evidence.session.session.context.userId !== "usr_windows_admin"
+    )
+      throw new HttpError(403, "account-management-denied");
+    if (write)
+      requireCsrf(
+        request,
+        evidence.session.session,
+        options.publicOrigin,
+        options.authCookies.csrf,
+      );
+    return evidence;
+  };
+  server.get<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/users"),
+    async (request) => {
+      const evidence = await accountOwner(request);
+      return options.localAccounts?.list(evidence.workspaceId);
+    },
+  );
+  const platformOwner = async (
+    request: FastifyRequest<{ Params: WorkspaceParams }>,
+    write = false,
+  ) => {
+    const evidence = await requireWorkspace(request, options, "project:write", now());
+    if (
+      authMode !== "local" ||
+      !options.selfUpdates ||
+      evidence.workspaceId !== "ws_server20" ||
+      evidence.session.session.context.userId !== "usr_windows_admin"
+    )
+      throw new HttpError(403, "platform-update-denied");
+    if (write)
+      requireCsrf(
+        request,
+        evidence.session.session,
+        options.publicOrigin,
+        options.authCookies.csrf,
+      );
+  };
+  server.get<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/platform-update"),
+    async (request) => {
+      await platformOwner(request);
+      return options.selfUpdates?.state();
+    },
+  );
+  server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/platform-update"),
+    async (request) => {
+      await platformOwner(request, true);
+      const body = z
+        .object({
+          candidateId: z.string().regex(/^[a-f0-9]{32}$/),
+          manifestSha256: z.string().regex(/^[a-f0-9]{64}$/),
+          changeDetails: DeploymentChangeSchema,
+        })
+        .strict()
+        .parse(request.body);
+      try {
+        return await options.selfUpdates?.request(
+          body.candidateId,
+          body.manifestSha256,
+          body.changeDetails,
+        );
+      } catch {
+        throw new HttpError(409, "platform-candidate-changed");
+      }
+    },
+  );
+  server.get(route("/maintenance"), async (request, reply) => {
+    const session = await requireSession(
+      request,
+      options.identitySessions,
+      now(),
+      options.authCookies.session,
+    );
+    if (session.session.context.userId !== "usr_windows_admin" || !options.selfUpdates)
+      throw new HttpError(403, "platform-update-denied");
+    const workspace = await options.workspaces.getEvidence(
+      "ws_server20",
+      session.session.context.userId,
+    );
+    if (
+      !workspace ||
+      !authorizeWorkspaceAction({
+        session: session.session.context,
+        workspace: workspace.workspace,
+        membership: workspace.membership,
+        requiredScope: "project:write",
+        evaluatedAt: now().toISOString(),
+      }).allowed
+    )
+      throw new HttpError(403, "platform-update-denied");
+    return reply.header("cache-control", "no-store").type("text/html").send(selfUpdateHtml);
+  });
+  server.get(route("/maintenance.js"), async (_request, reply) =>
+    reply.header("cache-control", "no-store").type("application/javascript").send(selfUpdateScript),
+  );
+  server.get(route("/maintenance.css"), async (_request, reply) =>
+    reply.header("cache-control", "no-store").type("text/css").send(selfUpdateStyle),
+  );
+  server.post<{ Params: WorkspaceParams & { userId: string } }>(
+    route("/v1/workspaces/:workspaceId/users/:userId/password"),
+    async (request, reply) => {
+      const evidence = await accountOwner(request, true);
+      const target = UserIdSchema.parse(request.params.userId);
+      const body = ChangePasswordSchema.parse(request.body);
+      await options.localAccounts?.change(
+        evidence.session.session.context,
+        body.currentPassword,
+        body.newPassword,
+        target,
+        evidence.workspaceId,
+        now(),
+      );
+      if (target === evidence.session.session.context.userId) {
+        clearCookie(reply, options.authCookies.session, true, options.authCookies.secure);
+        clearCookie(reply, options.authCookies.csrf, false, options.authCookies.secure);
+      }
+      return { changed: true };
     },
   );
 
@@ -452,7 +684,7 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
         "client:write",
         now(),
       );
-      requireCsrf(request, session.session, options.publicOrigin);
+      requireCsrf(request, session.session, options.publicOrigin, options.authCookies.csrf);
       const body = DisplayNameBodySchema.parse(request.body);
       const client = await options.workspaces.createClient({
         workspaceId,
@@ -482,7 +714,7 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
         "project:write",
         now(),
       );
-      requireCsrf(request, session.session, options.publicOrigin);
+      requireCsrf(request, session.session, options.publicOrigin, options.authCookies.csrf);
       EmptyBodySchema.parse(request.body);
       if (workspaceId !== PERSONAL_AGENT_WORKSPACE_ID) {
         throw new HttpError(409, "github-companion-unavailable");
@@ -531,7 +763,7 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
         "project:write",
         now(),
       );
-      requireCsrf(request, session.session, options.publicOrigin);
+      requireCsrf(request, session.session, options.publicOrigin, options.authCookies.csrf);
       const connection = await requireGithubOnboarding(options).connectRepository({
         workspaceId,
         request: ConnectGithubRepositoryRequestSchema.parse(request.body),
@@ -584,7 +816,7 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
         "project:write",
         now(),
       );
-      requireCsrf(request, session.session, options.publicOrigin);
+      requireCsrf(request, session.session, options.publicOrigin, options.authCookies.csrf);
       const body = ProjectBodySchema.parse(request.body);
       const project = await options.workspaces.createProject({
         workspaceId,
@@ -653,7 +885,7 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
         "project:write",
         now(),
       );
-      requireCsrf(request, session.session, options.publicOrigin);
+      requireCsrf(request, session.session, options.publicOrigin, options.authCookies.csrf);
       const projectId = ProjectIdSchema.parse(request.params.projectId);
       const operation = await requireAutomation(options).createOperation({
         workspaceId,
@@ -669,6 +901,347 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
     },
   );
 
+  const connectors = () => {
+    if (!options.developerConnectors) throw new HttpError(503, "connector-setup-unavailable");
+    return options.developerConnectors;
+  };
+  const connectorCredential = (request: FastifyRequest) => {
+    const value = request.headers.authorization;
+    if (!value?.startsWith("Bearer "))
+      throw new HttpError(401, "connector-authentication-required");
+    return value.slice(7);
+  };
+  const connectorActor = async (
+    request: FastifyRequest<{ Params: WorkspaceParams }>,
+    write = false,
+  ) => {
+    const evidence = await requireWorkspace(
+      request,
+      options,
+      write ? "project:write" : "project:read",
+      now(),
+    );
+    if (evidence.workspaceId !== "ws_server20")
+      throw new HttpError(404, "connector-profile-not-found");
+    if (write)
+      requireCsrf(
+        request,
+        evidence.session.session,
+        options.publicOrigin,
+        options.authCookies.csrf,
+      );
+    return evidence.session.session.context.userId;
+  };
+  const components = () => {
+    if (!options.componentDeployments)
+      throw new HttpError(503, "component-deployments-unavailable");
+    return options.componentDeployments;
+  };
+  server.post<{ Params: WorkspaceParams & { profileId: string } }>(
+    route("/v1/workspaces/:workspaceId/component-deployments/:profileId/test"),
+    async (request) => {
+      const actor = await connectorActor(request, true),
+        body = z
+          .object({ deviceId: z.string().regex(/^fc_[a-f0-9]{32}$/) })
+          .strict()
+          .parse(request.body);
+      return components().test(actor, request.params.profileId, body.deviceId);
+    },
+  );
+  server.get<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/component-deployments"),
+    async (request) => components().state(await connectorActor(request)),
+  );
+  server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/component-deployments/configuration"),
+    async (request) => components().save(await connectorActor(request, true), request.body),
+  );
+  server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/component-deployments/executors"),
+    async (request, reply) =>
+      reply
+        .header("cache-control", "no-store")
+        .send(await components().enroll(await connectorActor(request, true), request.body)),
+  );
+  server.post<{ Params: WorkspaceParams & { executorId: string } }>(
+    route("/v1/workspaces/:workspaceId/component-deployments/executors/:executorId/revoke"),
+    async (request) =>
+      components().revoke(await connectorActor(request, true), request.params.executorId),
+  );
+  server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/component-deployments/runs"),
+    async (request, reply) =>
+      reply
+        .status(202)
+        .send(await components().request(await connectorActor(request, true), request.body)),
+  );
+  server.post(route("/v1/executor/heartbeat"), async (request) =>
+    components().heartbeat(connectorCredential(request), request.body),
+  );
+  server.post(route("/v1/executor/claim"), async (request) => ({
+    job: await components().claim(connectorCredential(request)),
+  }));
+  server.get<{ Params: { jobId: string } }>(
+    route("/v1/executor/jobs/:jobId/artifact"),
+    async (request, reply) =>
+      reply
+        .header("cache-control", "no-store")
+        .type("application/octet-stream")
+        .send(
+          createReadStream(
+            await components().artifact(connectorCredential(request), request.params.jobId),
+          ),
+        ),
+  );
+  server.get<{ Params: { jobId: string } }>(
+    route("/v1/executor/jobs/:jobId/previous-artifact"),
+    async (request, reply) =>
+      reply
+        .header("cache-control", "no-store")
+        .type("application/octet-stream")
+        .send(
+          createReadStream(
+            await components().artifact(connectorCredential(request), request.params.jobId, true),
+          ),
+        ),
+  );
+  server.addContentTypeParser(
+    "application/octet-stream",
+    { parseAs: "buffer" },
+    (_request, body, done) => done(null, body),
+  );
+  server.post<{ Params: { jobId: string } }>(
+    route("/v1/executor/jobs/:jobId/artifact"),
+    { bodyLimit: 512 * 1024 * 1024 },
+    async (request) => {
+      if (!Buffer.isBuffer(request.body)) throw new HttpError(400, "component-artifact-required");
+      return components().upload(connectorCredential(request), request.params.jobId, request.body);
+    },
+  );
+  server.post<{ Params: { jobId: string } }>(
+    route("/v1/executor/jobs/:jobId/complete"),
+    async (request) =>
+      components().complete(connectorCredential(request), request.params.jobId, request.body),
+  );
+  server.get(route("/downloads/frevos-connector.zip"), async (_request, reply) =>
+    reply
+      .header("cache-control", "no-store")
+      .header("content-disposition", 'attachment; filename="DevSetu-System-Connector-Windows.zip"')
+      .type("application/zip")
+      .send(
+        createReadStream(
+          fileURLToPath(new URL("../../../deployment/servix/connector.zip", import.meta.url)),
+        ),
+      ),
+  );
+  server.get<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/connectors"),
+    async (request) => connectors().list(await connectorActor(request)),
+  );
+  server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/connectors/pair"),
+    async (request, reply) =>
+      reply
+        .header("cache-control", "no-store")
+        .send(await connectors().pair(await connectorActor(request, true), request.body)),
+  );
+  server.post<{ Params: WorkspaceParams & { deviceId: string } }>(
+    route("/v1/workspaces/:workspaceId/connectors/:deviceId/revoke"),
+    async (request) =>
+      connectors().revoke(await connectorActor(request, true), request.params.deviceId),
+  );
+  server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/developers/invite"),
+    async (request, reply) =>
+      reply
+        .header("cache-control", "no-store")
+        .send(await connectors().invite(await connectorActor(request, true), request.body)),
+  );
+  server.post(route("/v1/developers/redeem"), async (request, reply) =>
+    reply.header("cache-control", "no-store").send(await connectors().redeem(request.body)),
+  );
+  server.post(route("/v1/connector/claim"), async (request) => ({
+    job: await connectors().claim(connectorCredential(request)),
+  }));
+  server.post(route("/v1/connector/heartbeat"), async (request) =>
+    connectors().heartbeat(connectorCredential(request), request.body ?? {}),
+  );
+  server.post<{ Params: WorkspaceParams & { deviceId: string } }>(
+    route("/v1/workspaces/:workspaceId/connectors/:deviceId/choose-folder"),
+    async (request) => {
+      const actor = await connectorActor(request, true);
+      z.object({}).strict().parse(request.body);
+      return connectors().chooseFolder(actor, request.params.deviceId);
+    },
+  );
+  server.post(route("/v1/connector/folder/claim"), async (request) => ({
+    selection: await connectors().claimFolder(connectorCredential(request)),
+  }));
+  server.post(route("/v1/connector/folder/complete"), async (request) =>
+    connectors().finishFolder(connectorCredential(request), request.body),
+  );
+  const settings = () => {
+    if (!options.deploymentSettings) throw new HttpError(503, "deployment-settings-unavailable");
+    return options.deploymentSettings;
+  };
+  server.get<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/deployment-settings"),
+    async (request) => {
+      const actor = await connectorActor(request);
+      const configured = (await options.componentDeployments?.projectSettings(actor)) ?? [];
+      return [
+        ...(await settings().list(actor)).filter(
+          (p) => !configured.some((c) => c.profileId === p.profileId),
+        ),
+        ...configured,
+      ];
+    },
+  );
+  server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/deployment-settings"),
+    async (request) => {
+      const actor = await connectorActor(request, true);
+      const candidate = DeploymentSettingsInputSchema.parse(request.body);
+      if (await options.componentDeployments?.profile(candidate.profileId))
+        throw new HttpError(409, "component-configuration-required");
+      return settings().save(actor, request.body);
+    },
+  );
+  server.post<{ Params: WorkspaceParams & { profileId: string } }>(
+    route("/v1/workspaces/:workspaceId/deployment-settings/:profileId/test"),
+    async (request) => {
+      const actor = await connectorActor(request, true);
+      const body = z
+        .object({
+          deviceId: z
+            .string()
+            .regex(/^fc_[a-f0-9]{32}$/)
+            .optional(),
+        })
+        .strict()
+        .parse(request.body);
+      return settings().test(
+        actor,
+        request.params.profileId,
+        body.deviceId,
+        connectors(),
+        async () => {
+          if (!(await options.servixDeployment?.state())?.runnerOnline) return false;
+          const response = await fetch("http://10.9.69.21:82/api/health", {
+            redirect: "error",
+            signal: AbortSignal.timeout(4000),
+          });
+          if (!response.ok) return false;
+          const health = z
+            .object({
+              status: z.literal("OK"),
+              authBootstrapReady: z.literal(true),
+              fullBootstrapReady: z.literal(true),
+            })
+            .safeParse(await response.json());
+          return health.success;
+        },
+      );
+    },
+  );
+  server.post(route("/v1/connector/source-base"), async (request, reply) => {
+    const store = connectors(),
+      file = await store.baseline(connectorCredential(request), request.body);
+    const stream = createReadStream(file);
+    stream.once("close", () => {
+      void store.releaseBaseline(file).catch(() => undefined);
+    });
+    return reply.header("cache-control", "no-store").type("application/x-git-bundle").send(stream);
+  });
+  server.post<{ Params: { requestId: string } }>(
+    route("/v1/connector/jobs/:requestId/fail"),
+    async (request) =>
+      connectors().fail(connectorCredential(request), request.params.requestId, request.body),
+  );
+  server.addContentTypeParser(
+    "application/x-git-bundle",
+    { parseAs: "buffer" },
+    (_request, body, done) => done(null, body),
+  );
+  server.post(
+    route("/v1/connector/source-seed"),
+    { bodyLimit: 64 * 1024 * 1024 },
+    async (request) => {
+      if (!Buffer.isBuffer(request.body)) throw new HttpError(400, "connector-bundle-required");
+      const head = request.headers["x-frevos-source-head"];
+      if (typeof head !== "string") throw new HttpError(400, "connector-source-head-required");
+      return connectors().seed(connectorCredential(request), head, request.body);
+    },
+  );
+  server.post<{ Params: { requestId: string } }>(
+    route("/v1/connector/jobs/:requestId/bundle"),
+    {
+      bodyLimit: 64 * 1024 * 1024,
+      onRequest: async (request) => connectors().checkCredential(connectorCredential(request)),
+    },
+    async (request) => {
+      if (!Buffer.isBuffer(request.body)) throw new HttpError(400, "connector-bundle-required");
+      const head = request.headers["x-frevos-source-head"];
+      if (typeof head !== "string") throw new HttpError(400, "connector-source-head-required");
+      return connectors().complete(
+        connectorCredential(request),
+        request.params.requestId,
+        head,
+        request.body,
+      );
+    },
+  );
+  server.get<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/servix/deployments"),
+    async (request) => {
+      const { workspaceId } = await requireWorkspace(request, options, "project:read", now());
+      if (workspaceId !== "ws_server20") throw new HttpError(404, "deployment-profile-not-found");
+      if (!options.servixDeployment)
+        return {
+          available: false,
+          runnerOnline: false,
+          source: "server20 / servix.git / frevos-dev",
+          sourceHead: null,
+          target: "10.9.69.21 / D:\\servixDev",
+          runs: [],
+        };
+      return options.servixDeployment.state();
+    },
+  );
+  server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/servix/deployments"),
+    async (request, reply) => {
+      const { workspaceId, session } = await requireWorkspace(
+        request,
+        options,
+        "project:write",
+        now(),
+      );
+      requireCsrf(request, session.session, options.publicOrigin, options.authCookies.csrf);
+      if (workspaceId !== "ws_server20" || !options.servixDeployment)
+        throw new HttpError(404, "deployment-profile-not-found");
+      return reply
+        .status(202)
+        .send(await options.servixDeployment.request(session.session.context.userId, request.body));
+    },
+  );
+  server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/servix/restores"),
+    async (request, reply) => {
+      const { workspaceId, session } = await requireWorkspace(
+        request,
+        options,
+        "project:write",
+        now(),
+      );
+      requireCsrf(request, session.session, options.publicOrigin, options.authCookies.csrf);
+      if (workspaceId !== "ws_server20" || !options.servixDeployment)
+        throw new HttpError(404, "deployment-profile-not-found");
+      return reply
+        .status(202)
+        .send(await options.servixDeployment.restore(session.session.context.userId, request.body));
+    },
+  );
   server.post(route("/v1/agents/trackgrn/claim"), async (request, reply) => {
     requireTrackGrnAgent(request, options.trackGrnAgentTokenHash);
     const operation = await requireAutomation(options).claimNext(TRACKGRN_AGENT_ID, now());
@@ -784,8 +1357,9 @@ async function requireSession(
   request: FastifyRequest,
   sessions: IdentitySessionRepository,
   now: Date,
+  cookieName: string,
 ): Promise<SessionEvidence> {
-  const rawToken = request.cookies[SESSION_COOKIE];
+  const rawToken = request.cookies[cookieName];
   if (rawToken === undefined) {
     throw new HttpError(401, "authentication-required");
   }
@@ -798,7 +1372,7 @@ async function requireSession(
 
 async function requireWorkspace(
   request: FastifyRequest<{ Params: WorkspaceParams }>,
-  options: BuildServerOptions,
+  options: ServerContext,
   scope: string,
   now: Date,
 ): Promise<{
@@ -807,7 +1381,12 @@ async function requireWorkspace(
   session: SessionEvidence;
 }> {
   const workspaceId = WorkspaceIdSchema.parse(request.params.workspaceId);
-  const session = await requireSession(request, options.identitySessions, now);
+  const session = await requireSession(
+    request,
+    options.identitySessions,
+    now,
+    options.authCookies.session,
+  );
   const workspace = await options.workspaces.getEvidence(
     workspaceId,
     session.session.context.userId,
@@ -832,12 +1411,13 @@ function requireCsrf(
   request: FastifyRequest,
   session: AuthenticatedSession,
   publicOrigin: string,
+  cookieName: string,
 ): void {
   if (request.headers.origin !== publicOrigin) {
     throw new HttpError(403, "csrf-check-failed");
   }
   const headerToken = request.headers["x-csrf-token"];
-  const cookieToken = request.cookies[CSRF_COOKIE];
+  const cookieToken = request.cookies[cookieName];
   if (
     typeof headerToken !== "string" ||
     cookieToken === undefined ||
@@ -864,18 +1444,26 @@ const httpOnlyCookieOptions = {
   sameSite: "strict" as const,
 };
 
-function setSessionCookies(reply: FastifyReply, rawToken: string, rawCsrfToken: string): void {
-  reply.setCookie(SESSION_COOKIE, rawToken, {
+function setSessionCookies(
+  reply: FastifyReply,
+  rawToken: string,
+  rawCsrfToken: string,
+  policy: AuthCookiePolicy,
+): void {
+  reply.setCookie(policy.session, rawToken, {
     ...httpOnlyCookieOptions,
+    secure: policy.secure,
     maxAge: SESSION_MAX_AGE_SECONDS,
   });
-  reply.setCookie(CSRF_COOKIE, rawCsrfToken, {
+  reply.setCookie(policy.csrf, rawCsrfToken, {
     ...httpOnlyCookieOptions,
+    secure: policy.secure,
     httpOnly: false,
     maxAge: SESSION_MAX_AGE_SECONDS,
   });
 }
 
-function clearCookie(reply: FastifyReply, name: string, httpOnly: boolean): void {
-  reply.clearCookie(name, { ...httpOnlyCookieOptions, httpOnly });
+function clearCookie(reply: FastifyReply, name: string, httpOnly: boolean, secure = true): void {
+  reply.clearCookie(name, { ...httpOnlyCookieOptions, httpOnly, secure });
 }
+import { DeploymentChangeSchema } from "@frevos/contracts";

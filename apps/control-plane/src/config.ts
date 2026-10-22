@@ -5,7 +5,8 @@ import { decodeEncryptionKey, sha256 } from "./crypto.js";
 const EnvironmentSchema = z
   .object({
     DATABASE_URL: z.string().min(1),
-    FREVOS_PUBLIC_ORIGIN: z.url().refine((value) => value.startsWith("https://")),
+    FREVOS_PUBLIC_ORIGIN: z.url(),
+    FREVOS_ALLOW_INTERNAL_HTTP: z.enum(["true", "false"]).default("false"),
     FREVOS_AUTH_MODE: z.enum(["local", "oidc"]).default("oidc"),
     FREVOS_OIDC_ISSUER: z
       .url()
@@ -15,6 +16,9 @@ const EnvironmentSchema = z
     FREVOS_OIDC_CLIENT_SECRET: z.string().min(1).max(4096).optional(),
     FREVOS_OIDC_TRANSACTION_KEY: z.string().min(43).max(64).optional(),
     FREVOS_TRACKGRN_AGENT_TOKEN: z.string().min(32).max(256).optional(),
+    FREVOS_SERVIX_DEPLOYMENT_ROOT: z.string().min(1).max(500).optional(),
+    DEVSETU_GIT_EXECUTABLE: z.string().min(1).max(500).default("git"),
+
     FREVOS_BASE_PATH: z
       .string()
       .regex(/^$|^\/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/)
@@ -31,6 +35,8 @@ interface BaseControlPlaneConfig {
   readonly host: string;
   readonly port: number;
   readonly trackGrnAgentTokenHash?: Buffer;
+  readonly servixRoot?: string;
+  readonly componentGitExecutable: string;
 }
 
 export type ControlPlaneConfig = BaseControlPlaneConfig &
@@ -48,6 +54,26 @@ export type ControlPlaneConfig = BaseControlPlaneConfig &
 export function loadConfig(environment: NodeJS.ProcessEnv): ControlPlaneConfig {
   const parsed = EnvironmentSchema.parse(environment);
   const publicOrigin = new URL(parsed.FREVOS_PUBLIC_ORIGIN);
+  const octets = publicOrigin.hostname.split(".").map(Number);
+  const privateIpv4 =
+    /^\d+\.\d+\.\d+\.\d+$/.test(publicOrigin.hostname) &&
+    octets.every((octet) => Number.isInteger(octet) && octet >= 0 && octet <= 255) &&
+    (octets[0] === 10 ||
+      octets[0] === 127 ||
+      (octets[0] === 172 && (octets[1] ?? 0) >= 16 && (octets[1] ?? 0) <= 31) ||
+      (octets[0] === 192 && octets[1] === 168));
+  if (
+    publicOrigin.protocol !== "https:" &&
+    !(
+      publicOrigin.protocol === "http:" &&
+      parsed.FREVOS_ALLOW_INTERNAL_HTTP === "true" &&
+      parsed.FREVOS_AUTH_MODE === "local" &&
+      privateIpv4 &&
+      (parsed.HOST === "127.0.0.1" || parsed.HOST === "::1")
+    )
+  ) {
+    throw new Error("HTTP requires explicit internal local-auth configuration");
+  }
   if (
     publicOrigin.username !== "" ||
     publicOrigin.password !== "" ||
@@ -59,11 +85,17 @@ export function loadConfig(environment: NodeJS.ProcessEnv): ControlPlaneConfig {
   }
 
   const base = {
+    componentGitExecutable: parsed.DEVSETU_GIT_EXECUTABLE,
     databaseUrl: parsed.DATABASE_URL,
     publicOrigin: publicOrigin.origin,
     basePath: parsed.FREVOS_BASE_PATH,
     host: parsed.HOST,
     port: parsed.PORT,
+    ...(parsed.FREVOS_SERVIX_DEPLOYMENT_ROOT === undefined
+      ? {}
+      : {
+          servixRoot: parsed.FREVOS_SERVIX_DEPLOYMENT_ROOT,
+        }),
     ...(parsed.FREVOS_TRACKGRN_AGENT_TOKEN === undefined
       ? {}
       : { trackGrnAgentTokenHash: sha256(parsed.FREVOS_TRACKGRN_AGENT_TOKEN) }),
