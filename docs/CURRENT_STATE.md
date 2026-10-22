@@ -25,8 +25,12 @@ saved-artifact rollback passed. Synthetic connections were revoked, tasks remove
 and the fixture project archived. Native source commit `945682f4` published, but
 its builder was terminated during VPN baseline copying and retained a claim
 without an output or destination job. ADR 0051 adds bounded owner closure of that
-build and a verified local baseline cache. Native acceptance is still in progress;
-never replay that interrupted request. See
+build and a verified local baseline cache. That request was closed through the
+actual owner popup without replay. A fresh source request passed import and CI,
+then failed Windows MAX_PATH during nested packaging; ADR 0052 enrolls a short
+output directory and completes the installer operator bundle. A local diagnostic
+package passed with that output scope and is not a deployment substitute.
+Native acceptance is still in progress. See
 [the current component handoff](COMPONENT_DEPLOYMENTS_HANDOFF.md) for exact
 artifacts, nonsecret recovery context and remaining work.
 

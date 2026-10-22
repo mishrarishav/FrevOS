@@ -94,3 +94,5 @@ references without changing shared IIS request limits.
 
 [0051: Interrupted build resolution](0051-interrupted-build-resolution.md)
 adds an actor/source-bound, non-replaying closure for interrupted builds only.
+
+[0052: Native builder output scope](0052-native-builder-output-scope.md)

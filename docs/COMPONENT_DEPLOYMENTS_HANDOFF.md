@@ -123,7 +123,19 @@ with `0xc000013a` while copying the baseline. The cause remains unproven.
 The restarted worker correctly marked its retained claim recovery-required;
 no output, destination job or activation existed. ADR 0051 adds bounded owner
 closure and an enrolled, fully verified local baseline cache. Do not replay
-that request. Finish with a fresh source request after closing it.
+that request. It was closed through the actual owner popup with an actor/source-
+bound resolution and no replay. Cancellation submitted no request.
+
+Fresh request `pr_1a9c64575f353a606f1b7ddd574ce597` committed `eb3e33d3` but its
+central bundle import timed out; it failed with no destination job. Read-only
+identity and bundle checks plus an isolated fetch passed. A new request
+`pr_c009728270ec6388138baf512a1fb8bb` published source `4fd344c0` successfully
+and passed native CI, then packaging failed Windows MAX_PATH. No activation
+occurred. ADR 0052 adds a short, enrolled output directory, bounds archive/package
+receipts to it, and completes the operator sidecar bundle. The paired builder
+was upgraded without changing its public binding or credential. The short-output
+diagnostic package succeeded and is retained only as diagnostic evidence;
+the next native acceptance must build a fresh pipeline artifact.
 
 Enrollment and initial source binding are complete. Source-seed acknowledgement
 loss must be resolved by authenticated readback, never by replaying the seed

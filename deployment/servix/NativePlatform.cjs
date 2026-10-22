@@ -69,6 +69,14 @@ module.exports = {
       !path.isAbsolute(options.artifactStore)
     )
       throw Error("native-build-toolchain-not-enrolled");
+    if (options.releaseOutputRoot) {
+      if (
+        !path.isAbsolute(options.releaseOutputRoot) ||
+        path.parse(options.releaseOutputRoot).root === path.resolve(options.releaseOutputRoot)
+      )
+        throw Error("native-release-output-not-enrolled");
+      await plain(options.releaseOutputRoot);
+    }
     const state = JSON.parse(
       await fs.readFile(path.join(options.baselineRoot, "state/active.json"), "utf8"),
     );
@@ -123,13 +131,17 @@ module.exports = {
         previous,
         "-SourceRoot",
         source,
+        ...(options.releaseOutputRoot ? ["-ReleaseOutputRoot", options.releaseOutputRoot] : []),
       ],
       source,
     );
     const receipt = JSON.parse(
       await fs.readFile(path.join(source, ".local/servix-release.json"), "utf8"),
     );
-    if (!path.resolve(receipt.archive).startsWith(path.resolve(source) + path.sep))
+    const outputRoot = path.resolve(options.releaseOutputRoot || source) + path.sep;
+    if (
+      ![receipt.archive, receipt.package].every((file) => path.resolve(file).startsWith(outputRoot))
+    )
       throw Error("native-build-output-escaped");
     const archive = await fs.readFile(receipt.archive),
       archiveSha256 = sha(archive);

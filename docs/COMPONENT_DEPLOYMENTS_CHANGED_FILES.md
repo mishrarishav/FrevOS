@@ -141,6 +141,7 @@ It is broader than the final component-only correction. No unrelated worktree is
 - `docs/adr/0049-configured-component-deployments.md`
 - `docs/adr/0050-bounded-native-artifact-transfer.md`
 - `docs/adr/0051-interrupted-build-resolution.md`
+- `docs/adr/0052-native-builder-output-scope.md`
 - `docs/adr/README.md`
 - `packages/contracts/src/auth-cookies.ts`
 - `packages/contracts/src/component-deployments.ts`

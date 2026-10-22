@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$PreviousPackageRoot,[switch]$BootstrapMaintenance,[string]$SourceRoot)
+param([Parameter(Mandatory=$true)][string]$PreviousPackageRoot,[switch]$BootstrapMaintenance,[string]$SourceRoot,[string]$ReleaseOutputRoot)
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 $root=if($SourceRoot){[IO.Path]::GetFullPath($SourceRoot)}else{[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))}
@@ -17,12 +17,14 @@ function Get-SourceGuard {
 }
 $sourceState=if((& git -C $root status --porcelain=v1|Out-String).Trim()){'local-uncommitted'}else{'committed'}
 $sourceGuard=Get-SourceGuard
+$artifactRoot=if($ReleaseOutputRoot){[IO.Path]::GetFullPath($ReleaseOutputRoot)}else{Join-Path $root '.local'}
+if($ReleaseOutputRoot){if($artifactRoot -ieq [IO.Path]::GetPathRoot($artifactRoot) -or -not(Test-Path -LiteralPath $artifactRoot -PathType Container)){throw 'Choose an existing specific release output directory'};Assert-NoReparsePath $artifactRoot}
 Push-Location $root
 try{
  & pnpm.cmd run build
  if($LASTEXITCODE -ne 0){throw 'Application build failed'}
  try{$env:VITE_FREVOS_AUTH_MODE='local';& pnpm.cmd --filter '@frevos/control-center' run build;if($LASTEXITCODE -ne 0){throw 'Local-auth UI build failed'}}finally{Remove-Item Env:VITE_FREVOS_AUTH_MODE -ErrorAction SilentlyContinue}
- $id=[guid]::NewGuid().ToString('N');$output=Join-Path $root ('.local\servix-release-'+$id);$package=Join-Path $output 'package'
+ $id=[guid]::NewGuid().ToString('N');$output=Join-Path $artifactRoot ('servix-release-'+$id);$package=Join-Path $output 'package'
  [void][IO.Directory]::CreateDirectory($output);Copy-Item -LiteralPath $PreviousPackageRoot -Destination $package -Recurse
  foreach($name in @('main','config','server','repositories','local-accounts','self-updates','developer-connectors','servix-deployment','deployment-settings','component-deployments','component-git','atomic-record')){foreach($suffix in @('js','js.map','d.ts','d.ts.map')){Copy-Item -LiteralPath (Join-Path $root ('apps\control-plane\dist\'+$name+'.'+$suffix)) -Destination (Join-Path $package ('apps\control-plane\dist\'+$name+'.'+$suffix))}}
  foreach($name in @('deployment-change','servix-deployment','developer-connectors','deployment-settings','local-accounts','component-deployments','index')){foreach($suffix in @('js','js.map','d.ts','d.ts.map')){Copy-Item -LiteralPath (Join-Path $root ('packages\contracts\dist\'+$name+'.'+$suffix)) -Destination (Join-Path $package ('apps\control-plane\node_modules\@frevos\contracts\dist\'+$name+'.'+$suffix))}}
@@ -72,5 +74,5 @@ try{
  $stream=[IO.File]::Open($archive,[IO.FileMode]::CreateNew);$zip=[IO.Compression.ZipArchive]::new($stream,[IO.Compression.ZipArchiveMode]::Create,$false)
  try{foreach($file in Get-ChildItem -LiteralPath $package -Recurse -File){[void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip,$file.FullName,$file.FullName.Substring($package.Length+1).Replace('\','/'),[IO.Compression.CompressionLevel]::Fastest)}}finally{$zip.Dispose();$stream.Dispose()}
  $receipt=@{package=$package;archive=$archive;manifestSha256=$digest;archiveSha256=(Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant();files=$files.Count}
- [IO.File]::WriteAllText((Join-Path $root '.local\servix-release.json'),($receipt|ConvertTo-Json),[Text.UTF8Encoding]::new($false));$receipt|ConvertTo-Json
+ [void][IO.Directory]::CreateDirectory((Join-Path $root '.local'));[IO.File]::WriteAllText((Join-Path $root '.local\servix-release.json'),($receipt|ConvertTo-Json),[Text.UTF8Encoding]::new($false));$receipt|ConvertTo-Json
 }finally{Pop-Location}
