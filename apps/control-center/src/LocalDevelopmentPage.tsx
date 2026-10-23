@@ -434,6 +434,7 @@ export function LocalDevelopmentPage({
                   type="button"
                   disabled={
                     busy ||
+                    !!retry ||
                     pending(row) ||
                     !row.connection?.online ||
                     !current.existing.projectOwned

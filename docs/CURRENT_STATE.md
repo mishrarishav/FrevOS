@@ -10,12 +10,17 @@ using the existing connector. HRMS's desktop launcher is a reference only and
 remains untouched. Work is stacked on `feature/local-development-runtime`, base
 `915173a272d67e08c59caf34ce2fd34785f616ce`, ADR 0053. Phase 4 exit stays open.
 
-The API, connector runtime and shared workspace UI are implemented and under
-verification. Initial full CI passed 257 tests and required gates; further
-environment/egress checks are being validated. Real Windows process tests passed
-Start/Restart/Stop, descendant cleanup, unchanged environment files and scoped
-existing-process termination. Final isolated database/Playwright acceptance and
-live activation remain. No customer backend or Production database was started.
+The API, connector runtime and shared workspace UI are live at source
+`81f8a5c6737574781942aeb90dc8733c82f68773`, manifest
+`31a4cfec77af7aa7bd6178aa038147245aa3102d3894c8da2a1a0ef7ad54a8c4`.
+Full CI passed 258 tests and required gates. Eleven real Windows/npm/Vite/MySQL/
+authenticated Playwright acceptance groups and a real ASP.NET fixture passed.
+Both existing source connectors were upgraded with task/pairing preserved.
+Actual Servix frontend Start, localhost Login render and Stop passed; its backend
+was refused before startup by the read-only grants check. Customer source,
+settings, environment files and existing deployment stayed unchanged. One final
+UI guard for uncertain actions is verified and being rolled out; Phase 4 exit
+remains open.
 
 The owner supplied `D:\servixDev\backend\.env`. It and `.env.prd` resolve to
 `10.9.69.31 / servix_db`, whereas the approved development database is
