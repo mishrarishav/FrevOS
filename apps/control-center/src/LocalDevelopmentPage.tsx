@@ -15,6 +15,7 @@ import { deploymentRequestId } from "./deployment-request-id.js";
 import { RecordBadge, type RecordColumn, RecordWorkspace } from "./RecordWorkspace.js";
 import { addBasePath } from "./routing.js";
 import { WorkspaceDialog } from "./WorkspaceDialog.js";
+import { EnvironmentVariables } from "./EnvironmentVariables.js";
 
 type Connection = LocalDevState["connections"][number];
 type Row = {
@@ -87,6 +88,7 @@ export function LocalDevelopmentPage({
     [busy, setBusy] = useState(false);
   const [choices, setChoices] = useState<Record<string, { deviceId?: string; mode?: Mode }>>({});
   const [editor, setEditor] = useState<{ row: Row; plan: LocalDevPlan } | null>(null);
+  const [environmentRow, setEnvironmentRow] = useState<Row | null>(null);
   const [kill, setKill] = useState<{
     row: Row;
     service: LocalDevSnapshot["services"][number];
@@ -479,6 +481,24 @@ export function LocalDevelopmentPage({
       >
         Configure services
       </button>
+      <button
+        className="button secondary"
+        type="button"
+        disabled={
+          busy ||
+          !!retry ||
+          pending(row) ||
+          !row.connection?.online ||
+          !row.connection.snapshot.sourceReady ||
+          !row.connection.snapshot.environmentEditor ||
+          !row.connection.snapshot.candidates.some((c) =>
+            c.environments.some((e) => /^\.env(?:\.|$)/.test(e.reference)),
+          )
+        }
+        onClick={() => setEnvironmentRow(row)}
+      >
+        Environment variables
+      </button>
     </div>
   );
   const columns: RecordColumn<Row>[] = [
@@ -641,6 +661,22 @@ export function LocalDevelopmentPage({
           </article>
         )}
       />
+      {environmentRow?.connection ? (
+        <EnvironmentVariables
+          api={api}
+          workspaceId={workspaceId}
+          connection={
+            state.connections.find((c) => c.deviceId === environmentRow.connection?.deviceId) ?? {
+              ...environmentRow.connection,
+              online: false,
+            }
+          }
+          jobs={state.jobs}
+          projectName={environmentRow.profile.displayName}
+          initialMode={choices[environmentRow.profile.profileId]?.mode ?? "development"}
+          onClose={() => setEnvironmentRow(null)}
+        />
+      ) : null}
       {editor?.row.connection ? (
         <WorkspaceDialog
           label="Configure local services"

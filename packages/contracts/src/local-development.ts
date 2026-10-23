@@ -4,6 +4,104 @@ import { ConnectorIdSchema } from "./developer-connectors.js";
 
 const Id = DeploymentProfileIdSchema;
 const Digest = z.string().regex(/^[a-f0-9]{64}$/);
+const EnvReference = z.string().regex(/^\.env(?:\.[a-zA-Z0-9_-]+)?$/);
+export const LocalEnvKeySchema = z.string().regex(/^[A-Za-z_][A-Za-z0-9_]{0,127}$/);
+export const LocalEnvChangeSchema = z.discriminatedUnion("operation", [
+  z
+    .object({
+      operation: z.literal("set"),
+      key: LocalEnvKeySchema,
+      value: z
+        .string()
+        .max(8192)
+        .refine((v) => !/[\0\r\n]/.test(v)),
+    })
+    .strict(),
+  z.object({ operation: z.literal("delete"), key: LocalEnvKeySchema }).strict(),
+]);
+export const LocalEnvChangesSchema = z
+  .array(LocalEnvChangeSchema)
+  .min(1)
+  .max(512)
+  .refine((rows) => new Set(rows.map((r) => r.key)).size === rows.length);
+// Only these ordinary, syntax-constrained values may leave the source computer.
+export function localEnvVisibleValue(key: string, value: string): boolean {
+  if (["DB_HOST", "PGHOST", "HOST"].includes(key))
+    return /^[A-Za-z0-9_.:\[\]-]{1,253}$/.test(value);
+  if (["DB_NAME", "PGDATABASE"].includes(key)) return /^[A-Za-z0-9_.-]{1,128}$/.test(value);
+  if (["PORT", "DB_PORT", "PGPORT"].includes(key))
+    return /^\d{1,5}$/.test(value) && Number(value) > 0 && Number(value) < 65536;
+  if (key === "NODE_ENV") return ["development", "production", "test"].includes(value);
+  return (
+    /^(?:MAIL_ENABLED|ENABLE_EMAIL_LISTENER|LOCAL_MAIL_DISABLED|LOCAL_OUTGOING_MAIL_DISABLED|LOCAL_MAIL_LISTENER_DISABLED|AUTO_CLOSE_RESOLVED_ENABLED|AUTO_RESOLVE_PENDING_USER_ENABLED)$/.test(
+      key,
+    ) && /^(?:true|false|0|1)$/.test(value)
+  );
+}
+export const LocalEnvDocumentSchema = z
+  .object({
+    serviceId: Id,
+    reference: EnvReference,
+    revision: Digest,
+    rows: z
+      .array(
+        z.discriminatedUnion("masked", [
+          z.object({ key: LocalEnvKeySchema, masked: z.literal(true) }).strict(),
+          z
+            .object({
+              key: LocalEnvKeySchema,
+              masked: z.literal(false),
+              value: z.string().max(253),
+            })
+            .strict()
+            .refine((r) => localEnvVisibleValue(r.key, r.value)),
+        ]),
+      )
+      .max(512)
+      .refine((rows) => new Set(rows.map((r) => r.key)).size === rows.length),
+  })
+  .strict();
+export const LocalEnvEditorSchema = z.object({ keyId: Digest, publicKey: Digest }).strict();
+export const LocalEnvSealedSchema = z
+  .object({
+    keyId: Digest,
+    publicKey: Digest,
+    iv: z.string().regex(/^[a-f0-9]{24}$/),
+    ciphertext: z
+      .string()
+      .min(34)
+      .max(131104)
+      .regex(/^(?:[a-f0-9]{2})+$/),
+  })
+  .strict();
+// Stable authenticated context, shared by the browser and execution boundary.
+export function localEnvContext(
+  request: {
+    requestId: string;
+    deviceId: string;
+    profileId: string;
+    expectedRevision: number;
+    fingerprint: string;
+    serviceId: string;
+    reference: string;
+    documentRevision: string;
+  },
+  keyId: string,
+): string {
+  return JSON.stringify([
+    "local-environment-v1",
+    "ws_server20",
+    request.requestId,
+    request.deviceId,
+    request.profileId,
+    request.expectedRevision,
+    request.fingerprint,
+    request.serviceId,
+    request.reference,
+    request.documentRevision,
+    keyId,
+  ]);
+}
 export const LocalDevRequestIdSchema = z.string().regex(/^ld_[a-f0-9]{32}$/);
 export const LocalDevModeSchema = z.enum(["development", "production"]);
 export const LocalDevRecipeSchema = z.enum(["npm-script", "dotnet-run"]);
@@ -98,6 +196,7 @@ export const LocalDevSnapshotSchema = z
     candidates: z.array(LocalDevCandidateSchema).max(24),
     plan: LocalDevPlanSchema.nullable(),
     services: z.array(LocalDevServiceStateSchema).max(12),
+    environmentEditor: LocalEnvEditorSchema.optional(),
   })
   .strict();
 const ActionBase = {
@@ -122,6 +221,25 @@ export const LocalDevActionSchema = z.discriminatedUnion("operation", [
   z
     .object({
       ...ActionBase,
+      operation: z.literal("environment-read"),
+      serviceId: Id,
+      reference: EnvReference,
+    })
+    .strict(),
+  z
+    .object({
+      ...ActionBase,
+      operation: z.literal("environment-save"),
+      serviceId: Id,
+      reference: EnvReference,
+      documentRevision: Digest,
+      approved: z.literal(true),
+      sealed: LocalEnvSealedSchema,
+    })
+    .strict(),
+  z
+    .object({
+      ...ActionBase,
       operation: z.literal("kill-existing"),
       serviceId: Id,
       identity: Digest,
@@ -141,6 +259,7 @@ export const LocalDevJobSchema = z
       .string()
       .regex(/^[a-z][a-z0-9-]{0,79}$/)
       .optional(),
+    environment: LocalEnvDocumentSchema.optional(),
   })
   .strict();
 export const LocalDevStateSchema = z
@@ -166,3 +285,5 @@ export type LocalDevJob = z.infer<typeof LocalDevJobSchema>;
 export type LocalDevSnapshot = z.infer<typeof LocalDevSnapshotSchema>;
 export type LocalDevState = z.infer<typeof LocalDevStateSchema>;
 export type LocalDevPlan = z.infer<typeof LocalDevPlanSchema>;
+export type LocalEnvDocument = z.infer<typeof LocalEnvDocumentSchema>;
+export type LocalEnvChange = z.infer<typeof LocalEnvChangeSchema>;

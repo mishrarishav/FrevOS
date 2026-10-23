@@ -4,6 +4,7 @@ const fs = require("node:fs/promises"),
   net = require("node:net");
 const { createHash, createHmac } = require("node:crypto");
 const { spawn } = require("node:child_process");
+const { EnvironmentEditor } = require("./EnvironmentEditor.cjs");
 const scripts = ["start", "dev", "start:dev", "start:cra"];
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const digest = (value) => createHash("sha256").update(value).digest("hex");
@@ -201,7 +202,7 @@ async function discover(root) {
 }
 function parseEnvironment(text) {
   if (Buffer.byteLength(text) > 65536) fail("local-development-environment-capacity");
-  const values = {};
+  const values = Object.create(null);
   for (const raw of text.replace(/^\uFEFF/, "").split(/\r?\n/)) {
     if (!raw.trim() || raw.trim().startsWith("#")) continue;
     const match = raw.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
@@ -580,6 +581,7 @@ class LocalDevelopmentRuntime {
     this.states = new Map();
     this.planRecord = null;
     this.chain = Promise.resolve();
+    this.environmentEditor = new EnvironmentEditor(config.credential);
   }
   serial(fn) {
     const next = this.chain.then(fn);
@@ -684,6 +686,7 @@ class LocalDevelopmentRuntime {
       sourceReady,
       plan: this.planRecord?.plan || null,
       services,
+      environmentEditor: this.environmentEditor.metadata(),
     };
   }
   hasRunning() {
@@ -889,7 +892,15 @@ class LocalDevelopmentRuntime {
     try {
       const snapshot = await this.snapshotInternal();
       if (
-        !["configure", "start", "stop", "restart", "kill-existing"].includes(request.operation) ||
+        ![
+          "configure",
+          "start",
+          "stop",
+          "restart",
+          "kill-existing",
+          "environment-read",
+          "environment-save",
+        ].includes(request.operation) ||
         request.version !== 1 ||
         Date.parse(job.expiresAt) <= Date.now()
       )
@@ -906,7 +917,46 @@ class LocalDevelopmentRuntime {
         request.fingerprint !== snapshot.fingerprint
       )
         fail("local-development-observation-changed");
-      if (request.operation === "configure") {
+      let environment;
+      if (["environment-read", "environment-save"].includes(request.operation)) {
+        const candidate = snapshot.candidates.find((c) => c.id === request.serviceId);
+        if (
+          !candidate?.environments.some((e) => e.reference === request.reference) ||
+          !/^\.env(?:\.[A-Za-z0-9_-]+)?$/.test(request.reference)
+        )
+          fail("local-development-environment-unavailable");
+        const directory = await inside(this.config.repository, candidate.context);
+        const file = await inside(directory, request.reference);
+        if (request.operation === "environment-read") {
+          environment = await this.environmentEditor.read(
+            file,
+            request.serviceId,
+            request.reference,
+          );
+        } else {
+          if (
+            this.hasRunning() ||
+            snapshot.services.some((s) =>
+              ["starting", "running", "port-conflict"].includes(s.status),
+            )
+          )
+            fail("local-development-stop-before-environment-save");
+          await this.environmentEditor.save(file, request);
+          // A saved file is an explicit local configuration change. Retain the
+          // service plan and advance its freshness without silently starting it.
+          if (this.planRecord) {
+            const catalog = await this.catalog();
+            const record = {
+              ...this.planRecord,
+              revision: this.planRecord.revision + 1,
+              fingerprint: catalog.fingerprint,
+              catalog,
+            };
+            await atomic(path.join(this.root, "configuration.json"), record);
+            this.planRecord = record;
+          }
+        }
+      } else if (request.operation === "configure") {
         if (this.hasRunning()) fail("local-development-stop-before-configuration");
         validatePlan(request.plan, snapshot.candidates);
         const record = {
@@ -967,7 +1017,11 @@ class LocalDevelopmentRuntime {
           }
         }
       }
-      result = { requestId: request.requestId, status: "succeeded" };
+      result = {
+        requestId: request.requestId,
+        status: "succeeded",
+        ...(environment ? { environment } : {}),
+      };
     } catch (error) {
       result = {
         requestId: request.requestId,

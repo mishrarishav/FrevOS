@@ -96,3 +96,9 @@ references without changing shared IIS request limits.
 adds an actor/source-bound, non-replaying closure for interrupted builds only.
 
 [0052: Native builder output scope](0052-native-builder-output-scope.md)
+
+[0053: Local development runtime](0053-local-development-runtime.md)
+defines the bounded project-scoped development session pilot.
+
+[0054: Local environment editor](0054-local-environment-editor.md)
+adds owner-requested generic environment variable CRUD to that pilot.

@@ -281,3 +281,116 @@ it("fails closed on corrupted durable records instead of issuing a process comma
   await expect(f.store.state("usr_alice")).rejects.toThrow("storage-unavailable");
   await expect(f.store.claim(f.alice.credential)).rejects.toThrow("storage-unavailable");
 });
+it("authorizes generic environment CRUD independently of service configuration and persists only sealed replacements", async () => {
+  const f = await fixture();
+  const { plan: _, ...base } = f.request as Extract<LocalDevAction, { operation: "configure" }>;
+  const read = {
+    ...base,
+    operation: "environment-read",
+    serviceId: "backend",
+    reference: ".env.dev",
+  };
+  await expect(f.store.request("usr_alice", read)).rejects.toThrow("editor-unavailable");
+  const observed = {
+    ...f.snapshot,
+    environmentEditor: { keyId: "d".repeat(64), publicKey: "e".repeat(64) },
+  };
+  await f.store.observe(f.alice.credential, observed);
+  await expect(
+    f.store.request("usr_alice", { ...read, reference: ".env.outside" }),
+  ).rejects.toThrow("environment-unavailable");
+  await expect(f.store.request("usr_alice", { ...read, serviceId: "foreign" })).rejects.toThrow(
+    "environment-unavailable",
+  );
+  await f.store.request("usr_alice", read);
+  await f.store.claim(f.alice.credential);
+  await expect(
+    f.store.complete(f.alice.credential, { requestId: read.requestId, status: "succeeded" }),
+  ).rejects.toThrow("result-mismatch");
+  const document = {
+    serviceId: "backend",
+    reference: ".env.dev",
+    revision: "f".repeat(64),
+    rows: [
+      { key: "DB_PASSWORD", masked: true },
+      { key: "DB_NAME", masked: false, value: "development" },
+    ],
+  };
+  await expect(
+    f.store.complete(f.alice.credential, {
+      requestId: read.requestId,
+      status: "succeeded",
+      environment: { ...document, serviceId: "foreign" },
+    }),
+  ).rejects.toThrow("result-mismatch");
+  await expect(
+    f.store.complete(f.alice.credential, {
+      requestId: read.requestId,
+      status: "succeeded",
+      environment: { ...document, reference: ".env.other" },
+    }),
+  ).rejects.toThrow("result-mismatch");
+  await expect(
+    f.store.complete(f.alice.credential, {
+      requestId: read.requestId,
+      status: "succeeded",
+      environment: {
+        ...document,
+        rows: [{ key: "DB_PASSWORD", masked: false, value: "synthetic-never-persist" }],
+      },
+    }),
+  ).rejects.toThrow();
+  const completion = { requestId: read.requestId, status: "succeeded", environment: document };
+  const done = await f.store.complete(f.alice.credential, completion);
+  expect(await f.store.complete(f.alice.credential, completion)).toEqual(done);
+  await expect(
+    f.store.complete(f.alice.credential, { ...completion, environment: { ...document, rows: [] } }),
+  ).rejects.toThrow("not-working");
+  const save = {
+    ...base,
+    requestId: id(2),
+    operation: "environment-save",
+    approved: true,
+    serviceId: "backend",
+    reference: ".env.dev",
+    documentRevision: document.revision,
+    sealed: {
+      keyId: observed.environmentEditor.keyId,
+      publicKey: "e".repeat(64),
+      iv: "a".repeat(24),
+      ciphertext: "ab".repeat(32),
+    },
+  };
+  await expect(
+    f.store.request("usr_alice", { ...save, sealed: { ...save.sealed, keyId: "f".repeat(64) } }),
+  ).rejects.toThrow("key-changed");
+  for (const status of ["running", "starting", "port-conflict"] as const) {
+    await f.store.observe(f.alice.credential, {
+      ...observed,
+      services: [{ id: "backend", status }],
+    });
+    await expect(f.store.request("usr_alice", save)).rejects.toThrow(
+      "stop-before-environment-save",
+    );
+  }
+  await f.store.observe(f.alice.credential, observed);
+  const queued = await f.store.request("usr_alice", save);
+  expect(queued.request).toEqual(save);
+  await f.store.claim(f.alice.credential);
+  await expect(
+    f.store.complete(f.alice.credential, {
+      requestId: save.requestId,
+      status: "succeeded",
+      environment: document,
+    }),
+  ).rejects.toThrow("result-mismatch");
+  await f.store.complete(f.alice.credential, { requestId: save.requestId, status: "succeeded" });
+  expect(JSON.stringify(await f.store.state("usr_bob"))).not.toContain(save.requestId);
+  expect(await readFile(join(f.root, "jobs", save.requestId + ".json"), "utf8")).not.toContain(
+    "synthetic-never-persist",
+  );
+  await f.store.observe(f.alice.credential, { ...observed, sourceReady: false });
+  await expect(f.store.request("usr_alice", { ...read, requestId: id(3) })).rejects.toThrow(
+    "editor-unavailable",
+  );
+});

@@ -16,6 +16,9 @@
   },
   "dependencies": {
     "@frevos/contracts": "workspace:*",
+    "@noble/ciphers": "2.0.1",
+    "@noble/curves": "2.0.1",
+    "@noble/hashes": "2.0.1",
     "lucide-react": "0.575.0",
     "react": "19.2.0",
     "react-dom": "19.2.0"

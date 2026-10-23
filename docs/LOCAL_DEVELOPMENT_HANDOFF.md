@@ -1,13 +1,26 @@
 # Local development runtime handoff
 
-Status: IN PROGRESS. Owner-requested development pilot, 2026-10-23.
+Status: PASS. Owner-requested bounded development pilot, 2026-10-23.
 
 Repository: `https://github.com/mishrarishav/FrevOS`.
 Worktree: `D:\FREVOS\.local\worktrees\servix-dashboard`.
 Branch: `feature/local-development-runtime`.
 Base: `915173a272d67e08c59caf34ce2fd34785f616ce`.
 First configured source publication: `e244205d7440f3a2a6783ce3af9f2ba44289c631`.
-No GitHub publication, PR or merge. Final activation pending below.
+Resulting deployed commit: `c572f8c9d89332643a3e672be3b654c21cbc6b7d`.
+No GitHub publication, PR or merge. Final result documentation is a validated
+working-tree update after activation; it does not change the deployed artifact.
+
+Final request: `pr_701cbea856025d17ee84958cd45d37b3`.
+Active manifest: `0cfe98b973dcde58a680f7b87d9437b32c83e76d08eeb336ada29a4d12b5e674`.
+Archive: `5d4c9298dac24ab040bc9db6b519b00bb88339bd10446293434f7fedc5aa8666`,
+78,249,567 bytes / 3746 files.
+Saved artifact reference:
+`a398e2ad43b900695e3ff2d0d2b9915f02215cba1e182a1ef8cbf4ab197f0b21`.
+Independent server20 activation reports PASS, HTTP/UI 200, no activation DB write
+and sibling IIS preserved. Source/build/destination readiness passes; both local
+source connectors are fresh, installed sidecars match the final sealed artifact,
+and there are no unresolved component or local-runtime actions.
 
 First successful live activation: source
 `81f8a5c6737574781942aeb90dc8733c82f68773`, request
@@ -34,7 +47,7 @@ bindings, Start/Stop/Restart all or one service, preview, exact project-owned
 existing-process stop and durable request/receipt recovery.
 
 Out of scope: arbitrary commands/PIDs, unrelated process termination, customer
-source edits, Production writes, migrations, credential creation/rotation,
+application-code edits, Production writes, explicit migration actions, credential creation/rotation,
 GitHub publication/merge and general hostile-code sandbox/Phase 4 completion.
 
 ## Implementation
@@ -133,8 +146,8 @@ settings are classified as Production; test/library projects are excluded.
 ## Review and delivery
 
 Complete task file inventory: [changed files](LOCAL_DEVELOPMENT_CHANGED_FILES.md),
-relative to the base above. Pre-publication stat: 33 files, 3903 additions and
-49 deletions (documentation will grow with final receipts). Full diff and
+relative to the base above. Initial pre-publication stat: 33 files, 3903 additions
+and 49 deletions. Final inventory/stat is recorded below. Full diff and
 untracked implementation were reviewed; `git diff --check` passed. Packaging
 explicitly includes both new backend/contract modules and connector sidecars;
 the native delta allowlist adds only the new local-development module. GitHub
@@ -151,8 +164,7 @@ publication/merge and customer Deploy/Rollback remain excluded.
   MySQL fixture image was resolved and pulled at immutable digest
   `sha256:76f0358884cb92d9a086d24e5671c38048d3fef40f2588703d73eb55392d6b69`.
 
-Final commands, artifact/activation identities, file inventory/stat, known limits
-and exact live readiness will be recorded after acceptance.
+Final acceptance and remaining boundaries are recorded below.
 
 ## Actual source connector and Servix browser acceptance
 
@@ -298,3 +310,60 @@ evidence, with no artifact/destination or active-release change. Commands:
 both exit 0. Receipts: `.local/local-dev-builder-packaging-upgrade.json` and
 `.local/local-dev-build-closed-live.json`. A fresh request will rerun full CI;
 the interrupted request will not be retried.
+
+## Final acceptance and command results
+
+The final isolated native build of `c572f8c9...` repeated frozen installation,
+full CI and immutable packaging successfully. Final `pnpm.cmd run ci` in the
+worktree also passed with exit 0, 258 tests and unchanged required coverage,
+types/build and high-severity dependency gates (`.local/local-dev-ci-final3.log`).
+The complete changed-file inventory includes the Git fixture correction and the
+preserved preceding handoff/current-state updates.
+
+Final task diff: 34 files, 4175 additions and 50 deletions relative to the base.
+
+- `node .local/Test-ComponentsArtifact.mjs
+  .local/components-native-local-dev-release-release.json final`: exit 0. Exact
+  packaged Windows Node 24.19.0 and isolated real PostgreSQL verified startup,
+  accounts, authenticated local-development API and unauthenticated denial.
+- Final connector ZIP inspection: six sidecars exactly match sealed manifest
+  entries, `.local/local-dev-final-zip-result.json` (PASS).
+- `node .local/component-live-action.cjs deploy native-local-dev-release`:
+  actual request completed `succeeded`; the helper then exited 1 because a
+  label-specific text substitution accidentally supplied its change message as
+  the post-deployment baseline filename. This affected only the private helper's
+  readback, not the product or activation. The retained successful request was
+  reconciled without another submission by
+  `node .local/local-dev-reconcile-final.cjs`, exit 0. Its source, saved blob,
+  active manifest and unchanged Servix baseline all matched.
+- `node .local/component-native-receipts.cjs native-local-dev-release` and
+  `node .local/component-copy-native-release.cjs native-local-dev-release`:
+  both exit 0. Independent destination Apply PASS, databaseWritten false,
+  HTTP/UI 200 and sibling IIS preserved.
+- `node .local/local-dev-final-readback.cjs`: exit 0. Final deployed source and
+  manifest match; both source observations are fresh, local revision 3 is ready,
+  all installed connector sidecars match the final artifact, customer source/
+  original work/deployment/settings are unchanged, and local ports 3000/5000 are
+  closed. Platform source/build/destination checks pass; unresolved work is zero.
+  Live card/table/search/mode controls and 1366/768/390 layouts pass with no
+  unexpected console/page/HTTP errors. Two internal-HTTP COOP warnings remain.
+- Final `node scripts/validate-repository.mjs` and `git diff --check`: exit 0.
+  Only final documentation changed after the last deployment; no runtime change
+  remained unvalidated or unpublished.
+
+External changes are separately evidenced: the one ignored local Dev profile
+described above; six sidecars under each of the two existing
+`%LOCALAPPDATA%\FrevOS\Connector\<recorded device ID>` installations; two enrolled
+builder packaging scripts; the verified native baseline cache and immutable
+server20 release/active pointer. Pairing and scheduled-task definitions were
+preserved. Complete runtime package files are enumerated by the sealed manifest.
+No HRMS launcher/application, server21 Production, customer deployed source,
+original environment, GitHub branch or permission registry was changed.
+
+The owner can use Projects / Local development / Servix / Development DB /
+Start all, open the frontend preview, then stop or restart individual/all
+services. Existing Deploy projects remains the separate release workflow; this
+task did not deploy the customer's dirty application changes. Actual Production
+preview still needs a verified read-only profile and compatible application
+startup. The bounded local development pilot is ready for owner use; broader
+Phase 4, independent QA and Production readiness are not declared complete.

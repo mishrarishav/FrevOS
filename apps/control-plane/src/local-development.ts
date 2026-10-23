@@ -9,6 +9,7 @@ import {
   type LocalDevSnapshot,
   LocalDevSnapshotSchema,
   LocalDevStateSchema,
+  LocalEnvDocumentSchema,
 } from "@frevos/contracts";
 import { z } from "zod";
 import { replaceDurableRecord } from "./atomic-record.js";
@@ -121,7 +122,23 @@ export class LocalDevelopment {
         throw new ServixDeploymentError("local-development-observation-changed");
       if ((await this.jobs()).some((j) => j.request.deviceId === request.deviceId && busy(j)))
         throw new ServixDeploymentError("local-development-action-in-progress");
-      if (request.operation === "configure") {
+      if (request.operation === "environment-read" || request.operation === "environment-save") {
+        if (!snapshot.sourceReady || !snapshot.environmentEditor)
+          throw new ServixDeploymentError("local-development-environment-editor-unavailable");
+        const candidate = snapshot.candidates.find((c) => c.id === request.serviceId);
+        if (!candidate?.environments.some((e) => e.reference === request.reference))
+          throw new ServixDeploymentError("local-development-environment-unavailable");
+        if (request.operation === "environment-save") {
+          if (
+            snapshot.services.some((s) =>
+              ["starting", "running", "port-conflict"].includes(s.status),
+            )
+          )
+            throw new ServixDeploymentError("local-development-stop-before-environment-save");
+          if (request.sealed.keyId !== snapshot.environmentEditor.keyId)
+            throw new ServixDeploymentError("local-development-environment-key-changed");
+        }
+      } else if (request.operation === "configure") {
         if (!snapshot.sourceReady)
           throw new ServixDeploymentError("local-development-source-unavailable");
         if (snapshot.services.some((s) => ["starting", "running"].includes(s.status)))
@@ -198,6 +215,7 @@ export class LocalDevelopment {
             .string()
             .regex(/^[a-z][a-z0-9-]{0,79}$/)
             .optional(),
+          environment: LocalEnvDocumentSchema.optional(),
         })
         .strict()
         .parse(input);
@@ -206,14 +224,30 @@ export class LocalDevelopment {
         : undefined;
       if (!job || job.request.deviceId !== device.deviceId || job.actor !== device.userId)
         throw new ServixDeploymentError("local-development-job-not-found", 404);
+      if (job.request.operation === "environment-read" && result.status === "succeeded") {
+        if (
+          !result.environment ||
+          result.environment.serviceId !== job.request.serviceId ||
+          result.environment.reference !== job.request.reference
+        )
+          throw new ServixDeploymentError("local-development-environment-result-mismatch");
+      } else if (result.environment) {
+        throw new ServixDeploymentError("local-development-environment-result-mismatch");
+      }
       if (job.status !== "working") {
-        if (job.status === result.status && job.errorCode === result.errorCode) return job;
+        if (
+          job.status === result.status &&
+          job.errorCode === result.errorCode &&
+          JSON.stringify(job.environment) === JSON.stringify(result.environment)
+        )
+          return job;
         throw new ServixDeploymentError("local-development-job-not-working");
       }
       const completed = {
         ...job,
         status: result.status,
         ...(result.errorCode ? { errorCode: result.errorCode } : {}),
+        ...(result.environment ? { environment: result.environment } : {}),
       };
       await this.save(completed);
       return completed;

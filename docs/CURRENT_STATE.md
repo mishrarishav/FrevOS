@@ -1,8 +1,22 @@
 # DevSetu Current State
 
-Last updated: 2026-10-23
+Last updated: 2026-10-24
 
-## Local development sessions (in progress, 2026-10-23)
+## Generic local environment CRUD (bounded owner request, 2026-10-24)
+
+The owner requests simple CRUD of variables in existing local `.env` files for
+all connected projects, including Production preview profiles. Work is stacked
+on deployed source `c572f8c9d89332643a3e672be3b654c21cbc6b7d` in
+`feature/local-environment-crud`, ADR 0054. The shared UI, authenticated durable
+actions and enrolled connector implement masked reads, browser-sealed patches,
+stale-document checks and atomic permission-preserving Windows writes. No
+Servix path is hardcoded. Full CI passed 263 tests, and final synthetic browser
+CRUD, encryption/Windows ACL checks and responsive layout verification passed.
+Live activation is in progress. Customer environment values remain unchanged.
+See [the environment editor handoff](LOCAL_ENVIRONMENT_EDITOR_HANDOFF.md).
+Phase 4 exit and Production database writes remain outside this task.
+
+## Local development sessions (bounded pilot PASS, 2026-10-23)
 
 The owner requests launcher-style local frontend/backend Start/Stop/Restart,
 existing-process controls, database profile selection and preview inside DevSetu
@@ -11,16 +25,19 @@ remains untouched. Work is stacked on `feature/local-development-runtime`, base
 `915173a272d67e08c59caf34ce2fd34785f616ce`, ADR 0053. Phase 4 exit stays open.
 
 The API, connector runtime and shared workspace UI are live at source
-`81f8a5c6737574781942aeb90dc8733c82f68773`, manifest
-`31a4cfec77af7aa7bd6178aa038147245aa3102d3894c8da2a1a0ef7ad54a8c4`.
+`c572f8c9d89332643a3e672be3b654c21cbc6b7d`, manifest
+`0cfe98b973dcde58a680f7b87d9437b32c83e76d08eeb336ada29a4d12b5e674`.
 Full CI passed 258 tests and required gates. Eleven real Windows/npm/Vite/MySQL/
 authenticated Playwright acceptance groups and a real ASP.NET fixture passed.
 Both existing source connectors were upgraded with task/pairing preserved.
 Actual Servix backend/frontend Start all, localhost Login/local API, auth/full
 bootstrap health, Restart all and Stop all passed against `servix_db_dev`.
 Customer source, original environment files, deployment settings and existing
-deployment stayed unchanged. One final UI guard for uncertain actions is verified
-and being rolled out; Phase 4 exit remains open.
+deployment stayed unchanged. Final uncertain-action controls, exact packaged
+Windows Node/real-PostgreSQL smoke and live 1366/768/390 readback passed. Both
+source connectors match final sealed sidecars; source/build/destination checks
+are ready and there is no unresolved work. Final documentation is a validated
+working-tree update after deployment. Phase 4 exit remains open.
 
 The owner supplied `D:\servixDev\backend\.env`. It and `.env.prd` resolve to
 `10.9.69.31 / servix_db`, whereas the approved development database is
