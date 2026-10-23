@@ -6,7 +6,8 @@ Repository: `https://github.com/mishrarishav/FrevOS`.
 Worktree: `D:\FREVOS\.local\worktrees\servix-dashboard`.
 Branch: `feature/local-development-runtime`.
 Base: `915173a272d67e08c59caf34ce2fd34785f616ce`.
-Resulting commit and PR: none yet. No GitHub publication or merge.
+First configured source publication: `e244205d7440f3a2a6783ce3af9f2ba44289c631`.
+No GitHub publication, PR or merge. Final activation pending below.
 
 ## Scope and authority
 
@@ -138,3 +139,26 @@ publication/merge and customer Deploy/Rollback remain excluded.
 
 Final commands, artifact/activation identities, file inventory/stat, known limits
 and exact live readiness will be recorded after acceptance.
+
+## Retained first build and enrolled packaging correction
+
+Actual dashboard request `pr_686738cf57e24c6cac57d3b65b4662a7` published the
+source above. Review then found that the enrolled native builder executes its
+installed packaging script, which still had the preceding module allowlist.
+The implementation had updated source packaging but had not yet upgraded those
+two enrolled scripts. The owned Limited builder task was deliberately stopped
+before artifact publication/destination work. Active manifest stayed
+`cd5f2076cbcfaa513309926f4aad80563ea3c2aa089bc1cd35b5f7578ee3382f`.
+
+The existing builder's `New-ServixDashboardRelease.ps1` and `HttpCommon.ps1`
+were compared with the preceding enrolled-toolchain receipt, backed up and
+upgraded to reviewed source bytes. Pairing bytes and task identity stayed
+unchanged. Restart reported the retained claim as `recovery-required` without
+replaying it. The actual Close interrupted build popup was cancelled once
+(zero submissions), then submitted with the inspection reason and owner task
+reference. It marked only the interrupted build failed, retaining source and
+evidence, with no artifact/destination or active-release change. Commands:
+`Upgrade-LocalDevBuilderPackaging.ps1` and `node .local/local-dev-close-build.cjs`,
+both exit 0. Receipts: `.local/local-dev-builder-packaging-upgrade.json` and
+`.local/local-dev-build-closed-live.json`. A fresh request will rerun full CI;
+the interrupted request will not be retried.
