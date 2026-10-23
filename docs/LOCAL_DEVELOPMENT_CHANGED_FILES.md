@@ -16,6 +16,7 @@ No other worktree or customer repository is included.
 - `apps/control-plane/src/local-development.ts`
 - `apps/control-plane/src/main.ts`
 - `apps/control-plane/src/server.ts`
+- `apps/control-plane/test/connector-local-git.test.ts`
 - `apps/control-plane/test/local-development-runtime.test.ts`
 - `apps/control-plane/test/local-development.test.ts`
 - `apps/control-plane/test/postgres-service.integration.test.ts`

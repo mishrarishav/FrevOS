@@ -260,7 +260,17 @@ it("publishes an actual Git bundle from another folder while preserving ignored 
     expect((await otherGit(["remote"])).stdout.trim()).toBe("");
     await command(["switch", "-c", "main"]);
     await expect(
-      publishWorkingTree(config, { ...job, requestId: "sd_" + "c".repeat(32) }, options),
+      publishWorkingTree(
+        config,
+        {
+          ...job,
+          requestId: "sd_" + "c".repeat(32),
+          // This assertion exercises branch policy after several real Git
+          // operations, independently of how long those earlier checks took.
+          expiresAt: new Date(Date.now() + 60000).toISOString(),
+        },
+        options,
+      ),
     ).rejects.toThrow("default-branch-denied");
   } catch (error) {
     originalFailure = error;

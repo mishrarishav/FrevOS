@@ -75,9 +75,11 @@ server21 development target is `servix_db_dev`, not this database. The owner
 supplied `D:\servixDev\backend\.env` as the profile reference on 2026-10-23.
 Its actual read-only preflight returned
 `local-development-production-readonly-required`: these credentials are writable.
-Only `SHOW GRANTS FOR CURRENT_USER` was issued; no write probe, bootstrap or
-customer backend was started. A separate existing development/read-only profile
-is still required for actual backend previews. Backup/example files are excluded.
+That initial inspection issued only `SHOW GRANTS FOR CURRENT_USER`; no write
+probe or backend ran against the supplied Production target. Development was
+subsequently configured and verified using a separate local profile below.
+Actual Production preview still requires read-only credentials. Backup/example
+files are excluded.
 
 HRMS reference: existing Payroll UI/ESS Vite services and ASP.NET API were
 discovered without changing its launcher/source/settings. Inherited Production
@@ -189,9 +191,12 @@ source-to-deploy pipeline will validate and activate that exact final source.
 
 ## Remaining boundaries
 
-- Actual customer backend Development mode needs an existing local profile for
-  `servix_db_dev`; Production preview needs separately verified read-only
-  credentials. Creating/rotating credentials or customer DB writes is excluded.
+- Actual customer Development mode is configured at local revision 3 using
+  `.env.devsetu-development` / `servix_db_dev`. Actual Production preview still
+  needs separately verified read-only credentials; the supplied writer is
+  refused. No credential was created or rotated. Development startup may
+  bootstrap its database; no Production write or customer CRUD/login was
+  submitted by this task.
 - Source discovery covers the root and its immediate service folders, at most
   24 candidates / 12 configured services. Nested monorepo discovery is not
   enabled; the platform's own monorepo has no discovered local services here.
@@ -211,6 +216,65 @@ source-to-deploy pipeline will validate and activate that exact final source.
 - CI passed with 48 non-failing lint warnings / 282 infos and the unchanged
   one-low/two-moderate dependency advisories. No threshold or required check was
   weakened. Phase 4 exit, independent QA and Production gates remain open.
+
+## Completed actual Servix development stack
+
+The existing credential reference could reach the previously approved
+`10.9.69.31:3306 / servix_db_dev`; `SELECT DATABASE()` verified that exact
+development target without creating a database or credential. A separate,
+Git-ignored local configuration was prepared at
+`D:\servixDev\backend\.env.devsetu-development`, reusing the supplied existing
+credential values with the same access scope. Original `.env` / `.env.prd` were
+not rewritten. The new profile selects the development database, localhost CORS,
+source-local uploads and the existing development launcher's disabled mail,
+listener and scheduled-mail switches. No secret value entered code, Git, logs,
+screenshots or this handoff. An initial whole-ACL copy attempt failed before
+writing credentials; its empty file was resumed only after verifying that
+inherited access already exactly matched the original profile.
+
+The actual application entry point and database loader both honor `ENV_FILE`
+without overriding the selected process environment. Their database pool/schema
+bootstrap use `DB_NAME`; no application source change was required.
+
+`node .local/local-dev-live-fullstack.cjs`, exit 0,
+`.local/local-dev-live-fullstack2.log` / `local-dev-live-fullstack-result.json`:
+
+- Actual DevSetu UI saved local revision 3: backend `npm start` on 5000 using the
+  new Development environment; frontend `start:dev` on 3000 using its existing
+  environment and local API binding. Start all launched both.
+- `/api/health` returned HTTP 200 / `OK`, auth/full bootstrap ready. Actual
+  frontend Login rendered and a fetch from that browser origin reached the local
+  API through the configured CORS binding.
+- Restart all replaced both managed process identities. Stop all closed both
+  loopback ports and descendants; nothing was left running.
+- Existing five environment files, customer source HEAD/dirty/untracked work,
+  current deployed source/release and deployment settings stayed unchanged.
+  Only the new ignored local environment profile was added. Mail and scheduled
+  mail remained disabled; normal development bootstrap may write to the
+  development database. No customer login/CRUD or Production write was submitted.
+
+Servix's `dev` / nodemon attempt did not become ready within 120 seconds and was
+stopped. Its ordinary `npm start` passed and is the saved configuration; Servix
+nodemon acceptance is not claimed. Screenshots are retained at
+`.local/local-dev-live-fullstack-preview.png` and `local-dev-live-fullstack-*.png`.
+
+## Final validation retry
+
+UI-guard request `pr_55b04483f5fc3a4751e0ee337b51740f`, source
+`2aafd0575dd5e183cdf8a9ece14406cb705a6b39`, failed with the enrolled worker's
+sanitized `native-platform-operation-failed` before a new artifact/destination
+job; active manifest stayed `31a4cfec...`. The worker did not retain a detailed
+internal diagnostic, so its exact failure is not claimed. The earlier local CI
+log directly demonstrated an independent Git fixture precondition problem: its
+final branch-policy assertion could reuse an already expired 60-second request
+after many real Git operations. That assertion now gets a fresh expiry;
+expired-request checks and production guards remain intact. This is an internal
+unit fixture change, not a FrevOS-Acceptance change. Final local and isolated
+native CI will rerun on the resulting source. Final local `pnpm.cmd run ci`
+completed with exit 0, `.local/local-dev-ci-final3.log`: all 258 tests and the
+unchanged coverage/build/high-dependency gates passed. The full stack was stopped
+before this run; it did not overlap application compilation. The next native
+request uses a fresh isolated checkout and repeats these required gates.
 
 ## Retained first build and enrolled packaging correction
 

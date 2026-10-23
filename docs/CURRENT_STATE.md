@@ -16,20 +16,25 @@ The API, connector runtime and shared workspace UI are live at source
 Full CI passed 258 tests and required gates. Eleven real Windows/npm/Vite/MySQL/
 authenticated Playwright acceptance groups and a real ASP.NET fixture passed.
 Both existing source connectors were upgraded with task/pairing preserved.
-Actual Servix frontend Start, localhost Login render and Stop passed; its backend
-was refused before startup by the read-only grants check. Customer source,
-settings, environment files and existing deployment stayed unchanged. One final
-UI guard for uncertain actions is verified and being rolled out; Phase 4 exit
-remains open.
+Actual Servix backend/frontend Start all, localhost Login/local API, auth/full
+bootstrap health, Restart all and Stop all passed against `servix_db_dev`.
+Customer source, original environment files, deployment settings and existing
+deployment stayed unchanged. One final UI guard for uncertain actions is verified
+and being rolled out; Phase 4 exit remains open.
 
 The owner supplied `D:\servixDev\backend\.env`. It and `.env.prd` resolve to
 `10.9.69.31 / servix_db`, whereas the approved development database is
 `servix_db_dev`. A read-only grants inspection rejected the supplied credentials
-as writable; no customer backend/write probe was run. Neither file is offered as
-a Development DB profile. HRMS's base settings also inherit the Production
-target. Actual backend previews need a separate development/read-only profile.
-Writable/unverifiable Production access is rejected; secrets stay at the local
-execution boundary. See
+as writable; neither file is offered as a Development DB profile. The existing
+credentials could reach the approved development database, verified by
+`SELECT DATABASE()`. A separate ignored `.env.devsetu-development` profile now
+selects that database, local CORS/uploads and disabled mail/scheduled mail, with
+unchanged credential values and access scope. Local revision 3 uses backend
+`npm start` on 5000 and CRA frontend `start:dev` on 3000. Both were stopped after
+acceptance. Normal development startup may bootstrap its database; no Production
+write or customer login/CRUD was submitted. Actual Production mode still needs
+read-only credentials. HRMS is reference-only and unchanged. Secrets stay at the
+local execution boundary. See
 [the local development handoff](LOCAL_DEVELOPMENT_HANDOFF.md).
 
 ## Configured component deployments (bounded pilot PASS, 2026-10-23)
