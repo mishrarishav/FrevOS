@@ -558,6 +558,7 @@ async function connector(config) {
     if (!response.ok) throw Error("connector-http-" + response.status);
     return response.json();
   };
+  const development = require("./LocalDevelopment.cjs").start(config, inspectRepository, api);
   let heartbeatPending = false;
   const heartbeat = async () => {
     if (heartbeatPending) return;
@@ -588,7 +589,9 @@ async function connector(config) {
       if (selection) {
         let result;
         try {
-          result = await chooseRepository(config, selection);
+          result = development.runtime.hasRunning()
+            ? { ...selection, status: "failed" }
+            : await chooseRepository(config, selection);
         } catch {
           result = { ...selection, status: "failed" };
         }

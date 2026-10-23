@@ -140,3 +140,4 @@ export {
 export * from "./local-accounts.js";
 export * from "./deployment-change.js";
 export * from "./component-deployments.js";
+export * from "./local-development.js";

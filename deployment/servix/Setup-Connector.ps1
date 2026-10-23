@@ -77,9 +77,9 @@ $install=Join-Path $env:LOCALAPPDATA 'FrevOS\Connector'
 $destination=Join-Path $install $paired.deviceId
 if(Test-Path -LiteralPath $destination){
  if(-not $ResumeEnrollment -or (Test-Path -LiteralPath (Join-Path $destination 'device.dpapi'))){throw 'Device installation collision'}
- foreach($name in @('Connector.cjs','Preservation.cjs','Choose-Repository.ps1','RepositoryPicker.psm1','FrevOS.FolderPicker.exe','Run-Connector.ps1','BuildProcess.psm1','node.exe')){if((Get-FileHash -LiteralPath (Join-Path $destination $name)).Hash -cne (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot $name)).Hash){throw 'Interrupted installation bytes changed'}}
+ foreach($name in @('Connector.cjs','Preservation.cjs','Choose-Repository.ps1','RepositoryPicker.psm1','FrevOS.FolderPicker.exe','Run-Connector.ps1','BuildProcess.psm1','LocalDevelopment.cjs','LocalDevBoundary.cjs','Run-LocalDevService.ps1','LocalDevProcesses.ps1','node.exe')){if((Get-FileHash -LiteralPath (Join-Path $destination $name)).Hash -cne (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot $name)).Hash){throw 'Interrupted installation bytes changed'}}
 }else{[void][IO.Directory]::CreateDirectory($destination)}
-foreach($name in @('Connector.cjs','Preservation.cjs','Choose-Repository.ps1','RepositoryPicker.psm1','FrevOS.FolderPicker.exe','Run-Connector.ps1','BuildProcess.psm1','node.exe')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $destination}
+foreach($name in @('Connector.cjs','Preservation.cjs','Choose-Repository.ps1','RepositoryPicker.psm1','FrevOS.FolderPicker.exe','Run-Connector.ps1','BuildProcess.psm1','LocalDevelopment.cjs','LocalDevBoundary.cjs','Run-LocalDevService.ps1','LocalDevProcesses.ps1','node.exe')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $destination}
 $configFields=@{version=1;server=$server;allowInternalHttp=($serverUri.Scheme -ceq 'http');deviceId=$paired.deviceId;credential=$paired.credential;profileId=$profileId;repository=$repository;repositoryOrigin=$repositoryOrigin;git=$git;stateRoot=(Join-Path $destination 'state')}
 if($central){$configFields.centralRepository=$paired.centralRepository}
 $config=$configFields|ConvertTo-Json -Compress

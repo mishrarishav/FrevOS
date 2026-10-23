@@ -3189,6 +3189,85 @@ kbd,
 .deployment-source-select select {
   min-width: 0;
 }
+.local-dev-selection,
+.local-dev-project-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.local-dev-selection > label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  font-size: 12px;
+}
+.local-development-workspace select,
+.local-dev-editor select,
+.local-dev-editor input[type="number"] {
+  max-width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--background);
+  color: var(--foreground);
+  padding: 7px 10px;
+  font-size: 12px;
+}
+.local-dev-services {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+  margin-top: 10px;
+}
+.local-dev-service {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.local-dev-service small,
+.local-dev-history {
+  color: var(--muted);
+  font-size: 11px;
+}
+.local-dev-conflict {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+.local-dev-history {
+  display: grid;
+  gap: 8px;
+  padding-left: 18px;
+}
+.local-dev-config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  gap: 14px;
+}
+.local-dev-config-grid label {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+.local-dev-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.local-dev-service-config {
+  min-width: 0;
+  margin-bottom: 16px;
+}
 .deployment-history {
   min-width: 0;
   margin-top: 2px;

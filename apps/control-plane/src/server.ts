@@ -35,6 +35,7 @@ import type { DeploymentSettingsStore } from "./deployment-settings.js";
 import type { ComponentDeployments } from "./component-deployments.js";
 import { AccountActionError, type LocalAccounts } from "./local-accounts.js";
 import type { DeveloperConnectorStore } from "./developer-connectors.js";
+import type { LocalDevelopment } from "./local-development.js";
 import {
   type GithubOnboardingStore,
   PERSONAL_AGENT_WORKSPACE_ID,
@@ -156,6 +157,7 @@ interface BuildServerOptions {
   readonly now?: () => Date;
   readonly servixDeployment?: ServixDeploymentStore;
   readonly developerConnectors?: DeveloperConnectorStore;
+  readonly localDevelopment?: LocalDevelopment;
 }
 
 interface WorkspaceParams {
@@ -937,6 +939,30 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
       throw new HttpError(503, "component-deployments-unavailable");
     return options.componentDeployments;
   };
+  const localDevelopment = () => {
+    if (!options.localDevelopment) throw new HttpError(503, "local-development-unavailable");
+    return options.localDevelopment;
+  };
+  server.get<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/local-development"),
+    async (request) => localDevelopment().state(await connectorActor(request)),
+  );
+  server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/local-development/actions"),
+    async (request, reply) =>
+      reply
+        .status(202)
+        .send(await localDevelopment().request(await connectorActor(request, true), request.body)),
+  );
+  server.post(route("/v1/connector/local-development/observe"), async (request) =>
+    localDevelopment().observe(connectorCredential(request), request.body),
+  );
+  server.post(route("/v1/connector/local-development/claim"), async (request) => ({
+    job: await localDevelopment().claim(connectorCredential(request)),
+  }));
+  server.post(route("/v1/connector/local-development/complete"), async (request) =>
+    localDevelopment().complete(connectorCredential(request), request.body),
+  );
   server.post<{ Params: WorkspaceParams & { profileId: string } }>(
     route("/v1/workspaces/:workspaceId/component-deployments/:profileId/test"),
     async (request) => {

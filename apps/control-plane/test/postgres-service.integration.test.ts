@@ -45,6 +45,7 @@ import {
 } from "../src/server.js";
 import { ServixDeploymentStore } from "../src/servix-deployment.js";
 import { ComponentDeployments } from "../src/component-deployments.js";
+import { LocalDevelopment } from "../src/local-development.js";
 
 const POSTGRES_IMAGE =
   "postgres:18.4-alpine3.23@sha256:996d0920e4ff9df1fc19dacb904492f3c1ec0ec1cc338f0ad7123be7731c5f5e";
@@ -2031,6 +2032,7 @@ it("onboards an invited developer through authenticated workspace APIs without r
     deploymentSettings,
     servixDeployment: deployment,
     componentDeployments: components,
+    localDevelopment: new LocalDevelopment(join(root, "local-development"), connectors, () => NOW),
     now: () => NOW,
   });
   const login = async (username: string, password: string) => {
@@ -2367,6 +2369,125 @@ it("onboards an invited developer through authenticated workspace APIs without r
         },
       },
     });
+    const localUrl = "/v1/workspaces/ws_server20/local-development";
+    expect((await server.inject({ method: "GET", url: localUrl })).statusCode).toBe(401);
+    expect(
+      (
+        await server.inject({
+          method: "GET",
+          url: localUrl.replace("ws_server20", "ws_other"),
+          headers: dev,
+        })
+      ).statusCode,
+    ).toBe(404);
+    const localSnapshot = {
+      version: 1,
+      deviceId: device.deviceId,
+      profileId: "servix-development",
+      fingerprint: "e".repeat(64),
+      sourceReady: true,
+      revision: 0,
+      plan: null,
+      services: [],
+      candidates: [
+        {
+          id: "backend",
+          name: "Backend",
+          context: "backend",
+          recipe: "npm-script",
+          framework: "node",
+          scripts: ["start"],
+          manifestDigest: "f".repeat(64),
+          environments: [],
+        },
+      ],
+    };
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: "/v1/connector/local-development/observe",
+          payload: localSnapshot,
+        })
+      ).statusCode,
+    ).toBe(401);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: "/v1/connector/local-development/observe",
+          headers: auth,
+          payload: localSnapshot,
+        })
+      ).statusCode,
+    ).toBe(200);
+    expect(
+      (await server.inject({ method: "GET", url: localUrl, headers: dev })).json().connections[0]
+        .snapshot,
+    ).toEqual(localSnapshot);
+    expect(
+      (await server.inject({ method: "GET", url: localUrl, headers })).json().connections,
+    ).toEqual([]);
+    const localRequest = {
+      version: 1,
+      requestId: "ld_" + "7".repeat(32),
+      deviceId: device.deviceId,
+      profileId: "servix-development",
+      expectedRevision: 0,
+      fingerprint: localSnapshot.fingerprint,
+      operation: "configure",
+      plan: { services: [{ id: "backend", script: "start", port: 5000, database: "none" }] },
+    };
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: localUrl + "/actions",
+          headers: { cookie: dev.cookie },
+          payload: localRequest,
+        })
+      ).statusCode,
+    ).toBe(403);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: localUrl + "/actions",
+          headers: dev,
+          payload: { ...localRequest, command: "not-accepted" },
+        })
+      ).statusCode,
+    ).toBe(400);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: localUrl + "/actions",
+          headers: dev,
+          payload: localRequest,
+        })
+      ).statusCode,
+    ).toBe(202);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: "/v1/connector/local-development/claim",
+          headers: auth,
+          payload: {},
+        })
+      ).json().job.request,
+    ).toEqual(localRequest);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: "/v1/connector/local-development/complete",
+          headers: auth,
+          payload: { requestId: localRequest.requestId, status: "succeeded" },
+        })
+      ).statusCode,
+    ).toBe(200);
     const healthFetch = vi.spyOn(globalThis, "fetch");
     const chooseUrl = url + "/" + device.deviceId + "/choose-folder";
     await server.inject({

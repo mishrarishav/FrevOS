@@ -1,4 +1,9 @@
 import {
+  type LocalDevAction,
+  type LocalDevState,
+  type LocalDevJob,
+  LocalDevStateSchema,
+  LocalDevJobSchema,
   AccountProfileSchema,
   type AccountProfile,
   type LocalAccount,
@@ -131,6 +136,8 @@ export interface ControlCenterApi {
     workspaceId: string,
     signal?: AbortSignal,
   ): Promise<DeveloperConnector[]>;
+  localDevelopmentState?(workspaceId: string, signal?: AbortSignal): Promise<LocalDevState>;
+  localDevelopmentAction?(workspaceId: string, input: LocalDevAction): Promise<LocalDevJob>;
   revokeDeveloperConnector?(workspaceId: string, deviceId: string): Promise<{ revoked: true }>;
   chooseConnectorFolder?(workspaceId: string, deviceId: string): Promise<FolderSelection>;
   inviteDeveloper?(
@@ -287,6 +294,10 @@ export function createControlCenterApi(
   };
 
   return {
+    localDevelopmentState: (workspaceId, signal) =>
+      get(`${workspacePath(workspaceId)}/local-development`, LocalDevStateSchema, signal),
+    localDevelopmentAction: (workspaceId, input) =>
+      post(`${workspacePath(workspaceId)}/local-development/actions`, input, LocalDevJobSchema),
     revokeExecutor: (workspaceId, executorId) =>
       post(
         `${workspacePath(workspaceId)}/component-deployments/executors/${encodeURIComponent(executorId)}/revoke`,

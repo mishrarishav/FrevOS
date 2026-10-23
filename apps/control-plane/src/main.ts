@@ -9,6 +9,7 @@ import { ComponentDeployments } from "./component-deployments.js";
 import { DeveloperConnectorStore } from "./developer-connectors.js";
 import { GithubOnboardingRepository } from "./github-onboarding.js";
 import { LocalAccounts } from "./local-accounts.js";
+import { LocalDevelopment } from "./local-development.js";
 import { SelfUpdates } from "./self-updates.js";
 import { OpenIdClientProvider } from "./oidc.js";
 import { ProjectAutomationRepository } from "./project-automation.js";
@@ -25,6 +26,7 @@ try {
   let developerConnectors: DeveloperConnectorStore | undefined;
   let deploymentSettings: DeploymentSettingsStore | undefined;
   let componentDeployments: ComponentDeployments | undefined;
+  let localDevelopment: LocalDevelopment | undefined;
   if (config.servixRoot) {
     const execution = servixExecution(
       config.servixRoot,
@@ -69,6 +71,10 @@ try {
       componentDeployments,
     );
     componentDeployments.connect(developerConnectors);
+    localDevelopment = new LocalDevelopment(
+      join(config.servixRoot, "jobs", "local-development"),
+      developerConnectors,
+    );
     servixDeployment = new ServixDeploymentStore(
       config.servixRoot,
       execution,
@@ -106,6 +112,7 @@ try {
     ...(developerConnectors === undefined ? {} : { developerConnectors }),
     ...(deploymentSettings === undefined ? {} : { deploymentSettings }),
     ...(componentDeployments === undefined ? {} : { componentDeployments }),
+    ...(localDevelopment === undefined ? {} : { localDevelopment }),
     ...(config.servixRoot && config.authMode === "local"
       ? {
           localAccounts: new LocalAccounts(

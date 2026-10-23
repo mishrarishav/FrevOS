@@ -12,6 +12,7 @@ export type RouteId =
   | "deployments"
   | "deployment-setup"
   | "component-setup"
+  | "local-development"
   | "approvals"
   | "audit"
   | "agents"
@@ -47,6 +48,14 @@ export function removeBasePath(pathname: string, basePath = applicationBasePath)
 }
 
 export const routes: readonly RouteDefinition[] = [
+  {
+    id: "local-development",
+    path: "/projects/local-development",
+    label: "Local development",
+    shortLabel: "Local dev",
+    phase: "Development pilot",
+    description: "Project development servers, database profiles and local preview.",
+  },
   {
     id: "component-setup",
     path: "/projects/components",

@@ -60,7 +60,7 @@ describe("Control Center route contract", () => {
   it("keeps route paths and identifiers unique", () => {
     expect(new Set(routes.map((route) => route.path)).size).toBe(routes.length);
     expect(new Set(routes.map((route) => route.id)).size).toBe(routes.length);
-    expect(routes).toHaveLength(17);
+    expect(routes).toHaveLength(18);
     expect(
       routes.some(
         (route) => route.id === "component-setup" && route.path === "/projects/components",

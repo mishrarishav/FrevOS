@@ -57,6 +57,7 @@ import { AccountControls } from "./AccountControls.js";
 import { DeploymentSettingsPage } from "./DeploymentSettingsPage.js";
 import { DeploymentsPage } from "./DeploymentsPage.js";
 import { ComponentConfiguration } from "./ComponentDeployments.js";
+import { LocalDevelopmentPage } from "./LocalDevelopmentPage.js";
 import {
   activity,
   approvals,
@@ -112,6 +113,7 @@ const routeIcons: Record<Exclude<RouteId, "not-found">, LucideIcon> = {
   deployments: Rocket,
   "deployment-setup": Settings2,
   "component-setup": Settings2,
+  "local-development": Play,
   approvals: ShieldCheck,
   audit: ScrollText,
   agents: Bot,
@@ -289,7 +291,13 @@ export function App({
   const route = resolveRoute(pathname);
   const projectWorkspace =
     experience.workspace.workspaceId === "ws_server20" &&
-    ["projects", "deployment-setup", "component-setup", "deployments"].includes(route?.id ?? "");
+    [
+      "projects",
+      "deployment-setup",
+      "component-setup",
+      "local-development",
+      "deployments",
+    ].includes(route?.id ?? "");
 
   return (
     <div className={projectWorkspace ? "app-canvas record-app-canvas" : "app-canvas"}>
@@ -365,6 +373,14 @@ export function App({
               scopeName={workspaceDisplayName(experience.workspace)}
             />
           ) : null}
+          {route?.id === "local-development" &&
+          experience.workspace.workspaceId === "ws_server20" ? (
+            <LocalDevelopmentPage
+              api={api}
+              workspaceId={experience.workspace.workspaceId}
+              scopeName={workspaceDisplayName(experience.workspace)}
+            />
+          ) : null}
           {(route?.id === "deployment-setup" || route?.id === "projects") &&
           experience.workspace.workspaceId === "ws_server20" ? (
             <DeploymentSettingsPage
@@ -380,7 +396,8 @@ export function App({
           route.id !== "projects" ? (
             route.id === "project-operations" ? null : (route.id === "deployments" ||
                 route.id === "deployment-setup" ||
-                route.id === "component-setup") &&
+                route.id === "component-setup" ||
+                route.id === "local-development") &&
               experience.workspace.workspaceId === "ws_server20" ? null : (
               <PlannedSurface route={route} navigate={navigate} />
             )
@@ -706,6 +723,7 @@ function NavigationRail({
             deploymentProfilesEnabled &&
             (resolveRoute(pathname)?.id === "deployment-setup" ||
               resolveRoute(pathname)?.id === "component-setup" ||
+              resolveRoute(pathname)?.id === "local-development" ||
               resolveRoute(pathname)?.id === "project-operations");
           return (
             <div key={route.path} className="rail-group">
@@ -749,6 +767,17 @@ function NavigationRail({
                     }
                   >
                     Components
+                  </AppLink>
+                  <AppLink
+                    to="/projects/local-development"
+                    navigate={navigate}
+                    className={
+                      resolveRoute(pathname)?.id === "local-development"
+                        ? "rail-link active"
+                        : "rail-link"
+                    }
+                  >
+                    Local development
                   </AppLink>
                   <AppLink
                     to="/projects/frevos/operations"

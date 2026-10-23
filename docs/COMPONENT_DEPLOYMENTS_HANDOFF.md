@@ -1,6 +1,6 @@
 # Configured component deployment handoff
 
-Status: IN PROGRESS — native A/B and both saved-artifact rollbacks passed; the final source-selector UI consistency correction is awaiting live verification.
+Status: PASS — bounded configured-deployment development pilot, including final live source-selector correction.
 Owner-requested development pilot, 2026-10-23 IST. This does not complete Phase 4 or authorize Production.
 
 ## Delivery identity and scope
@@ -10,6 +10,8 @@ Worktree: `D:\FREVOS\.local\worktrees\servix-dashboard`.
 Branch: `feature/configured-component-deployments`.
 Base: `bc4530746c01269b3795a25edad63efad9364b9f`.
 First successful native source: `5dbe2a323a013369c8039b7727c17a968f9c97b8`.
+Resulting deployed source commit: `915173a272d67e08c59caf34ce2fd34785f616ce`.
+Complete branch diff stat: 155 files, +23753/-199 against the base (includes the preserved owner stack and final working-tree documents).
 Native B source: `b77eb777990fdefd82e54b741d7f5a1c2a67e3a3`.
 PR: none. No GitHub push or merge. Internal configured Git publication is performed by Deploy.
 ADR 0049 permits the bounded stack over preceding owner work; ADRs 0050–0052 record native transport and recovery decisions.
@@ -43,13 +45,13 @@ Source/build/destination connection checks passed. Source, builder and destinati
 
 | Command or actual action | Observed result |
 | --- | --- |
-| `pnpm.cmd run ci` | Exit 0; final local run `.local/component-final-ci9.log`; 247 tests: 78 contracts, 79 UI/API, 90 backend. Formatting, lint, types, required coverage, build and high-severity dependency gate passed. |
+| `pnpm.cmd run ci` | Exit 0; final local run `.local/component-final-ci12.log` (direct cmd process exit 0); 247 tests: 78 contracts, 79 UI/API, 90 backend. Formatting, lint, types, required coverage, build and high-severity dependency gate passed. |
 | Backend coverage | Statements 95.13%, branches 90.98%, functions 98.58%, lines 96.22%; thresholds unchanged. |
 | UI required API/experience/routing coverage | 100% on all required metrics. |
-| `node .local/component-browser.mjs` | Exit 0, `.local/component-browser-recovery-final.log`: real PostgreSQL, Git, npm, HTTP workers and Chromium. Source/three workers, split API/frontend, A/B/repeated rollback, protected environment/uploads/attachments, offline/restart, outage, source/builder-offline rollback, table filter persistence and 1366/768/390 responsive checks passed. No console/page/unexpected HTTP errors. Internal HTTP was tested without `crypto.randomUUID`. |
+| `node .local/component-browser.mjs` | Exit 0, `.local/component-browser-source-ui.log`: real PostgreSQL, Git, npm, HTTP workers and Chromium. Source/three workers, split API/frontend, A/B/repeated rollback, protected environment/uploads/attachments, offline/restart, outage, source/builder-offline rollback, table filter persistence and 1366/768/390 responsive checks passed. No console/page/unexpected HTTP errors. Internal HTTP was tested without `crypto.randomUUID`. |
 | Cross-host live Playwright | `.local/component-crosshost-result.json`: laptop frontend plus server20 API with a pinned Windows runtime and actual loopback HTTP health. A/B, per-component partial recovery, repeated rollback and protected synthetic data passed. Source head was unchanged on rollback. |
 | Cross-host cleanup | Scoped verification tasks removed, connections revoked, fixture project archived. Private synthetic files/receipts retained for review; customer folders were not used. |
-| Packaged production-entry smoke | Exit 0 for exact native A, `.local/components-native-a5-smoke.log`: Windows Node 24.19.0, isolated real PostgreSQL and authenticated APIs. |
+| Packaged production-entry smoke | Exit 0 for exact native A, B and final UI release, `.local/components-native-{a5,b2,ui-source}-smoke.log`: Windows Node 24.19.0, isolated real PostgreSQL and authenticated APIs. |
 | Exact immutable package checks | Prepared bootstrap/corrections passed manifest/delta validation, wrong digest and migration-delta denials, operator syntax/reserved-name checks. Native builder and updater enforce exact manifest/source/ZIP digests. |
 | Operator PowerShell parser + generated connector ZIP | Exit 0 after the final operator changes; all scripts parsed and required native sidecars were present. |
 | Real failure/protection tests | Failed-health activation restored previous code; drift, links, traversal, aliases, control-file writes, foreign locks, ownership/revision conflicts and unauthorized/CSRF/cross-scope requests were rejected. |
@@ -81,7 +83,19 @@ B request `pr_314071e668e8c4c5a44bf8477957cef7` completed the same actual source
 
 Actual dashboard rollback requests `pr_a1efec69e29c2feb31bfee9e467fafac` (A) and `pr_3244cd1c348669e9e638d4a0630e5593` (B) each restored the exact original saved ZIP/reference/manifest without rebuilding or changing source. Both independent native Apply receipts report PASS, HTTP/UI 200, no operator database write and preserved sibling IIS. Final readback found three ready connections, no unresolved work, enabled actions and no unexpected browser errors at 1366/768/390 widths. Chromium emitted its expected ignored COOP-header warning for the approved internal HTTP origin; the verifier records it separately without weakening headers.
 
-The owner then identified inconsistent source-control presentation in the two project cards. A shared labeled source selector now renders the saved connector name and fresh Online/Offline state with the same styling on configured and legacy cards. Connector names, identity filtering and action guards remain intact. This correction requires a fresh source pipeline and final live responsive check before final PASS.
+The owner then identified inconsistent source-control presentation in the two project cards. A shared labeled source selector now renders the saved connector name and fresh Online/Offline state with the same styling on configured and legacy cards. Connector names, identity filtering and action guards remain intact. The fresh source pipeline and final live responsive verification below passed.
+
+## Final live source-selector correction
+
+Actual dashboard Deploy all request `pr_8bd226759891b891e11c7d5cf50c302b` published `915173a272d67e08c59caf34ce2fd34785f616ce`, passed isolated frozen installation/full CI, built the immutable package and activated it independently on server20.
+
+- Active manifest: `cd5f2076cbcfaa513309926f4aad80563ea3c2aa089bc1cd35b5f7578ee3382f`.
+- ZIP: `99f32b9dffb0a66df997547a49a1315ef8f1ea38673c3cabfb44d62752ecceca`, 78,194,845 bytes.
+- Pipeline reference: `4a5336e312ab233fdb203ebfc9ec90056359bb2b1749ceef5fbb4ffc00c5ab37`.
+
+`node .local/component-live-action.cjs deploy native-ui-source`, `node .local/component-native-receipts.cjs native-ui-source`, `node .local/component-copy-native-release.cjs native-ui-source`, `node .local/Test-ComponentsArtifact.mjs .local/components-native-ui-source-release.json final` and `node .local/component-final-readback.cjs` each exited 0. Independent Apply: PASS, HTTP/UI 200, no operator database write, sibling IIS preserved. Exact packaged Windows Node/real-PG smoke passed.
+
+Final Playwright asserted both cards use the same labeled source selector, retain their correct connector IDs and show selected name plus Online; both System online badges remained visible. Desktop/tablet/mobile widths 1366/768/390 passed with no page overflow, page errors, failed HTTP responses or unexpected console errors. The expected internal-HTTP COOP policy warning is retained separately. Evidence: `.local/components-final-readback.json`, `.local/components-final-{live,servix}-{1366,768,390}.png`, `.local/components-native-ui-source-{request,result,verified,release,operator}.json` and corresponding logs. Native B's earlier source-unchanged rollback proof is retained separately in `.local/components-native-b-final-readback.json`.
 
 ## Retained failures and recovery
 
@@ -94,10 +108,16 @@ The owner then identified inconsistent source-control presentation in the two pr
 - One local browser refresh failed during a concurrent asset build; its cause remains unproven. A subsequent run with stable build outputs passed all checks; the failed log remains available.
 - The first B request `pr_4589dc0094c0e8cfa1c7a3ad48038d9e`, source `762af5d0`, failed repository validation because this handoff had been written with a UTF-8 BOM. Its retained checkout reproduced exit 1; no output or destination job existed. The file was rewritten as UTF-8 without BOM and local validation passed. Fresh B request `pr_314071e668e8c4c5a44bf8477957cef7` passed; no validator or gate was weakened.
 
+- Initial UI extraction validation (`.local/component-final-ci10.log`) failed TypeScript because the legacy active flag could be undefined; explicit boolean coercion fixed it. CI11 completed all stages but its PowerShell stderr wrapper returned 1. Separate audit exited 0; a fresh direct cmd CI12 exited 0. No gate was weakened.
+
 ## Preservation, limitations and next boundary
 
 Servix remains at source `58e9359012b2326f9c627379c865157ae18c3835`, request `sd_a78d33690ccdf8db2db2a54df6a29237`, settings revision 3, destination server21 `D:\servixDev`. Its five configured protected paths remain selected. No Servix Deploy/Rollback request was submitted in this task. Server21 `D:\Servix` Production was excluded.
 
 The synthetic cross-server acceptance establishes the npm-static/node-source path on the tested hosts. Customer-specific remote configuration, the .NET recipe and large generic HTTP artifacts are unverified. Moving an active destination to a new enrollment requires explicit verified ownership-state migration. Uncertain destination mutations still require operator recovery; the new closure only handles builds with no output/target job. Broader hostile-code sandbox, independent QA and Production gates remain on the roadmap.
 
-Final source-selector live verification and delivery inventory remain. GitHub review/publication and any later roadmap phase remain separate actions requiring their own authorization.
+Final result documents and generated file inventory are working-tree updates after the deployed source commit; runtime code is the exact published commit. The final documentation-only diff is validated separately.
+
+Non-branch state: the shared Git configuration gained the approved internal `devsetu` remote while preserving GitHub origin. An exact local exclude entry preserves the preexisting scratch file; the old exclude is backed up privately. Paired worker/toolchain upgrades preserved credentials and task identity; private local native baseline/output/cache options were updated. Original root-worktree `.gitattributes` and other worktrees were preserved.
+
+Ready for human review of this bounded pilot. GitHub review/publication and any later roadmap phase remain separate actions requiring their own authorization.

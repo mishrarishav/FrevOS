@@ -2,35 +2,58 @@
 
 Last updated: 2026-10-23
 
-## Configured component deployments (final UI verification, 2026-10-23)
+## Local development sessions (in progress, 2026-10-23)
 
-The owner's configuration-driven component engine and DevSetu source pipeline
-are implemented on `feature/configured-component-deployments`, ADRs 0049–0052.
-Native release B is active: source `b77eb777990fdefd82e54b741d7f5a1c2a67e3a3`,
-manifest `793a24bead1efe24c085bbef8eb045dd298dbfd1b17d0c412363d68d2c08708f`.
-Actual dashboard Deploy all completed automatic Git publication, isolated frozen
-installation/full CI, immutable packaging/private publication and independent
-server20 activation. Receipt: health/UI 200, no operator database write, sibling
-IIS preserved. The exact packaged Windows Node/real-PG smoke passed.
+The owner requests launcher-style local frontend/backend Start/Stop/Restart,
+existing-process controls, database profile selection and preview inside DevSetu
+using the existing connector. HRMS's desktop launcher is a reference only and
+remains untouched. Work is stacked on `feature/local-development-runtime`, base
+`915173a272d67e08c59caf34ce2fd34785f616ce`, ADR 0053. Phase 4 exit stays open.
 
-Full local CI passed 247 tests and unchanged coverage/security gates. Real local
-Playwright passed split components, repeated rollback, protection, offline,
-internal HTTP and responsive layouts. Actual cross-host laptop frontend/server20
-Windows API, component-only partial recovery and repeated rollback passed with
-synthetic persistent data preserved. Test connections were revoked, runtime tasks
-removed and the fixture project archived. Source/build/destination checks pass;
-DevSetu configuration revision 3 uses its public browser URL.
+The API, connector runtime and shared workspace UI are implemented and under
+verification. Initial full CI passed 257 tests and required gates; further
+environment/egress checks are being validated. Real Windows process tests passed
+Start/Restart/Stop, descendant cleanup, unchanged environment files and scoped
+existing-process termination. Final isolated database/Playwright acceptance and
+live activation remain. No customer backend or Production database was started.
 
-Retained failures include an interrupted build (closed through a bounded owner
-popup without replay), a transient Git import timeout and MAX_PATH packaging.
-Verified local baseline cache, short enrolled release output and complete native
-operator sidecars are in place. Native release B and exact saved-artifact A/B
-rollback passed. A final shared source-selector presentation correction is being
-verified after the owner's screenshot feedback. Servix source/current release/settings remain unchanged;
-server21 Production is excluded. This is the owner development pilot, not Phase 4
-or Production completion. See
-[the current component handoff](COMPONENT_DEPLOYMENTS_HANDOFF.md) for exact
-artifacts, nonsecret recovery context and remaining work.
+The owner supplied `D:\servixDev\backend\.env`. It and `.env.prd` resolve to
+`10.9.69.31 / servix_db`, whereas the approved development database is
+`servix_db_dev`. A read-only grants inspection rejected the supplied credentials
+as writable; no customer backend/write probe was run. Neither file is offered as
+a Development DB profile. HRMS's base settings also inherit the Production
+target. Actual backend previews need a separate development/read-only profile.
+Writable/unverifiable Production access is rejected; secrets stay at the local
+execution boundary. See
+[the local development handoff](LOCAL_DEVELOPMENT_HANDOFF.md).
+
+## Configured component deployments (bounded pilot PASS, 2026-10-23)
+
+The owner's configuration-driven source/component development pilot passed on
+`feature/configured-component-deployments`, ADRs 0049–0052. Final deployed source:
+`915173a272d67e08c59caf34ce2fd34785f616ce`.
+Active manifest: `cd5f2076cbcfaa513309926f4aad80563ea3c2aa089bc1cd35b5f7578ee3382f`.
+Actual dashboard publication, isolated frozen installation/full CI, immutable
+packaging/private transfer and independent activation passed. Native A/B and both
+saved-artifact rollbacks passed without rebuilding or changing source. Exact
+packaged Windows Node/real-PostgreSQL smoke passed for A, B and final UI release.
+
+Full CI passed 247 tests and required coverage/build/high dependency gates.
+Real local Playwright passed deployment, protection, offline/restart, rollback,
+outage and responsive flows. Actual cross-host laptop frontend/server20 Windows
+API, partial component recovery and repeated rollback passed with synthetic
+persistent data preserved; verification tasks/connections were removed/revoked
+and the fixture profile archived. Final live 1366/768/390 checks confirm consistent
+named source controls on DevSetu and Servix, three ready connections, no unresolved
+work and no unexpected browser errors. Internal HTTP produces one recorded COOP
+policy warning; one low and two moderate dependency advisories remain.
+
+Servix source/current release/settings are unchanged. No Servix Deploy/Rollback
+was submitted; server21 Production is excluded. This completes the authorized
+bounded development pilot, not Phase 4, independent QA or Production gates.
+Final result documentation is a validated working-tree update after deployment.
+See [the handoff](COMPONENT_DEPLOYMENTS_HANDOFF.md) for artifact identities,
+complete changed files/stat, retained failures, commands and limitations.
 
 ## Server20 Servix repository identity (2026-10-22)
 

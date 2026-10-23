@@ -1,10 +1,11 @@
 Set-StrictMode -Version Latest
-function Initialize-ServixBuildGroup {
+function Initialize-ServixBuildGroup([uint32]$MaxProcesses=0,[uint64]$MaxMemoryBytes=0) {
  if(-not ('ServixBuildGroup' -as [type])){
   Add-Type -TypeDefinition @'
 using System;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 public static class ServixBuildGroup {
  [StructLayout(LayoutKind.Sequential)] struct Basic {
   public long ProcessTime, JobTime; public uint Flags;
@@ -24,11 +25,16 @@ public static class ServixBuildGroup {
  // Unnamed, non-inherited handle stays owned by this build controller. The OS
  // closes it on controller exit, terminating every member, including descendants.
  static IntPtr owned = IntPtr.Zero;
- public static void Own() {
+ public static Task<string> ReadControl() {
+  return Task.Factory.StartNew(() => Console.In.ReadLine(), TaskCreationOptions.LongRunning);
+ }
+ public static void Own(uint maxProcesses, ulong maxMemoryBytes) {
   if(owned != IntPtr.Zero) return;
   IntPtr job=CreateJobObject(IntPtr.Zero,null);
   if(job==IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error());
   Limits limits=new Limits(); limits.Basic.Flags=0x2000;
+  if(maxProcesses>0){ limits.Basic.Flags|=0x8; limits.Basic.ActiveProcesses=maxProcesses; }
+  if(maxMemoryBytes>0){ limits.Basic.Flags|=0x200; limits.JobMemory=new UIntPtr(maxMemoryBytes); }
   int size=Marshal.SizeOf(typeof(Limits)); IntPtr data=Marshal.AllocHGlobal(size);
   try {
    Marshal.StructureToPtr(limits,data,false);
@@ -40,7 +46,7 @@ public static class ServixBuildGroup {
 }
 '@
  }
- [ServixBuildGroup]::Own()
+ [ServixBuildGroup]::Own($MaxProcesses,$MaxMemoryBytes)
 }
 function Invoke-ServixBuildProcess([string]$Executable,[string]$Arguments,[string]$Directory,[string]$Log,[int]$TimeoutSeconds){
  $info=[Diagnostics.ProcessStartInfo]::new();$info.FileName=$Executable;$info.Arguments=$Arguments;$info.WorkingDirectory=$Directory

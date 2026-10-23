@@ -757,6 +757,9 @@ export function DeploymentsPage({
         notice={notice || configured.error}
         actions={
           <>
+            <a className="button secondary" href={addBasePath("/projects/local-development")}>
+              Local development
+            </a>
             <a className="button secondary" href={addBasePath("/projects/components")}>
               Component configuration
             </a>
