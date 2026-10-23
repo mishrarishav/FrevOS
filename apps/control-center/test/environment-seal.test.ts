@@ -34,7 +34,7 @@ it("browser encryption interoperates with the real Windows connector, preserves 
   cleanup.push(root);
   const file = join(root, ".env.dev");
   const original =
-    "# project config\r\nDB_HOST=localhost\r\nDB_PASSWORD='synthetic-existing-secret' # private\r\nCUSTOM_FLAG=before\r\nREMOVE_ME=value # keep note\r\n";
+    "# project config हिन्दी\r\nDB_HOST=localhost\r\nDB_PASSWORD='synthetic-existing-secret' # private\r\nCUSTOM_FLAG=before\r\nREMOVE_ME=value # keep note\r\n";
   await writeFile(file, original);
   const editor = new EnvironmentEditor("synthetic-connector-credential");
   const doc = await editor.read(file, "api", ".env.dev");
@@ -60,6 +60,7 @@ it("browser encryption interoperates with the real Windows connector, preserves 
   const request = sealEnvironment(base, editor.metadata(), [
     { operation: "set", key: "CUSTOM_FLAG", value: "after" },
     { operation: "set", key: "NEW_SECRET", value: "synthetic-replacement-secret" },
+    { operation: "set", key: "UNICODE_VALUE", value: "हिन्दी-✓-café" },
     { operation: "delete", key: "REMOVE_ME" },
   ]);
   expect(LocalDevActionSchema.safeParse(request).success).toBe(true);
@@ -86,6 +87,8 @@ it("browser encryption interoperates with the real Windows connector, preserves 
     expect(saved).toContain("DB_PASSWORD='synthetic-existing-secret' # private\r\n");
     expect(saved).toContain("CUSTOM_FLAG='after'\r\n");
     expect(saved).toContain("NEW_SECRET='synthetic-replacement-secret'\r\n");
+    expect(saved).toContain("# project config हिन्दी\r\n");
+    expect(saved).toContain("UNICODE_VALUE='हिन्दी-✓-café'\r\n");
     expect(saved).toContain("# keep note\r\n");
     expect(saved).not.toContain("REMOVE_ME=");
     await expect(editor.save(file, request)).rejects.toThrow("document-changed");

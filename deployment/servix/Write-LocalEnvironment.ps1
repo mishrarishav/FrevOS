@@ -1,5 +1,6 @@
 # Private connector pipe only. Never emit input, paths, values or exception text.
 $ErrorActionPreference='Stop'
+[Console]::InputEncoding=[Text.UTF8Encoding]::new($false)
 Set-StrictMode -Version Latest
 $temporary=$null;$locked=$null
 try {

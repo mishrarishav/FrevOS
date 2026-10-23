@@ -5,7 +5,8 @@ Date: 2026-10-24. Status: PASS for local validation; live activation pending.
 Repository: `D:\FREVOS\.local\worktrees\servix-dashboard`.
 Branch: `feature/local-environment-crud`.
 Base: `c572f8c9d89332643a3e672be3b654c21cbc6b7d`.
-Publication/resulting commit and activation: pending. No GitHub PR or merge.
+Initial source publication: `64b4cdd040efb6106ace89e2cb16fad078188e33`.
+Final Unicode-pipe update and activation: pending. No GitHub PR or merge.
 The preceding pilot's two working-tree handoff updates are preserved.
 
 ## Authorized scope
@@ -91,6 +92,10 @@ configuration freshness advances after save, with unchanged service settings.
   baseline includes ten `.env`-named files; none is rewritten for acceptance.
 - Final-layout browser rerun: exit 0, the same nine real browser groups passed
   with zero unexpected errors. Desktop/tablet/mobile screenshots were inspected.
+- Additional Unicode interoperability: exit 0, two tests. The private Windows
+  writer explicitly reads UTF-8, preserving Hindi comments and multilingual
+  replacement values rather than depending on the host console code page.
+  This is included before upgrading the existing connectors.
 - Live preflight: no unresolved actions and customer backend stopped. One
   previously running local frontend is recorded for a bounded connector-upgrade
   restart in its existing mode. Customer file hashes and Servix deployment/
