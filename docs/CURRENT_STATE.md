@@ -9,6 +9,18 @@ Development verification before preparing the same artifact for Production.
 All existing uploads, attachments, environments, backups and external file
 storage must be preserved. Branch `feature/servix-build-artifact`, base
 `69dd69e12649d30e9c63a453cb526ea373b17a10`, ADR 0057. Preceding result docs remain.
+The platform artifact path is live at source
+`b34508857358b64f19a6e60b256bd02681c268ea`, manifest
+`f74ff5a3bf85d03e48ea566e533151bc759ac4ae6e6883854460ab89bd291936`,
+actual UI request `pr_5a28fa201f787cb9060623799154f19b`. The independent updater,
+HTTP/UI health, sibling preservation and isolated packaged startup pass.
+Development's existing launcher gained verified bundle selection, with its task
+and both running listeners preserved. A source pre-commit hook prepares locked
+dependencies automatically. Its first real Servix request
+`sd_000d3e0938ef8a4b042db2f2854bf0b6` failed at Git publication: reading all
+1,709 cached tarballs over SMB exceeds the source command budget. A bounded
+availability check is under validation; actual npm ci retains SRI verification
+and rejects corruption before artifact creation. No application was stopped.
 The current Development runtime still starts source with npm, port 5001 healthy.
 The isolated customer build now compiles 85 application modules into a runnable
 bundle, retaining per-project dependencies, module paths and mutable data roots.

@@ -22,6 +22,16 @@ function git(args) {
     maxBuffer: 4 * 1024 * 1024,
   }).trim();
 }
+async function existingTarball(cache, integrity) {
+  // This step checks cache availability. npm ci verifies every SRI on the build
+  // host before any artifact exists; downloading cached bytes over SMB here
+  // makes a cold lock exceed the source-publication deadline.
+  const content = await cacache.get.hasContent(cache, integrity);
+  if (!content) return false;
+  if (!Number.isSafeInteger(content.size) || content.size < 1 || content.size > 64 * 1024 * 1024)
+    throw new CachePublicationError("package-size-capacity");
+  return true;
+}
 async function publish(sha, staged = false) {
   if (!/^[a-f0-9]{40}$/.test(sha)) throw new CachePublicationError("invalid-commit");
   if (
@@ -97,15 +107,7 @@ async function publish(sha, staged = false) {
       while (next < work.length && !failed) {
         const item = work[next++];
         try {
-          let present = false;
-          try {
-            await cacache.get.byDigest(path.join(cacheRoot, "_cacache"), item.integrity, {
-              memoize: false,
-            });
-            present = true;
-          } catch (error) {
-            if (error.code !== "ENOENT") throw error;
-          }
+          const present = await existingTarball(path.join(cacheRoot, "_cacache"), item.integrity);
           if (!present) {
             const bytes = await pacote.tarball(item.url, {
               integrity: item.integrity,
@@ -183,11 +185,13 @@ async function main() {
     await publish(fields[1]);
   }
 }
-main().catch((error) => {
-  process.stderr.write(
-    "FrevOS dependency publication failed (" +
-      (error.code || error.name) +
-      "). Git push/deployment was not continued.\n",
-  );
-  process.exitCode = 1;
-});
+module.exports = { existingTarball };
+if (require.main === module)
+  main().catch((error) => {
+    process.stderr.write(
+      "FrevOS dependency publication failed (" +
+        (error.code || error.name) +
+        "). Git push/deployment was not continued.\n",
+    );
+    process.exitCode = 1;
+  });
