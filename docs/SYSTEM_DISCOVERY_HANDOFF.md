@@ -1,14 +1,16 @@
 # System discovery and onboarding handoff
 
-Status: BLOCKED for live rollout by unavailable server20/VPN connectivity.
-The bounded implementation and observed local acceptance pass; live activation
-and preservation verification remain required and are not claimed complete.
+Status: FAIL for the first configured build, before live activation; the
+correction passes local validation and awaits configured rebuild. VPN connectivity
+and preservation capture passed after the owner's reconnect. Live acceptance is
+not yet claimed.
 
 Repository: `D:\FREVOS`, worktree `.local/worktrees/servix-dashboard`.
 Branch: `feature/system-discovery-onboarding`.
 Base: `a97a076446fa299556d6d75473721fb199eb984b`.
-Resulting implementation commit: none; implementation remains an uncommitted
-dedicated-branch change until configured source publication succeeds.
+Published implementation commit: `c60a926d92d576858621399491d1bec099d89898`.
+Its configured build failed the current dependency gate; the undici correction
+is pending configured source publication. The live baseline remains unchanged.
 Local immutable candidate manifest:
 `41e7e7e6730fb911d7df9739a878de148a3cb63013a59ebd7cae01f2c84775be`.
 Live publication/activation receipts: pending configured rollout.
@@ -148,6 +150,20 @@ project/OS acceptance before being described as verified.
 
 ## Final rollout evidence
 
+After the owner reconnected VPN, both server20 ports were reachable and
+`node .local/discovery-preservation.cjs capture` passed: eleven environment
+files, three profiles, two pipelines and the running frontend-only local session.
+Deploy all request `pr_13b66a566242b865d46e75a17ea8cf75` published the stated
+commit, but isolated build `cj_ff57487d1079bb4878c6c4292881a6f0` rejected
+[the high undici advisory](https://github.com/advisories/GHSA-xjj6-f33q-929c).
+A retained-checkout CI diagnostic reproduced the gate failure. The narrow
+workspace override and lockfile now resolve testcontainers' undici to 8.12.2;
+`pnpm.cmd run audit` passes with five low/six moderate and no high/critical
+finding. `pnpm.cmd run ci` also passed all 274 tests and required gates, exit 0
+(`.local/discovery-ci-undici-fixed.log`). No gate was weakened, no new artifact
+was activated and no connector upgrade was applied by that failed request.
+Rebuild/live acceptance is pending.
+
 The actual Linux paired enrollment/clone/business-action acceptance passed.
 The local builder's two required operator scripts were updated with exact prior
 receipt guards, private backups, pairing bytes and task definition preserved
@@ -165,14 +181,12 @@ the stated base, is
 - Current source sidecars and both dependency manifests match the sealed candidate;
   `.local/discovery-ready-seal.json` and `.local/servix-release.json` retain receipts.
 
-Pending: actual configured source publication/isolated frozen build, independent
-server20 activation, guarded source upgrades and final live configuration/session
-verification. No original frontend session has been stopped while connectivity
-is unavailable, so restoration is unnecessary until the later guarded upgrade.
-Server21, actual customer database
-writes, actual environment saves, default branch publication and phase 4 exit
-remain excluded. The complete current working-tree inventory follows below;
-resulting published source/activation identities remain pending.
+Pending: corrected configured source publication/isolated frozen build,
+independent server20 activation, guarded source upgrades and final live
+configuration/session verification. The original frontend session remains
+running; stop/restore is reserved for the later guarded source upgrade.
+Server21, customer database writes, actual environment saves, default branch
+publication and phase 4 exit remain excluded.
 
 On 2026-10-24 at approximately 05:00 IST, both `10.9.69.20:80` and `:445` timed
 out, and the authenticated read-only preservation capture failed with `fetch
@@ -183,16 +197,15 @@ preservation baseline, publishing through DevSetu Deploy all, verifying the seal
 package/independent activation, upgrading the two source sidecars with guarded
 backups, and restoring the original frontend-only local session.
 
-A read-only process check found FortiClient running. This session does not expose
-the `node_repl` runtime required by the installed computer-use skill, so no VPN
-UI/profile/authentication state was changed. The actual observed blocker remains
-server20 connectivity; the owner's reconnect reply is still pending.
+The owner subsequently reconnected VPN; bounded probes and authenticated
+preservation capture passed. No VPN UI/profile/authentication state was changed
+by this implementation session.
 
 <!-- discovery-change-inventory -->
 
 ## Complete changed-file inventory
 
-Base to current working tree: 53 files, 7080 insertions(+), 127 deletions(-). Implementation remains uncommitted until the configured source publication succeeds. The two preceding environment-editor result documentation edits are preserved in this list.
+Base to current working tree: 54 files, 7104 insertions(+), 131 deletions(-). Published branch head: `c60a926d92d576858621399491d1bec099d89898`. Any later result documentation remains in the working tree until separately published. The two preceding environment-editor result documentation edits are preserved in this list.
 
 - `apps/control-center/src/App.tsx`
 - `apps/control-center/src/DiscoveryPage.tsx`
@@ -247,3 +260,4 @@ Base to current working tree: 53 files, 7080 insertions(+), 127 deletions(-). Im
 - `packages/contracts/test/system-discovery.test.ts`
 - `packages/contracts/tsconfig.build.json`
 - `pnpm-lock.yaml`
+- `pnpm-workspace.yaml`

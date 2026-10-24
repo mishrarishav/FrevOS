@@ -18,10 +18,14 @@ Linux source enrollment/clone/local Start/Restart/Stop. Ubuntu/Rocky/Red Hat UBI
 tool checks pass; their specific desktop/kernel policy acceptance is not claimed.
 Full CI passed 274 tests and required gates after pinning patched Zod 4.6.6.
 Final directory recreation recovery has an actual filesystem regression check.
-The builder's two required scripts retain pairing/task identity. Server20 HTTP
-and SMB became unreachable at about 05:00 IST; live rollout, source upgrades and
-final preservation checks await VPN connectivity. No new capability is declared
-live and no deployment/source publication was submitted while unreachable. See
+The builder's two required scripts retain pairing/task identity. After the owner
+reconnected VPN, HTTP/SMB and the eleven environment files, three profiles and
+two pipelines passed preservation checks. Configured source publication produced
+`c60a926d92d576858621399491d1bec099d89898`; its isolated build correctly rejected
+a newly reported high undici advisory before activation. A narrow override now
+pins patched 8.12.2; audit and the full 274-test CI rerun pass with no
+high/critical finding. Configured rebuild, activation and source-upgrade
+acceptance remain pending. See
 [the Discovery handoff](SYSTEM_DISCOVERY_HANDOFF.md) for exact evidence and limits.
 
 ## Generic local environment CRUD (bounded pilot PASS, 2026-10-24)
