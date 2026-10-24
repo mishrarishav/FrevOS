@@ -4,29 +4,29 @@ import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import {
   ConnectorIdSchema,
-  type DeploymentChange,
-  type DeploymentSettings,
-  type SourceBindingSchema,
-  DeploymentChangeSchema,
   type ConnectorProbe,
   ConnectorProbeSchema,
   ConnectorSchema,
+  type DeploymentChange,
+  DeploymentChangeSchema,
+  type DeploymentSettings,
   type FolderSelection,
   FolderSelectionSchema,
   InviteDeveloperSchema,
+  matchesDeploymentRepository,
   PairConnectorSchema,
   PreservedPathSchema,
   RedeemDeveloperSchema,
+  SERVIX_REPOSITORY,
   ServixHeadSchema,
   ServixRequestIdSchema,
-  SERVIX_REPOSITORY,
-  matchesDeploymentRepository,
+  type SourceBindingSchema,
 } from "@frevos/contracts";
 import { z } from "zod";
+import { replaceDurableRecord } from "./atomic-record.js";
 import { hashesMatch, sha256 } from "./crypto.js";
 import { type DeploymentSettingsStore, repositoryOrigins } from "./deployment-settings.js";
 import { ServixDeploymentError } from "./servix-deployment.js";
-import { replaceDurableRecord } from "./atomic-record.js";
 
 const digest = (s: string) => sha256(s).toString("hex");
 const secret = () => randomBytes(32).toString("base64url");
@@ -445,6 +445,32 @@ export class DeveloperConnectorStore {
           : {}),
       };
     });
+  }
+  async discoveryDevices(actor: string) {
+    await this.permission(actor);
+    if (actor !== "usr_windows_admin")
+      return (await this.list(actor)).map((d) => ({ ...d, workspaceAuthorized: true }));
+    await this.directory();
+    const names = (await readdir(this.root)).filter((n) => /^fc_[a-f0-9]{32}\.json$/.test(n));
+    if (names.length > 1000) throw new ServixDeploymentError("connector-capacity", 503);
+    const records = await Promise.all(
+      names.map(async (n) => DeviceRecord.parse(await this.read(n))),
+    );
+    const users = [...new Set(records.map((d) => d.userId))];
+    const result = [];
+    for (const user of users) {
+      if (await this.allowed(user))
+        result.push(...(await this.list(user)).map((d) => ({ ...d, workspaceAuthorized: true })));
+      else
+        for (const { credentialHash: _, ...device } of records.filter((d) => d.userId === user)) {
+          result.push({
+            ...ConnectorSchema.parse({ ...device, online: false }),
+            workspaceAuthorized: false,
+          });
+        }
+    }
+    if (result.length > 100) throw new ServixDeploymentError("discovery-capacity", 503);
+    return result;
   }
   private async authenticate(credential: string) {
     if (!/^fc_[a-f0-9]{32}\.[A-Za-z0-9_-]{43}$/.test(credential))

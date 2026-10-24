@@ -39,6 +39,20 @@ export const CheckoutPathSchema = z
       .slice(1)
       .every((p) => p.length > 0 && p !== "." && p !== ".." && !/[. ]$/.test(p)),
   );
+export const SourceCheckoutPathSchema = z.union([
+  CheckoutPathSchema,
+  z
+    .string()
+    .max(240)
+    .regex(/^\/[^\\]+$/)
+    .refine((v) => [...v].every((c) => c.charCodeAt(0) >= 32 && c.charCodeAt(0) !== 127))
+    .refine((v) =>
+      v
+        .split("/")
+        .slice(1)
+        .every((p) => p && p !== "." && p !== ".."),
+    ),
+]);
 export const RepositoryOriginSchema = z
   .string()
   .max(240)
@@ -76,7 +90,7 @@ export const DeploymentSettingsInputSchema = z
     displayName: z.string().trim().min(1).max(80),
     archived: z.boolean().optional(),
     repositoryOrigin: RepositoryOriginSchema,
-    sourceFolder: CheckoutPathSchema,
+    sourceFolder: SourceCheckoutPathSchema,
     destination: DestinationSettingsSchema,
     preservedPaths: z
       .array(PreservedPathSchema)
@@ -109,7 +123,7 @@ export const ConnectorProbeSchema = z
   .object({
     version: z.literal(1),
     profileId: DeploymentProfileIdSchema,
-    repository: CheckoutPathSchema,
+    repository: SourceCheckoutPathSchema,
     origin: RepositoryOriginSchema,
     repositoryId: z
       .string()

@@ -3666,6 +3666,89 @@ kbd,
   flex-shrink: 0;
   padding-bottom: 16px;
 }
+.discovery-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(960px, 90vw);
+  max-height: 88dvh;
+  min-height: 0;
+}
+.discovery-editor > .settings-header {
+  flex-shrink: 0;
+}
+.discovery-scroll {
+  overflow: auto;
+  min-height: 0;
+  min-width: 0;
+  padding: 4px 4px 16px;
+}
+.discovery-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+.discovery-facts span {
+  overflow-wrap: anywhere;
+}
+.discovery-event {
+  border-bottom: 1px solid var(--border);
+  padding: 12px 0;
+  overflow-wrap: anywhere;
+}
+.discovery-event > small {
+  display: block;
+  margin-block: 6px;
+}
+.discovery-diff {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+.discovery-diff pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--surface);
+  padding: 12px;
+}
+.discovery-form {
+  display: grid;
+  gap: 14px;
+}
+.discovery-form label {
+  display: grid;
+  gap: 6px;
+}
+.discovery-form input,
+.discovery-form textarea,
+.discovery-form select {
+  max-width: 100%;
+  padding: 8px;
+  color: var(--foreground);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  font: inherit;
+}
+.discovery-form input[type="checkbox"] {
+  width: auto;
+  justify-self: start;
+}
+.discovery-form fieldset {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+@media (max-width: 650px) {
+  .discovery-editor {
+    width: 100%;
+  }
+  .discovery-diff {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 @media (max-width: 650px) {
   .local-env-selection,
   .local-env-row {

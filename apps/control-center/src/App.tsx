@@ -52,12 +52,12 @@ import {
   useRef,
   useState,
 } from "react";
-import { type ControlCenterApi, createControlCenterApi } from "./api.js";
 import { AccountControls } from "./AccountControls.js";
+import { type ControlCenterApi, createControlCenterApi } from "./api.js";
+import { ComponentConfiguration } from "./ComponentDeployments.js";
 import { DeploymentSettingsPage } from "./DeploymentSettingsPage.js";
 import { DeploymentsPage } from "./DeploymentsPage.js";
-import { ComponentConfiguration } from "./ComponentDeployments.js";
-import { LocalDevelopmentPage } from "./LocalDevelopmentPage.js";
+import { DiscoveryPage } from "./DiscoveryPage.js";
 import {
   activity,
   approvals,
@@ -73,6 +73,7 @@ import {
   loadInitialExperience,
   loadWorkspaceExperience,
 } from "./experience.js";
+import { LocalDevelopmentPage } from "./LocalDevelopmentPage.js";
 import {
   addBasePath,
   isPathActive,
@@ -114,6 +115,7 @@ const routeIcons: Record<Exclude<RouteId, "not-found">, LucideIcon> = {
   "deployment-setup": Settings2,
   "component-setup": Settings2,
   "local-development": Play,
+  discovery: Activity,
   approvals: ShieldCheck,
   audit: ScrollText,
   agents: Bot,
@@ -123,6 +125,7 @@ const routeIcons: Record<Exclude<RouteId, "not-found">, LucideIcon> = {
 const railRouteIds = [
   "control-center",
   "projects",
+  "discovery",
   "agents",
   "qa",
   "reviews",
@@ -296,6 +299,7 @@ export function App({
       "deployment-setup",
       "component-setup",
       "local-development",
+      "discovery",
       "deployments",
     ].includes(route?.id ?? "");
 
@@ -381,6 +385,13 @@ export function App({
               scopeName={workspaceDisplayName(experience.workspace)}
             />
           ) : null}
+          {route?.id === "discovery" && experience.workspace.workspaceId === "ws_server20" ? (
+            <DiscoveryPage
+              api={api}
+              workspaceId={experience.workspace.workspaceId}
+              scopeName={workspaceDisplayName(experience.workspace)}
+            />
+          ) : null}
           {(route?.id === "deployment-setup" || route?.id === "projects") &&
           experience.workspace.workspaceId === "ws_server20" ? (
             <DeploymentSettingsPage
@@ -397,7 +408,8 @@ export function App({
             route.id === "project-operations" ? null : (route.id === "deployments" ||
                 route.id === "deployment-setup" ||
                 route.id === "component-setup" ||
-                route.id === "local-development") &&
+                route.id === "local-development" ||
+                route.id === "discovery") &&
               experience.workspace.workspaceId === "ws_server20" ? null : (
               <PlannedSurface route={route} navigate={navigate} />
             )

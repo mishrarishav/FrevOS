@@ -79,6 +79,7 @@ export function RecordWorkspace<T>({
   loading,
   error,
   onRetry,
+  noun = "projects",
 }: {
   title: string;
   breadcrumb: string;
@@ -99,8 +100,10 @@ export function RecordWorkspace<T>({
   loading?: boolean;
   error?: string;
   onRetry?: () => void;
+  noun?: "projects" | "systems";
 }) {
   const key = `frevos:${userId}:${workspaceId}:${page}:records:v1`;
+  const listLabel = noun === "systems" ? "System list" : "Project list";
   const [preferences, setPreferences] = useState(() => readPreferences(key, defaultView));
   const [filtersOpen, setFiltersOpen] = useState(false);
   useEffect(() => {
@@ -143,7 +146,7 @@ export function RecordWorkspace<T>({
       <label>
         Status
         <select value={preferences.status} onChange={(e) => update({ status: e.target.value })}>
-          <option value="all">All projects</option>
+          <option value="all">All {noun}</option>
           {statuses.map((s) => (
             <option key={s.id} value={s.id}>
               {s.label}
@@ -202,7 +205,7 @@ export function RecordWorkspace<T>({
       <div className="record-surface">
         {cards ? (
           <section className="record-summary" aria-label="Project status summary">
-            {[{ id: "all", label: "All projects" }, ...statuses].map((s) => (
+            {[{ id: "all", label: `All ${noun}` }, ...statuses].map((s) => (
               <button
                 key={s.id}
                 type="button"
@@ -220,23 +223,23 @@ export function RecordWorkspace<T>({
         <div className="record-toolbar">
           <label className="record-search">
             <Search size={16} />
-            <span className="sr-only">Search projects</span>
+            <span className="sr-only">Search {noun}</span>
             <input
-              aria-label="Search projects"
+              aria-label={`Search ${noun}`}
               value={preferences.search}
               onChange={(e) => update({ search: e.target.value })}
               placeholder="Search project, source folder or server…"
             />
           </label>
           <span className="record-count">
-            {rows.length} of {records.length} projects
+            {rows.length} of {records.length} {noun}
           </span>
           {cards ? (
             <>
               <label className="record-sort">
-                <span className="sr-only">Sort projects</span>
+                <span className="sr-only">Sort {noun}</span>
                 <select
-                  aria-label="Sort projects"
+                  aria-label={`Sort ${noun}`}
                   value={sort?.id}
                   onChange={(e) => update({ sort: e.target.value, descending: false })}
                 >
@@ -259,7 +262,7 @@ export function RecordWorkspace<T>({
         </div>
         {loading ? (
           <div className="record-empty" role="status">
-            Loading projects…
+            Loading {noun}…
           </div>
         ) : error ? (
           <div className="record-empty" role="alert">
@@ -272,14 +275,16 @@ export function RecordWorkspace<T>({
         ) : (
           <div className={`record-body ${cards ? "with-card-filters" : ""}`}>
             {/* biome-ignore lint/a11y/noNoninteractiveTabindex: the internal card/table scroller needs keyboard access. */}
-            <section className="record-scroll" aria-label="Project list" tabIndex={0}>
+            <section className="record-scroll" aria-label={listLabel} tabIndex={0}>
               {rows.length === 0 ? (
                 <div className="record-empty">
-                  <h2>{records.length ? "No matching projects" : "No projects configured"}</h2>
+                  <h2>{records.length ? `No matching ${noun}` : `No ${noun} configured`}</h2>
                   <p>
                     {records.length
-                      ? "Adjust search or filters to see your projects."
-                      : "Add a project from Projects to connect its source and destination."}
+                      ? `Adjust search or filters to see your ${noun}.`
+                      : noun === "systems"
+                        ? "Install and pair a system connector for a configured project."
+                        : "Add a project from Projects to connect its source and destination."}
                   </p>
                 </div>
               ) : cards ? (

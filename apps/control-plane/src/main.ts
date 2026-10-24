@@ -1,21 +1,26 @@
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { ComponentDeployments } from "./component-deployments.js";
 import { loadConfig } from "./config.js";
 import { registerControlCenter } from "./control-center.js";
 import { OidcTransactionCodec } from "./crypto.js";
 import { createDatabasePool, verifyApplicationRole, verifyDatabaseReadiness } from "./database.js";
 import { DeploymentSettingsStore } from "./deployment-settings.js";
-import { ComponentDeployments } from "./component-deployments.js";
 import { DeveloperConnectorStore } from "./developer-connectors.js";
 import { GithubOnboardingRepository } from "./github-onboarding.js";
 import { LocalAccounts } from "./local-accounts.js";
 import { LocalDevelopment } from "./local-development.js";
-import { SelfUpdates } from "./self-updates.js";
 import { OpenIdClientProvider } from "./oidc.js";
 import { ProjectAutomationRepository } from "./project-automation.js";
 import { IdentitySessionRepository, WorkspaceRepository } from "./repositories.js";
+import { SelfUpdates } from "./self-updates.js";
 import { buildServer } from "./server.js";
-import { ServixDeploymentStore, servixExecution } from "./servix-deployment.js";
+import {
+  ServixDeploymentError,
+  ServixDeploymentStore,
+  servixExecution,
+} from "./servix-deployment.js";
+import { SystemDiscovery } from "./system-discovery.js";
 
 const config = loadConfig(process.env);
 const pool = createDatabasePool(config.databaseUrl);
@@ -27,6 +32,7 @@ try {
   let deploymentSettings: DeploymentSettingsStore | undefined;
   let componentDeployments: ComponentDeployments | undefined;
   let localDevelopment: LocalDevelopment | undefined;
+  let systemDiscovery: SystemDiscovery | undefined;
   if (config.servixRoot) {
     const execution = servixExecution(
       config.servixRoot,
@@ -75,6 +81,26 @@ try {
       join(config.servixRoot, "jobs", "local-development"),
       developerConnectors,
     );
+    systemDiscovery = new SystemDiscovery(
+      join(config.servixRoot, "jobs", "discovery"),
+      developerConnectors,
+      async (actor) => {
+        const repository = new WorkspaceRepository(pool);
+        const evidence = await repository.getEvidence("ws_server20", actor);
+        if (
+          evidence?.membership?.status !== "active" ||
+          evidence.workspace.status !== "active" ||
+          !evidence.membership.grantedScopes.some((scope) => scope === "project:read")
+        )
+          throw new ServixDeploymentError("discovery-access-denied", 403);
+        return {
+          projects: await repository.listProjects("ws_server20"),
+          clients: evidence.membership.grantedScopes.some((scope) => scope === "client:read")
+            ? await repository.listClients("ws_server20")
+            : [],
+        };
+      },
+    );
     servixDeployment = new ServixDeploymentStore(
       config.servixRoot,
       execution,
@@ -113,6 +139,7 @@ try {
     ...(deploymentSettings === undefined ? {} : { deploymentSettings }),
     ...(componentDeployments === undefined ? {} : { componentDeployments }),
     ...(localDevelopment === undefined ? {} : { localDevelopment }),
+    ...(systemDiscovery === undefined ? {} : { systemDiscovery }),
     ...(config.servixRoot && config.authMode === "local"
       ? {
           localAccounts: new LocalAccounts(
@@ -127,6 +154,13 @@ try {
       : { trackGrnAgentTokenHash: config.trackGrnAgentTokenHash }),
     readiness: () => verifyDatabaseReadiness(pool),
   });
+  if (systemDiscovery) {
+    await systemDiscovery.prune();
+    const discovery = systemDiscovery;
+    const retention = setInterval(() => void discovery.prune().catch(() => undefined), 600000);
+    retention.unref();
+    server.addHook("onClose", async () => clearInterval(retention));
+  }
   await registerControlCenter(
     server,
     fileURLToPath(new URL("../../control-center/dist/", import.meta.url)),

@@ -5,11 +5,11 @@ import {
   AgentOperationCompletionSchema,
   type AuthCookiePolicy,
   authCookiePolicy,
-  ChangePasswordSchema,
-  DeploymentSettingsInputSchema,
   authorizeWorkspaceAction,
+  ChangePasswordSchema,
   ClientSchema,
   ConnectGithubRepositoryRequestSchema,
+  DeploymentSettingsInputSchema,
   GithubConnectionSchema,
   GithubDiscoveryCompletionSchema,
   GithubDiscoveryOperationSchema,
@@ -24,23 +24,23 @@ import {
   type SessionContext,
   SessionContextSchema,
   SessionSummarySchema,
+  UserIdSchema,
   WorkspaceIdSchema,
   WorkspaceSchema,
-  UserIdSchema,
 } from "@frevos/contracts";
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import { z } from "zod";
+import type { ComponentDeployments } from "./component-deployments.js";
 import { hashesMatch, type OidcTransaction, type OidcTransactionCodec } from "./crypto.js";
 import type { DeploymentSettingsStore } from "./deployment-settings.js";
-import type { ComponentDeployments } from "./component-deployments.js";
-import { AccountActionError, type LocalAccounts } from "./local-accounts.js";
 import type { DeveloperConnectorStore } from "./developer-connectors.js";
-import type { LocalDevelopment } from "./local-development.js";
 import {
   type GithubOnboardingStore,
   PERSONAL_AGENT_WORKSPACE_ID,
   WINDOWS_GITHUB_AGENT_ID,
 } from "./github-onboarding.js";
+import { AccountActionError, type LocalAccounts } from "./local-accounts.js";
+import type { LocalDevelopment } from "./local-development.js";
 import { type AuthenticatedIdentity, createOidcTransaction, type OidcProvider } from "./oidc.js";
 import { type ProjectAutomationStore, TRACKGRN_AGENT_ID } from "./project-automation.js";
 import type {
@@ -49,13 +49,14 @@ import type {
   WorkspaceEvidence,
   WorkspaceRepository,
 } from "./repositories.js";
-import { ServixDeploymentError, type ServixDeploymentStore } from "./servix-deployment.js";
 import {
+  type SelfUpdates,
   selfUpdateHtml,
   selfUpdateScript,
   selfUpdateStyle,
-  type SelfUpdates,
 } from "./self-updates.js";
+import { ServixDeploymentError, type ServixDeploymentStore } from "./servix-deployment.js";
+import type { SystemDiscovery } from "./system-discovery.js";
 
 export const SESSION_COOKIE = "__Host-frevos-session";
 export const CSRF_COOKIE = "__Host-frevos-csrf";
@@ -158,6 +159,7 @@ interface BuildServerOptions {
   readonly servixDeployment?: ServixDeploymentStore;
   readonly developerConnectors?: DeveloperConnectorStore;
   readonly localDevelopment?: LocalDevelopment;
+  readonly systemDiscovery?: SystemDiscovery;
 }
 
 interface WorkspaceParams {
@@ -943,6 +945,40 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
     if (!options.localDevelopment) throw new HttpError(503, "local-development-unavailable");
     return options.localDevelopment;
   };
+  const discovery = () => {
+    if (!options.systemDiscovery) throw new HttpError(503, "discovery-unavailable");
+    return options.systemDiscovery;
+  };
+  server.get<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/discovery"),
+    async (request) =>
+      discovery().state(
+        await connectorActor(request),
+        z
+          .object({
+            historyDeviceId: z
+              .string()
+              .regex(/^fc_[a-f0-9]{32}$/)
+              .optional(),
+          })
+          .strict()
+          .parse(request.query).historyDeviceId,
+      ),
+  );
+  server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/discovery/policy"),
+    async (request) => discovery().configure(await connectorActor(request, true), request.body),
+  );
+  server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/discovery/plans"),
+    async (request) => discovery().savePlan(await connectorActor(request, true), request.body),
+  );
+  server.post(route("/v1/connector/discovery/policy"), async (request) =>
+    discovery().policyForConnector(connectorCredential(request)),
+  );
+  server.post(route("/v1/connector/discovery/observe"), async (request) =>
+    discovery().observe(connectorCredential(request), request.body),
+  );
   server.get<{ Params: WorkspaceParams }>(
     route("/v1/workspaces/:workspaceId/local-development"),
     async (request) => localDevelopment().state(await connectorActor(request)),
@@ -1068,6 +1104,25 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
   server.get<{ Params: WorkspaceParams }>(
     route("/v1/workspaces/:workspaceId/connectors"),
     async (request) => connectors().list(await connectorActor(request)),
+  );
+  server.get(route("/downloads/devsetu-connector-linux-x64.tar.gz"), async (_request, reply) =>
+    reply
+      .header("cache-control", "no-store")
+      .header(
+        "content-disposition",
+        'attachment; filename="DevSetu-System-Connector-Linux-x64.tar.gz"',
+      )
+      .type("application/gzip")
+      .send(
+        createReadStream(
+          fileURLToPath(
+            new URL(
+              "../../../deployment/servix/devsetu-connector-linux-x64.tar.gz",
+              import.meta.url,
+            ),
+          ),
+        ),
+      ),
   );
   server.post<{ Params: WorkspaceParams }>(
     route("/v1/workspaces/:workspaceId/connectors/pair"),
@@ -1497,4 +1552,5 @@ function setSessionCookies(
 function clearCookie(reply: FastifyReply, name: string, httpOnly: boolean, secure = true): void {
   reply.clearCookie(name, { ...httpOnlyCookieOptions, httpOnly, secure });
 }
+
 import { DeploymentChangeSchema } from "@frevos/contracts";

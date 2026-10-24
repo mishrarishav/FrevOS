@@ -1,12 +1,15 @@
 const changeDetails = { message: "Update development code", approvedBy: "Fixture owner / CHG-123" };
+
 import { randomBytes } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import type { OutgoingHttpHeaders } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { defaultDiscoveryPolicy } from "@frevos/contracts";
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { ComponentDeployments } from "../src/component-deployments.js";
 import { registerControlCenter } from "../src/control-center.js";
 import { type OidcTransaction, OidcTransactionCodec, sha256 } from "../src/crypto.js";
 import {
@@ -25,6 +28,7 @@ import {
   PERSONAL_AGENT_WORKSPACE_ID,
   WINDOWS_GITHUB_AGENT_ID,
 } from "../src/github-onboarding.js";
+import { LocalDevelopment } from "../src/local-development.js";
 import type { AuthenticatedIdentity, OidcProvider } from "../src/oidc.js";
 import {
   ProjectAutomationRepository,
@@ -44,8 +48,7 @@ import {
   SESSION_COOKIE,
 } from "../src/server.js";
 import { ServixDeploymentStore } from "../src/servix-deployment.js";
-import { ComponentDeployments } from "../src/component-deployments.js";
-import { LocalDevelopment } from "../src/local-development.js";
+import { SystemDiscovery } from "../src/system-discovery.js";
 
 const POSTGRES_IMAGE =
   "postgres:18.4-alpine3.23@sha256:996d0920e4ff9df1fc19dacb904492f3c1ec0ec1cc338f0ad7123be7731c5f5e";
@@ -2033,6 +2036,12 @@ it("onboards an invited developer through authenticated workspace APIs without r
     servixDeployment: deployment,
     componentDeployments: components,
     localDevelopment: new LocalDevelopment(join(root, "local-development"), connectors, () => NOW),
+    systemDiscovery: new SystemDiscovery(
+      join(root, "discovery"),
+      connectors,
+      async () => ({ projects: await workspaces.listProjects("ws_server20"), clients: [] }),
+      () => NOW,
+    ),
     now: () => NOW,
   });
   const login = async (username: string, password: string) => {
@@ -2380,6 +2389,152 @@ it("onboards an invited developer through authenticated workspace APIs without r
         })
       ).statusCode,
     ).toBe(404);
+    const discoveryUrl = "/v1/workspaces/ws_server20/discovery";
+    expect((await server.inject({ method: "GET", url: discoveryUrl })).statusCode).toBe(401);
+    expect(
+      (
+        await server.inject({
+          method: "GET",
+          url: "/v1/workspaces/ws_elsewhere/discovery",
+          headers: dev,
+        })
+      ).statusCode,
+    ).not.toBe(200);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: discoveryUrl + "/policy",
+          headers: { cookie: dev.cookie },
+          payload: {},
+        })
+      ).statusCode,
+    ).toBe(403);
+    const policy = {
+      version: 1,
+      deviceId: device.deviceId,
+      expectedRevision: 0,
+      policy: { ...defaultDiscoveryPolicy, enabled: true, allLocalDrives: false },
+    };
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: discoveryUrl + "/policy",
+          headers: dev,
+          payload: policy,
+        })
+      ).statusCode,
+    ).toBe(200);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: discoveryUrl + "/policy",
+          headers,
+          payload: { ...policy, expectedRevision: 1 },
+        })
+      ).statusCode,
+    ).toBe(403);
+    const sample = {
+      version: 1,
+      deviceId: device.deviceId,
+      profileId: "servix-development",
+      bootId: "6c447c9b-2033-4276-8b80-1f860329ea02",
+      at: NOW.toISOString(),
+      policyRevision: 1,
+      system: {
+        systemName: "Fixture system",
+        platform: "win32",
+        os: "Windows fixture",
+        architecture: "x64",
+        cpuPercent: 15,
+        cpuCount: 4,
+        memoryTotal: 1000,
+        memoryAvailable: 500,
+        uptimeSeconds: 100,
+        disks: [],
+        tools: [],
+      },
+      coverage: {
+        status: "partial",
+        roots: [],
+        watchedDirectories: 0,
+        gaps: ["restart-history-unavailable"],
+        attribution: "unavailable",
+        droppedEvents: 0,
+      },
+      events: [],
+    };
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: "/v1/connector/discovery/observe",
+          payload: sample,
+        })
+      ).statusCode,
+    ).toBe(401);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: "/v1/connector/discovery/observe",
+          headers: auth,
+          payload: sample,
+        })
+      ).statusCode,
+    ).toBe(200);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: "/v1/connector/discovery/policy",
+          headers: auth,
+          payload: {},
+        })
+      ).json(),
+    ).toMatchObject({ revision: 1 });
+    expect(
+      (await server.inject({ method: "GET", url: discoveryUrl, headers: dev }))
+        .json()
+        .systems.find((s: { deviceId: string }) => s.deviceId === device.deviceId).observation
+        .system.cpuPercent,
+    ).toBe(15);
+    expect(
+      (await server.inject({ method: "GET", url: discoveryUrl, headers }))
+        .json()
+        .systems.some((s: { deviceId: string }) => s.deviceId === device.deviceId),
+    ).toBe(true);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: discoveryUrl + "/plans",
+          headers: dev,
+          payload: {
+            version: 1,
+            projectId: "prj_unbound",
+            expectedRevision: 0,
+            poReference: "PO-42",
+            poDate: "2026-10-14",
+            responsible: "Fixture",
+            timeZone: "Asia/Kolkata",
+            deviceIds: [],
+            milestones: [
+              {
+                id: "work",
+                title: "Work",
+                weight: 1,
+                dueDate: "2026-10-24",
+                acceptance: "pending",
+                evidence: "",
+              },
+            ],
+          },
+        })
+      ).statusCode,
+    ).toBe(403);
     const localSnapshot = {
       version: 1,
       deviceId: device.deviceId,

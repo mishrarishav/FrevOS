@@ -4,6 +4,7 @@ import {
   CheckoutPathSchema,
   DeploymentProfileIdSchema,
   PreservedPathSchema,
+  SourceCheckoutPathSchema,
 } from "./deployment-settings.js";
 
 export const ComponentIdSchema = DeploymentProfileIdSchema;
@@ -68,7 +69,7 @@ const PipelineFields = z
     profileId: DeploymentProfileIdSchema,
     expectedRevision: z.number().int().nonnegative(),
     displayName: z.string().trim().min(1).max(80),
-    sourceFolder: CheckoutPathSchema,
+    sourceFolder: SourceCheckoutPathSchema,
     sourcePreservedPaths: z.array(PreservedPathSchema).max(64).default([]),
     archived: z.boolean(),
     components: z.array(ComponentSchema).min(1).max(32),

@@ -1,13 +1,28 @@
 # Local environment variable CRUD handoff
 
-Date: 2026-10-24. Status: PASS for local validation; live activation pending.
+Date: 2026-10-24. Status: PASS for the bounded local environment CRUD pilot.
 
 Repository: `D:\FREVOS\.local\worktrees\servix-dashboard`.
 Branch: `feature/local-environment-crud`.
 Base: `c572f8c9d89332643a3e672be3b654c21cbc6b7d`.
 Initial source publication: `64b4cdd040efb6106ace89e2cb16fad078188e33`.
-Final Unicode-pipe update and activation: pending. No GitHub PR or merge.
+Final resulting/deployed source: `a97a076446fa299556d6d75473721fb199eb984b`.
+No GitHub push, PR or merge. Both publications used the configured server20
+source-to-deploy workflow; no manual source commit/build replaced that flow.
 The preceding pilot's two working-tree handoff updates are preserved.
+
+Live URL: `http://10.9.69.20/projects/local-development`.
+Final request: `pr_b3f787bb88b37836ed99b77b4e71c755`.
+Build job: `cj_aef7f6e01af9de489dc968a3a0ab4058`.
+Manifest: `d1475ef8c7ed85ad4d4408d1949412db54347fdf95207c8ae28a0ba889702dec`.
+Archive SHA256: `3eb82e505c446201d570a2c762f3669ce2117d81e1689f615a6d05325c51befd`,
+78,279,350 bytes / 3748 files. Saved artifact reference:
+`4d99d13e5573cda62672f1543527dd99c2ce946f372b4a4376a0d1cb0fca2d26`.
+The independent destination Apply reports PASS, HTTP/UI 200,
+`databaseWritten: false` and sibling IIS applications preserved. The preceding
+manifest was `6175b16225b8d7f23a2aca0653b6b9c40b1c3f1199b17e41f92369e6b364b2ba`.
+Final result documentation is a validated working-tree update after activation;
+it does not change the deployed artifact or require another deployment.
 
 ## Authorized scope
 
@@ -85,8 +100,9 @@ configuration freshness advances after save, with unchanged service settings.
   the existing one low/two moderate dependency advisories remain.
 - Final encryption/file interoperability rerun: exit 0, including unchanged
   source DACL, no temporary residue, hard-link refusal and invalid UTF-8 refusal.
-  Final UI typecheck/build passed after the last UI/encoding adjustments. The
-  isolated native pipeline will run full CI again for the published source.
+  Final UI typecheck/build passed after the last UI/encoding adjustments. Both
+  isolated source pipelines passed frozen installation, full CI and packaging;
+  the final pipeline includes the UTF-8 pipe fix and its extended Unicode test.
 - All six ordinary existing Servix backend/frontend `.env` profiles are readable
   by the editor; only counts and masking metadata were inspected. Actual file
   baseline includes ten `.env`-named files; none is rewritten for acceptance.
@@ -99,7 +115,40 @@ configuration freshness advances after save, with unchanged service settings.
 - Live preflight: no unresolved actions and customer backend stopped. One
   previously running local frontend is recorded for a bounded connector-upgrade
   restart in its existing mode. Customer file hashes and Servix deployment/
-  settings are recorded before activation. Live activation remains pending.
+  settings were recorded before activation. Initial preflight exited 1 because
+  this frontend was already running; it was preserved through the scoped stop/
+  upgrade/resume sequence rather than treating it as an unrelated process.
+- `node .local/env-crud-deploy.cjs deploy native-env-crud-final`: exit 0,
+  real source publication, isolated frozen install/full CI, sealed package,
+  digest-bound transfer and independent server20 activation succeeded. The first
+  `native-env-crud` publication also exited 0; connectors were installed only
+  from the final UTF-8 package. No failed build was replayed.
+- Final native operator and build receipt readers: exit 0; receipt, source and
+  active manifest agree. Exact packaged Windows Node 24.19.0/real PostgreSQL
+  authenticated composition smoke: exit 0, `.local/env-crud-artifact-smoke.log`.
+- Final sealed connector ZIP: exit 0; all eight sidecars match the immutable
+  manifest. An initial direct script invocation met the host's default restricted
+  execution policy; the standard process-local RemoteSigned invocation passed,
+  with no global execution policy or task-definition change.
+- The enrolled builder and both existing source connectors were upgraded with
+  old-hash checks, private backups and unchanged pairing bytes/task definitions.
+  Source sidecars match the final sealed artifact. Scoped frontend Stop/Start
+  receipts both exited 0; original mode/port were restored and backend remained
+  stopped. No actual customer backend or database was started for acceptance.
+- Final live Playwright readback: exit 0, `.local/env-crud-live-readback-final.log`.
+  Actual Production preview `.env` loads 39 variables, with password/username
+  masked. 1366/768/390 layouts retain Save and reach the final row. Actual
+  frontend Login/Login ID renders after restoration; no customer login or CRUD
+  was submitted. All ten recorded environment-file hashes, customer deployment
+  and settings are unchanged; two fresh source connections, eight sealed sidecars
+  and no unresolved actions were verified.
+- The first live readback exited 1 on the previously documented internal HTTP
+  COOP console warning. The final check separately records exactly that known
+  warning (one) while still requiring zero unexpected console, page and HTTP
+  errors. It submitted no environment save on either readback.
+- `node scripts/validate-repository.mjs`: exit 0, 80 Markdown files.
+  `git diff --check`: exit 0. No runtime changes follow the final published CI,
+  packaged smoke or live acceptance; only this result documentation is updated.
 
 Private evidence is under ignored `.local/env-crud-*`. Tests use synthetic
 values only. No real customer `.env` value has been changed for acceptance.
@@ -118,8 +167,9 @@ Phase 4 exit and general Production readiness are not claimed.
 
 ## Complete changed-file inventory
 
-The two preceding pilot handoff updates are included and preserved. Diff stat
-will be recorded against the base after source publication.
+The two preceding pilot handoff updates are included and preserved. Published
+source diff: 22 files, 1826 insertions and 23 deletions against the base.
+Final working-tree diff, including this result documentation: 22 files changed, 1898 insertions(+), 25 deletions(-).
 
 - `apps/control-center/package.json`
 - `apps/control-center/src/EnvironmentVariables.tsx`
@@ -143,3 +193,13 @@ will be recorded against the base after source publication.
 - `packages/contracts/src/local-development.ts`
 - `packages/contracts/test/local-development.test.ts`
 - `pnpm-lock.yaml`
+
+## Delivery readiness
+
+The authorized CRUD option is live for existing local `.env` files on enrolled
+projects. Stop local services before Save, then start/restart to apply changes.
+Actual Production preview still requires verified read-only credentials. This
+completes the bounded owner request and is ready for normal pilot use; broader
+Phase 4 exit, independent acceptance and Production gates remain open. Final
+post-activation documentation remains uncommitted; runtime source and installed
+sidecars are pinned to the final deployed commit/artifact above.

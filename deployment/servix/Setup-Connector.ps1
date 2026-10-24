@@ -24,7 +24,6 @@ if($NonInteractiveEnrollment){
 $server=(Read-Host 'DevSetu server URL').TrimEnd('/')
 $serverUri=[uri]$server
 if($serverUri.Scheme -notin @('http','https') -or $serverUri.UserInfo -or $serverUri.Query -or $serverUri.Fragment -or $serverUri.AbsolutePath -ne '/'){throw 'Use the DevSetu server origin without credentials or a path'}
-$git=(Get-Command git.exe -ErrorAction Stop).Source
 $username=Read-Host 'DevSetu username'
 $inviteSecure=Read-Host 'Invitation code (leave empty if your account already exists)' -AsSecureString
 $invite=[Net.NetworkCredential]::new('unused',$inviteSecure).Password
@@ -58,6 +57,12 @@ if($env:COMPUTERNAME -ceq 'DCAPP9' -and ($repository -ieq 'D:\Servix' -or $repos
 $clone=-not(Test-Path -LiteralPath (Join-Path $repository '.git'))
 if($clone -and $profileId -cne 'servix-development' -and $profileId -cnotin @($pipelines.profiles.profileId)){throw 'Choose an existing Git checkout for this project'}
 if($clone -and (Test-Path -LiteralPath $repository) -and @(Get-ChildItem -LiteralPath $repository -Force).Count){throw 'For a new checkout choose an empty folder'}
+$readinessText= & (Join-Path $PSScriptRoot 'node.exe') (Join-Path $PSScriptRoot 'SystemSetup.cjs') --repository $repository
+if($LASTEXITCODE -ne 0){throw 'System check was cancelled or required tools are not ready'}
+$readiness=$readinessText|ConvertFrom-Json
+if(-not $readiness.ready){throw 'Complete the system check before pairing'}
+$env:PATH=[Environment]::GetEnvironmentVariable('PATH','Machine')+';'+[Environment]::GetEnvironmentVariable('PATH','User')+';'+$env:PATH
+$git=(Get-Command git.exe -ErrorAction Stop).Source
 $pair=Invoke-WebRequest ($server+'/v1/workspaces/ws_server20/connectors/pair') -UseBasicParsing -Method Post -ContentType 'application/json' -Headers @{Origin=$server;'x-csrf-token'=$csrf} -WebSession $session -Body (@{version=1;name=$env:COMPUTERNAME;profileId=$profileId}|ConvertTo-Json -Compress)
 $paired=$pair.Content|ConvertFrom-Json
 }
@@ -77,9 +82,19 @@ $install=Join-Path $env:LOCALAPPDATA 'FrevOS\Connector'
 $destination=Join-Path $install $paired.deviceId
 if(Test-Path -LiteralPath $destination){
  if(-not $ResumeEnrollment -or (Test-Path -LiteralPath (Join-Path $destination 'device.dpapi'))){throw 'Device installation collision'}
- foreach($name in @('Connector.cjs','Preservation.cjs','Choose-Repository.ps1','RepositoryPicker.psm1','FrevOS.FolderPicker.exe','Run-Connector.ps1','BuildProcess.psm1','LocalDevelopment.cjs','LocalDevBoundary.cjs','Run-LocalDevService.ps1','LocalDevProcesses.ps1','EnvironmentEditor.cjs','Write-LocalEnvironment.ps1','node.exe')){if((Get-FileHash -LiteralPath (Join-Path $destination $name)).Hash -cne (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot $name)).Hash){throw 'Interrupted installation bytes changed'}}
+ foreach($name in @('Connector.cjs','Preservation.cjs','Choose-Repository.ps1','RepositoryPicker.psm1','FrevOS.FolderPicker.exe','Run-Connector.ps1','BuildProcess.psm1','LocalDevelopment.cjs','LocalDevBoundary.cjs','Run-LocalDevService.ps1','LocalDevProcesses.ps1','EnvironmentEditor.cjs','Write-LocalEnvironment.ps1','DiscoverySafety.cjs','SystemDiscovery.cjs','SystemPrerequisites.cjs','SystemSetup.cjs','NodeToolchain.cjs','node.exe')){if((Get-FileHash -LiteralPath (Join-Path $destination $name)).Hash -cne (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot $name)).Hash){throw 'Interrupted installation bytes changed'}}
 }else{[void][IO.Directory]::CreateDirectory($destination)}
-foreach($name in @('Connector.cjs','Preservation.cjs','Choose-Repository.ps1','RepositoryPicker.psm1','FrevOS.FolderPicker.exe','Run-Connector.ps1','BuildProcess.psm1','LocalDevelopment.cjs','LocalDevBoundary.cjs','Run-LocalDevService.ps1','LocalDevProcesses.ps1','EnvironmentEditor.cjs','Write-LocalEnvironment.ps1','node.exe')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $destination}
+foreach($name in @('Connector.cjs','Preservation.cjs','Choose-Repository.ps1','RepositoryPicker.psm1','FrevOS.FolderPicker.exe','Run-Connector.ps1','BuildProcess.psm1','LocalDevelopment.cjs','LocalDevBoundary.cjs','Run-LocalDevService.ps1','LocalDevProcesses.ps1','EnvironmentEditor.cjs','Write-LocalEnvironment.ps1','DiscoverySafety.cjs','SystemDiscovery.cjs','SystemPrerequisites.cjs','SystemSetup.cjs','NodeToolchain.cjs','node.exe')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $destination}
+foreach($name in @('FileAudit.cjs','Read-WindowsFileAudit.ps1','Protect-SetupSession.ps1','DotNetToolchain.cjs','SystemSetupClient.js','npm','npm.cmd','npx','npx.cmd')){
+ $target=Join-Path $destination $name
+ if($ResumeEnrollment -and (Test-Path -LiteralPath $target) -and (Get-FileHash -LiteralPath $target).Hash -cne (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot $name)).Hash){throw 'Interrupted audit collector bytes changed'}
+ Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $destination
+}
+$npmSource=Join-Path $PSScriptRoot 'node_modules\npm';$npmDestination=Join-Path $destination 'node_modules\npm'
+if(Test-Path -LiteralPath $npmDestination){
+ foreach($file in Get-ChildItem -LiteralPath $npmSource -Recurse -File){$relative=$file.FullName.Substring($npmSource.Length+1);if((Get-FileHash -LiteralPath $file.FullName).Hash -cne (Get-FileHash -LiteralPath (Join-Path $npmDestination $relative)).Hash){throw 'Interrupted npm runtime bytes changed'}}
+ if(@(Get-ChildItem -LiteralPath $npmSource -Recurse -File).Count -ne @(Get-ChildItem -LiteralPath $npmDestination -Recurse -File).Count){throw 'Interrupted npm runtime inventory changed'}
+}else{[void][IO.Directory]::CreateDirectory((Join-Path $destination 'node_modules'));Copy-Item -LiteralPath $npmSource -Destination (Join-Path $destination 'node_modules') -Recurse}
 $configFields=@{version=1;server=$server;allowInternalHttp=($serverUri.Scheme -ceq 'http');deviceId=$paired.deviceId;credential=$paired.credential;profileId=$profileId;repository=$repository;repositoryOrigin=$repositoryOrigin;git=$git;stateRoot=(Join-Path $destination 'state')}
 if($central){$configFields.centralRepository=$paired.centralRepository}
 $config=$configFields|ConvertTo-Json -Compress
@@ -89,6 +104,23 @@ if($clone -or $profileId -ceq 'servix-development' -or $central){
  $child=[Diagnostics.Process]::new();$child.StartInfo=$info
  $configBytes=[Text.UTF8Encoding]::new($false).GetBytes($config)
  try{[void]$child.Start();$child.StandardInput.BaseStream.Write($configBytes,0,$configBytes.Length);$child.StandardInput.Close();if(-not $child.WaitForExit(240000)){$child.Kill();throw 'Checkout download timed out'};if($child.ExitCode -ne 0){throw 'Checkout could not be connected to server20; existing files were not replaced'}}catch{if(-not $NonInteractiveEnrollment){Invoke-WebRequest ($server+'/v1/workspaces/ws_server20/connectors/'+$paired.deviceId+'/revoke') -UseBasicParsing -Method Post -ContentType 'application/json' -Headers @{Origin=$server;'x-csrf-token'=$csrf} -WebSession $session -Body '{}'|Out-Null};throw}finally{[Array]::Clear($configBytes,0,$configBytes.Length);$child.Dispose()}
+}
+if(-not $NonInteractiveEnrollment){
+ $projectCheckText= & (Join-Path $destination 'node.exe') (Join-Path $destination 'SystemSetup.cjs') --check $repository
+ if($LASTEXITCODE -ne 0){throw 'Project system check failed'}
+ $projectCheck=$projectCheckText|ConvertFrom-Json
+ if(@($projectCheck.blocked).Count -gt 0 -or @($projectCheck.tools|Where-Object {$_.status -cne 'ready'}).Count -gt 0){
+  $reviewArguments=@('--repository',$repository);if($readiness.discoveryConsent){$reviewArguments+='--initial-consent'}
+  $readinessText= & (Join-Path $destination 'node.exe') (Join-Path $destination 'SystemSetup.cjs') @reviewArguments
+  if($LASTEXITCODE -ne 0){throw 'Complete project prerequisite review before starting the connector'}
+  $readiness=$readinessText|ConvertFrom-Json
+  if(-not $readiness.ready){throw 'Project prerequisites are not ready'}
+ }
+}
+if(-not $NonInteractiveEnrollment -and $readiness.discoveryConsent){
+ [void][IO.Directory]::CreateDirectory((Join-Path $destination 'state'))
+ [IO.File]::WriteAllText((Join-Path $destination 'state\discovery-consent.json'),(@{version=1;deviceId=$paired.deviceId;metadata=$true;approvedAt=[DateTimeOffset]::UtcNow.ToString('o')}|ConvertTo-Json -Compress),[Text.UTF8Encoding]::new($false))
+ Invoke-WebRequest ($server+'/v1/workspaces/ws_server20/discovery/policy') -UseBasicParsing -Method Post -ContentType 'application/json' -Headers @{Origin=$server;'x-csrf-token'=$csrf} -WebSession $session -Body (@{version=1;deviceId=$paired.deviceId;expectedRevision=0;policy=$readiness.discoveryPolicy}|ConvertTo-Json -Depth 5 -Compress)|Out-Null
 }
 $branch=(& $git -C $repository symbolic-ref --short HEAD 2>$null)
 if($LASTEXITCODE -ne 0){throw 'Select an existing local branch before setup'}

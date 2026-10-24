@@ -11,6 +11,8 @@ export {
   TargetReferenceSchema,
 } from "./approvals.js";
 export { type AuthCookiePolicy, authCookiePolicy } from "./auth-cookies.js";
+export * from "./component-deployments.js";
+export * from "./deployment-change.js";
 export * from "./deployment-settings.js";
 export * from "./developer-connectors.js";
 export {
@@ -78,6 +80,8 @@ export {
   SessionSummarySchema,
 } from "./identity.js";
 export { contractJsonSchemas } from "./json-schemas.js";
+export * from "./local-accounts.js";
+export * from "./local-development.js";
 export {
   type PermissionScope,
   PermissionScopeSchema,
@@ -103,6 +107,7 @@ export {
   ProjectAutomationStatusSchema,
 } from "./project-automation.js";
 export * from "./servix-deployment.js";
+export * from "./system-discovery.js";
 export {
   type ContractIssue,
   type ContractValidationResult,
@@ -137,7 +142,3 @@ export {
   type WorkspaceStatus,
   WorkspaceStatusSchema,
 } from "./workspaces.js";
-export * from "./local-accounts.js";
-export * from "./deployment-change.js";
-export * from "./component-deployments.js";
-export * from "./local-development.js";

@@ -7,6 +7,8 @@ const { execFile } = require("node:child_process");
 const run = promisify(execFile);
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 const headPattern = /^[a-f0-9]{40}$/;
+const repositoryPath = (value) =>
+  process.platform === "win32" ? value.replaceAll("\\", "/").toLowerCase() : value;
 const centralRepository = {
   id: "gitrepo_6cb7e163f807493fa37963196c49fbac",
   origin: "//10.9.69.20/e$/FrevOS/git/servix.git",
@@ -122,10 +124,7 @@ async function bindCentralCheckout(config, baselineFile) {
       )
     ).stdout.trim();
   const root = await fs.realpath(config.repository);
-  if (
-    (await git(["rev-parse", "--show-toplevel"])).replaceAll("\\", "/").toLowerCase() !==
-    root.replaceAll("\\", "/").toLowerCase()
-  )
+  if (repositoryPath(await git(["rev-parse", "--show-toplevel"])) !== repositoryPath(root))
     throw Error("wrong-local-repository");
   let previous;
   if ((await git(["remote"])).split(/\r?\n/).includes(binding.remoteName))
@@ -266,10 +265,7 @@ async function publishWorkingTree(config, job, options = {}) {
       })
     ).stdout.trim();
   const root = await fs.realpath(config.repository);
-  if (
-    (await git(["rev-parse", "--show-toplevel"])).replaceAll("\\", "/").toLowerCase() !==
-    root.replaceAll("\\", "/").toLowerCase()
-  )
+  if (repositoryPath(await git(["rev-parse", "--show-toplevel"])) !== repositoryPath(root))
     throw Error("wrong-local-repository");
   if (
     (await git(["remote", "get-url", binding?.remoteName || "origin"])) !==
@@ -418,8 +414,7 @@ async function inspectRepository(config) {
     ).stdout.trim();
   const repository = await fs.realpath(config.repository);
   const root = await git(["rev-parse", "--show-toplevel"]);
-  if (root.replaceAll("\\", "/").toLowerCase() !== repository.replaceAll("\\", "/").toLowerCase())
-    throw Error("wrong-local-repository");
+  if (repositoryPath(root) !== repositoryPath(repository)) throw Error("wrong-local-repository");
   const binding = repositoryBinding(config);
   const central = !!binding;
   const origin = await git(["remote", "get-url", binding?.remoteName || "origin"]);
@@ -559,6 +554,7 @@ async function connector(config) {
     return response.json();
   };
   const development = require("./LocalDevelopment.cjs").start(config, inspectRepository, api);
+  require("./SystemDiscovery.cjs").start(config, api, () => inspectRepository(config));
   let heartbeatPending = false;
   const heartbeat = async () => {
     if (heartbeatPending) return;
@@ -572,7 +568,7 @@ async function connector(config) {
       }
       await api("/v1/connector/heartbeat", {
         ...(probe ? { probe } : {}),
-        folderPicker: true,
+        folderPicker: process.platform === "win32",
         changeNotes: true,
       });
     } catch {

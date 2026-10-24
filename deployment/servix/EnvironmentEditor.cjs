@@ -10,8 +10,7 @@ const keyPattern = /^[A-Za-z_][A-Za-z0-9_]{0,127}$/;
 const referencePattern = /^\.env(?:\.[A-Za-z0-9_-]+)?$/;
 const hash = (value) => crypto.createHash("sha256").update(value).digest("hex");
 function visible(key, value) {
-  if (["DB_HOST", "PGHOST", "HOST"].includes(key))
-    return /^[A-Za-z0-9_.:\[\]-]{1,253}$/.test(value);
+  if (["DB_HOST", "PGHOST", "HOST"].includes(key)) return /^[A-Za-z0-9_.:[\]-]{1,253}$/.test(value);
   if (["DB_NAME", "PGDATABASE"].includes(key)) return /^[A-Za-z0-9_.-]{1,128}$/.test(value);
   if (["PORT", "DB_PORT", "PGPORT"].includes(key))
     return /^\d{1,5}$/.test(value) && Number(value) > 0 && Number(value) < 65536;
@@ -147,15 +146,19 @@ function patch(text, changes) {
 async function write(file, expectedDigest, content) {
   return new Promise((resolve, reject) => {
     const child = spawn(
-      path.join(process.env.WINDIR, "System32/WindowsPowerShell/v1.0/powershell.exe"),
-      [
-        "-NoProfile",
-        "-NonInteractive",
-        "-ExecutionPolicy",
-        "RemoteSigned",
-        "-File",
-        path.join(__dirname, "Write-LocalEnvironment.ps1"),
-      ],
+      process.platform === "linux"
+        ? "/usr/bin/python3"
+        : path.join(process.env.WINDIR, "System32/WindowsPowerShell/v1.0/powershell.exe"),
+      process.platform === "linux"
+        ? [path.join(__dirname, "Write-LinuxEnvironment.py")]
+        : [
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "RemoteSigned",
+            "-File",
+            path.join(__dirname, "Write-LocalEnvironment.ps1"),
+          ],
       { windowsHide: true, stdio: ["pipe", "pipe", "ignore"] },
     );
     let output = "";

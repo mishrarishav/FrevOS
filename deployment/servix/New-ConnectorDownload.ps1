@@ -16,11 +16,18 @@ try{
  [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive,$picker,'FrevOS.FolderPicker.exe',[IO.Compression.CompressionLevel]::Optimal)
  foreach($name in @('Connector.cjs','Preservation.cjs','Choose-Repository.ps1','RepositoryPicker.psm1','Setup-Connector.ps1','Run-Connector.ps1','BuildProcess.psm1','Setup.cmd')){[void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive,(Join-Path $PSScriptRoot $name),$name,[IO.Compression.CompressionLevel]::Optimal)}
  foreach($name in @('LocalDevelopment.cjs','LocalDevBoundary.cjs','Run-LocalDevService.ps1','LocalDevProcesses.ps1','EnvironmentEditor.cjs','Write-LocalEnvironment.ps1')){[void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive,(Join-Path $PSScriptRoot $name),$name,[IO.Compression.CompressionLevel]::Optimal)}
+ foreach($name in @('DiscoverySafety.cjs','SystemDiscovery.cjs','SystemPrerequisites.cjs','SystemSetup.cjs','NodeToolchain.cjs')){[void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive,(Join-Path $PSScriptRoot $name),$name,[IO.Compression.CompressionLevel]::Optimal)}
+ foreach($name in @('FileAudit.cjs','Read-WindowsFileAudit.ps1')){[void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive,(Join-Path $PSScriptRoot $name),$name,[IO.Compression.CompressionLevel]::Optimal)}
+ [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive,(Join-Path $PSScriptRoot 'Protect-SetupSession.ps1'),'Protect-SetupSession.ps1',[IO.Compression.CompressionLevel]::Optimal)
+ [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive,(Join-Path $PSScriptRoot 'DotNetToolchain.cjs'),'DotNetToolchain.cjs',[IO.Compression.CompressionLevel]::Optimal)
+ [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive,(Join-Path $PSScriptRoot 'SystemSetupClient.js'),'SystemSetupClient.js',[IO.Compression.CompressionLevel]::Optimal)
  foreach($name in @('ComponentExecutor.cjs','ComponentRuntime.ps1','ComponentPlatform.ps1','NativePlatform.cjs','Setup-Executor.ps1','Setup-Executor.cmd','Run-Executor.ps1')){[void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive,(Join-Path $PSScriptRoot $name),$name,[IO.Compression.CompressionLevel]::Optimal)}
  foreach($name in @('New-ServixDashboardRelease.ps1','HttpCommon.ps1','Verify-HttpManifest.mjs','Apply-ServixDashboard.ps1','Start-Server20.ps1','Install-SelfUpdate.ps1','Run-SelfUpdate.ps1')){[void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive,(Join-Path $PSScriptRoot ('..\server20\'+$name)),$name,[IO.Compression.CompressionLevel]::Optimal)}
- foreach($name in @('node.exe','LICENSE')){
-  $original=$runtime.GetEntry('node-v24.19.0-win-x64/'+$name)
-  if($null -eq $original){throw 'Pinned runtime entry is missing'}
+ foreach($original in $runtime.Entries){
+  if(-not $original.FullName.StartsWith('node-v24.19.0-win-x64/',[StringComparison]::Ordinal)){throw 'Pinned runtime scope is invalid'}
+  $name=$original.FullName.Substring('node-v24.19.0-win-x64/'.Length)
+  if($name.EndsWith('/') -or ($name -cnotin @('node.exe','LICENSE','npm','npm.cmd','npx','npx.cmd') -and -not $name.StartsWith('node_modules/npm/',[StringComparison]::Ordinal))){continue}
+  if($name.Contains('..') -or $name.Contains('\')){throw 'Pinned runtime path is invalid'}
   $entry=$archive.CreateEntry($name,[IO.Compression.CompressionLevel]::Optimal)
   $source=$original.Open();$target=$entry.Open()
   try{$source.CopyTo($target)}finally{$target.Dispose();$source.Dispose()}

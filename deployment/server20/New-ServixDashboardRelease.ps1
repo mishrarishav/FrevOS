@@ -13,6 +13,7 @@ function Get-SourceGuard {
  foreach($relative in @('apps\control-center\src','apps\control-plane\src','packages\contracts\src','deployment\servix','deployment\server20')){$paths+=@(Get-ChildItem -LiteralPath (Join-Path $root $relative) -Recurse -File|Select-Object -ExpandProperty FullName)}
  foreach($relative in @('apps/control-center/index.html','apps/control-center/public/favicon.svg','package.json','pnpm-lock.yaml','pnpm-workspace.yaml','apps\control-center\package.json','apps\control-plane\package.json','packages\contracts\package.json')){$paths+=Join-Path $root $relative}
  $paths+=@(Get-ChildItem -LiteralPath $root -Filter 'tsconfig*.json' -File|Select-Object -ExpandProperty FullName)
+ $paths+=Join-Path $root 'packages\contracts\tsconfig.build.json'
  return @($paths|Sort-Object -Unique|ForEach-Object {@{path=$_.Substring($root.Length+1);sha256=(Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash.ToLowerInvariant()}})|ConvertTo-Json -Compress
 }
 $sourceState=if((& git -C $root status --porcelain=v1|Out-String).Trim()){'local-uncommitted'}else{'committed'}
@@ -26,8 +27,30 @@ try{
  try{$env:VITE_FREVOS_AUTH_MODE='local';& pnpm.cmd --filter '@frevos/control-center' run build;if($LASTEXITCODE -ne 0){throw 'Local-auth UI build failed'}}finally{Remove-Item Env:VITE_FREVOS_AUTH_MODE -ErrorAction SilentlyContinue}
  $id=[guid]::NewGuid().ToString('N');$output=Join-Path $artifactRoot ('servix-release-'+$id);$package=Join-Path $output 'package'
  [void][IO.Directory]::CreateDirectory($output);Copy-Item -LiteralPath $PreviousPackageRoot -Destination $package -Recurse
+ # The baseline remains sealed. This one pinned security update is imported
+ # from the frozen application installation and included in the new manifest.
+ $zodLink=Get-Item -LiteralPath (Join-Path $root 'apps\control-plane\node_modules\zod')
+ $zodSource=if($zodLink.Target){[IO.Path]::GetFullPath([string]@($zodLink.Target)[0])}else{$zodLink.FullName}
+ if(-not $zodSource.StartsWith((Join-Path $root 'node_modules')+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'Zod dependency escaped frozen installation'}
+ Assert-NoReparsePath $zodSource
+ if((Get-Content -LiteralPath (Join-Path $zodSource 'package.json') -Raw|ConvertFrom-Json).version -cne '4.6.6'){throw 'Pinned Zod security dependency mismatch'}
+ $zodDestination=Join-Path $package 'apps\control-plane\node_modules\zod'
+ if(-not [IO.Path]::GetFullPath($zodDestination).StartsWith([IO.Path]::GetFullPath($output)+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'Dependency replacement escaped package'}
+ Assert-NoReparsePath $zodDestination;Remove-Item -LiteralPath $zodDestination -Recurse -Force
+ Copy-Item -LiteralPath $zodSource -Destination $zodDestination -Recurse
+ foreach($relative in @('apps\control-plane\package.json','apps\control-plane\node_modules\@frevos\contracts\package.json')){
+  $metadataPath=Join-Path $package $relative;Assert-NoReparsePath $metadataPath
+  $metadata=Get-Content -LiteralPath $metadataPath -Raw|ConvertFrom-Json
+  if($metadata.dependencies.zod -cnotin @('4.4.3','4.6.6')){throw 'Unexpected sealed Zod dependency metadata'}
+  $metadata.dependencies.zod='4.6.6'
+  [IO.File]::WriteAllText($metadataPath,($metadata|ConvertTo-Json -Depth 10),[Text.UTF8Encoding]::new($false))
+ }
  foreach($name in @('main','config','server','repositories','local-accounts','self-updates','developer-connectors','servix-deployment','deployment-settings','component-deployments','component-git','atomic-record','local-development')){foreach($suffix in @('js','js.map','d.ts','d.ts.map')){Copy-Item -LiteralPath (Join-Path $root ('apps\control-plane\dist\'+$name+'.'+$suffix)) -Destination (Join-Path $package ('apps\control-plane\dist\'+$name+'.'+$suffix))}}
  foreach($name in @('deployment-change','servix-deployment','developer-connectors','deployment-settings','local-accounts','component-deployments','local-development','index')){foreach($suffix in @('js','js.map','d.ts','d.ts.map')){Copy-Item -LiteralPath (Join-Path $root ('packages\contracts\dist\'+$name+'.'+$suffix)) -Destination (Join-Path $package ('apps\control-plane\node_modules\@frevos\contracts\dist\'+$name+'.'+$suffix))}}
+ foreach($suffix in @('js','js.map','d.ts','d.ts.map')){
+  Copy-Item -LiteralPath (Join-Path $root ('apps\control-plane\dist\system-discovery.'+$suffix)) -Destination (Join-Path $package ('apps\control-plane\dist\system-discovery.'+$suffix))
+  Copy-Item -LiteralPath (Join-Path $root ('packages\contracts\dist\system-discovery.'+$suffix)) -Destination (Join-Path $package ('apps\control-plane\node_modules\@frevos\contracts\dist\system-discovery.'+$suffix))
+ }
  $ui=Join-Path $package 'apps\control-center\dist'
  if(-not [IO.Path]::GetFullPath($ui).StartsWith([IO.Path]::GetFullPath($output)+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'UI cleanup escaped package'}
  Assert-NoReparsePath $ui;Remove-Item -LiteralPath $ui -Recurse -Force;Copy-Item -LiteralPath (Join-Path $root 'apps\control-center\dist') -Destination $ui -Recurse
@@ -44,6 +67,10 @@ try{
   Remove-Item -LiteralPath $compiledPicker
  }
  & (Join-Path $root 'deployment\servix\New-ConnectorDownload.ps1') -NodeArchive (Join-Path $PreviousPackageRoot 'prerequisites\node-v24.19.0-win-x64.zip') -OutputPath $connectorZip
+ $linuxDownload=Join-Path $servixOperator 'devsetu-connector-linux-x64.tar.gz'
+ if(Test-Path -LiteralPath $linuxDownload){Assert-NoReparsePath $linuxDownload;Remove-Item -LiteralPath $linuxDownload}
+ & (Get-Command node.exe -ErrorAction Stop).Source (Join-Path $root 'deployment\servix\New-LinuxDownload.mjs') --output $linuxDownload
+ if($LASTEXITCODE -ne 0){throw 'Linux connector download build failed'}
  foreach($name in @('HttpCommon.ps1','Start-Server20.ps1','Apply-ServixDashboard.ps1','Verify-HttpManifest.mjs','Install-SelfUpdate.ps1','Run-SelfUpdate.ps1')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $package 'deployment\server20')}
  if($BootstrapMaintenance){
   # Bootstrap adds only the authenticated platform updater. Keep the preceding
@@ -61,6 +88,7 @@ try{
  }
  if((Get-SourceGuard) -cne $sourceGuard){throw 'Source changed during the release build; no artifact will be published'}
  $inputs=@('apps/control-center/src/EnvironmentVariables.tsx','apps/control-center/src/environment-seal.ts','packages/contracts/src/local-development.ts','apps/control-plane/src/local-development.ts','apps/control-center/src/LocalDevelopmentPage.tsx')+@('apps/control-plane/src/atomic-record.ts','packages/contracts/src/component-deployments.ts','apps/control-plane/src/component-deployments.ts','apps/control-plane/src/component-git.ts','apps/control-center/src/ComponentDeployments.tsx','packages/contracts/src/deployment-change.ts','apps/control-center/src/DeploymentActionDialog.tsx','apps/control-center/src/PlatformProjectDetails.tsx','apps/control-plane/src/local-accounts.ts','apps/control-plane/src/self-updates.ts','apps/control-center/src/AccountControls.tsx','apps/control-center/src/main.tsx','packages/contracts/src/local-accounts.ts','deployment/server20/Install-SelfUpdate.ps1','deployment/server20/Run-SelfUpdate.ps1','apps/control-center/index.html','apps/control-center/public/favicon.svg','apps/control-center/package.json','pnpm-lock.yaml','pnpm-workspace.yaml','apps/control-plane/src/config.ts','apps/control-plane/src/main.ts','apps/control-plane/src/server.ts','apps/control-plane/src/repositories.ts','apps/control-plane/src/developer-connectors.ts','apps/control-plane/src/servix-deployment.ts','apps/control-center/src/api.ts','apps/control-center/src/App.tsx','apps/control-center/src/DeploymentsPage.tsx','apps/control-center/src/RecordWorkspace.tsx','apps/control-center/src/WorkspaceDialog.tsx','apps/control-center/src/DeveloperAccess.tsx','apps/control-center/src/deployment-request-id.ts','apps/control-center/src/servix-deployment-state.ts','apps/control-center/src/styles.css','apps/control-center/src/DeploymentSettingsPage.tsx','apps/control-center/src/routing.ts','apps/control-plane/src/deployment-settings.ts','packages/contracts/src/deployment-settings.ts','packages/contracts/src/servix-deployment.ts','packages/contracts/src/developer-connectors.ts','packages/contracts/src/index.ts')+@(Get-ChildItem (Join-Path $root 'deployment\servix') -File|ForEach-Object {'deployment/servix/'+$_.Name})+@('deployment/server20/HttpCommon.ps1','deployment/server20/Start-Server20.ps1','deployment/server20/Apply-ServixDashboard.ps1','deployment/server20/Verify-HttpManifest.mjs','deployment/server20/New-ServixDashboardRelease.ps1')
+ $inputs+=@('packages/contracts/src/system-discovery.ts','apps/control-plane/src/system-discovery.ts','apps/control-center/src/DiscoveryPage.tsx','apps/control-plane/package.json','packages/contracts/package.json','packages/contracts/tsconfig.build.json')
  $inventory=@($inputs|ForEach-Object {@{path=$_;sha256=(Get-FileHash -LiteralPath (Join-Path $root $_) -Algorithm SHA256).Hash.ToLowerInvariant()}})
  [IO.File]::WriteAllText((Join-Path $package 'deployment\server20\source-inventory.json'),(@{sourceBase=$sourceHead;state=$sourceState;bootstrapMaintenance=[bool]$BootstrapMaintenance;bootstrapParentManifest=$old;files=$inventory}|ConvertTo-Json -Depth 5),[Text.UTF8Encoding]::new($false))
  $files=@(Get-ChildItem -LiteralPath $package -Recurse -File|Where-Object FullName -NE (Join-Path $package 'release-manifest.json')|Sort-Object FullName|ForEach-Object {@{path=$_.FullName.Substring($package.Length+1).Replace('\','/');bytes=$_.Length;sha256=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()}})

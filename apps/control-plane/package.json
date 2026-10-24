@@ -18,7 +18,7 @@
     "fastify": "5.12.5",
     "openid-client": "6.8.4",
     "pg": "8.23.0",
-    "zod": "4.4.3"
+    "zod": "4.6.6"
   },
   "devDependencies": {
     "@testcontainers/postgresql": "12.1.0",

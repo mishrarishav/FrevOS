@@ -1,31 +1,17 @@
 import {
-  type LocalDevAction,
-  type LocalDevState,
-  type LocalDevJob,
-  LocalDevStateSchema,
-  LocalDevJobSchema,
-  AccountProfileSchema,
   type AccountProfile,
-  type LocalAccount,
-  LocalAccountsSchema,
-  PasswordChangedSchema,
+  AccountProfileSchema,
   authCookiePolicy,
-  type PipelineState,
-  PipelineStateSchema,
-  type Pipeline,
-  PipelineSchema,
-  type PipelineInput,
-  type PipelineRequest,
-  type PipelineRun,
   type BuildResolutionInput,
-  PipelineRunSchema,
   type Client,
   ClientSchema,
   type ConnectGithubRepositoryRequest,
   ConnectorListSchema,
   ConnectorRevocationSchema,
-  type DeploymentConnectionTest,
+  type DeliveryPlanInput,
+  DeliveryPlanSchema,
   type DeploymentChange,
+  type DeploymentConnectionTest,
   DeploymentConnectionTestSchema,
   type DeploymentSettings,
   type DeploymentSettingsInput,
@@ -33,12 +19,32 @@ import {
   DeploymentSettingsSchema,
   type DeveloperConnector,
   DeveloperInviteResultSchema,
+  type DiscoveryPolicyInput,
+  DiscoveryPolicyRecordSchema,
+  type DiscoveryState,
+  DiscoveryStateSchema,
   type FolderSelection,
   FolderSelectionSchema,
   type GithubConnection,
   GithubConnectionSchema,
   type GithubDiscoveryOperation,
   GithubDiscoveryOperationSchema,
+  type LocalAccount,
+  LocalAccountsSchema,
+  type LocalDevAction,
+  type LocalDevJob,
+  LocalDevJobSchema,
+  type LocalDevState,
+  LocalDevStateSchema,
+  PasswordChangedSchema,
+  type Pipeline,
+  type PipelineInput,
+  type PipelineRequest,
+  type PipelineRun,
+  PipelineRunSchema,
+  PipelineSchema,
+  type PipelineState,
+  PipelineStateSchema,
   type Project,
   type ProjectAutomationOperation,
   ProjectAutomationOperationSchema,
@@ -86,6 +92,13 @@ export interface WorkspaceSnapshot {
 }
 
 export interface ControlCenterApi {
+  discoveryState?(
+    workspaceId: string,
+    signal?: AbortSignal,
+    historyDeviceId?: string,
+  ): Promise<DiscoveryState>;
+  discoveryPolicy?(workspaceId: string, input: DiscoveryPolicyInput): Promise<unknown>;
+  deliveryPlan?(workspaceId: string, input: DeliveryPlanInput): Promise<unknown>;
   componentState?(workspaceId: string, signal?: AbortSignal): Promise<PipelineState>;
   testPipeline?(
     workspaceId: string,
@@ -296,6 +309,16 @@ export function createControlCenterApi(
   return {
     localDevelopmentState: (workspaceId, signal) =>
       get(`${workspacePath(workspaceId)}/local-development`, LocalDevStateSchema, signal),
+    discoveryState: (workspaceId, signal, historyDeviceId) =>
+      get(
+        `${workspacePath(workspaceId)}/discovery${historyDeviceId ? `?historyDeviceId=${encodeURIComponent(historyDeviceId)}` : ""}`,
+        DiscoveryStateSchema,
+        signal,
+      ),
+    discoveryPolicy: (workspaceId, input) =>
+      post(`${workspacePath(workspaceId)}/discovery/policy`, input, DiscoveryPolicyRecordSchema),
+    deliveryPlan: (workspaceId, input) =>
+      post(`${workspacePath(workspaceId)}/discovery/plans`, input, DeliveryPlanSchema),
     localDevelopmentAction: (workspaceId, input) =>
       post(`${workspacePath(workspaceId)}/local-development/actions`, input, LocalDevJobSchema),
     revokeExecutor: (workspaceId, executorId) =>

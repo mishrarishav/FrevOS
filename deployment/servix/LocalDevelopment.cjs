@@ -15,7 +15,7 @@ const envPattern = /^(?:\.env(?:\.[a-zA-Z0-9_-]+)?|appsettings(?:\.[a-zA-Z0-9_-]
 const productionName = (value) => /(?:^|[._-])(?:prod|prd|production)(?:[._-]|$)/i.test(value);
 const selectableEnvironment = (value) =>
   envPattern.test(value) &&
-  !/(?:^|\.)(?:example|sample|template|old|bak|backup)(?:[.\-]|$)/i.test(value);
+  !/(?:^|\.)(?:example|sample|template|old|bak|backup)(?:[.-]|$)/i.test(value);
 const allowed = new Set([
   "SystemRoot",
   "WINDIR",
@@ -38,11 +38,17 @@ const allowed = new Set([
   "HOMEPATH",
 ]);
 function cleanEnvironment() {
-  return Object.fromEntries(
+  const environment = Object.fromEntries(
     [...allowed].flatMap((key) =>
       process.env[key] === undefined ? [] : [[key, process.env[key]]],
     ),
   );
+  const managed = require("./NodeToolchain.cjs").root();
+  environment.PATH =
+    (process.platform === "win32" ? managed : path.join(managed, "bin")) +
+    path.delimiter +
+    (environment.PATH || "");
+  return environment;
 }
 async function plain(file) {
   let current = path.resolve(file);
@@ -63,7 +69,9 @@ async function inside(root, relative) {
   const file = path.resolve(root, relative);
   if (
     file !== path.resolve(root) &&
-    !file.toLowerCase().startsWith(path.resolve(root).toLowerCase() + path.sep)
+    !(process.platform === "win32"
+      ? file.toLowerCase().startsWith(path.resolve(root).toLowerCase() + path.sep)
+      : file.startsWith(path.resolve(root) + path.sep))
   )
     fail("local-development-invalid-path");
   await plain(file);
@@ -159,7 +167,7 @@ async function discover(root) {
       const targets = databaseTargets(values);
       const label = targets
         .map((t) =>
-          /^[A-Za-z0-9_.:\[\]-]+$/.test(t.host) && /^[A-Za-z0-9_.-]+$/.test(t.database)
+          /^[A-Za-z0-9_.:[\]-]+$/.test(t.host) && /^[A-Za-z0-9_.-]+$/.test(t.database)
             ? t.host + "/" + t.database
             : "Configured database",
         )
@@ -457,8 +465,9 @@ async function tool(name) {
     const file = path.join(folder.replace(/^"|"$/g, ""), name);
     try {
       if ((await fs.stat(file)).isFile()) {
-        await plain(file);
-        return file;
+        const resolved = process.platform === "linux" ? await fs.realpath(file) : file;
+        await plain(resolved);
+        return resolved;
       }
     } catch {}
   }
@@ -467,6 +476,7 @@ async function tool(name) {
 const powershell = () =>
   path.join(process.env.WINDIR, "System32/WindowsPowerShell/v1.0/powershell.exe");
 async function processQuery(input) {
+  if (process.platform === "linux") return require("./LinuxProcesses.cjs").query(input);
   return new Promise((resolve, reject) => {
     const child = spawn(
       powershell(),
@@ -519,6 +529,7 @@ async function listening(port) {
   });
 }
 function controller(launch) {
+  if (process.platform === "linux") return require("./LinuxController.cjs").controller(launch);
   return new Promise((resolve, reject) => {
     const child = spawn(
       powershell(),
@@ -589,7 +600,8 @@ class LocalDevelopmentRuntime {
     return next;
   }
   async initialize() {
-    if (process.platform !== "win32") fail("local-development-windows-required");
+    if (!["win32", "linux"].includes(process.platform))
+      fail("local-development-platform-unsupported");
     await fs.mkdir(this.root, { recursive: true });
     await plain(this.root);
     try {
@@ -649,19 +661,21 @@ class LocalDevelopmentRuntime {
       if (owned && !sourceReady && (await listening(service.port))) {
         state.status = "running";
       } else if (candidate && sourceReady && (await listening(service.port))) {
-        const process = await processQuery({
+        const observedProcess = await processQuery({
           operation: "inspect",
           port: service.port,
           directory: await inside(this.config.repository, candidate.context),
-          ...(owned ? { controllerId: owned.child.pid } : {}),
+          ...(owned
+            ? { controllerId: process.platform === "linux" ? owned.pid : owned.child.pid }
+            : {}),
         });
-        if (owned && process?.projectOwned) state.status = "running";
-        else if (!owned && process) {
+        if (owned && observedProcess?.projectOwned) state.status = "running";
+        else if (!owned && observedProcess) {
           state.status = "port-conflict";
           state.existing = {
-            ...process,
+            ...observedProcess,
             identity: createHmac("sha256", this.config.credential)
-              .update(JSON.stringify(process))
+              .update(JSON.stringify(observedProcess))
               .digest("hex"),
           };
         }
@@ -710,6 +724,11 @@ class LocalDevelopmentRuntime {
       return;
     }
     if (await listening(service.port)) fail("local-development-port-in-use");
+    const prerequisites = await require("./SystemPrerequisites.cjs").inspect(
+      this.config.repository,
+    );
+    if (prerequisites.blocked.length || prerequisites.tools.some((t) => t.status !== "ready"))
+      fail("local-development-prerequisites-required");
     const directory = await inside(this.config.repository, candidate.context);
     const reference =
       mode === "production" ? service.productionEnvironment : service.developmentEnvironment;
@@ -768,6 +787,9 @@ class LocalDevelopmentRuntime {
       BackgroundWorkers__Enabled: "false",
       EngineHistory__Enabled: "false",
       EngineActivity__Enabled: "false",
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1",
+      DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE: "true",
+      DOTNET_PROCESSOR_COUNT: "2",
     };
     for (const key of Object.keys(env))
       if (
@@ -796,10 +818,13 @@ class LocalDevelopmentRuntime {
       env.ENV_FILE = path.join(directory, reference);
     let executable, arguments_;
     if (candidate.recipe === "npm-script") {
-      const npm = await tool("npm.cmd");
-      const cli = path.join(path.dirname(npm), "node_modules/npm/bin/npm-cli.js");
+      const selected = await require("./NodeToolchain.cjs").selection(this.config.repository);
+      const cli =
+        selected?.npm ??
+        (await require("./SystemPrerequisites.cjs").npmCli(this.config.repository));
       await plain(cli);
-      executable = process.execPath;
+      executable = selected?.node ?? process.execPath;
+      env.PATH = path.dirname(executable) + path.delimiter + env.PATH;
       arguments_ = [cli, "--prefix", directory, "run", service.script];
       if (candidate.framework === "vite")
         arguments_.push(
@@ -811,7 +836,17 @@ class LocalDevelopmentRuntime {
           "--strictPort",
         );
     } else {
-      executable = await tool("dotnet.exe");
+      const sdk =
+        process.platform === "linux"
+          ? await require("./DotNetToolchain.cjs").forProject(this.config.repository, directory)
+          : null;
+      executable =
+        sdk?.executable ?? (await tool(process.platform === "win32" ? "dotnet.exe" : "dotnet"));
+      if (sdk) {
+        env.DOTNET_ROOT = sdk.directory;
+        env.DOTNET_MULTILEVEL_LOOKUP = "0";
+        env.PATH = sdk.directory + path.delimiter + env.PATH;
+      }
       arguments_ = [
         "run",
         "--no-launch-profile",
@@ -831,6 +866,13 @@ class LocalDevelopmentRuntime {
       arguments: arguments_,
       directory,
       environment: env,
+      ...(process.platform === "linux"
+        ? {
+            connectorUnit: this.config.linuxService,
+            credentialFile: this.config.credentialFile,
+            stateRoot: this.config.stateRoot,
+          }
+        : {}),
     });
     this.controllers.set(service.id, owned);
     this.states.set(service.id, {

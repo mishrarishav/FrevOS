@@ -102,3 +102,7 @@ defines the bounded project-scoped development session pilot.
 
 [0054: Local environment editor](0054-local-environment-editor.md)
 adds owner-requested generic environment variable CRUD to that pilot.
+
+[0055: System discovery and onboarding](0055-system-discovery-onboarding.md)
+records cross-platform prerequisites, local-drive evidence, selected text history
+and authoritative delivery plans; mail integration and notices remain deferred.

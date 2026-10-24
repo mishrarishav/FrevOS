@@ -2,7 +2,29 @@
 
 Last updated: 2026-10-24
 
-## Generic local environment CRUD (bounded owner request, 2026-10-24)
+## System discovery and onboarding (bounded pilot in progress, 2026-10-24)
+
+The owner approved Windows, Ubuntu/Debian and RHEL/Rocky Linux system checks,
+selected prerequisite installation/recheck, a separate Discovery page, local
+drive file activity and selected-folder text history. DevSetu owns client/PO/
+delivery-plan records; only accepted weighted deliverables determine progress.
+Reports show delays only. IMAP and external APIs are future evidence sources;
+notices and employment actions are deferred. Work is explicitly stacked on
+deployed `a97a076446fa299556d6d75473721fb199eb984b`, branch
+`feature/system-discovery-onboarding`, ADR 0055. Phase 4 exit remains open.
+The implementation passes local Windows/Playwright/PostgreSQL acceptance,
+Debian-kernel Node/ASP.NET/process/audit/environment checks and actual paired
+Linux source enrollment/clone/local Start/Restart/Stop. Ubuntu/Rocky/Red Hat UBI
+tool checks pass; their specific desktop/kernel policy acceptance is not claimed.
+Full CI passed 274 tests and required gates after pinning patched Zod 4.6.6.
+Final directory recreation recovery has an actual filesystem regression check.
+The builder's two required scripts retain pairing/task identity. Server20 HTTP
+and SMB became unreachable at about 05:00 IST; live rollout, source upgrades and
+final preservation checks await VPN connectivity. No new capability is declared
+live and no deployment/source publication was submitted while unreachable. See
+[the Discovery handoff](SYSTEM_DISCOVERY_HANDOFF.md) for exact evidence and limits.
+
+## Generic local environment CRUD (bounded pilot PASS, 2026-10-24)
 
 The owner requests simple CRUD of variables in existing local `.env` files for
 all connected projects, including Production preview profiles. Work is stacked
@@ -12,7 +34,17 @@ actions and enrolled connector implement masked reads, browser-sealed patches,
 stale-document checks and atomic permission-preserving Windows writes. No
 Servix path is hardcoded. Full CI passed 263 tests, and final synthetic browser
 CRUD, encryption/Windows ACL checks and responsive layout verification passed.
-Live activation is in progress. Customer environment values remain unchanged.
+Final source `a97a076446fa299556d6d75473721fb199eb984b` is active with manifest
+`d1475ef8c7ed85ad4d4408d1949412db54347fdf95207c8ae28a0ba889702dec`.
+Its isolated frozen install/full CI and independent activation passed. Both
+source connectors retain pairing/tasks and match all eight sealed sidecars.
+Live Production-profile readback loaded 39 masked/safe variables at 1366/768/390;
+ten existing environment files and the customer deployment/settings are
+unchanged. The previously running local frontend was restored in its original
+mode; backend stayed stopped. Final native Node/PostgreSQL smoke and live checks
+passed, with zero unexpected browser errors and one known internal HTTP COOP
+warning. No real customer environment save or database write was submitted.
+The bounded CRUD request is complete; final result docs are uncommitted updates.
 See [the environment editor handoff](LOCAL_ENVIRONMENT_EDITOR_HANDOFF.md).
 Phase 4 exit and Production database writes remain outside this task.
 
@@ -24,7 +56,7 @@ using the existing connector. HRMS's desktop launcher is a reference only and
 remains untouched. Work is stacked on `feature/local-development-runtime`, base
 `915173a272d67e08c59caf34ce2fd34785f616ce`, ADR 0053. Phase 4 exit stays open.
 
-The API, connector runtime and shared workspace UI are live at source
+The initial API, connector runtime and shared workspace UI were activated at source
 `c572f8c9d89332643a3e672be3b654c21cbc6b7d`, manifest
 `0cfe98b973dcde58a680f7b87d9437b32c83e76d08eeb336ada29a4d12b5e674`.
 Full CI passed 258 tests and required gates. Eleven real Windows/npm/Vite/MySQL/
