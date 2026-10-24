@@ -231,8 +231,18 @@ it("publishes an actual Git bundle from another folder while preserving ignored 
     );
     expect(await command(["rev-parse", "HEAD"])).toBe(result.head);
     await command(["remote", "set-url", "frevos", "//10.9.69.20/e$/FrevOS/git/servix.git"]);
-    const boundJob = { ...job, requestId: "sd_" + "8".repeat(32), baseHead: result.head };
+    // Binding exercises a new request after the earlier real Git operations.
+    // Give that request its own lifetime instead of reusing an expired fixture.
+    const boundJob = {
+      ...job,
+      requestId: "sd_" + "8".repeat(32),
+      baseHead: result.head,
+      expiresAt: new Date(Date.now() + 60000).toISOString(),
+    };
     expect(() => validateJob(boundConfig, boundJob)).not.toThrow();
+    expect(() =>
+      validateJob(boundConfig, { ...boundJob, expiresAt: new Date(0).toISOString() }),
+    ).toThrow("invalid-source-request");
     expect(() => validateJob(boundConfig, { ...boundJob, unexpected: true })).toThrow(
       "invalid-source-request",
     );

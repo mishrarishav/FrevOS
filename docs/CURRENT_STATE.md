@@ -30,6 +30,11 @@ The build had not reached application activation. The next bounded correction
 uses LOCAL SERVICE's private local scratch, retains durable artifacts/logs in
 the controller store, fails fast offline and allows twenty minutes for the
 large Windows frontend installation. Existing failed workspaces remain intact.
+The scratch rollout at `9070c9af3964799bd0980244e4985fef48bf281f`
+failed its frozen CI before activation. Reproduction identified a Git binding
+fixture reusing its earlier 60-second request after lengthy real Git operations.
+The bounded correction issues a fresh fixture request for binding and explicitly
+checks expired-request rejection; runtime authorization remains unchanged.
 The current Development runtime still starts source with npm, port 5001 healthy.
 The isolated customer build now compiles 85 application modules into a runnable
 bundle, retaining per-project dependencies, module paths and mutable data roots.
