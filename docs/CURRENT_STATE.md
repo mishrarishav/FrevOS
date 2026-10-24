@@ -2,31 +2,69 @@
 
 Last updated: 2026-10-24
 
-## System discovery and onboarding (bounded pilot in progress, 2026-10-24)
+## System folder workspace corrections (in progress, 2026-10-24)
 
-The owner approved Windows, Ubuntu/Debian and RHEL/Rocky Linux system checks,
-selected prerequisite installation/recheck, a separate Discovery page, local
-drive file activity and selected-folder text history. DevSetu owns client/PO/
-delivery-plan records; only accepted weighted deliverables determine progress.
-Reports show delays only. IMAP and external APIs are future evidence sources;
-notices and employment actions are deferred. Work is explicitly stacked on
-deployed `a97a076446fa299556d6d75473721fb199eb984b`, branch
-`feature/system-discovery-onboarding`, ADR 0055. Phase 4 exit remains open.
-The implementation passes local Windows/Playwright/PostgreSQL acceptance,
-Debian-kernel Node/ASP.NET/process/audit/environment checks and actual paired
-Linux source enrollment/clone/local Start/Restart/Stop. Ubuntu/Rocky/Red Hat UBI
-tool checks pass; their specific desktop/kernel policy acceptance is not claimed.
-Full CI passed 274 tests and required gates after pinning patched Zod 4.6.6.
-Final directory recreation recovery has an actual filesystem regression check.
-The builder's two required scripts retain pairing/task identity. After the owner
-reconnected VPN, HTTP/SMB and the eleven environment files, three profiles and
-two pipelines passed preservation checks. Configured source publication produced
-`c60a926d92d576858621399491d1bec099d89898`; its isolated build correctly rejected
-a newly reported high undici advisory before activation. A narrow override now
-pins patched 8.12.2; audit and the full 274-test CI rerun pass with no
-high/critical finding. Configured rebuild, activation and source-upgrade
-acceptance remain pending. See
-[the Discovery handoff](SYSTEM_DISCOVERY_HANDOFF.md) for exact evidence and limits.
+The owner reports that connector rows duplicate L-1770, folder selection fails,
+D: cannot be navigated and generic local preview is not usable. Actual live
+Playwright reproduced duplicate machine titles, no folder browser, rejection of
+drive paths in project-relative content inputs and zero DevSetu service candidates.
+Correction branch: `feature/system-folder-workspace`, explicitly stacked on
+deployed `fd89278b8484d76fe9d291bbc191ec6bc5d7e812`, ADR 0056. Preserve the
+preceding final-result documentation. No correction is deployed yet.
+
+The bounded change adds reported OS-installation identity for presentation-only
+grouping with explicit project bindings, authorized paginated directory metadata
+independent of watch coverage, configurable priority folders and generic nested
+service discovery/navigation. A real central-repository picker bug used a
+cleared private config to construct its final proof; the fix preserves the
+required public identity before cleanup. Existing credential, workspace, Git,
+filesystem and DB safeguards remain. No new credential lifecycle, production,
+mail/notice or roadmap exit is included.
+
+Focused store/runtime tests, frontend API/grouping tests and the real Windows
+DPAPI picker regression pass. The actual D: helper listed 18 folders and rejected
+traversal. A new isolated PostgreSQL/two-real-connector/Playwright end-to-end
+fixture is running; full CI, Linux directory acceptance, immutable packaging and
+configured live rollout/readback remain required before claiming completion.
+
+## System discovery and onboarding (bounded pilot PASS, 2026-10-24)
+
+The owner-approved configurable onboarding/Discovery pilot is live on server20,
+source `fd89278b8484d76fe9d291bbc191ec6bc5d7e812`, branch
+`feature/system-discovery-onboarding`, ADR 0055. The actual DevSetu Deploy all
+flow published source, ran an isolated frozen CI/build and activated sealed
+manifest `96e799f3dbe1d204a8cc2d220616c21de0166918c2e3125377023b615389251f`
+through the independent SYSTEM updater. Request `pr_ca688b0e2210441336866ba9ec3e728a`
+and activation/health receipts pass. Phase 4 exit remains open.
+
+The release adds Windows and Linux x64 source prerequisites review/selected
+install/recheck, system health, a separate Discovery page, bounded drive metadata
+and opt-in selected-folder redacted text history. DevSetu owns client/PO/plans;
+progress uses accepted weighted deliverables. Reports show delays only. IMAP/API
+ingestion and notices/employment actions remain future work. No real client/PO
+or completion percentage was fabricated in the empty canonical live catalog.
+
+Full CI passes 274 tests and required gates. Patched Zod 4.6.6 and a narrow
+undici 8.12.2 override satisfy the current high audit gate; five low/six moderate
+advisories and the existing UI chunk warning remain. Windows/Playwright/real
+PostgreSQL, Debian-kernel Node/ASP.NET/process/audit/environment and actual Linux
+paired clone/Start/Restart/Stop acceptance pass. Ubuntu/Rocky/Red Hat UBI tool
+checks pass; their native desktop/kernel policy acceptance is not claimed.
+
+Both actual Windows source connectors are upgraded with pairing/task identity
+preserved and fresh health. Servix frontend is restored in development mode,
+localhost:3000 HTTP 200; backend stays stopped. Eleven environment hashes,
+three profiles, two pipelines and customer deployment identity are preserved.
+The owner UI enabled DevSetu all-local-drive metadata policy with no content
+folders. Servix file capture stays disabled to avoid duplicate collection.
+
+Live C:/D: coverage is partial: the 10,000-directory cap, permission gaps and
+startup overflow are visible. The startup burst dropped 6,060 events; a later
+actual probe reached retained history/UI after backlog and was removed. Browser
+1366/768/390 checks pass, with zero unexpected errors. This is bounded evidence,
+not a complete or instant all-drive journal. See
+[the Discovery handoff](SYSTEM_DISCOVERY_HANDOFF.md) for exact identities,
+commands, failed-attempt/deadline evidence, final file inventory and limits.
 
 ## Generic local environment CRUD (bounded pilot PASS, 2026-10-24)
 

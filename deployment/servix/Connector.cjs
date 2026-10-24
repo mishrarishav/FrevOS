@@ -446,7 +446,16 @@ async function chooseRepository(config, selection) {
   if (
     !selection ||
     Object.keys(selection).some(
-      (k) => !["version", "requestId", "deviceId", "profileId", "expiresAt", "status"].includes(k),
+      (k) =>
+        ![
+          "version",
+          "requestId",
+          "deviceId",
+          "profileId",
+          "expiresAt",
+          "status",
+          "requestedRepository",
+        ].includes(k),
     ) ||
     selection.version !== 1 ||
     selection.status !== "choosing" ||
@@ -471,19 +480,69 @@ async function chooseRepository(config, selection) {
       child.stdin.on("error", () => reject(Error("folder-picker-unavailable")));
       child.stdin.end(JSON.stringify(input));
     });
-  const choice = JSON.parse(
-    await pickerProcess(
-      path.join(__dirname, "FrevOS.FolderPicker.exe"),
-      [],
-      {
-        version: 1,
-        profileId: selection.profileId,
-        repository: config.repository,
-        expiresAt: selection.expiresAt,
-      },
-      false,
-    ),
-  );
+  if (selection.requestedRepository && process.platform === "linux") {
+    const probe = await inspectRepository({ ...config, repository: selection.requestedRepository });
+    if (probe.origin !== (repositoryBinding(config)?.origin ?? config.repositoryOrigin))
+      throw Error("folder-wrong-repository");
+    const file = config.credentialFile;
+    if (!file || path.dirname(file) !== path.dirname(config.stateRoot))
+      throw Error("folder-inaccessible");
+    for (let cursor = path.dirname(file); ; cursor = path.dirname(cursor)) {
+      if ((await fs.lstat(cursor)).isSymbolicLink()) throw Error("folder-inaccessible");
+      if (path.dirname(cursor) === cursor) break;
+    }
+    const info = await fs.lstat(file);
+    if (
+      !info.isFile() ||
+      info.isSymbolicLink() ||
+      info.mode & 0o077 ||
+      !(info.mode & 0o200) ||
+      info.uid !== process.getuid()
+    )
+      throw Error("folder-inaccessible");
+    const bytes = await fs.readFile(file),
+      prior = JSON.parse(bytes);
+    if (
+      prior.deviceId !== config.deviceId ||
+      prior.credential !== config.credential ||
+      (prior.profileId ?? "servix-development") !== (config.profileId ?? "servix-development")
+    )
+      throw Error("folder-inaccessible");
+    const temporary = file + "." + selection.requestId + ".tmp";
+    const stream = await fs.open(temporary, "wx", 0o600);
+    try {
+      await stream.writeFile(
+        JSON.stringify({ ...prior, repository: probe.repository, repositoryOrigin: probe.origin }),
+      );
+      await stream.sync();
+    } finally {
+      await stream.close();
+    }
+    try {
+      if (!Buffer.from(await fs.readFile(file)).equals(bytes)) throw Error("folder-inaccessible");
+      await fs.rename(temporary, file);
+    } finally {
+      await fs.unlink(temporary).catch(() => {});
+    }
+    config.repository = probe.repository;
+    config.repositoryOrigin = probe.origin;
+    return { ...selection, status: "selected", source: probe };
+  }
+  const choice = selection.requestedRepository
+    ? { status: "selected", repository: selection.requestedRepository }
+    : JSON.parse(
+        await pickerProcess(
+          path.join(__dirname, "FrevOS.FolderPicker.exe"),
+          [],
+          {
+            version: 1,
+            profileId: selection.profileId,
+            repository: config.repository,
+            expiresAt: selection.expiresAt,
+          },
+          false,
+        ),
+      );
   if (
     !choice ||
     Object.keys(choice).some((k) => !["status", "repository"].includes(k)) ||
@@ -518,7 +577,7 @@ async function chooseRepository(config, selection) {
   const selected = JSON.parse(result);
   if (
     !selected ||
-    Object.keys(selected).some((k) => !["status", "source"].includes(k)) ||
+    Object.keys(selected).some((k) => !["status", "source", "errorCode"].includes(k)) ||
     !["selected", "cancelled", "failed"].includes(selected.status)
   )
     throw Error("folder-picker-unavailable");
@@ -533,7 +592,16 @@ async function chooseRepository(config, selection) {
     config.repositoryOrigin = probe.origin;
     return { ...selection, status: "selected", source: probe };
   }
-  return { ...selection, status: selected.status };
+  const errorCode = ["folder-not-git", "folder-wrong-repository", "folder-inaccessible"].includes(
+    selected.errorCode,
+  )
+    ? selected.errorCode
+    : "folder-selection-unavailable";
+  return {
+    ...selection,
+    status: selected.status,
+    ...(selected.status === "failed" ? { errorCode } : {}),
+  };
 }
 async function connector(config) {
   const server = controlPlane(config);
@@ -569,6 +637,7 @@ async function connector(config) {
       await api("/v1/connector/heartbeat", {
         ...(probe ? { probe } : {}),
         folderPicker: process.platform === "win32",
+        folderBrowser: true,
         changeNotes: true,
       });
     } catch {
@@ -586,10 +655,10 @@ async function connector(config) {
         let result;
         try {
           result = development.runtime.hasRunning()
-            ? { ...selection, status: "failed" }
+            ? { ...selection, status: "failed", errorCode: "folder-source-running" }
             : await chooseRepository(config, selection);
         } catch {
-          result = { ...selection, status: "failed" };
+          result = { ...selection, status: "failed", errorCode: "folder-selection-unavailable" };
         }
         await api("/v1/connector/folder/complete", result);
         await heartbeat();

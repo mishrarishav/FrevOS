@@ -60,7 +60,15 @@ try {
  Assert ($centralProof.origin -ceq '//10.9.69.20/e$/FrevOS/git/servix.git' -and $centralProof.repositoryId -ceq 'gitrepo_6cb7e163f807493fa37963196c49fbac' -and $centralProof.remoteName -ceq 'frevos') 'Server20 repository identity missing'
  Assert ((& $git -C $repo remote get-url origin).Trim() -ceq 'https://fixture.invalid/team/app.git') 'Legacy origin changed'
  Assert ((& $git -C $repo rev-parse HEAD).Trim() -ceq $head) 'Central selection changed HEAD'
- 'PASS: native picker identity, expiry, root and origin; server20 named-remote proof; legacy origin, Git and credential preserved; backups and replay denial'
+ $genericInstall=Join-Path $root 'generic-device';[void][IO.Directory]::CreateDirectory($genericInstall)
+ $genericConfig=$config.Clone();$genericConfig.repositoryOrigin='devsetu://repositories/gitrepo_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';$genericConfig.centralRepository=@{id='gitrepo_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';origin=$genericConfig.repositoryOrigin;remoteName='devsetu';branch='fixture-branch'}
+ & $git -C $repo remote add devsetu $genericConfig.repositoryOrigin
+ $genericBytes=[Text.Encoding]::UTF8.GetBytes(($genericConfig|ConvertTo-Json -Depth 4 -Compress))
+ try{[IO.File]::WriteAllBytes((Join-Path $genericInstall 'device.dpapi'),[Security.Cryptography.ProtectedData]::Protect($genericBytes,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser))}finally{[Array]::Clear($genericBytes,0,$genericBytes.Length)}
+ $genericSelection=$selection.Clone();$genericSelection.requestId='fp_'+('e'*32);$genericSelection.expiresAt=[DateTimeOffset]::UtcNow.AddSeconds(90).ToString('o')
+ $genericProof=Set-FrevOSRepository -InstallRoot $genericInstall -Selection $genericSelection -Repository $repo
+ Assert ($genericProof.repositoryId -ceq $genericConfig.centralRepository.id -and $genericProof.remoteName -ceq 'devsetu' -and $genericProof.origin -ceq $genericConfig.repositoryOrigin) 'Generic central repository proof failed after clearing private config'
+ 'PASS: native picker identity, expiry, root/origin; generic central proof after config cleanup; server20 named remote; Git/credential preservation; backups/replay denial'
 } finally {
  $resolved=[IO.Path]::GetFullPath($root)
  if($resolved -cne $root -or -not $resolved.StartsWith($temporary+'\',[StringComparison]::OrdinalIgnoreCase) -or (Get-Item -LiteralPath $root).Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'Fixture cleanup ownership changed'}

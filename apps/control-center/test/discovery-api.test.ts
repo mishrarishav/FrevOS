@@ -6,6 +6,58 @@ import {
 import { expect, it } from "vitest";
 import { createControlCenterApi } from "../src/api.js";
 
+it("routes directory metadata and verified folder choices through workspace-scoped CSRF tools", async () => {
+  const calls: { url: string; init: RequestInit | undefined }[] = [],
+    id = "fc_" + "a".repeat(32),
+    job = {
+      version: 1,
+      requestId: "fb_" + "b".repeat(32),
+      actor: "usr_alice",
+      workspaceId: "ws_server20",
+      request: { version: 1 as const, deviceId: id, root: "D:\\", path: "", page: 0 },
+      createdAt: "2026-10-24T00:00:00Z",
+      expiresAt: "2026-10-24T00:02:00Z",
+      status: "queued",
+    };
+  const api = createControlCenterApi(
+    async (url, init) => {
+      calls.push({ url: String(url), init });
+      return new Response(
+        JSON.stringify(
+          String(url).endsWith("choose-folder")
+            ? {
+                version: 1,
+                requestId: "fp_" + "c".repeat(32),
+                deviceId: id,
+                profileId: "fixture-project",
+                expiresAt: job.expiresAt,
+                status: "queued",
+              }
+            : job,
+        ),
+      );
+    },
+    "/frevos",
+    () => "fixture-csrf",
+  );
+  await api.browseFolders?.("ws_server20", job.request);
+  await api.folderBrowseResult?.("ws_server20", job.requestId);
+  await api.chooseConnectorFolder?.("ws_server20", id, {
+    browseRequestId: job.requestId,
+    path: "project",
+  });
+  expect(calls.map((c) => c.url)).toEqual([
+    "/frevos/v1/workspaces/ws_server20/discovery/folders",
+    "/frevos/v1/workspaces/ws_server20/discovery/folders/" + job.requestId,
+    `/frevos/v1/workspaces/ws_server20/connectors/${id}/choose-folder`,
+  ]);
+  expect(calls[0]?.init?.headers).toMatchObject({ "x-csrf-token": "fixture-csrf" });
+  expect(JSON.parse(String(calls[2]?.init?.body))).toEqual({
+    browseRequestId: job.requestId,
+    path: "project",
+  });
+});
+
 it("uses strict Discovery records and workspace/CSRF boundaries for tracking and authoritative acceptance", async () => {
   const at = "2026-10-24T10:00:00.000Z",
     deviceId = "fc_" + "a".repeat(32);

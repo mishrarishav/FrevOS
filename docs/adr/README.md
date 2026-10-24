@@ -106,3 +106,7 @@ adds owner-requested generic environment variable CRUD to that pilot.
 [0055: System discovery and onboarding](0055-system-discovery-onboarding.md)
 records cross-platform prerequisites, local-drive evidence, selected text history
 and authoritative delivery plans; mail integration and notices remain deferred.
+
+[0056: System identity, folder browsing and generic local preview](0056-system-folder-workspace.md)
+records the owner's corrections to machine/project presentation, drive navigation
+and generic nested-service discovery.

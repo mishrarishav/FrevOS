@@ -1,10 +1,13 @@
 "use strict";
 const path = require("node:path");
 const sensitive =
-  /(^|[\\/])(?:\.git|\.ssh|\.aws|\.azure|\.gnupg|\.kube|\.npm|\.nuget|\.local|\.config|\.cache|AppData|node_modules|vendor|coverage|dist|build|obj|bin|proc|sys|dev|run|System Volume Information|\$Recycle\.Bin|Windows|ProgramData)(?:[\\/]|$)|(?:^|[\\/])(?:\.env[^\\/]*|\.npmrc|\.netrc|\.git-credentials|[^\\/]*(?:credential|secret|password|private[-_]?key|token|id_rsa|id_ed25519)[^\\/]*|appsettings[^\\/]*\.json|web\.config)(?:$|[\\/])|\.(?:pem|key|pfx|p12|kdbx|sqlite|db|bak|log)$/i;
+  /(^|[\\/])(?:\.git|\.ssh|\.aws|\.azure|\.gnupg|\.kube|\.npm|\.nuget|\.local|\.config|\.cache|AppData|node_modules|vendor|coverage|dist|build|obj|bin|System Volume Information|\$Recycle\.Bin|Windows|ProgramData)(?:[\\/]|$)|(?:^|[\\/])(?:\.env[^\\/]*|\.npmrc|\.netrc|\.git-credentials|[^\\/]*(?:credential|secret|password|private[-_]?key|token|id_rsa|id_ed25519)[^\\/]*|appsettings[^\\/]*\.json|web\.config)(?:$|[\\/])|\.(?:pem|key|pfx|p12|kdbx|sqlite|db|bak|log)$/i;
+const pseudoPath = (file) => /^\/(?:proc|sys|dev|run)(?:\/|$)/.test(file);
 function excluded(file) {
   return (
-    sensitive.test(file) || [...file].some((c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127)
+    pseudoPath(file) ||
+    sensitive.test(file) ||
+    [...file].some((c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127)
   );
 }
 function redact(text) {
@@ -25,7 +28,11 @@ function redact(text) {
     .join("\n");
 }
 function safeEvent(event) {
-  if (excluded(event.path)) return null;
+  if (
+    excluded(event.path) ||
+    (event.root?.startsWith("/") && pseudoPath(path.posix.join(event.root, event.path)))
+  )
+    return null;
   return {
     ...event,
     ...(event.content
@@ -46,4 +53,4 @@ function within(root, file) {
     (!relative.startsWith(".." + path.sep) && relative !== ".." && !path.isAbsolute(relative))
   );
 }
-module.exports = { excluded, redact, safeEvent, within };
+module.exports = { excluded, redact, safeEvent, within, pseudoPath };

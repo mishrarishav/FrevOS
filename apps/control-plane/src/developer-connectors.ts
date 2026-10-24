@@ -44,6 +44,7 @@ const DeviceRecord = ConnectorSchema.omit({
   source: true,
   folderSelection: true,
   folderPicker: true,
+  folderBrowser: true,
   changeNotes: true,
 })
   .extend({ credentialHash: z.string().regex(/^[a-f0-9]{64}$/) })
@@ -91,6 +92,7 @@ export class DeveloperConnectorStore {
   private readonly probes = new Map<string, { at: number; value: ConnectorProbe }>();
   private readonly folderSelections = new Map<string, FolderSelection>();
   private readonly folderPickers = new Set<string>();
+  private readonly folderBrowsers = new Set<string>();
   private readonly changeNoteDevices = new Set<string>();
   constructor(
     readonly root: string,
@@ -131,6 +133,7 @@ export class DeveloperConnectorStore {
     this.probes.clear();
     this.folderSelections.clear();
     this.folderPickers.clear();
+    this.folderBrowsers.clear();
     this.changeNoteDevices.clear();
   }
   async heartbeat(credential: string, input: unknown = {}) {
@@ -147,12 +150,15 @@ export class DeveloperConnectorStore {
       .object({
         probe: ConnectorProbeSchema.optional(),
         folderPicker: z.boolean().optional(),
+        folderBrowser: z.boolean().optional(),
         changeNotes: z.boolean().optional(),
       })
       .strict()
       .parse(input);
     if (body.folderPicker) this.folderPickers.add(device.deviceId);
     else this.folderPickers.delete(device.deviceId);
+    if (body.folderBrowser) this.folderBrowsers.add(device.deviceId);
+    else this.folderBrowsers.delete(device.deviceId);
     if (body.changeNotes) this.changeNoteDevices.add(device.deviceId);
     else this.changeNoteDevices.delete(device.deviceId);
     this.probes.delete(device.deviceId);
@@ -170,15 +176,20 @@ export class DeveloperConnectorStore {
       selection.status = "expired";
     return selection;
   }
-  async chooseFolder(actor: string, id: string) {
+  async chooseFolder(actor: string, id: string, requestedRepository?: string) {
     return this.serial(async () => {
       const device = (await this.list(actor)).find((d) => d.deviceId === id);
       if (!device?.online) throw new ServixDeploymentError("connector-offline");
-      if (!device.folderPicker) throw new ServixDeploymentError("connector-update-required");
+      if (requestedRepository ? !device.folderBrowser : !device.folderPicker)
+        throw new ServixDeploymentError("connector-update-required");
       const profile = await this.profile(device.profileId ?? "servix-development");
       if (profile?.archived) throw new ServixDeploymentError("settings-project-archived");
       const existing = this.folderSelection(id);
-      if (existing && ["queued", "choosing"].includes(existing.status)) return existing;
+      if (existing && ["queued", "choosing"].includes(existing.status)) {
+        if (existing.requestedRepository !== requestedRepository)
+          throw new ServixDeploymentError("connector-source-busy");
+        return existing;
+      }
       const names = (await readdir(this.root)).filter((n) =>
         /^sd_[a-f0-9]{32}\.source\.json$/.test(n),
       );
@@ -200,6 +211,7 @@ export class DeveloperConnectorStore {
         profileId: device.profileId ?? "servix-development",
         expiresAt: new Date(this.now().getTime() + 90000).toISOString(),
         status: "queued",
+        ...(requestedRepository ? { requestedRepository } : {}),
       });
       this.folderSelections.set(id, selection);
       return selection;
@@ -226,10 +238,12 @@ export class DeveloperConnectorStore {
         result.deviceId !== device.deviceId ||
         result.profileId !== selection.profileId ||
         result.expiresAt !== selection.expiresAt ||
+        result.requestedRepository !== selection.requestedRepository ||
         !["selected", "cancelled", "failed"].includes(result.status)
       )
         throw new ServixDeploymentError("folder-selection-expired");
       if (result.status === "selected") {
+        if (result.errorCode) throw new ServixDeploymentError("folder-selection-invalid", 400);
         const profile = await this.profile(selection.profileId);
         if (
           !result.source ||
@@ -376,6 +390,7 @@ export class DeveloperConnectorStore {
         return ConnectorSchema.parse({
           ...d,
           folderPicker: this.folderPickers.has(d.deviceId),
+          folderBrowser: this.folderBrowsers.has(d.deviceId),
           changeNotes: this.changeNoteDevices.has(d.deviceId),
           ...(this.folderSelection(d.deviceId)
             ? { folderSelection: this.folderSelection(d.deviceId) }
@@ -501,6 +516,7 @@ export class DeveloperConnectorStore {
       this.probes.delete(id);
       this.folderSelections.delete(id);
       this.folderPickers.delete(id);
+      this.folderBrowsers.delete(id);
       return { revoked: true };
     });
   }

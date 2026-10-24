@@ -102,20 +102,9 @@ async function atomic(file, value) {
 }
 async function discover(root) {
   await plain(root);
-  const entries = await fs.readdir(root, { withFileTypes: true });
-  const folders = [
-    ".",
-    ...entries
-      .filter(
-        (e) =>
-          e.isDirectory() &&
-          /^[A-Za-z0-9_. -]+$/.test(e.name) &&
-          !/^(?:\.|node_modules|uploads|attachment|attachments|database|logs|dist|build|bin|obj)/i.test(
-            e.name,
-          ),
-      )
-      .map((e) => e.name),
-  ].slice(0, 64);
+  const folders = (await require("./SystemPrerequisites.cjs").projectFolders(root)).map(
+    (folder) => path.relative(root, folder).replaceAll(path.sep, "/") || ".",
+  );
   const candidates = [];
   for (const context of folders) {
     const directory = await inside(root, context),

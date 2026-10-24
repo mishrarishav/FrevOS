@@ -21,6 +21,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiFailure, type ControlCenterApi } from "./api.js";
 import { DeveloperAccess } from "./DeveloperAccess.js";
+import { FolderBrowser, type FolderChoice } from "./FolderBrowser.js";
 import { PlatformProjectDetails } from "./PlatformProjectDetails.js";
 import { RecordBadge, type RecordColumn, RecordWorkspace } from "./RecordWorkspace.js";
 import { addBasePath } from "./routing.js";
@@ -72,6 +73,7 @@ export function DeploymentSettingsPage({
   const [deviceId, setDeviceId] = useState("");
   const [owner, setOwner] = useState(false);
   const [busy, setBusy] = useState<"save" | "test" | "folder" | "archive" | "revoke" | null>(null);
+  const [folderBrowser, setFolderBrowser] = useState(false);
   const [notice, setNotice] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [test, setTest] = useState<DeploymentConnectionTest | null>(null);
@@ -202,15 +204,26 @@ export function DeploymentSettingsPage({
     }
   }
 
-  async function chooseFolder() {
+  async function chooseFolder(choice?: FolderChoice) {
     if (!selected || !api.chooseConnectorFolder || busy) return;
+    if (selected.folderBrowser && !choice) {
+      setFolderBrowser(true);
+      return;
+    }
     setBusy("folder");
     setNotice("");
     setTest(null);
     try {
-      await api.chooseConnectorFolder(workspaceId, selected.deviceId);
+      await api.chooseConnectorFolder(
+        workspaceId,
+        selected.deviceId,
+        choice ? { browseRequestId: choice.requestId, path: choice.path } : undefined,
+      );
+      setFolderBrowser(false);
       setNotice(
-        "Folder picker requested. Choose this project's Git checkout on " +
+        (choice
+          ? "Selected folder submitted for Git identity verification on "
+          : "Folder picker requested. Choose this project's Git checkout on ") +
           selected.name +
           ". It expires in 90 seconds.",
       );
@@ -489,7 +502,7 @@ export function DeploymentSettingsPage({
           onClose={() => setPlatform(null)}
         />
       ) : null}
-      {mode && form ? (
+      {mode && form && !folderBrowser ? (
         <WorkspaceDialog
           label={current ? (mode === "edit" ? "Edit project" : "Project details") : "Add project"}
           onClose={close}
@@ -776,19 +789,21 @@ export function DeploymentSettingsPage({
                     dirty ||
                     !!busy ||
                     !selected?.online ||
-                    !selected.folderPicker ||
+                    !(selected.folderPicker || selected.folderBrowser) ||
                     ["queued", "choosing"].includes(selected.folderSelection?.status ?? "")
                   }
                   onClick={() => void chooseFolder()}
                 >
                   <FolderOpen size={16} /> Choose local folder
                 </button>
-                {selected && !selected.folderPicker ? (
+                {selected && !selected.folderPicker && !selected.folderBrowser ? (
                   <p>Install the latest connector to enable the local folder picker.</p>
                 ) : null}
                 {selected?.folderSelection ? (
                   <p role="status" className="folder-selection-status">
-                    {folderSelectionMessage(selected.folderSelection.status)}
+                    {selected.folderSelection.errorCode
+                      ? selected.folderSelection.errorCode.replaceAll("-", " ")
+                      : folderSelectionMessage(selected.folderSelection.status)}
                   </p>
                 ) : null}
                 <label>
@@ -927,6 +942,16 @@ export function DeploymentSettingsPage({
             {notice ? <p role="alert">{notice}</p> : null}
           </div>
         </WorkspaceDialog>
+      ) : null}
+      {folderBrowser && selected ? (
+        <FolderBrowser
+          api={api}
+          workspaceId={workspaceId}
+          deviceId={selected.deviceId}
+          onClose={() => setFolderBrowser(false)}
+          onChoose={(choice) => void chooseFolder(choice)}
+          label="Connect this project folder"
+        />
       ) : null}
     </>
   );

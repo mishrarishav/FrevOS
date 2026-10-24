@@ -966,6 +966,21 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
       ),
   );
   server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/discovery/folders"),
+    async (request) =>
+      discovery().requestFolders(await connectorActor(request, true), request.body),
+  );
+  server.get<{ Params: WorkspaceParams & { requestId: string } }>(
+    route("/v1/workspaces/:workspaceId/discovery/folders/:requestId"),
+    async (request) => discovery().folders(await connectorActor(request), request.params.requestId),
+  );
+  server.post(route("/v1/connector/discovery/folders/claim"), async (request) => ({
+    job: await discovery().claimFolders(connectorCredential(request)),
+  }));
+  server.post(route("/v1/connector/discovery/folders/complete"), async (request) =>
+    discovery().finishFolders(connectorCredential(request), request.body),
+  );
+  server.post<{ Params: WorkspaceParams }>(
     route("/v1/workspaces/:workspaceId/discovery/policy"),
     async (request) => discovery().configure(await connectorActor(request, true), request.body),
   );
@@ -1156,8 +1171,22 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
     route("/v1/workspaces/:workspaceId/connectors/:deviceId/choose-folder"),
     async (request) => {
       const actor = await connectorActor(request, true);
-      z.object({}).strict().parse(request.body);
-      return connectors().chooseFolder(actor, request.params.deviceId);
+      const body = z
+        .object({
+          browseRequestId: z
+            .string()
+            .regex(/^fb_[a-f0-9]{32}$/)
+            .optional(),
+          path: z.string().max(1024).optional(),
+        })
+        .strict()
+        .parse(request.body);
+      const repository = body.browseRequestId
+        ? await discovery().selectedFolder(actor, request.params.deviceId, body)
+        : undefined;
+      if (!body.browseRequestId && body.path !== undefined)
+        throw new HttpError(400, "folder-selection-invalid");
+      return connectors().chooseFolder(actor, request.params.deviceId, repository);
     },
   );
   server.post(route("/v1/connector/folder/claim"), async (request) => ({

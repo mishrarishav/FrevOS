@@ -230,6 +230,210 @@ it("scopes observations/policies and project plans to verified workspace actors;
   );
   expect((await f.store.state("usr_alice")).systems[0]?.status).toBe("revoked");
 });
+
+it("binds durable folder metadata to its owner, fresh enrolled source, approved root, request, expiry and exact result", async () => {
+  const f = await fixture(),
+    input = { version: 1, deviceId: f.alice.deviceId, root: "C:\\fixture", path: "", page: 0 };
+  await expect(f.store.requestFolders("usr_alice", input)).rejects.toThrow(
+    "discovery-source-stale",
+  );
+  await f.store.observe(f.alice.credential, f.observation);
+  await expect(f.store.requestFolders("usr_bob", input)).rejects.toThrow(
+    "discovery-device-access-denied",
+  );
+  await expect(f.store.requestFolders("usr_alice", { ...input, root: "D:\\" })).rejects.toThrow(
+    "discovery-folder-scope-denied",
+  );
+  await expect(
+    f.store.requestFolders("usr_alice", { ...input, path: "../escape" }),
+  ).rejects.toThrow();
+  const queued = await f.store.requestFolders("usr_alice", input);
+  await expect(f.store.requestFolders("usr_alice", input)).rejects.toThrow("discovery-folder-busy");
+  expect(await f.store.claimFolders(f.bob.credential)).toBeNull();
+  const working = (await f.store.claimFolders(f.alice.credential))!;
+  expect(working.status).toBe("working");
+  expect(await f.store.claimFolders(f.alice.credential)).toBeNull();
+  await expect(f.store.folders("usr_bob", queued.requestId)).rejects.toThrow(
+    "discovery-folder-not-found",
+  );
+  await expect(f.store.folders("usr_alice", "wrong")).rejects.toThrow("discovery-folder-not-found");
+  await expect(f.store.folders("usr_alice", "fb_" + "0".repeat(32))).rejects.toThrow(
+    "discovery-folder-not-found",
+  );
+  const complete = {
+    ...working,
+    status: "succeeded",
+    result: {
+      root: input.root,
+      path: "",
+      fingerprint: "a".repeat(64),
+      entries: [
+        { name: "apps", path: "apps", excluded: false },
+        { name: "protected", path: "protected", excluded: true },
+      ],
+      nextPage: null,
+      truncated: false,
+      scannedEntries: 2,
+    },
+  };
+  await expect(f.store.finishFolders(f.bob.credential, complete)).rejects.toThrow(
+    "discovery-folder-scope-denied",
+  );
+  await expect(
+    f.store.finishFolders(f.alice.credential, { ...complete, actor: "usr_bob" }),
+  ).rejects.toThrow("discovery-folder-scope-denied");
+  await expect(
+    f.store.finishFolders(f.alice.credential, {
+      ...complete,
+      request: { ...input, path: "other" },
+    }),
+  ).rejects.toThrow("discovery-folder-scope-denied");
+  await expect(
+    f.store.finishFolders(f.alice.credential, {
+      ...complete,
+      result: { ...complete.result, root: "D:\\" },
+    }),
+  ).rejects.toThrow("discovery-folder-result-invalid");
+  await expect(
+    f.store.finishFolders(f.alice.credential, {
+      ...complete,
+      result: { ...complete.result, nextPage: 4 },
+    }),
+  ).rejects.toThrow("discovery-folder-result-invalid");
+  await expect(
+    f.store.finishFolders(f.alice.credential, {
+      ...complete,
+      result: {
+        ...complete.result,
+        entries: [{ name: "apps", path: "other/apps", excluded: false }],
+      },
+    }),
+  ).rejects.toThrow("discovery-folder-result-invalid");
+  await expect(
+    f.store.finishFolders(f.alice.credential, { ...working, status: "succeeded" }),
+  ).rejects.toThrow("discovery-folder-result-invalid");
+  await expect(
+    f.store.finishFolders(f.alice.credential, { ...working, status: "failed" }),
+  ).rejects.toThrow("discovery-folder-result-invalid");
+  await f.store.finishFolders(f.alice.credential, complete);
+  expect((await f.store.folders("usr_alice", queued.requestId)).result?.entries).toHaveLength(2);
+  expect(
+    await f.store.selectedFolder("usr_alice", f.alice.deviceId, {
+      browseRequestId: queued.requestId,
+      path: "apps",
+    }),
+  ).toBe("C:\\fixture\\apps");
+  await expect(
+    f.store.selectedFolder("usr_alice", f.bob.deviceId, {
+      browseRequestId: queued.requestId,
+      path: "apps",
+    }),
+  ).rejects.toThrow("discovery-folder-selection-invalid");
+  await expect(
+    f.store.selectedFolder("usr_alice", f.alice.deviceId, {
+      browseRequestId: queued.requestId,
+      path: "protected",
+    }),
+  ).rejects.toThrow("discovery-folder-selection-invalid");
+  expect(
+    await f.store.selectedFolder("usr_alice", f.alice.deviceId, {
+      browseRequestId: queued.requestId,
+      path: "",
+    }),
+  ).toBe("C:\\fixture");
+  const restarted = new SystemDiscovery(f.store.root, f.connectors, f.catalog, f.clock);
+  expect((await restarted.folders("usr_alice", queued.requestId)).status).toBe("succeeded");
+  const failure = await f.store.requestFolders("usr_alice", input);
+  const claimed = (await f.store.claimFolders(f.alice.credential))!;
+  await f.store.finishFolders(f.alice.credential, {
+    ...claimed,
+    status: "failed",
+    errorCode: "folder-permission-denied",
+  });
+  expect((await f.store.folders("usr_alice", failure.requestId)).errorCode).toBe(
+    "folder-permission-denied",
+  );
+  await expect(
+    f.store.configure("usr_alice", {
+      ...f.policy,
+      policy: {
+        ...f.policy.policy,
+        allLocalDrives: false,
+        priorityFolders: [{ root: "D:\\", path: "" }],
+      },
+    }),
+  ).rejects.toThrow("discovery-folder-scope-denied");
+  await f.store.configure("usr_alice", {
+    ...f.policy,
+    policy: { ...f.policy.policy, priorityFolders: [{ root: input.root, path: "apps" }] },
+  });
+  const expired = await f.store.requestFolders("usr_alice", input);
+  const proof = (await f.connectors.list("usr_alice"))[0]!.source!;
+  f.advance(121000);
+  await f.connectors.heartbeat(f.alice.credential, {
+    probe: { ...proof, checkedAt: f.clock().toISOString() },
+  });
+  await f.store.observe(f.alice.credential, {
+    ...f.observation,
+    at: f.clock().toISOString(),
+    policyRevision: 1,
+  });
+  expect((await f.store.folders("usr_alice", expired.requestId)).status).toBe("expired");
+  expect(await f.store.claimFolders(f.alice.credential)).toBeNull();
+});
+
+it("expires and collects old directory metadata requests while preserving current source boundaries", async () => {
+  const f = await fixture();
+  await f.store.observe(f.alice.credential, f.observation);
+  const input = { version: 1, deviceId: f.alice.deviceId, root: "C:\\fixture", path: "", page: 0 };
+  const old = await f.store.requestFolders("usr_alice", input),
+    proof = (await f.connectors.list("usr_alice"))[0]!.source!;
+  f.advance(86521000);
+  await f.connectors.heartbeat(f.alice.credential, {
+    probe: { ...proof, checkedAt: f.clock().toISOString() },
+  });
+  await f.store.observe(f.alice.credential, { ...f.observation, at: f.clock().toISOString() });
+  const current = await f.store.requestFolders("usr_alice", input);
+  expect(current.status).toBe("queued");
+  await expect(readFile(join(f.store.root, old.requestId + ".json"))).rejects.toMatchObject({
+    code: "ENOENT",
+  });
+  expect((await f.store.folders("usr_alice", current.requestId)).request.root).toBe(input.root);
+  f.allowed.delete("usr_alice");
+  await expect(f.store.folders("usr_alice", current.requestId)).rejects.toThrow(
+    "connector-access-denied",
+  );
+});
+
+it("keeps a pending explicit folder choice immutable and rejects contradictory success/error reports", async () => {
+  const f = await fixture(),
+    proof = (await f.connectors.list("usr_alice"))[0]!.source!;
+  await f.connectors.heartbeat(f.alice.credential, { probe: proof, folderBrowser: true });
+  const queued = await f.connectors.chooseFolder("usr_alice", f.alice.deviceId, "C:\\fixture");
+  expect(
+    (await f.connectors.chooseFolder("usr_alice", f.alice.deviceId, "C:\\fixture")).requestId,
+  ).toBe(queued.requestId);
+  await expect(
+    f.connectors.chooseFolder("usr_alice", f.alice.deviceId, "C:\\other"),
+  ).rejects.toThrow("connector-source-busy");
+  const choosing = (await f.connectors.claimFolder(f.alice.credential))!;
+  await expect(
+    f.connectors.finishFolder(f.alice.credential, {
+      ...choosing,
+      status: "selected",
+      source: proof,
+      errorCode: "folder-not-git",
+    }),
+  ).rejects.toThrow("folder-selection-invalid");
+  await f.connectors.finishFolder(f.alice.credential, {
+    ...choosing,
+    status: "failed",
+    errorCode: "folder-not-git",
+  });
+  expect((await f.connectors.list("usr_alice"))[0]?.folderSelection?.errorCode).toBe(
+    "folder-not-git",
+  );
+});
 it("redacts at persistence/presentation, restricts content to selected verified roots, deduplicates receipts and retains history while paused", async () => {
   const f = await fixture();
   await f.store.configure("usr_alice", f.policy);

@@ -3759,3 +3759,93 @@ kbd,
     max-height: 90dvh;
   }
 }
+
+.folder-browser .folder-current {
+  display: block;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.folder-browser .discovery-form {
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+}
+.folder-browser .discovery-form > * {
+  min-width: 0;
+  max-width: 100%;
+}
+.folder-browser label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+}
+.folder-browser select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+.folder-browser .folder-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+}
+.folder-browser .folder-list li {
+  min-width: 0;
+}
+.folder-browser .folder-list button {
+  width: 100%;
+  min-width: 0;
+  justify-content: flex-start;
+  text-align: left;
+  white-space: normal;
+}
+.folder-browser .folder-list button span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.folder-browser .folder-list button small {
+  white-space: normal;
+}
+.discovery-bindings {
+  display: grid;
+  gap: 10px;
+}
+.discovery-bindings > div {
+  display: grid;
+  gap: 6px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  min-width: 0;
+}
+.discovery-bindings small {
+  overflow-wrap: anywhere;
+}
+.discovery-workspace .discovery-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.discovery-workspace .discovery-form-grid label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.discovery-workspace .discovery-form-grid input {
+  width: 100%;
+  min-width: 0;
+}
+.record-inline-choice {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+@media (max-width: 650px) {
+  .discovery-workspace .discovery-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

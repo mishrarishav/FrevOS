@@ -15,6 +15,13 @@ afterEach(async () => {
   for (const fn of cleanups.splice(0).reverse()) await fn();
 });
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+it("keeps normal dev folders available while excluding absolute Linux pseudo filesystems", () => {
+  expect(safety.excluded("dev/app.ts")).toBe(false);
+  expect(safety.excluded("src/sys/app.ts")).toBe(false);
+  expect(safety.excluded("/proc/123/status")).toBe(true);
+  expect(safety.safeEvent({ root: "/", path: "dev/null" })).toBeNull();
+  expect(safety.safeEvent({ root: "D:\\", path: "dev/app.ts" })).not.toBeNull();
+});
 async function eventually(test: () => boolean) {
   for (let i = 0; i < 100; i++) {
     if (test()) return;

@@ -1,20 +1,20 @@
 # System discovery and onboarding handoff
 
-Status: FAIL for the first configured build, before live activation; the
-correction passes local validation and awaits configured rebuild. VPN connectivity
-and preservation capture passed after the owner's reconnect. Live acceptance is
-not yet claimed.
+Status: PASS for the owner-approved bounded development pilot, 2026-10-24.
+Configured publication, isolated CI/build, independent server20 activation,
+guarded source upgrades and live acceptance completed. Broad-drive collection
+is explicitly partial, with observed loss/backlog and limits recorded below.
 
 Repository: `D:\FREVOS`, worktree `.local/worktrees/servix-dashboard`.
 Branch: `feature/system-discovery-onboarding`.
 Base: `a97a076446fa299556d6d75473721fb199eb984b`.
-Published implementation commit: `c60a926d92d576858621399491d1bec099d89898`.
-Its configured build failed the current dependency gate; the undici correction
-is pending configured source publication. The live baseline remains unchanged.
-Local immutable candidate manifest:
-`41e7e7e6730fb911d7df9739a878de148a3cb63013a59ebd7cae01f2c84775be`.
-Live publication/activation receipts: pending configured rollout.
-Pull request: none. No default branch push or merge is part of this pilot.
+Resulting published implementation commit: `fd89278b8484d76fe9d291bbc191ec6bc5d7e812`.
+Published diff: 54 files, 7,104 insertions(+), 131 deletions(-).
+Active manifest: `96e799f3dbe1d204a8cc2d220616c21de0166918c2e3125377023b615389251f`.
+Deployment request: `pr_ca688b0e2210441336866ba9ec3e728a`.
+Pull request: none. No default branch push or merge occurred.
+Final result documentation is a subsequent local working-tree update; the
+deployed implementation remains the exact published commit above.
 
 ## Delivered scope
 
@@ -108,11 +108,10 @@ Both direct pins and lockfile now use 4.6.6. The sealed packager imports
 that exact frozen vendor package and updates both packaged dependency manifests,
 with narrow delta allowances and source inventory. Contracts include standard URL
 declarations required by the patched types; type checking remains enabled. The
-high gate then passed. The final audit reported five low and eight moderate
-advisories, with no high/critical finding, and the existing UI chunk size warning
-remains; no gate was weakened. Earlier runs reported fewer below-gate advisories;
-the final count records the current registry result rather than retaining the
-earlier count.
+high gate then passed. That pre-rollout audit reported five low and eight moderate
+advisories, with no high/critical finding. The subsequent configured-build undici
+failure and final five-low/six-moderate audit are recorded in rollout evidence
+below. The existing UI chunk size warning remains; no gate was weakened.
 
 The isolated TCG VM initially advertised CPU features that triggered guest
 kernel faults during .NET execution. It was restarted with a baseline x64 CPU;
@@ -150,62 +149,128 @@ project/OS acceptance before being described as verified.
 
 ## Final rollout evidence
 
-After the owner reconnected VPN, both server20 ports were reachable and
-`node .local/discovery-preservation.cjs capture` passed: eleven environment
-files, three profiles, two pipelines and the running frontend-only local session.
-Deploy all request `pr_13b66a566242b865d46e75a17ea8cf75` published the stated
-commit, but isolated build `cj_ff57487d1079bb4878c6c4292881a6f0` rejected
+The owner reconnected VPN. HTTP/SMB and the fresh authenticated preservation
+capture passed: eleven environment files, three profiles, two pipelines and the
+frontend-only local development session. Final settings/session/environment
+comparisons passed.
+
+The first configured request `pr_13b66a566242b865d46e75a17ea8cf75` published
+`c60a926d92d576858621399491d1bec099d89898`, but isolated build
+`cj_ff57487d1079bb4878c6c4292881a6f0` correctly rejected
 [the high undici advisory](https://github.com/advisories/GHSA-xjj6-f33q-929c).
-A retained-checkout CI diagnostic reproduced the gate failure. The narrow
-workspace override and lockfile now resolve testcontainers' undici to 8.12.2;
-`pnpm.cmd run audit` passes with five low/six moderate and no high/critical
-finding. `pnpm.cmd run ci` also passed all 274 tests and required gates, exit 0
-(`.local/discovery-ci-undici-fixed.log`). No gate was weakened, no new artifact
-was activated and no connector upgrade was applied by that failed request.
-Rebuild/live acceptance is pending.
+A retained-checkout diagnostic reproduced that dependency-gate failure. The
+narrow workspace override/lockfile pins testcontainers' undici to 8.12.2. Full
+CI then passed all 274 tests and required gates, exit 0, with five low/six
+moderate and no high/critical audit finding. No gate was weakened. This failed
+request did not activate a new artifact or upgrade a source connector.
 
-The actual Linux paired enrollment/clone/business-action acceptance passed.
-The local builder's two required operator scripts were updated with exact prior
-receipt guards, private backups, pairing bytes and task definition preserved
-(`.local/discovery-builder-upgrade.json`). No source connector was stopped or
-upgraded while server20 was unreachable.
+The corrected source was published by the actual DevSetu Deploy all UI, built
+from an isolated frozen checkout with full CI, and activated by the existing
+independent SYSTEM updater. No manual source commit/push or prepared-artifact
+shortcut was used. The successful immutable identities are:
 
-The sealed **local candidate**, based on uncommitted working-tree changes over
-the stated base, is
-`D:\FREVOS\.local\native-releases\servix-release-6570eb8a9f614057b2906f857465c7bb\package`:
+- Source: `fd89278b8484d76fe9d291bbc191ec6bc5d7e812`.
+- Request: `pr_ca688b0e2210441336866ba9ec3e728a`.
+- Builder job: `cj_48f2907ca7e486973becedf4ce994d81`.
+- Destination job: `cj_a3fc98dcf2362708fbd9ba16cc951896`.
+- Reference digest: `d8ca88e1d05f417338677ce3a581cbc9dce9324afba1264d1831ea1cf9cc96fc`.
+- Manifest: `96e799f3dbe1d204a8cc2d220616c21de0166918c2e3125377023b615389251f`.
+- Archive: `69f66a667ce0475d5a24a55fb745a18ce8fa55268e280d2b8c9feb477e94333c`, 131,322,300 bytes.
+- Package: `D:\FREVOS\.local\native-releases\servix-release-7e3a54007f8a4feb880d3153d64c951c\package`.
+- Inventory: 3,896 files, 149,288,900 manifested bytes.
+- Linux archive: `f5737033584acd04457a7f95db4bc35256ba37cdf53ddc08e8e1e4b091be187d`,
+  48,812,519 bytes; exactly matches the archive already executed in the real
+  Debian guest. Windows installer and Linux download response hashes passed
+  the exact published-artifact smoke check.
 
-- Manifest: `41e7e7e6730fb911d7df9739a878de148a3cb63013a59ebd7cae01f2c84775be`.
-- Archive: `f16e5e4a42c43b082f7c4fa88835617873ffa9c248c28025aeb348c39fa70482`.
-- Files: 3,896; total manifested bytes: 149,288,924.
-- Linux archive: `f5737033584acd04457a7f95db4bc35256ba37cdf53ddc08e8e1e4b091be187d`, 48,812,519 bytes.
-- Current source sidecars and both dependency manifests match the sealed candidate;
-  `.local/discovery-ready-seal.json` and `.local/servix-release.json` retain receipts.
+The activation receipt reports PASS, HTTP/UI 200, databaseWritten=false,
+siblingsPreserved=true and retained private rollback backups. Active-pointer
+manifest, source publication and build/activation receipts agree.
 
-Pending: corrected configured source publication/isolated frozen build,
-independent server20 activation, guarded source upgrades and final live
-configuration/session verification. The original frontend session remains
-running; stop/restore is reserved for the later guarded source upgrade.
-Server21, customer database writes, actual environment saves, default branch
-publication and phase 4 exit remain excluded.
+Both enrolled Windows sources received 18 verified sidecars and bundled npm.
+Pairing bytes and Limited/Interactive task definitions were preserved. Final
+readback confirms both tasks Running, both sources fresh, and installed sidecars
+match the actual sealed artifact. The original Servix frontend was restored in
+development mode with localhost:3000 HTTP 200; backend port 5000 remains closed.
+Eleven environment file hashes, three profiles, two pipeline configurations and
+the existing customer deployment identity remain unchanged.
 
-On 2026-10-24 at approximately 05:00 IST, both `10.9.69.20:80` and `:445` timed
-out, and the authenticated read-only preservation capture failed with `fetch
-failed`. Later bounded probes reproduced the timeouts. The owner was asked to
-reconnect VPN. No deployment request, new source publication or real customer
-environment write was submitted in this state. Resume by capturing the live
-preservation baseline, publishing through DevSetu Deploy all, verifying the sealed
-package/independent activation, upgrading the two source sidecars with guarded
-backups, and restoring the original frontend-only local session.
+The legacy connector's stop action succeeded and both OS ports were closed,
+but its service display remained stale past the private helper's 90-second
+deadline. This was independently confirmed before guarded upgrade; the fresh
+worker then reported stopped correctly. Frontend restoration also took longer
+than that helper's 90-second wait; the existing Start action eventually reached
+running, without duplicate Start submission. Final fresh API and OS/HTTP
+readback pass. The two helper deadlines are retained as observed deviations,
+not hidden as successful waits.
 
-The owner subsequently reconnected VPN; bounded probes and authenticated
-preservation capture passed. No VPN UI/profile/authentication state was changed
-by this implementation session.
+The live owner UI saved DevSetu source policy revision 1: enabled, all local
+drives, existing permitted OS audit, seven days/2,000 events/10,000 directories,
+and **no content-history folders**. Servix source file capture remains disabled
+to avoid collecting the same physical laptop twice; it still reports health.
+Three pre-existing revoked verification sources are shown as historical/offline;
+they were preserved. No fake client, project, PO or completion record was added.
+
+Live collection observes C: and D: with 10,000 watched directories and partial
+coverage. It reports restart-history-unavailable, permission-denied,
+buffer-overflow and watch-limit. The startup burst dropped 6,060 events. The
+first synthetic probe's creation was not retained and its failed check is recorded; after
+the burst, another owned probe was captured in the local queue and eventually
+reached server history and the browser after a several-minute backlog. It was
+removed afterward. Both create/delete evidence and the responsive visible event
+were verified. This establishes the actual collection path, **not complete
+all-drive history or immediate delivery under load**. Existing OS audit feed
+access was available, but the live retained probe uses filesystem notifications
+and correctly reports acting user/process unavailable. No matched live audit
+attribution is claimed; actual isolated Linux audit attribution passed earlier.
+
+Authenticated live Playwright checks passed at 1366/768/390 widths, with no
+horizontal page overflow, persistent dialog close actions and visible actual
+event evidence. There were zero unexpected browser errors/HTTP failures. The
+existing HTTP-origin COOP warning remains. Screenshots were visually reviewed.
+
+| Final command/evidence | Observed result |
+| --- | --- |
+| `pnpm.cmd run ci` (`.local/discovery-ci-undici-fixed.log`) | Exit 0; 274 tests, required repository/format/lint/type/coverage/build/audit gates pass. |
+| `node .local/discovery-preservation.cjs capture` | Exit 0; existing settings/session/environment baseline matches. |
+| `node .local/discovery-deploy.cjs deploy native-system-discovery-final` | Exit 0; actual UI publication/build/independent activation succeeded. |
+| `node .local/component-copy-native-release.cjs native-system-discovery-final` | Exit 0; successful source-job receipt matches active artifact. |
+| `node .local/component-native-receipts.cjs native-system-discovery-final` | Exit 0; independent SYSTEM activation PASS, databaseWritten=false. |
+| `node .local/Test-DiscoveryArtifact.mjs C:\Users\APPC0024\AppData\Local\DevSetu\Builds\platform\cj_48f2907ca7e486973becedf4ce994d81\source\.local\servix-release.json final` | Exit 0; exact published package, real isolated PostgreSQL/auth/API/HTML/installer/Zod composition pass (`.local/discovery-published-artifact-smoke.log`). |
+| `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File .local/Upgrade-DiscoverySources.ps1 -Action Plan -PackageRoot D:\FREVOS\.local\native-releases\servix-release-7e3a54007f8a4feb880d3153d64c951c\package -ManifestSha256 96e799f3dbe1d204a8cc2d220616c21de0166918c2e3125377023b615389251f` | Exit 0; both enrolled source baselines and sealed upgrade inventories verified. |
+| `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File .local/Upgrade-DiscoverySources.ps1 -Action Apply -PackageRoot D:\FREVOS\.local\native-releases\servix-release-7e3a54007f8a4feb880d3153d64c951c\package -ManifestSha256 96e799f3dbe1d204a8cc2d220616c21de0166918c2e3125377023b615389251f` | Exit 0; two source upgrades, pairing/tasks retained, no arbitrary target selected. |
+| `node .local/discovery-confirm-stopped.cjs` | Exit 0; successful typed stop and independently closed OS ports before upgrade; legacy display staleness recorded. |
+| `node .local/discovery-preservation.cjs verify` | Exit 0; original frontend mode, 11 files, 3 profiles, 2 pipelines and customer deployment preserved. |
+| `node .local/discovery-final-os.cjs` | Exit 0; sealed sidecars/tasks, localhost frontend HTTP 200, backend closed. |
+| `node .local/discovery-live-acceptance.cjs configure` | Exit 0; actual Tracking settings UI saves metadata-only policy. |
+| `node .local/discovery-live-acceptance.cjs verify` | Exit 0 for the post-burst probe; first startup-overflow probe failed and is separately retained. |
+| `node .local/discovery-live-evidence.cjs` | Exit 0; actual retained event visible at desktop/mobile widths, correct unavailable attribution and no content captured. |
+| `pnpm.cmd run validate:repo` and `git diff --check` after final result documentation | Exit 0; 82 Markdown files validated and no whitespace errors. |
+
+The earlier local candidate manifest
+`41e7e7e6730fb911d7df9739a878de148a3cb63013a59ebd7cae01f2c84775be`
+was preparation only and is not the deployed artifact. No VPN configuration,
+host audit policy, server21 deployment, customer database write, actual
+environment save, default branch or merge was changed by this pilot.
+Live rollback of this new release was not exercised; verified prior artifacts
+and private rollback backups are retained. A real rollback remains a separately
+authorized operation. No failure was deliberately injected into the customer's
+running application or paired source tasks.
+
+## Readiness
+
+Ready for owner use/review of the bounded pilot and entry of authoritative
+client/project/PO/milestone records. Phase 4 exit remains open. Native
+Ubuntu/RHEL workstation policy acceptance, SDK 9/10 project acceptance, arm64,
+IMAP/API ingestion, CMDB deduplication and notices remain follow-on work with
+the limitations and authorization boundaries above. This release does not
+claim the owner's eventual chatbot/project-delivery vision is fully complete.
 
 <!-- discovery-change-inventory -->
 
 ## Complete changed-file inventory
 
-Base to current working tree: 54 files, 7104 insertions(+), 131 deletions(-). Published branch head: `c60a926d92d576858621399491d1bec099d89898`. Any later result documentation remains in the working tree until separately published. The two preceding environment-editor result documentation edits are preserved in this list.
+Base to current working tree: 54 files, 7182 insertions(+), 131 deletions(-). Published branch head: `fd89278b8484d76fe9d291bbc191ec6bc5d7e812`. Any later result documentation remains in the working tree until separately published. The two preceding environment-editor result documentation edits are preserved in this list.
 
 - `apps/control-center/src/App.tsx`
 - `apps/control-center/src/DiscoveryPage.tsx`

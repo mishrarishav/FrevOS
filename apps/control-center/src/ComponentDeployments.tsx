@@ -1,23 +1,24 @@
-import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  componentOrder,
   type DeploymentChange,
   type DeveloperConnector,
   type Pipeline,
   type PipelineInput,
   PipelineInputSchema,
-  type PipelineState,
   type PipelineRequest,
   type PipelineRun,
-  componentOrder,
+  type PipelineState,
 } from "@frevos/contracts";
 import { LoaderCircle, Plus, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiFailure, type ControlCenterApi } from "./api.js";
-import { WorkspaceDialog } from "./WorkspaceDialog.js";
-import { RecordBadge, RecordWorkspace } from "./RecordWorkspace.js";
 import { DeploymentActionDialog } from "./DeploymentActionDialog.js";
 import { DeploymentSourceSelect } from "./DeploymentSourceSelect.js";
-import { addBasePath } from "./routing.js";
 import { deploymentRequestId } from "./deployment-request-id.js";
+import { FolderBrowser, type FolderChoice } from "./FolderBrowser.js";
+import { RecordBadge, RecordWorkspace } from "./RecordWorkspace.js";
+import { addBasePath } from "./routing.js";
+import { WorkspaceDialog } from "./WorkspaceDialog.js";
 
 export function useComponents(api: ControlCenterApi, workspaceId: string, withSources = false) {
   const [state, setState] = useState<PipelineState>({ profiles: [], executors: [], runs: [] });
@@ -448,6 +449,7 @@ export function ComponentConfiguration({
     [busy, setBusy] = useState(false),
     [userId, setUserId] = useState("");
   const [sourceId, setSourceId] = useState("");
+  const [folderBrowser, setFolderBrowser] = useState(false);
   const sourceDevices = devices.filter(
     (d) => d.profileId === form?.profileId && d.userId === userId && d.status === "active",
   );
@@ -518,8 +520,12 @@ export function ComponentConfiguration({
     }
   }
   const owner = userId === "usr_windows_admin";
-  async function connectionAction(action: "test" | "folder") {
+  async function connectionAction(action: "test" | "folder", choice?: FolderChoice) {
     if (!form || !selectedSource || busy) return;
+    if (action === "folder" && selectedSource.folderBrowser && !choice) {
+      setFolderBrowser(true);
+      return;
+    }
     setBusy(true);
     setNotice("");
     try {
@@ -539,9 +545,16 @@ export function ComponentConfiguration({
             : "Connection testing unavailable.",
         );
       } else {
-        await api.chooseConnectorFolder?.(workspaceId, selectedSource.deviceId);
+        await api.chooseConnectorFolder?.(
+          workspaceId,
+          selectedSource.deviceId,
+          choice ? { browseRequestId: choice.requestId, path: choice.path } : undefined,
+        );
+        setFolderBrowser(false);
         setNotice(
-          "Choose the Git folder in the native dialog on your source system. The selected path appears below after completion.",
+          choice
+            ? "Selected folder submitted for repository identity verification. Its status appears below."
+            : "Choose the Git folder in the native dialog on your source system. The selected path appears below after completion.",
         );
       }
     } catch {
@@ -621,7 +634,7 @@ export function ComponentConfiguration({
           </article>
         )}
       />
-      {form ? (
+      {form && !folderBrowser ? (
         <WorkspaceDialog label="Component configuration" onClose={close}>
           <div className="deployment-settings project-editor">
             <header className="settings-header">
@@ -688,7 +701,11 @@ export function ComponentConfiguration({
                   <button
                     className="button secondary"
                     type="button"
-                    disabled={busy || !selectedSource?.online || !selectedSource.folderPicker}
+                    disabled={
+                      busy ||
+                      !selectedSource?.online ||
+                      !(selectedSource.folderPicker || selectedSource.folderBrowser)
+                    }
                     onClick={() => void connectionAction("folder")}
                   >
                     Choose folder
@@ -702,6 +719,13 @@ export function ComponentConfiguration({
                     Test connections
                   </button>
                 </div>
+                {selectedSource?.folderSelection ? (
+                  <p role="status">
+                    {selectedSource.folderSelection.errorCode
+                      ? selectedSource.folderSelection.errorCode.replaceAll("-", " ")
+                      : `Folder selection: ${selectedSource.folderSelection.status}`}
+                  </p>
+                ) : null}
                 <p className="record-muted">
                   {selectedSource?.folderSelection?.source?.repository ??
                     selectedSource?.source?.repository ??
@@ -1010,6 +1034,16 @@ export function ComponentConfiguration({
             </div>
           </div>
         </WorkspaceDialog>
+      ) : null}
+      {folderBrowser && selectedSource ? (
+        <FolderBrowser
+          api={api}
+          workspaceId={workspaceId}
+          deviceId={selectedSource.deviceId}
+          onClose={() => setFolderBrowser(false)}
+          onChoose={(choice) => void connectionAction("folder", choice)}
+          label="Connect this project folder"
+        />
       ) : null}
     </>
   );

@@ -23,6 +23,7 @@ import {
   DiscoveryPolicyRecordSchema,
   type DiscoveryState,
   DiscoveryStateSchema,
+  FolderBrowseJobSchema,
   type FolderSelection,
   FolderSelectionSchema,
   type GithubConnection,
@@ -98,6 +99,15 @@ export interface ControlCenterApi {
     historyDeviceId?: string,
   ): Promise<DiscoveryState>;
   discoveryPolicy?(workspaceId: string, input: DiscoveryPolicyInput): Promise<unknown>;
+  browseFolders?(
+    workspaceId: string,
+    input: import("@frevos/contracts").FolderBrowseInput,
+  ): Promise<import("@frevos/contracts").FolderBrowseJob>;
+  folderBrowseResult?(
+    workspaceId: string,
+    requestId: string,
+    signal?: AbortSignal,
+  ): Promise<import("@frevos/contracts").FolderBrowseJob>;
   deliveryPlan?(workspaceId: string, input: DeliveryPlanInput): Promise<unknown>;
   componentState?(workspaceId: string, signal?: AbortSignal): Promise<PipelineState>;
   testPipeline?(
@@ -152,7 +162,11 @@ export interface ControlCenterApi {
   localDevelopmentState?(workspaceId: string, signal?: AbortSignal): Promise<LocalDevState>;
   localDevelopmentAction?(workspaceId: string, input: LocalDevAction): Promise<LocalDevJob>;
   revokeDeveloperConnector?(workspaceId: string, deviceId: string): Promise<{ revoked: true }>;
-  chooseConnectorFolder?(workspaceId: string, deviceId: string): Promise<FolderSelection>;
+  chooseConnectorFolder?(
+    workspaceId: string,
+    deviceId: string,
+    selection?: { browseRequestId: string; path: string },
+  ): Promise<FolderSelection>;
   inviteDeveloper?(
     workspaceId: string,
     username: string,
@@ -317,6 +331,14 @@ export function createControlCenterApi(
       ),
     discoveryPolicy: (workspaceId, input) =>
       post(`${workspacePath(workspaceId)}/discovery/policy`, input, DiscoveryPolicyRecordSchema),
+    browseFolders: (workspaceId, input) =>
+      post(`${workspacePath(workspaceId)}/discovery/folders`, input, FolderBrowseJobSchema),
+    folderBrowseResult: (workspaceId, requestId, signal) =>
+      get(
+        `${workspacePath(workspaceId)}/discovery/folders/${encodeURIComponent(requestId)}`,
+        FolderBrowseJobSchema,
+        signal,
+      ),
     deliveryPlan: (workspaceId, input) =>
       post(`${workspacePath(workspaceId)}/discovery/plans`, input, DeliveryPlanSchema),
     localDevelopmentAction: (workspaceId, input) =>
@@ -398,10 +420,10 @@ export function createControlCenterApi(
       get(`${workspacePath(workspaceId)}/servix/deployments`, ServixDeploymentStateSchema, signal),
     listDeveloperConnectors: (workspaceId, signal) =>
       get(`${workspacePath(workspaceId)}/connectors`, ConnectorListSchema, signal),
-    chooseConnectorFolder: (workspaceId, deviceId) =>
+    chooseConnectorFolder: (workspaceId, deviceId, selection) =>
       post(
         `${workspacePath(workspaceId)}/connectors/${encodeURIComponent(deviceId)}/choose-folder`,
-        {},
+        selection ?? {},
         FolderSelectionSchema,
       ),
     revokeDeveloperConnector: (workspaceId, deviceId) =>

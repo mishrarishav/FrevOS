@@ -14,4 +14,8 @@ try {
  if($expires -le [DateTimeOffset]::UtcNow -or $expires -gt [DateTimeOffset]::UtcNow.AddSeconds(95)){throw 'Folder request expired'}
   $source=Set-FrevOSRepository -InstallRoot $PSScriptRoot -Selection $selection -Repository ([string]$request.repository)
   @{status='selected';source=$source}|ConvertTo-Json -Compress
-} catch { @{status='failed'}|ConvertTo-Json -Compress;exit 0 }
+} catch {
+ $message=$_.Exception.GetBaseException().Message
+ $code=if($message -eq 'Choose the Git checkout root'){'folder-not-git'}elseif($message -in @('Folder does not match this project repository','Repository origin unavailable')){'folder-wrong-repository'}elseif($_.Exception.GetBaseException() -is [UnauthorizedAccessException]){'folder-inaccessible'}else{'folder-selection-unavailable'}
+ @{status='failed';errorCode=$code}|ConvertTo-Json -Compress;exit 0
+}

@@ -1,21 +1,21 @@
 import type {
   DeploymentChange,
-  ServixDeployment,
   DeploymentSettings,
   DeveloperConnector,
+  ServixDeployment,
   ServixDeploymentState,
 } from "@frevos/contracts";
-import { ExternalLink, LoaderCircle, Rocket, RotateCcw } from "lucide-react";
 import { matchesDeploymentRepository } from "@frevos/contracts";
+import { ExternalLink, LoaderCircle, Rocket, RotateCcw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ApiFailure, type ControlCenterApi } from "./api.js";
-import { deploymentRequestId } from "./deployment-request-id.js";
+import { ConfiguredProject, currentComponent, useComponents } from "./ComponentDeployments.js";
 import { DeploymentActionDialog } from "./DeploymentActionDialog.js";
 import { DeploymentSourceSelect } from "./DeploymentSourceSelect.js";
+import { deploymentRequestId } from "./deployment-request-id.js";
 import { RecordBadge, type RecordColumn, RecordWorkspace } from "./RecordWorkspace.js";
 import { addBasePath } from "./routing.js";
 import { mergeServixDeploymentState } from "./servix-deployment-state.js";
-import { ConfiguredProject, useComponents, currentComponent } from "./ComponentDeployments.js";
 
 export function DeploymentsPage({
   api,
@@ -395,7 +395,7 @@ export function DeploymentsPage({
       </>
     );
   };
-  const actions = (p: DeploymentSettings) =>
+  const deploymentActions = (p: DeploymentSettings) =>
     configured.state.profiles.some((c) => c.profileId === p.profileId) ? (
       <a
         className="button secondary"
@@ -470,6 +470,17 @@ export function DeploymentsPage({
         </button>
       </div>
     );
+  const actions = (p: DeploymentSettings) => (
+    <div className="record-row-actions">
+      <a
+        className="button secondary"
+        href={addBasePath(`/projects/local-development?project=${encodeURIComponent(p.profileId)}`)}
+      >
+        Local preview & services
+      </a>
+      {deploymentActions(p)}
+    </div>
+  );
   const badges = (p: DeploymentSettings) =>
     isPlatform(p) ? (
       <div className="record-facts">

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { lstat, mkdir, open, readdir, readFile } from "node:fs/promises";
+import { lstat, mkdir, open, readdir, readFile, unlink } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { join } from "node:path";
+import { join, posix, win32 } from "node:path";
 import {
   type Client,
   ConnectorIdSchema,
@@ -16,6 +16,9 @@ import {
   DiscoveryStateSchema,
   defaultDiscoveryPolicy,
   deliveryReport,
+  FolderBrowseInputSchema,
+  type FolderBrowseJob,
+  FolderBrowseJobSchema,
   type Project,
 } from "@frevos/contracts";
 import { z } from "zod";
@@ -107,6 +110,159 @@ export class SystemDiscovery {
     const value = await this.latest(id + ".policy");
     return value ? DiscoveryPolicyRecordSchema.parse(value) : null;
   }
+  private async browseDevice(actor: string, id: string) {
+    const device = (await this.connectors.discoveryDevices(actor)).find(
+      (d) =>
+        d.deviceId === id &&
+        d.status === "active" &&
+        d.workspaceAuthorized &&
+        d.userId === actor &&
+        d.online &&
+        d.source,
+    );
+    if (!device) throw new ServixDeploymentError("discovery-device-access-denied", 403);
+    const value = await this.read(id + ".observation.json");
+    const stored = value ? StoredObservation.parse(value) : null;
+    if (!stored || this.now().getTime() - Date.parse(stored.receivedAt) > 30000)
+      throw new ServixDeploymentError("discovery-source-stale");
+    return { device, observation: stored.observation };
+  }
+  async requestFolders(actor: string, input: unknown) {
+    return this.serial(async () => {
+      const request = FolderBrowseInputSchema.parse(input);
+      const { device, observation } = await this.browseDevice(actor, request.deviceId);
+      if (
+        ![device.source!.repository, ...observation.system.disks.map((d) => d.root)].includes(
+          request.root,
+        )
+      )
+        throw new ServixDeploymentError("discovery-folder-scope-denied", 403);
+      const names = (await readdir(this.root)).filter((n) => /^fb_[a-f0-9]{32}\.json$/.test(n));
+      let active = 0;
+      let retained = 0;
+      for (const name of names) {
+        const job = FolderBrowseJobSchema.parse(await this.read(name));
+        if (Date.parse(job.expiresAt) < this.now().getTime() - 86400000) {
+          await unlink(join(this.root, name));
+          continue;
+        }
+        retained++;
+        if (Date.parse(job.expiresAt) <= this.now().getTime()) continue;
+        if (job.request.deviceId === request.deviceId && ["queued", "working"].includes(job.status))
+          throw new ServixDeploymentError("discovery-folder-busy");
+        active++;
+      }
+      if (active >= 128 || retained >= 2000)
+        throw new ServixDeploymentError("discovery-folder-capacity", 503);
+      const job = FolderBrowseJobSchema.parse({
+        version: 1,
+        requestId: "fb_" + randomUUID().replaceAll("-", ""),
+        actor,
+        workspaceId: "ws_server20",
+        request,
+        status: "queued",
+        createdAt: this.now().toISOString(),
+        expiresAt: new Date(this.now().getTime() + 120000).toISOString(),
+      });
+      await this.save(job.requestId + ".json", job, true);
+      return job;
+    });
+  }
+  async folders(actor: string, requestId: string) {
+    if (!/^fb_[a-f0-9]{32}$/.test(requestId))
+      throw new ServixDeploymentError("discovery-folder-not-found", 404);
+    const value = await this.read(requestId + ".json");
+    const job = value ? FolderBrowseJobSchema.parse(value) : null;
+    if (!job || job.actor !== actor)
+      throw new ServixDeploymentError("discovery-folder-not-found", 404);
+    await this.browseDevice(actor, job.request.deviceId);
+    return Date.parse(job.expiresAt) <= this.now().getTime()
+      ? { ...job, status: "expired" as const, result: undefined }
+      : job;
+  }
+  async claimFolders(credential: string) {
+    return this.serial(async () => {
+      const device = await this.connectors.checkCredential(credential);
+      const names = (await readdir(this.root)).filter((n) => /^fb_[a-f0-9]{32}\.json$/.test(n));
+      for (const name of names) {
+        const job = FolderBrowseJobSchema.parse(await this.read(name));
+        if (
+          job.request.deviceId !== device.deviceId ||
+          job.status !== "queued" ||
+          Date.parse(job.expiresAt) <= this.now().getTime()
+        )
+          continue;
+        await this.browseDevice(job.actor, device.deviceId);
+        const next = { ...job, status: "working" as const };
+        await this.save(name, next);
+        return next;
+      }
+      return null;
+    });
+  }
+  async finishFolders(credential: string, input: unknown) {
+    return this.serial(async () => {
+      const device = await this.connectors.checkCredential(credential),
+        result = FolderBrowseJobSchema.parse(input);
+      const prior = await this.read(result.requestId + ".json");
+      if (!prior) throw new ServixDeploymentError("discovery-folder-not-found", 404);
+      const job = FolderBrowseJobSchema.parse(prior);
+      if (
+        job.request.deviceId !== device.deviceId ||
+        job.actor !== device.userId ||
+        job.status !== "working" ||
+        Date.parse(job.expiresAt) <= this.now().getTime() ||
+        !["succeeded", "failed"].includes(result.status) ||
+        JSON.stringify(job.request) !== JSON.stringify(result.request) ||
+        result.actor !== job.actor ||
+        result.workspaceId !== job.workspaceId ||
+        result.createdAt !== job.createdAt ||
+        result.expiresAt !== job.expiresAt
+      )
+        throw new ServixDeploymentError("discovery-folder-scope-denied", 403);
+      await this.browseDevice(job.actor, device.deviceId);
+      if (result.status === "succeeded") {
+        const page = result.result;
+        if (
+          !page ||
+          page.root !== job.request.root ||
+          page.path !== job.request.path ||
+          result.errorCode ||
+          (page.nextPage !== null && page.nextPage !== job.request.page + 1) ||
+          page.entries.some(
+            (e) =>
+              e.path !== (page.path ? page.path + "/" : "") + e.name ||
+              /[/\\]/.test(e.name) ||
+              [".", ".."].includes(e.name),
+          )
+        )
+          throw new ServixDeploymentError("discovery-folder-result-invalid", 400);
+      } else if (result.result || !result.errorCode)
+        throw new ServixDeploymentError("discovery-folder-result-invalid", 400);
+      await this.save(result.requestId + ".json", result);
+      return { accepted: true };
+    });
+  }
+  async selectedFolder(actor: string, id: string, input: unknown) {
+    const body = z
+      .object({
+        browseRequestId: z.string().regex(/^fb_[a-f0-9]{32}$/),
+        path: FolderBrowseInputSchema.shape.path,
+      })
+      .strict()
+      .parse(input);
+    const job = await this.folders(actor, body.browseRequestId);
+    if (
+      job.request.deviceId !== id ||
+      job.status !== "succeeded" ||
+      !job.result ||
+      (body.path !== job.result.path &&
+        !job.result.entries.some((e) => e.path === body.path && !e.excluded))
+    )
+      throw new ServixDeploymentError("discovery-folder-selection-invalid", 403);
+    const osPath = /^[A-Za-z]:\\/.test(job.request.root) ? win32 : posix;
+    return osPath.join(job.request.root, ...body.path.split("/").filter(Boolean));
+  }
   async policyForConnector(credential: string) {
     const device = await this.connectors.checkCredential(credential);
     const record = await this.policy(device.deviceId);
@@ -120,6 +276,18 @@ export class SystemDiscovery {
       if (!device || !device.workspaceAuthorized || device.userId !== actor)
         throw new ServixDeploymentError("discovery-device-access-denied", 403);
       const prior = await this.policy(body.deviceId);
+      if (body.policy.priorityFolders.length) {
+        const { observation } = await this.browseDevice(actor, body.deviceId);
+        const roots = [device.source!.repository, ...observation.system.disks.map((d) => d.root)];
+        if (
+          body.policy.priorityFolders.some(
+            (f) =>
+              !roots.includes(f.root) ||
+              (!body.policy.allLocalDrives && f.root !== device.source!.repository),
+          )
+        )
+          throw new ServixDeploymentError("discovery-folder-scope-denied", 403);
+      }
       if ((prior?.revision ?? 0) !== body.expectedRevision)
         throw new ServixDeploymentError("discovery-revision-changed");
       const { expectedRevision: _, ...configuration } = body;

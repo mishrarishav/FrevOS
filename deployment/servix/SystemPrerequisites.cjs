@@ -78,6 +78,95 @@ async function manifest(file) {
     throw Error("prerequisite-manifest-review-required");
   }
 }
+async function projectFolders(repository) {
+  try {
+    for (let cursor = path.resolve(repository); ; cursor = path.dirname(cursor)) {
+      if ((await fs.lstat(cursor)).isSymbolicLink()) throw Error("prerequisite-folder-unavailable");
+      if (path.dirname(cursor) === cursor) break;
+    }
+  } catch (e) {
+    if (e.code === "ENOENT") return [];
+    throw e;
+  }
+  const custom = await manifest(path.join(repository, "devsetu.local.json"));
+  if (
+    custom &&
+    (custom.version !== 1 ||
+      Object.keys(custom).some(
+        (k) => !["version", "maxDepth", "maxDirectories", "contexts"].includes(k),
+      ) ||
+      (custom.maxDepth !== undefined &&
+        (!Number.isInteger(custom.maxDepth) || custom.maxDepth < 1 || custom.maxDepth > 8)) ||
+      (custom.maxDirectories !== undefined &&
+        (!Number.isInteger(custom.maxDirectories) ||
+          custom.maxDirectories < 8 ||
+          custom.maxDirectories > 4096)) ||
+      (custom.contexts !== undefined &&
+        (!Array.isArray(custom.contexts) ||
+          custom.contexts.length > 64 ||
+          custom.contexts.some(
+            (p) =>
+              typeof p !== "string" ||
+              p.length > 180 ||
+              (p !== "." &&
+                (p.startsWith("/") ||
+                  p.includes("\\") ||
+                  p.includes(":") ||
+                  p.split("/").some((v) => !v || v === "." || v === ".." || v.startsWith(".")))),
+          ))))
+  )
+    throw Error("prerequisite-discovery-policy-review-required");
+  const queue = (custom?.contexts ?? ["."]).map((relative) => ({
+      folder: path.resolve(repository, relative),
+      depth: 0,
+    })),
+    folders = [],
+    seen = new Set(),
+    limit = custom?.maxDirectories ?? 512,
+    maxDepth = custom?.maxDepth ?? 4;
+  while (queue.length) {
+    const { folder, depth } = queue.shift();
+    if (seen.has(folder)) continue;
+    seen.add(folder);
+    if (folders.length >= limit) throw Error("prerequisite-discovery-limit");
+    let info;
+    try {
+      info = await fs.lstat(folder);
+    } catch (e) {
+      if (e.code === "ENOENT") continue;
+      throw Error("prerequisite-folder-unavailable");
+    }
+    if (!info.isDirectory() || info.isSymbolicLink()) continue;
+    for (let cursor = folder; cursor !== path.resolve(repository); cursor = path.dirname(cursor)) {
+      if ((await fs.lstat(cursor)).isSymbolicLink()) throw Error("prerequisite-folder-unavailable");
+      if (path.dirname(cursor) === cursor) throw Error("prerequisite-folder-unavailable");
+    }
+    const rel = path.relative(repository, folder);
+    if (rel === ".." || rel.startsWith(".." + path.sep) || path.isAbsolute(rel))
+      throw Error("prerequisite-discovery-policy-review-required");
+    folders.push(folder);
+    if (depth >= maxDepth) continue;
+    const directory = await fs.opendir(folder);
+    let examined = 0;
+    try {
+      for await (const entry of directory) {
+        if (++examined > 10000) throw Error("prerequisite-discovery-limit");
+        if (
+          entry.isDirectory() &&
+          !entry.isSymbolicLink() &&
+          !/^(?:\.|node_modules$|vendor$|uploads?$|attachments?$|database$|logs?$|coverage$|dist$|build$|bin$|obj$)/i.test(
+            entry.name,
+          ) &&
+          /^[A-Za-z0-9_. -]+$/.test(entry.name)
+        )
+          queue.push({ folder: path.join(folder, entry.name), depth: depth + 1 });
+      }
+    } finally {
+      await directory.close().catch(() => {});
+    }
+  }
+  return folders;
+}
 async function requirements(repository) {
   const requirements = [{ id: "git", required: ">=2.30.0", source: "connector" }],
     blocked = [];
@@ -100,19 +189,8 @@ async function requirements(repository) {
     if (!requirements.some((r) => r.id === id && r.required === required))
       requirements.push({ id, required, source });
   };
-  const folders = [repository];
-  try {
-    for (const entry of (await fs.readdir(repository, { withFileTypes: true })).slice(0, 200))
-      if (
-        entry.isDirectory() &&
-        !entry.isSymbolicLink() &&
-        !/^(?:\.|node_modules|vendor|dist|build)/.test(entry.name)
-      )
-        folders.push(path.join(repository, entry.name));
-  } catch (e) {
-    if (e.code !== "ENOENT") throw Error("prerequisite-folder-unavailable");
-  }
-  for (const folder of folders.slice(0, 32)) {
+  const folders = await projectFolders(repository);
+  for (const folder of folders) {
     const relative = path.relative(repository, folder) || ".",
       pkg = await manifest(path.join(folder, "package.json"));
     if (pkg) {
@@ -574,6 +652,7 @@ async function install(
   return { receipts, report: await inspect(repository) };
 }
 module.exports = {
+  projectFolders,
   inspect,
   install,
   requirements,

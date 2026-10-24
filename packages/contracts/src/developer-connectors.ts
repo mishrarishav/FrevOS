@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { ConnectorProbeSchema, DeploymentProfileIdSchema } from "./deployment-settings.js";
+import {
+  ConnectorProbeSchema,
+  DeploymentProfileIdSchema,
+  SourceCheckoutPathSchema,
+} from "./deployment-settings.js";
 import { UserIdSchema } from "./identifiers.js";
 import { IsoTimestampSchema } from "./identity.js";
 export const ConnectorIdSchema = z.string().regex(/^fc_[a-f0-9]{32}$/);
@@ -12,6 +16,16 @@ export const FolderSelectionSchema = z
     expiresAt: IsoTimestampSchema,
     status: z.enum(["queued", "choosing", "selected", "cancelled", "failed", "expired"]),
     source: ConnectorProbeSchema.optional(),
+    requestedRepository: SourceCheckoutPathSchema.optional(),
+    errorCode: z
+      .enum([
+        "folder-source-running",
+        "folder-not-git",
+        "folder-wrong-repository",
+        "folder-inaccessible",
+        "folder-selection-unavailable",
+      ])
+      .optional(),
   })
   .strict();
 export type FolderSelection = z.infer<typeof FolderSelectionSchema>;
@@ -32,6 +46,7 @@ export const ConnectorSchema = z
     source: ConnectorProbeSchema.optional(),
     folderSelection: FolderSelectionSchema.optional(),
     folderPicker: z.boolean().optional(),
+    folderBrowser: z.boolean().optional(),
     changeNotes: z.boolean().optional(),
   })
   .strict();

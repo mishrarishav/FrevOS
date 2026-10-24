@@ -12,10 +12,10 @@ import { useEffect, useRef, useState } from "react";
 import { ApiFailure, type ControlCenterApi } from "./api.js";
 import { DeploymentSourceSelect } from "./DeploymentSourceSelect.js";
 import { deploymentRequestId } from "./deployment-request-id.js";
+import { EnvironmentVariables } from "./EnvironmentVariables.js";
 import { RecordBadge, type RecordColumn, RecordWorkspace } from "./RecordWorkspace.js";
 import { addBasePath } from "./routing.js";
 import { WorkspaceDialog } from "./WorkspaceDialog.js";
-import { EnvironmentVariables } from "./EnvironmentVariables.js";
 
 type Connection = LocalDevState["connections"][number];
 type Row = {
@@ -185,21 +185,27 @@ export function LocalDevelopmentPage({
       return next;
     });
   };
-  const rows: Row[] = profiles.map((profile) => {
-    const sources = devices.filter(
-      (d) => d.status === "active" && (d.profileId ?? "servix-development") === profile.profileId,
-    );
-    const selected =
-      sources.find((d) => d.deviceId === choices[profile.profileId]?.deviceId) ??
-      sources.find((d) => d.online) ??
-      sources[0];
-    return {
-      profile,
-      devices: sources,
-      selected,
-      connection: state.connections.find((c) => c.deviceId === selected?.deviceId),
-    };
-  });
+  const requestedProject =
+    typeof window === "undefined"
+      ? null
+      : new URLSearchParams(window.location.search).get("project");
+  const rows: Row[] = profiles
+    .filter((p) => !requestedProject || p.profileId === requestedProject)
+    .map((profile) => {
+      const sources = devices.filter(
+        (d) => d.status === "active" && (d.profileId ?? "servix-development") === profile.profileId,
+      );
+      const selected =
+        sources.find((d) => d.deviceId === choices[profile.profileId]?.deviceId) ??
+        sources.find((d) => d.online) ??
+        sources[0];
+      return {
+        profile,
+        devices: sources,
+        selected,
+        connection: state.connections.find((c) => c.deviceId === selected?.deviceId),
+      };
+    });
   const pending = (row: Row) =>
     state.jobs.some(
       (job) =>
@@ -562,6 +568,11 @@ export function LocalDevelopmentPage({
         onRetry={() => setReload((n) => n + 1)}
         actions={
           <>
+            {requestedProject ? (
+              <a className="button secondary" href={addBasePath("/projects/local-development")}>
+                All projects
+              </a>
+            ) : null}
             {retry ? (
               <button
                 className="button primary"
@@ -619,8 +630,9 @@ export function LocalDevelopmentPage({
               </p>
             ) : !row.connection.snapshot.candidates.length ? (
               <p className="record-muted">
-                No supported development services were found. Check the selected source folder for
-                registered npm scripts or an ASP.NET web project.
+                No supported development services were found in the selected source. Check the
+                project folder and registered npm scripts or ASP.NET web project. Nested folders are
+                scanned automatically; advanced scan scope can be set in devsetu.local.json.
               </p>
             ) : !row.connection.snapshot.plan ? (
               <p className="record-muted">

@@ -10,6 +10,8 @@ import {
 import { X } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { ControlCenterApi } from "./api.js";
+import { type DiscoverySystem, discoverySystems } from "./discovery-systems.js";
+import { FolderBrowser } from "./FolderBrowser.js";
 import { RecordBadge, type RecordColumn, RecordWorkspace } from "./RecordWorkspace.js";
 import { addBasePath } from "./routing.js";
 import { WorkspaceDialog } from "./WorkspaceDialog.js";
@@ -68,6 +70,14 @@ export function DiscoveryPage({
   );
   const [editor, setEditor] = useState<{ report: DeliveryReport; plan: DeliveryPlanInput } | null>(
     null,
+  );
+  const [historical, setHistorical] = useState(false);
+  const [folderPicker, setFolderPicker] = useState<{
+    system: System;
+    mode: "inspect" | "content" | "priority";
+  } | null>(null);
+  const systems = discoverySystems(state.systems).filter(
+    (s) => historical || s.status === "active",
   );
   // biome-ignore lint/correctness/useExhaustiveDependencies: reload is the explicit retry generation.
   useEffect(() => {
@@ -184,10 +194,18 @@ export function DiscoveryPage({
       </div>
     );
   };
-  const systemActions = (s: System) => (
+  const systemActions = (s: DiscoverySystem) => (
     <div className="record-row-actions">
       <button type="button" className="button secondary" onClick={() => openActivity(s.deviceId)}>
         Activity &amp; health
+      </button>
+      <button
+        type="button"
+        className="button secondary"
+        disabled={!s.online || s.userId !== userId}
+        onClick={() => setFolderPicker({ system: s, mode: "inspect" })}
+      >
+        Browse folders
       </button>
       <button
         type="button"
@@ -205,11 +223,17 @@ export function DiscoveryPage({
       </button>
     </div>
   );
-  const systemColumns: RecordColumn<System>[] = [
+  const systemColumns: RecordColumn<DiscoverySystem>[] = [
     {
       id: "name",
       label: "System / project source",
-      value: (s) => `${s.observation?.system.systemName ?? s.name} ${s.name} ${s.profileId}`,
+      value: (s) =>
+        `${s.observation?.system.systemName ?? s.name} ${s.bindings.map((b) => b.profileId).join(" ")}`,
+    },
+    {
+      id: "projects",
+      label: "Project bindings",
+      value: (s) => s.bindings.map((b) => b.profileId).join(", "),
     },
     { id: "owner", label: "Connector account", value: (s) => s.userId },
     {
@@ -258,6 +282,19 @@ export function DiscoveryPage({
   ];
   const controls = (
     <div className="record-row-actions">
+      {tab === "systems" ? (
+        <label className="record-inline-choice">
+          <input
+            type="checkbox"
+            checked={historical}
+            onChange={(e) => setHistorical(e.target.checked)}
+          />
+          Show historical sources
+        </label>
+      ) : null}
+      <a className="button secondary" href={addBasePath("/projects/local-development")}>
+        Local development
+      </a>
       {tab === "reports" ? (
         <a className="button secondary" href={addBasePath("/projects/frevos/operations")}>
           Clients &amp; project records
@@ -320,9 +357,9 @@ export function DiscoveryPage({
           workspaceId={workspaceId}
           page="discovery-systems"
           noun="systems"
-          records={state.systems}
+          records={systems}
           columns={systemColumns}
-          identify={(s) => s.deviceId}
+          identify={(s) => s.systemKey}
           statusOf={(s) => (s.online ? "online" : "offline")}
           statuses={[
             { id: "online", label: "Online" },
@@ -340,7 +377,10 @@ export function DiscoveryPage({
                 <div className="record-identity">
                   <h2>{s.observation?.system.systemName ?? s.name}</h2>
                   <small>
-                    {s.name} · {s.profileId}
+                    {s.bindings.length} project {s.bindings.length === 1 ? "binding" : "bindings"} ·{" "}
+                    {s.observation?.system.installationId
+                      ? "System identity reported"
+                      : "Identity unavailable; source shown separately"}
                   </small>
                 </div>
                 <RecordBadge tone={s.online ? "positive" : "warning"}>
@@ -360,6 +400,48 @@ export function DiscoveryPage({
                 {s.source?.repository ?? "Source verification unavailable"}
               </small>
               {systemActions(s)}
+              <div className="discovery-bindings">
+                {s.bindings.map((binding) => (
+                  <div key={binding.deviceId}>
+                    <strong>{binding.profileId}</strong>
+                    <small>{binding.source?.repository ?? "Source not verified"}</small>
+                    <div className="record-row-actions">
+                      <a
+                        className="button secondary"
+                        href={addBasePath(
+                          `/projects/local-development?project=${encodeURIComponent(binding.profileId)}`,
+                        )}
+                      >
+                        Local preview &amp; services
+                      </a>
+                      <button
+                        type="button"
+                        className="button secondary"
+                        aria-label={binding.profileId + " activity"}
+                        onClick={() => openActivity(binding.deviceId)}
+                      >
+                        Activity
+                      </button>
+                      <button
+                        type="button"
+                        className="button secondary"
+                        aria-label={binding.profileId + " tracking settings"}
+                        disabled={binding.userId !== userId || binding.status !== "active"}
+                        onClick={() =>
+                          setSettings({
+                            system: binding,
+                            policy: structuredClone(
+                              binding.policy?.policy ?? defaultDiscoveryPolicy,
+                            ),
+                          })
+                        }
+                      >
+                        Tracking
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </article>
           )}
         />
@@ -481,6 +563,18 @@ export function DiscoveryPage({
               </button>
             </header>
             <div className="discovery-scroll">
+              <label>
+                Project source
+                <select value={selected.deviceId} onChange={(e) => openActivity(e.target.value)}>
+                  {discoverySystems(state.systems)
+                    .find((s) => s.bindings.some((b) => b.deviceId === selected.deviceId))
+                    ?.bindings.map((b) => (
+                      <option key={b.deviceId} value={b.deviceId}>
+                        {b.profileId}
+                      </option>
+                    ))}
+                </select>
+              </label>
               {health(selected)}
               <p>
                 {selected.sourceFresh ? "Project folder" : "Last verified folder"}:{" "}
@@ -594,7 +688,7 @@ export function DiscoveryPage({
           </section>
         </WorkspaceDialog>
       ) : null}
-      {settings ? (
+      {settings && !folderPicker ? (
         <WorkspaceDialog label="Tracking settings" onClose={close}>
           <section className="project-editor discovery-editor">
             <header className="settings-header">
@@ -674,6 +768,58 @@ export function DiscoveryPage({
                   }
                 />
               </label>
+              <p>
+                Text history stays within this verified project. Use Choose content folder for text
+                history, or Choose priority folder to track a drive folder first.
+              </p>
+              <button
+                type="button"
+                className="button secondary"
+                disabled={!settings.system.online}
+                onClick={() => setFolderPicker({ system: settings.system, mode: "content" })}
+              >
+                Choose content folder
+              </button>
+              <section>
+                <h3>Folders to track first</h3>
+                <p>
+                  These folders use the watch budget before broad-drive scanning. Folder browsing is
+                  independent of the watch limit.
+                </p>
+                <button
+                  type="button"
+                  className="button secondary"
+                  disabled={!settings.system.online || settings.policy.priorityFolders.length >= 12}
+                  onClick={() => setFolderPicker({ system: settings.system, mode: "priority" })}
+                >
+                  Choose priority folder
+                </button>
+                {settings.policy.priorityFolders.map((f, i) => (
+                  <div className="record-row-actions" key={`${f.root}:${f.path}`}>
+                    <code>
+                      {f.root}
+                      {f.path}
+                    </code>
+                    <button
+                      type="button"
+                      className="button ghost"
+                      onClick={() =>
+                        setSettings({
+                          ...settings,
+                          policy: {
+                            ...settings.policy,
+                            priorityFolders: settings.policy.priorityFolders.filter(
+                              (_, n) => n !== i,
+                            ),
+                          },
+                        })
+                      }
+                    >
+                      Remove folder
+                    </button>
+                  </div>
+                ))}
+              </section>
               <label>
                 Excluded project folders (one per line)
                 <textarea
@@ -743,6 +889,40 @@ export function DiscoveryPage({
             </div>
           </section>
         </WorkspaceDialog>
+      ) : null}
+      {folderPicker ? (
+        <FolderBrowser
+          api={api}
+          workspaceId={workspaceId}
+          deviceId={folderPicker.system.deviceId}
+          onClose={() => setFolderPicker(null)}
+          projectOnly={
+            folderPicker.mode === "content" ||
+            (folderPicker.mode === "priority" && !settings?.policy.allLocalDrives)
+          }
+          label={folderPicker.mode === "content" ? "Add content folder" : "Track this folder first"}
+          onChoose={
+            folderPicker.mode === "inspect"
+              ? undefined
+              : (choice) => {
+                  if (settings) {
+                    const policy = structuredClone(settings.policy);
+                    if (folderPicker.mode === "content")
+                      policy.contentFolders = [
+                        ...new Set([...policy.contentFolders, choice.path || "."]),
+                      ];
+                    else if (
+                      !policy.priorityFolders.some(
+                        (f) => f.root === choice.root && f.path === choice.path,
+                      )
+                    )
+                      policy.priorityFolders.push({ root: choice.root, path: choice.path });
+                    setSettings({ ...settings, policy });
+                  }
+                  setFolderPicker(null);
+                }
+          }
+        />
       ) : null}
       {editor ? (
         <WorkspaceDialog label="Project delivery plan" onClose={close}>

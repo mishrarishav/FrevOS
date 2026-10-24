@@ -10,6 +10,13 @@ const text = (max: number) =>
     .refine((v) =>
       [...v].every((c) => c.charCodeAt(0) >= 32 || [9, 10, 13].includes(c.charCodeAt(0))),
     );
+export const DiscoveryRelativeFolderSchema = text(1024).refine(
+  (v) =>
+    !v.startsWith("/") &&
+    !v.includes("\\") &&
+    !v.includes(":") &&
+    (!v || v.split("/").every((p) => p && p !== "." && p !== "..")),
+);
 const relativeFolder = text(180)
   .min(1)
   .refine(
@@ -31,6 +38,10 @@ export const DiscoveryPolicySchema = z
     retentionDays: z.number().int().min(1).max(30),
     maxEvents: z.number().int().min(100).max(10000),
     maxDirectories: z.number().int().min(100).max(20000),
+    priorityFolders: z
+      .array(z.object({ root: text(240).min(1), path: DiscoveryRelativeFolderSchema }).strict())
+      .max(12)
+      .default([]),
   })
   .strict();
 export type DiscoveryPolicy = z.infer<typeof DiscoveryPolicySchema>;
@@ -44,6 +55,7 @@ export const defaultDiscoveryPolicy: DiscoveryPolicy = {
   retentionDays: 7,
   maxEvents: 2000,
   maxDirectories: 10000,
+  priorityFolders: [],
 };
 export const DiscoveryPolicyInputSchema = z
   .object({
@@ -98,6 +110,11 @@ export type DiscoveryEvent = z.infer<typeof DiscoveryEventSchema>;
 export const SystemSampleSchema = z
   .object({
     systemName: text(128).min(1),
+    installationId: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .nullable()
+      .optional(),
     platform: z.enum(["win32", "linux"]),
     os: text(128).min(1),
     architecture: z.enum(["x64", "arm64"]),
@@ -171,6 +188,67 @@ export const DiscoveryObservationSchema = z
   })
   .strict();
 export type DiscoveryObservation = z.infer<typeof DiscoveryObservationSchema>;
+
+export const FolderBrowseInputSchema = z
+  .object({
+    version: z.literal(1),
+    deviceId: ConnectorIdSchema,
+    root: text(240).min(1),
+    path: DiscoveryRelativeFolderSchema,
+    page: z.number().int().min(0).max(100).default(0),
+    fingerprint: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
+  })
+  .strict();
+export type FolderBrowseInput = z.infer<typeof FolderBrowseInputSchema>;
+export const FolderBrowseJobSchema = z
+  .object({
+    version: z.literal(1),
+    requestId: z.string().regex(/^fb_[a-f0-9]{32}$/),
+    actor: text(128).min(1),
+    workspaceId: z.literal("ws_server20"),
+    request: FolderBrowseInputSchema,
+    createdAt: z.iso.datetime(),
+    expiresAt: z.iso.datetime(),
+    status: z.enum(["queued", "working", "succeeded", "failed", "expired"]),
+    result: z
+      .object({
+        root: text(240).min(1),
+        path: DiscoveryRelativeFolderSchema,
+        fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+        entries: z
+          .array(
+            z
+              .object({
+                name: text(255).min(1),
+                path: DiscoveryRelativeFolderSchema,
+                excluded: z.boolean(),
+              })
+              .strict(),
+          )
+          .max(100),
+        nextPage: z.number().int().min(1).max(100).nullable(),
+        truncated: z.boolean(),
+        scannedEntries: z.number().int().nonnegative().max(10000),
+      })
+      .strict()
+      .optional(),
+    errorCode: z
+      .enum([
+        "folder-permission-denied",
+        "folder-path-unavailable",
+        "folder-scope-denied",
+        "folder-changed",
+        "folder-consent-required",
+        "folder-request-expired",
+        "folder-browser-unavailable",
+      ])
+      .optional(),
+  })
+  .strict();
+export type FolderBrowseJob = z.infer<typeof FolderBrowseJobSchema>;
 
 const DateSchema = z.iso.date();
 const MilestoneSchema = z

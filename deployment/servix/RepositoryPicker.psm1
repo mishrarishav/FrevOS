@@ -33,6 +33,8 @@ function Set-FrevOSRepository {
  $branch=(& $config.git -C $full symbolic-ref --short HEAD 2>$null)
  if($LASTEXITCODE -ne 0){throw 'Choose a checkout on a local branch'}
  if([DateTimeOffset]::UtcNow -ge $expires){throw 'Folder request expired'}
+ $repositoryId=if($central){[string]$config.centralRepository.id}else{$null}
+ $selectedRemoteName=if($central){[string]$config.centralRepository.remoteName}else{$null}
  $config.repository=$full
  $config.repositoryOrigin=$origin.Trim()
  $bytes=[Text.UTF8Encoding]::new($false).GetBytes(($config|ConvertTo-Json -Compress))
@@ -53,7 +55,7 @@ function Set-FrevOSRepository {
  }
  $proof=@{version=1;profileId=$profile;repository=$full;origin=$origin.Trim();head=$head.Trim();branch=$branch.Trim();checkedAt=[DateTimeOffset]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')}
  if($profile -ceq 'servix-development'){$proof.repositoryId='gitrepo_6cb7e163f807493fa37963196c49fbac';$proof.remoteName='frevos'}
- if($central){$proof.repositoryId=[string]$config.centralRepository.id;$proof.remoteName=[string]$config.centralRepository.remoteName}
+ if($central){$proof.repositoryId=$repositoryId;$proof.remoteName=$selectedRemoteName}
  return $proof
 }
 Export-ModuleMember -Function Set-FrevOSRepository

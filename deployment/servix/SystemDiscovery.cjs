@@ -3,9 +3,9 @@ const fs = require("node:fs/promises"),
   { watch } = require("node:fs"),
   path = require("node:path"),
   os = require("node:os");
-const { randomUUID } = require("node:crypto");
+const { randomUUID, createHash } = require("node:crypto");
 const { execFile } = require("node:child_process");
-const { excluded, redact, within } = require("./DiscoverySafety.cjs");
+const { excluded, redact, within, pseudoPath } = require("./DiscoverySafety.cjs");
 const textExtensions = new Set([
   ".js",
   ".jsx",
@@ -35,6 +35,7 @@ const defaults = {
   retentionDays: 7,
   maxEvents: 2000,
   maxDirectories: 10000,
+  priorityFolders: [],
 };
 function run(file, args) {
   return new Promise((resolve, reject) =>
@@ -83,6 +84,34 @@ async function operatingSystem() {
     return "Linux " + os.release();
   }
 }
+async function installationIdentity(config) {
+  try {
+    const value =
+      process.platform === "win32"
+        ? (
+            await run(path.join(process.env.WINDIR, "System32/reg.exe"), [
+              "query",
+              "HKLM\\SOFTWARE\\Microsoft\\Cryptography",
+              "/v",
+              "MachineGuid",
+            ])
+          ).match(/MachineGuid\s+REG_SZ\s+([a-f0-9-]+)/i)?.[1]
+        : (await fs.readFile("/etc/machine-id", "utf8")).trim();
+    if (!value || !/^[a-f0-9-]{16,64}$/i.test(value)) return null;
+    return createHash("sha256")
+      .update(
+        [
+          "devsetu-system-v1",
+          new URL(config.server).origin,
+          os.userInfo().username,
+          value.toLowerCase(),
+        ].join("\0"),
+      )
+      .digest("hex");
+  } catch {
+    return null;
+  }
+}
 class SystemDiscovery {
   constructor(config, api, options = {}) {
     this.config = config;
@@ -107,6 +136,7 @@ class SystemDiscovery {
     this.busy = false;
     this.work = Promise.resolve();
     this.scanQueue = [];
+    this.broadQueue = [];
     this.scanning = false;
     this.dirty = false;
     this.generation = 0;
@@ -183,11 +213,13 @@ class SystemDiscovery {
       /* A new baseline cannot reconstruct offline edits. */
     }
     this.os = await operatingSystem();
+    this.installationId = await installationIdentity(this.config);
   }
   skip(root, file) {
     const relative = path.relative(root, file);
     return (
       !within(root, file) ||
+      (process.platform === "linux" && pseudoPath(file)) ||
       (!!relative && excluded(relative)) ||
       within(this.config.stateRoot, file) ||
       this.policy.excludedFolders.some((p) => within(path.resolve(this.config.repository, p), file))
@@ -373,12 +405,21 @@ class SystemDiscovery {
     this.scanning = true;
     const generation = this.generation;
     try {
-      while (this.scanQueue.length && !this.stopped && generation === this.generation) {
-        const { root, directory } = this.scanQueue.shift();
+      while (
+        (this.scanQueue.length || this.broadQueue.length) &&
+        !this.stopped &&
+        generation === this.generation
+      ) {
+        const {
+          root,
+          directory,
+          priority = true,
+        } = this.scanQueue.shift() ?? this.broadQueue.shift();
         if (this.skip(root, directory) || this.watchers.has(directory)) continue;
         if (this.directories.size >= this.policy.maxDirectories) {
           this.gap("watch-limit");
           this.scanQueue.length = 0;
+          this.broadQueue.length = 0;
           break;
         }
         try {
@@ -411,8 +452,9 @@ class SystemDiscovery {
             if (this.known.size < 100000) this.known.add(file);
             else this.gap("watch-limit");
             if (entry.isDirectory()) {
-              if (this.scanQueue.length < this.policy.maxDirectories)
-                this.scanQueue.push({ root, directory: file });
+              const queue = priority ? this.scanQueue : this.broadQueue;
+              if (queue.length < this.policy.maxDirectories)
+                queue.push({ root, directory: file, priority });
               else this.gap("watch-limit");
             } else if (entry.isFile() && this.selected(file) && this.versions.size < 256) {
               try {
@@ -433,7 +475,7 @@ class SystemDiscovery {
       }
     } finally {
       this.scanning = false;
-      if (this.scanQueue.length && !this.stopped) void this.scan();
+      if ((this.scanQueue.length || this.broadQueue.length) && !this.stopped) void this.scan();
     }
   }
   closeWatchers() {
@@ -444,6 +486,7 @@ class SystemDiscovery {
     this.known.clear();
     this.versions.clear();
     this.scanQueue.length = 0;
+    this.broadQueue.length = 0;
     for (const timer of this.pendingFiles.values()) clearTimeout(timer);
     this.pendingFiles.clear();
   }
@@ -490,8 +533,25 @@ class SystemDiscovery {
       this.gap("watch-failed");
     }
     this.scanQueue.push({ root: this.config.repository, directory: this.config.repository });
+    for (const folder of (this.policy.priorityFolders ?? []).slice(0, 12)) {
+      const allowed = [this.config.repository, ...(this.policy.allLocalDrives ? this.roots : [])];
+      if (
+        !allowed.includes(folder.root) ||
+        typeof folder.path !== "string" ||
+        folder.path.includes("\\") ||
+        folder.path.includes(":") ||
+        (folder.path && folder.path.split("/").some((p) => !p || p === "." || p === ".."))
+      ) {
+        this.gap("permission-denied");
+        continue;
+      }
+      const directory = path.resolve(folder.root, ...folder.path.split("/").filter(Boolean));
+      if (within(folder.root, directory))
+        this.scanQueue.push({ root: folder.root, directory, priority: true });
+    }
     for (const root of this.roots)
-      if (root !== this.config.repository) this.scanQueue.push({ root, directory: root });
+      if (root !== this.config.repository)
+        this.broadQueue.push({ root, directory: root, priority: false });
     void this.scan();
   }
   async sample() {
@@ -541,6 +601,7 @@ class SystemDiscovery {
     }
     return {
       systemName: os.hostname().slice(0, 128),
+      installationId: this.installationId ?? null,
       platform: process.platform,
       os: this.os,
       architecture: process.arch,
@@ -654,9 +715,31 @@ class SystemDiscovery {
   async stop() {
     this.stopped = true;
     clearInterval(this.timer);
+    clearInterval(this.folderTimer);
     this.closeWatchers();
     await this.work;
     await this.persist();
+  }
+  async folderTick() {
+    if (this.folderBusy || this.stopped) return;
+    this.folderBusy = true;
+    try {
+      const { job } = await this.api("/v1/connector/discovery/folders/claim", {});
+      if (job) {
+        const roots = await this.rootProvider();
+        const result = await require("./FolderBrowse.cjs").browse(
+          this.config,
+          job,
+          roots,
+          this.consent,
+        );
+        if (!this.stopped) await this.api("/v1/connector/discovery/folders/complete", result);
+      }
+    } catch {
+      /* Folder metadata transport never launches a process or changes scope. */
+    } finally {
+      this.folderBusy = false;
+    }
   }
 }
 function start(config, api, verifyRepository) {
@@ -668,6 +751,8 @@ function start(config, api, verifyRepository) {
       if (collector.stopped) return;
       void collector.tick();
       collector.timer = setInterval(() => void collector.tick(), 5000);
+      void collector.folderTick();
+      collector.folderTimer = setInterval(() => void collector.folderTick(), 2000);
     })
     .catch(() => {
       /* Discovery failure never launches services or changes enrollment. */

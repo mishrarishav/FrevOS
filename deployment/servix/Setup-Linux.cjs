@@ -15,6 +15,8 @@ const sourceFiles = [
   "DiscoverySafety.cjs",
   "FileAudit.cjs",
   "SystemDiscovery.cjs",
+  "FolderBrowse.cjs",
+  "Browse-Folders.py",
   "SystemPrerequisites.cjs",
   "SystemSetup.cjs",
   "SystemSetupClient.js",
