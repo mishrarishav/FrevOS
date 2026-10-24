@@ -21,6 +21,15 @@ dependencies automatically. Its first real Servix request
 1,709 cached tarballs over SMB exceeds the source command budget. A bounded
 availability check is under validation; actual npm ci retains SRI verification
 and rejects corruption before artifact creation. No application was stopped.
+The cache correction passes 286 tests/full CI and is published at
+`61ae1e99fbc6e3180f4e20c9342a53874394719c`; its internal rollout is in progress.
+Customer publication now succeeds at `2de3315ff22ec8ad9793aaa0a556cc0d0ceb45c1`.
+Request `sd_a0344bc57d804636617d413360b5a011` then hit the ten-minute frontend
+installation limit, with 1,693 cache hits and no reported network/integrity error.
+The build had not reached application activation. The next bounded correction
+uses LOCAL SERVICE's private local scratch, retains durable artifacts/logs in
+the controller store, fails fast offline and allows twenty minutes for the
+large Windows frontend installation. Existing failed workspaces remain intact.
 The current Development runtime still starts source with npm, port 5001 healthy.
 The isolated customer build now compiles 85 application modules into a runnable
 bundle, retaining per-project dependencies, module paths and mutable data roots.

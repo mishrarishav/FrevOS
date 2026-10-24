@@ -18,7 +18,19 @@ if($PreservationFile){
 }else{[IO.File]::WriteAllText((Join-Path $job 'preserve.json'),'[]')}
 Import-Module (Join-Path $PSScriptRoot 'BuildProcess.psm1') -Force
 Initialize-ServixBuildGroup
-$source=Join-Path $job 'source';[void][IO.Directory]::CreateDirectory($source)
+# Extract npm's many small files into the build identity's private local profile.
+# Keep durable logs/artifacts in the configured controller store; never install
+# dependencies in a customer working directory or in the destination application.
+if([Security.Principal.WindowsIdentity]::GetCurrent().User.Value -cne 'S-1-5-19'){throw 'Wrong build identity'}
+$localProfile=[Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
+if([string]::IsNullOrWhiteSpace($localProfile)){throw 'Private build profile is unavailable'}
+$scratchBase=[IO.Path]::GetFullPath((Join-Path $localProfile 'DevSetu\BuildScratch'))
+$scratch=Join-Path $scratchBase $RequestId
+if(-not $scratch.StartsWith(([IO.Path]::GetFullPath($localProfile).TrimEnd('\')+'\'),[StringComparison]::OrdinalIgnoreCase) -or (Test-Path -LiteralPath $scratch)){throw 'Build scratch scope or identity collision'}
+for($cursor=$scratch;;){if((Test-Path -LiteralPath $cursor) -and ((Get-Item -LiteralPath $cursor -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)){throw 'Linked build scratch rejected'};$parent=[IO.Path]::GetDirectoryName($cursor);if(-not $parent -or $parent -ceq $cursor){break};$cursor=$parent}
+$drive=[IO.DriveInfo]::new([IO.Path]::GetPathRoot($scratchBase));if($drive.AvailableFreeSpace -lt 2GB){throw 'Private build scratch requires at least 2 GB free'}
+$source=Join-Path $scratch 'source';[void][IO.Directory]::CreateDirectory($source)
+[IO.File]::WriteAllText((Join-Path $job 'workspace.json'),(@{version=1;identity='LOCAL SERVICE';source=$source;artifacts=$job;privateScratch=$true}|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
 $git='C:\Program Files\Git\cmd\git.exe';$repo='E:\FrevOS\git\servix.git'
 $archive=Join-Path $job 'source.zip'
 $stage='git-export'
@@ -45,12 +57,12 @@ try {
 $env:npm_config_cache=Join-Path $root 'npm-cache';$env:npm_config_audit='false';$env:npm_config_fund='false';$env:npm_config_update_notifier='false'
 $node='E:\FrevOS\node\node-v24.19.0-win-x64\node.exe';$npm='E:\FrevOS\node\node-v24.19.0-win-x64\node_modules\npm\bin\npm-cli.js'
 $stage='dependency-install'
-if((Invoke-ServixBuildProcess $node ('"'+$npm+'" ci --ignore-scripts') (Join-Path $source 'frontend') (Join-Path $job 'install.log') 600) -ne 0){throw 'Locked frontend dependency installation failed'}
+if((Invoke-ServixBuildProcess $node ('"'+$npm+'" ci --ignore-scripts --offline --no-audit --no-fund') (Join-Path $source 'frontend') (Join-Path $job 'install.log') 1200) -ne 0){throw 'Locked frontend dependency installation failed'}
 $stage='backend-build'
 $backendPackage=Get-Content -LiteralPath (Join-Path $source 'backend\package.json') -Raw|ConvertFrom-Json
 if($backendPackage.PSObject.Properties.Name -contains 'devDependencies' -and $backendPackage.devDependencies.PSObject.Properties.Name -contains 'esbuild'){
  if($backendPackage.scripts.'build:release' -cne 'node scripts/buildRelease.js' -or $backendPackage.devDependencies.esbuild -cnotmatch '^\d+\.\d+\.\d+$'){throw 'Backend build recipe is not pinned'}
- if((Invoke-ServixBuildProcess $node ('"'+$npm+'" ci --ignore-scripts --no-audit --no-fund') (Join-Path $source 'backend') (Join-Path $job 'backend-install.log') 600) -ne 0){throw 'Locked backend build-tool installation failed'}
+ if((Invoke-ServixBuildProcess $node ('"'+$npm+'" ci --ignore-scripts --offline --no-audit --no-fund') (Join-Path $source 'backend') (Join-Path $job 'backend-install.log') 600) -ne 0){throw 'Locked backend build-tool installation failed'}
  if((Invoke-ServixBuildProcess $node ('"'+$npm+'" run build:release') (Join-Path $source 'backend') (Join-Path $job 'backend-build.log') 120) -ne 0){throw 'Backend artifact compilation failed'}
  if(-not(Test-Path -LiteralPath (Join-Path $source 'dist\servix-server\backend-artifact.json') -PathType Leaf)){throw 'Backend build did not produce its descriptor'}
 }
