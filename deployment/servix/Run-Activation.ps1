@@ -67,7 +67,7 @@ function Activate-Servix($approval,[string]$Id,[string]$PrivateJob){
    Set-Acl -LiteralPath $job -AclObject $acl
   }
   $hashes=@{}
-  foreach($name in @('Invoke-DevTarget.ps1','Invoke-DevRelease.ps1','DeploymentFiles.psm1','Run-DevBackend.ps1')){
+  foreach($name in @('Invoke-DevTarget.ps1','Invoke-DevRelease.ps1','DeploymentFiles.psm1','Run-DevBackend.ps1','BackendArtifact.cjs','BackendArtifactSelection.psm1')){
    $file=Join-Path $PSScriptRoot $name;$hashes[$name]=(Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
    Copy-Item -LiteralPath $file -Destination (Join-Path $remoteJob $name) -ToSession $session
   }

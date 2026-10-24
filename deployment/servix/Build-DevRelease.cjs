@@ -29,9 +29,39 @@ const copyTree = (from, to) => {
     }
   }
 };
-// Explicit code ownership: never package a backend root, env, DB or uploads folder.
-copyTree(path.join(root, "backend/src"), path.join(payload, "backend/src"));
-copyTree(path.join(root, "querysafe/src"), path.join(payload, "querysafe/src"));
+// A built backend remains independent of target-specific frontend output.
+// Existing source-only artifacts stay restorable by the compatibility adapter.
+let backendArtifact, backendDescriptor;
+const backendOutput = path.join(root, "dist/servix-server");
+const backendDescriptorFile = path.join(backendOutput, "backend-artifact.json");
+if (fs.existsSync(backendDescriptorFile)) {
+  const artifact = require("./BackendArtifact.cjs");
+  const bytes = fs.readFileSync(backendDescriptorFile),
+    identity = crypto.createHash("sha256").update(bytes).digest("hex");
+  backendDescriptor = artifact.descriptor(bytes, identity);
+  const entry = artifact.beneath(backendOutput, backendDescriptor.entry);
+  if (
+    digest(entry) !== backendDescriptor.sha256 ||
+    fs.statSync(entry).size !== backendDescriptor.bytes
+  )
+    throw Error("Built backend differs from its descriptor");
+  const descriptor =
+    backendDescriptor.runtimeProjects[0] + "/.releases/" + identity + "/artifact.json";
+  for (const [relative, content] of [
+    [backendDescriptor.entry, fs.readFileSync(entry)],
+    [descriptor, bytes],
+  ]) {
+    if (isPreserved(relative, preservedPaths))
+      throw Error("Artifact collides with a protected path");
+    const target = artifact.beneath(payload, relative);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, content, { flag: "wx" });
+  }
+  backendArtifact = { version: 1, mode: "bundle", descriptor, manifestSha256: identity };
+} else {
+  copyTree(path.join(root, "backend/src"), path.join(payload, "backend/src"));
+  copyTree(path.join(root, "querysafe/src"), path.join(payload, "querysafe/src"));
+}
 const buildPath = path.join(runtime, "frontend-output");
 const log = fs.openSync(path.join(release, "frontend-build.log"), "w");
 try {
@@ -84,6 +114,10 @@ function inventory(dir) {
   }
 }
 inventory(payload);
+if (backendDescriptor) {
+  for (const dependency of backendDescriptor.dependencies)
+    modules[dependency.project].add(dependency.name);
+}
 files.sort((a, b) => a.path.localeCompare(b.path));
 const dependencies = {};
 for (const project of ["backend", "querysafe"]) {
@@ -106,7 +140,8 @@ const manifest = {
   computer: "DCAPP9",
   root: "D:\\servixDev",
   database: "servix_db_dev",
-  mode: "source-only-existing-dependencies",
+  mode: backendArtifact ? "bundled-existing-dependencies" : "source-only-existing-dependencies",
+  ...(backendArtifact ? { backendArtifact } : {}),
   preservedPaths,
   modules: Object.fromEntries(
     Object.entries(modules).map(([key, values]) => [key, [...values].sort()]),

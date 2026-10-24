@@ -22,7 +22,7 @@ function git(args) {
     maxBuffer: 4 * 1024 * 1024,
   }).trim();
 }
-async function publish(sha) {
+async function publish(sha, staged = false) {
   if (!/^[a-f0-9]{40}$/.test(sha)) throw new CachePublicationError("invalid-commit");
   if (
     git([
@@ -35,11 +35,22 @@ async function publish(sha) {
     ]) !== "gitrepo_6cb7e163f807493fa37963196c49fbac"
   )
     throw new CachePublicationError("repository-identity-mismatch");
-  const lockText = git(["show", sha + ":frontend/package-lock.json"]);
-  const lock = JSON.parse(lockText),
-    lockDigest = createHash("sha256").update(lockText).digest("hex");
-  if (lock.lockfileVersion !== 3 || !lock.packages)
-    throw new CachePublicationError("unsupported-lock");
+  const lockFiles = ["frontend/package-lock.json"];
+  if (git(["ls-tree", "--name-only", sha, "--", "backend/package-lock.json"]))
+    lockFiles.push("backend/package-lock.json");
+  const locks = lockFiles.map((file) => {
+    const text = git(["show", sha + ":" + file]),
+      value = JSON.parse(text);
+    if (value.lockfileVersion !== 3 || !value.packages)
+      throw new CachePublicationError("unsupported-lock");
+    return { file, value, sha256: createHash("sha256").update(text).digest("hex") };
+  });
+  const lockDigest =
+    locks.length === 1
+      ? locks[0].sha256
+      : createHash("sha256")
+          .update(JSON.stringify(locks.map(({ file, sha256 }) => ({ file, sha256 }))))
+          .digest("hex");
   const receipts = path.join(cacheRoot, "frevos-locks"),
     receipt = path.join(receipts, lockDigest + ".json");
   try {
@@ -52,25 +63,26 @@ async function publish(sha) {
     if (error.code !== "ENOENT") throw error;
   }
   const packages = new Map();
-  for (const [name, pkg] of Object.entries(lock.packages)) {
-    if (!name) continue;
-    if (pkg.link || typeof pkg.resolved !== "string" || typeof pkg.integrity !== "string")
-      throw new CachePublicationError("unsupported-locked-package");
-    const url = new URL(pkg.resolved);
-    if (
-      url.protocol !== "https:" ||
-      url.hostname !== "registry.npmjs.org" ||
-      url.username ||
-      url.password ||
-      url.port ||
-      url.hash ||
-      url.search
-    )
-      throw new CachePublicationError("package-source-outside-profile");
-    if (!/^sha(1|256|384|512)-[A-Za-z0-9+/=]+$/.test(pkg.integrity))
-      throw new CachePublicationError("invalid-integrity");
-    packages.set(pkg.integrity, { url: url.href, integrity: pkg.integrity });
-  }
+  for (const lock of locks)
+    for (const [name, pkg] of Object.entries(lock.value.packages)) {
+      if (!name) continue;
+      if (pkg.link || typeof pkg.resolved !== "string" || typeof pkg.integrity !== "string")
+        throw new CachePublicationError("unsupported-locked-package");
+      const url = new URL(pkg.resolved);
+      if (
+        url.protocol !== "https:" ||
+        url.hostname !== "registry.npmjs.org" ||
+        url.username ||
+        url.password ||
+        url.port ||
+        url.hash ||
+        url.search
+      )
+        throw new CachePublicationError("package-source-outside-profile");
+      if (!/^sha(1|256|384|512)-[A-Za-z0-9+/=]+$/.test(pkg.integrity))
+        throw new CachePublicationError("invalid-integrity");
+      packages.set(pkg.integrity, { url: url.href, integrity: pkg.integrity });
+    }
   if (packages.size > 5000) throw new CachePublicationError("package-capacity");
   process.stderr.write(
     "FrevOS: publishing " + packages.size + " locked package tarballs to server20.\n",
@@ -133,7 +145,8 @@ async function publish(sha) {
     JSON.stringify({
       version: 1,
       lockSha256: lockDigest,
-      sourceHead: sha,
+      ...(staged ? { sourceTree: sha } : { sourceHead: sha }),
+      locks: locks.map(({ file, sha256 }) => ({ file, sha256 })),
       published: true,
       packages: done,
       bytes: total,
@@ -149,6 +162,10 @@ async function main() {
     throw new CachePublicationError("wrong-local-repository");
   if (process.argv[2] === "--prepare-current") {
     await publish(git(["rev-parse", "HEAD"]));
+    return;
+  }
+  if (process.argv[2] === "--prepare-staged") {
+    await publish(git(["write-tree"]), true);
     return;
   }
   if (process.argv[2] !== "frevos") return;

@@ -22,7 +22,10 @@ $source=Join-Path $job 'source';[void][IO.Directory]::CreateDirectory($source)
 $git='C:\Program Files\Git\cmd\git.exe';$repo='E:\FrevOS\git\servix.git'
 $archive=Join-Path $job 'source.zip'
 $stage='git-export'
-$gitArguments='-c "safe.directory='+$repo+'" "--git-dir='+$repo+'" archive --format=zip "--output='+$archive+'" '+$SourceHead+' backend/src backend/package.json querysafe/src querysafe/package.json frontend'
+$optionalLog=Join-Path $job 'backend-build-inputs.log'
+if((Invoke-ServixBuildProcess $git ('-c "safe.directory='+$repo+'" "--git-dir='+$repo+'" ls-tree --name-only '+$SourceHead+' -- backend/package-lock.json backend/scripts/buildRelease.js') $job $optionalLog 30) -ne 0){throw 'Backend build input lookup failed'}
+$optional=@(Get-Content -LiteralPath $optionalLog|Where-Object {$_ -cin @('backend/package-lock.json','backend/scripts/buildRelease.js')})
+$gitArguments='-c "safe.directory='+$repo+'" "--git-dir='+$repo+'" archive --format=zip "--output='+$archive+'" '+$SourceHead+' backend/src backend/package.json querysafe/src querysafe/package.json frontend '+($optional -join ' ')
 if((Invoke-ServixBuildProcess $git $gitArguments $job (Join-Path $job 'git.log') 60) -ne 0){throw 'Git source export failed'}
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -43,6 +46,14 @@ $env:npm_config_cache=Join-Path $root 'npm-cache';$env:npm_config_audit='false';
 $node='E:\FrevOS\node\node-v24.19.0-win-x64\node.exe';$npm='E:\FrevOS\node\node-v24.19.0-win-x64\node_modules\npm\bin\npm-cli.js'
 $stage='dependency-install'
 if((Invoke-ServixBuildProcess $node ('"'+$npm+'" ci --ignore-scripts') (Join-Path $source 'frontend') (Join-Path $job 'install.log') 600) -ne 0){throw 'Locked frontend dependency installation failed'}
+$stage='backend-build'
+$backendPackage=Get-Content -LiteralPath (Join-Path $source 'backend\package.json') -Raw|ConvertFrom-Json
+if($backendPackage.PSObject.Properties.Name -contains 'devDependencies' -and $backendPackage.devDependencies.PSObject.Properties.Name -contains 'esbuild'){
+ if($backendPackage.scripts.'build:release' -cne 'node scripts/buildRelease.js' -or $backendPackage.devDependencies.esbuild -cnotmatch '^\d+\.\d+\.\d+$'){throw 'Backend build recipe is not pinned'}
+ if((Invoke-ServixBuildProcess $node ('"'+$npm+'" ci --ignore-scripts --no-audit --no-fund') (Join-Path $source 'backend') (Join-Path $job 'backend-install.log') 600) -ne 0){throw 'Locked backend build-tool installation failed'}
+ if((Invoke-ServixBuildProcess $node ('"'+$npm+'" run build:release') (Join-Path $source 'backend') (Join-Path $job 'backend-build.log') 120) -ne 0){throw 'Backend artifact compilation failed'}
+ if(-not(Test-Path -LiteralPath (Join-Path $source 'dist\servix-server\backend-artifact.json') -PathType Leaf)){throw 'Backend build did not produce its descriptor'}
+}
 $stage='frontend-build'
 $buildArguments='"'+(Join-Path $PSScriptRoot 'Build-DevRelease.cjs')+'" "'+$source+'" "'+$job+'"'
 if((Invoke-ServixBuildProcess $node $buildArguments $job (Join-Path $job 'build.log') 660) -ne 0){throw 'Frontend artifact build failed'}

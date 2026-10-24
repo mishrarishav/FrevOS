@@ -2,7 +2,31 @@
 
 Last updated: 2026-10-24
 
-## System folder workspace corrections (in progress, 2026-10-24)
+## Servix backend artifact deployment (in progress, 2026-10-25)
+
+The owner authorizes a runnable backend build, real DevSetu deployment and
+Development verification before preparing the same artifact for Production.
+All existing uploads, attachments, environments, backups and external file
+storage must be preserved. Branch `feature/servix-build-artifact`, base
+`69dd69e12649d30e9c63a453cb526ea373b17a10`, ADR 0057. Preceding result docs remain.
+The current Development runtime still starts source with npm, port 5001 healthy.
+The isolated customer build now compiles 85 application modules into a runnable
+bundle, retaining per-project dependencies, module paths and mutable data roots.
+Three real compiler tests pass, including execution after moving source folders.
+Platform CI passes 285 tests, type/build/coverage and the high audit gate; five
+low and six moderate platform advisories remain. Artifact verifier, packaging,
+PowerShell selection, preservation and saved-release recovery tests pass.
+The customer runtime lock entries are unchanged; its existing dependency audit
+has 6 moderate, 28 high and 3 critical advisories, requiring explicit review.
+Server20's existing trusted execution boundary inspected server21 read-only:
+Node v20.11.1, manual Production PID 10760 (owner SID recorded privately),
+Development PID 18292. SHA256 inventories cover 8,176 Production uploads,
+223 external blob files, 139 Development uploads, four Development DB files,
+11 environment files and both frontend web.config files. No application/DB
+activation is claimed. The new Production form remains unsaved and unconnected.
+Production stays excluded from the old adapter. Phase 4 exit remains open.
+
+## System folder workspace corrections (bounded pilot PASS, 2026-10-24)
 
 The owner reports that connector rows duplicate L-1770, folder selection fails,
 D: cannot be navigated and generic local preview is not usable. Actual live
@@ -10,7 +34,12 @@ Playwright reproduced duplicate machine titles, no folder browser, rejection of
 drive paths in project-relative content inputs and zero DevSetu service candidates.
 Correction branch: `feature/system-folder-workspace`, explicitly stacked on
 deployed `fd89278b8484d76fe9d291bbc191ec6bc5d7e812`, ADR 0056. Preserve the
-preceding final-result documentation. No correction is deployed yet.
+preceding final-result documentation. The correction is now live at source
+`69dd69e12649d30e9c63a453cb526ea373b17a10`, manifest
+`a30bff2988d37f665b69457d5c699e06ec2c374e5f0746e5a6030914a69b3f7a`,
+configured request `pr_9a274c715407920b4ab1d1e9bad15b83`. Actual UI publication,
+isolated frozen CI/build, immutable artifact and independent SYSTEM activation
+succeeded; HTTP/UI health is 200, siblings preserved, databaseWritten false.
 
 The bounded change adds reported OS-installation identity for presentation-only
 grouping with explicit project bindings, authorized paginated directory metadata
@@ -21,11 +50,25 @@ required public identity before cleanup. Existing credential, workspace, Git,
 filesystem and DB safeguards remain. No new credential lifecycle, production,
 mail/notice or roadmap exit is included.
 
-Focused store/runtime tests, frontend API/grouping tests and the real Windows
-DPAPI picker regression pass. The actual D: helper listed 18 folders and rejected
-traversal. A new isolated PostgreSQL/two-real-connector/Playwright end-to-end
-fixture is running; full CI, Linux directory acceptance, immutable packaging and
-configured live rollout/readback remain required before claiming completion.
+Focused tests, full CI, real Windows DPAPI/Git regression, actual Debian directory
+and private-folder switching, exact packaged startup/download smoke and isolated
+two-real-connector Playwright Start/Stop all pass. Live Playwright verifies one
+machine/two project bindings, D: navigation through `.local/worktrees`, generic
+DevSetu frontend/API candidates and Configure services. Desktop/tablet/mobile
+checks pass with zero unexpected browser errors. D: priority is explicitly saved
+at revision 2 on the already-enabled source; content history stays off.
+
+Both existing source workers have nine verified sealed sidecars each; DPAPI
+pairing and Limited/Interactive tasks preserved. The old Servix picker was
+verified against its retained older sealed manifest before upgrade. Eleven
+environment hashes, three profiles, two component configurations and customer
+deployment identity are unchanged; local services were stopped at the fresh
+baseline and remain stopped. Existing local Docker infrastructure was restored
+after a helper/zombie process failure; four containers are healthy, while the
+health-check/reaper recurrence is a separate follow-up. No real customer backend
+or database was used for tests. See [complete handoff](SYSTEM_FOLDER_WORKSPACE_HANDOFF.md)
+for commands, receipts, changed files, deviations and limitations. Phase 4 remains
+open; no Production/server21 rollout or notice/mail action is included.
 
 ## System discovery and onboarding (bounded pilot PASS, 2026-10-24)
 

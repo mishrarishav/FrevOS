@@ -2,6 +2,13 @@ $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 $backend='D:\servixDev\backend'
 if(-not $PSScriptRoot.StartsWith('D:\servixDev\.runtime\frevos-server21\',[StringComparison]::OrdinalIgnoreCase)) {throw 'Wrong launcher root'}
+$selection=$null
+$node=(Get-Command node.exe -ErrorAction Stop).Source
+if(Test-Path -LiteralPath (Join-Path $backend '.runtime\devsetu-backend-artifact.json')){
+ $selectionText=& $node (Join-Path $PSScriptRoot 'BackendArtifact.cjs') select 'D:\servixDev' backend
+ if($LASTEXITCODE -ne 0){throw 'Selected backend artifact did not verify'}
+ $selection=$selectionText|ConvertFrom-Json
+}
 $settings=@{}
 foreach($line in [IO.File]::ReadAllLines((Join-Path $backend '.env'))) {
     if($line -match '^\s*([^#=\s]+)\s*=\s*(.*)\s*$') {$settings[$Matches[1]]=$Matches[2].Trim().Trim('"').Trim("'")}
@@ -23,5 +30,9 @@ $env:FRONTEND_URL='http://10.9.69.21:82'
 $env:CORS_ORIGIN='http://10.9.69.21:82,http://localhost:82'
 Set-Location -LiteralPath $backend
 $ErrorActionPreference='Continue'
-& 'C:\Program Files\nodejs\npm.cmd' start -- '--servix-backend-root=D:\servixDev\backend' '--servix-dev-profile=server21' *> (Join-Path $PSScriptRoot 'backend.log')
+if($selection -and $selection.mode -ceq 'bundle'){
+ & $node $selection.executable '--servix-backend-root=D:\servixDev\backend' '--servix-dev-profile=server21' *> (Join-Path $PSScriptRoot 'backend.log')
+}else{
+ & 'C:\Program Files\nodejs\npm.cmd' start -- '--servix-backend-root=D:\servixDev\backend' '--servix-dev-profile=server21' *> (Join-Path $PSScriptRoot 'backend.log')
+}
 exit $LASTEXITCODE

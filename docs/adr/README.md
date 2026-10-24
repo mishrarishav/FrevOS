@@ -110,3 +110,7 @@ and authoritative delivery plans; mail integration and notices remain deferred.
 [0056: System identity, folder browsing and generic local preview](0056-system-folder-workspace.md)
 records the owner's corrections to machine/project presentation, drive navigation
 and generic nested-service discovery.
+
+[0057: Built backend artifacts and preservation-first promotion](0057-servix-backend-build-artifact.md)
+records isolated backend bundling, real DevSetu Development acceptance, immutable
+promotion and the owner's no-deletion/data-preservation requirement.
