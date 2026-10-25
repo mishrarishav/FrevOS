@@ -15,6 +15,35 @@ afterEach(async () => {
   for (const fn of cleanups.splice(0).reverse()) await fn();
 });
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+it("bounds the async filesystem backlog during a blocked record and reserves capacity against a noise storm", async () => {
+  const collector = new SystemDiscovery(
+    {
+      deviceId: "fc_" + "e".repeat(32),
+      mode: "system",
+      monitoringRoot: "C:\\",
+      stateRoot: "C:\\fixture-state",
+    },
+    async () => ({}),
+  );
+  collector.policy = { ...defaultDiscoveryPolicy, enabled: true };
+  collector.consent = true;
+  let release!: () => void;
+  collector.record = () =>
+    new Promise<void>((resolve) => {
+      release = resolve;
+    });
+  collector.scheduleRecord("C:\\", "C:\\src\\first.ts", "change");
+  for (let i = 0; i < 2000; i++) collector.scheduleRecord("C:\\", `C:\\Temp\\f${i}.tmp`, "change");
+  expect(collector.workQueue.length).toBeLessThanOrEqual(51);
+  for (let i = 0; i < 2000; i++) collector.scheduleRecord("C:\\", `C:\\src\\f${i}.ts`, "change");
+  expect(collector.workQueue).toHaveLength(256);
+  expect(collector.workQueue.every((j: { noise: boolean }) => !j.noise)).toBe(true);
+  expect(collector.dropped).toBeGreaterThan(0);
+  expect(collector.gaps.has("buffer-overflow")).toBe(true);
+  collector.stopped = true;
+  release();
+  await collector.work;
+});
 it("keeps normal dev folders available while excluding absolute Linux pseudo filesystems", () => {
   expect(safety.excluded("dev/app.ts")).toBe(false);
   expect(safety.excluded("src/sys/app.ts")).toBe(false);

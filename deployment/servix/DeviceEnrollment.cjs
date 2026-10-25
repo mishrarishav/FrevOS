@@ -66,7 +66,11 @@ async function serve(options = {}) {
   const helper =
     options.helper ||
     async function (name, input) {
-      if (!["Pairing-State.ps1", "Resume-SystemConnector.ps1"].includes(name))
+      if (
+        !["Pairing-State.ps1", "Resume-SystemConnector.ps1", "Update-SystemConnector.ps1"].includes(
+          name,
+        )
+      )
         throw Error("setup-operation-denied");
       const script = path.join(entry.directory, name);
       await fs.writeFile(script, await fs.readFile(path.join(__dirname, name)), { mode: 0o600 });
@@ -81,10 +85,13 @@ async function serve(options = {}) {
           },
         );
         let output = "";
-        const timer = setTimeout(() => {
-          child.kill();
-          reject(Error("protected-connection-timeout"));
-        }, 45000);
+        const timer = setTimeout(
+          () => {
+            child.kill();
+            reject(Error("protected-connection-timeout"));
+          },
+          name === "Update-SystemConnector.ps1" ? 120000 : 45000,
+        );
         child.stdout.on("data", (b) => {
           output += b;
           if (output.length > 32768) {
@@ -226,7 +233,9 @@ async function serve(options = {}) {
       let prepared = pending || (await prepare(server, body.fileActivity));
       pending = prepared;
       pending.server = server;
-      let config, approved;
+      let config,
+        approved,
+        freshAfter = 0;
       if (prepared.active) {
         config = prepared.config;
         const current = await status(config);
@@ -237,7 +246,23 @@ async function serve(options = {}) {
         )
           throw Error("connection-owner-changed");
         state.phase = "starting";
-        state.message = "Reconnecting the existing monitoring task…";
+        state.message =
+          "Verifying the package and updating the existing connector if needed. Your pairing and monitoring data are preserved…";
+        if (!options.resume || options.update) {
+          const manifest = await fs.readFile(
+            path.join(options.bundle || __dirname, "system-runtime-manifest.json"),
+          );
+          const update = await (options.update || ((r) => helper("Update-SystemConnector.ps1", r)))(
+            {
+              deviceId: config.deviceId,
+              server,
+              username: config.accountName,
+              bundle: options.bundle || __dirname,
+              manifestSha256: sha(manifest),
+            },
+          );
+          if (update?.updated) freshAfter = Date.now();
+        }
         await (options.resume || ((r) => helper("Resume-SystemConnector.ps1", r)))({
           deviceId: config.deviceId,
           server,
@@ -310,7 +335,12 @@ async function serve(options = {}) {
       const deadline = Date.now() + (options.heartbeatWait ?? 45000);
       do {
         const report = await status(config);
-        if (report?.ready && report.online) {
+        if (
+          report?.ready &&
+          report.online &&
+          (!freshAfter ||
+            (report.collectorVersion === 1 && Date.parse(report.observedAt) >= freshAfter))
+        ) {
           state.phase = "connected";
           state.online = true;
           state.message =

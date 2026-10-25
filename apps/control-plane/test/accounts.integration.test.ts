@@ -201,6 +201,46 @@ it("protects account metadata and password actions, revokes sessions, preserves 
       online: false,
       actor: owner.userId,
     });
+    const activityRoute = "/v1/workspaces/ws_server20/discovery/activity-settings";
+    const { defaultActivitySettings } = await import("@frevos/contracts");
+    const activityInput = {
+      version: 1,
+      deviceId: preview.deviceId,
+      expectedRevision: 0,
+      settings: defaultActivitySettings,
+    };
+    expect(
+      (await post(activityRoute, activityInput, { ...ownerAuth, "x-csrf-token": "bad" }))
+        .statusCode,
+    ).toBe(403);
+    expect(
+      (await post(activityRoute.replace("ws_server20", "ws_other"), activityInput)).statusCode,
+    ).toBe(404);
+    expect((await post(activityRoute, activityInput, devAuth)).statusCode).toBe(403);
+    expect((await post(activityRoute, activityInput)).statusCode).toBe(200);
+    const contentRoute = "/v1/workspaces/ws_server20/discovery/content";
+    const contentInput = {
+      version: 1,
+      deviceId: preview.deviceId,
+      root: "C:\\",
+      path: "src/file.ts",
+    };
+    expect(
+      (await post(contentRoute, contentInput, { ...ownerAuth, "x-csrf-token": "bad" })).statusCode,
+    ).toBe(403);
+    expect(
+      (await post(contentRoute.replace("ws_server20", "ws_other"), contentInput)).statusCode,
+    ).toBe(404);
+    expect((await deviceRequest("/v1/connector/discovery/content/claim", proof)).statusCode).toBe(
+      401,
+    );
+    expect(
+      (await deviceRequest("/v1/connector/discovery/content/claim", credential)).json(),
+    ).toEqual({ job: null });
+    expect((await get(contentRoute + "/cp_" + "f".repeat(32))).statusCode).toBe(404);
+    expect(
+      (await deviceRequest("/v1/connector/discovery/content/complete", credential)).statusCode,
+    ).toBe(400);
     expect((await server.inject({ method: "GET", url: "/v1/account" })).statusCode).toBe(401);
     expect((await get("/v1/account")).json()).toMatchObject({
       account: { username: "owner.admin" },

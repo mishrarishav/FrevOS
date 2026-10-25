@@ -53,4 +53,97 @@ function within(root, file) {
     (!relative.startsWith(".." + path.sep) && relative !== ".." && !path.isAbsolute(relative))
   );
 }
-module.exports = { excluded, redact, safeEvent, within, pseudoPath };
+const defaultActivitySettings = {
+  version: 1,
+  noiseFolders: [
+    "Temp",
+    "tmp",
+    "cache",
+    "caches",
+    ".codex/vendor_imports",
+    ".codex/tmp",
+    ".vscode/extensions",
+  ],
+  summarySeconds: 30,
+  noiseRetentionDays: 2,
+  noisePercent: 20,
+};
+function activityCategory(event, settings = defaultActivitySettings) {
+  if (event.kind === "gap") return "work";
+  const normalize = (s) => s.replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
+  let file = normalize(event.root + "/" + event.path);
+  const windows = /^[a-z]:/i.test(file);
+  if (windows) file = file.toLowerCase();
+  return settings.noiseFolders.some((folder) => {
+    const rule = windows ? folder.toLowerCase() : folder;
+    return ("/" + file + "/").includes("/" + rule + "/");
+  }) || /\.(?:tmp|temp|swp|swo)$/i.test(event.path)
+    ? "noise"
+    : "work";
+}
+// Independent count AND byte reservations prevent a cache storm evicting Work.
+// Keep original identities/order: acknowledgements still refer to raw events.
+function retainActivity(events, policy, settings = defaultActivitySettings, now = Date.now()) {
+  const fraction = settings.noisePercent / 100;
+  const limits = {
+    noise: Math.floor(policy.maxEvents * fraction),
+    work: policy.maxEvents - Math.floor(policy.maxEvents * fraction),
+  };
+  const budgets = {
+    noise: Math.floor(999_996 * fraction),
+    work: 999_996 - Math.floor(999_996 * fraction),
+  };
+  const counts = { noise: 0, work: 0 },
+    bytes = { noise: 0, work: 0 };
+  const kept = [];
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i],
+      category = activityCategory(e, settings);
+    const days =
+      category === "noise"
+        ? Math.min(policy.retentionDays, settings.noiseRetentionDays)
+        : policy.retentionDays;
+    if (Date.parse(e.at) < now - days * 86400000) continue;
+    const size = Buffer.byteLength(JSON.stringify(e)) + 1;
+    if (counts[category] >= limits[category] || bytes[category] + size > budgets[category])
+      continue;
+    counts[category]++;
+    bytes[category] += size;
+    kept.push(e);
+  }
+  return kept.reverse();
+}
+function summarizeActivity(events, settings = defaultActivitySettings) {
+  const rows = [],
+    latest = new Map();
+  for (const e of [...events].sort((a, b) => Date.parse(a.at) - Date.parse(b.at))) {
+    const category = activityCategory(e, settings);
+    const key = JSON.stringify([e.bootId, e.root, e.path, e.kind, e.source, e.attribution]);
+    const prior = latest.get(key);
+    if (
+      !e.content &&
+      prior &&
+      !prior.content &&
+      Date.parse(e.at) - Date.parse(prior.firstAt) < settings.summarySeconds * 1000
+    ) {
+      prior.count++;
+      prior.at = e.at;
+      continue;
+    }
+    const row = { ...e, category, count: 1, firstAt: e.at };
+    rows.push(row);
+    latest.set(key, row);
+  }
+  return rows.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+}
+module.exports = {
+  excluded,
+  redact,
+  safeEvent,
+  within,
+  pseudoPath,
+  defaultActivitySettings,
+  activityCategory,
+  retainActivity,
+  summarizeActivity,
+};

@@ -3,6 +3,15 @@ import { lstat, mkdir, open, readdir, readFile, unlink } from "node:fs/promises"
 import { createRequire } from "node:module";
 import { join, posix, win32 } from "node:path";
 import {
+  type ActivitySettings,
+  type DiscoveryPolicy,
+  ActivitySettingsInputSchema,
+  ActivitySettingsRecordSchema,
+  CollectorMetricsSchema,
+  defaultActivitySettings,
+  ContentPreviewInputSchema,
+  ContentPreviewJobSchema,
+  type ContentPreviewJob,
   type Client,
   ConnectorIdSchema,
   ConnectorProbeSchema,
@@ -28,7 +37,23 @@ import { ServixDeploymentError } from "./servix-deployment.js";
 
 const safety = createRequire(import.meta.url)("../../../deployment/servix/DiscoverySafety.cjs") as {
   safeEvent(event: DiscoveryEvent): DiscoveryEvent | null;
+  excluded(path: string): boolean;
+  redact(text: string): string;
+  retainActivity<T extends DiscoveryEvent>(
+    events: T[],
+    policy: DiscoveryPolicy,
+    settings: ActivitySettings,
+    now: number,
+  ): T[];
+  activityCategory(event: DiscoveryEvent, settings: ActivitySettings): "work" | "noise";
+  summarizeActivity<T extends DiscoveryEvent>(
+    events: T[],
+    settings: ActivitySettings,
+  ): (T & { category: "work" | "noise"; count: number; firstAt: string })[];
 };
+const CollectorRecord = z
+  .object({ receivedAt: z.iso.datetime(), collector: CollectorMetricsSchema })
+  .strict();
 const StoredObservation = z
   .object({
     actor: z.string(),
@@ -109,6 +134,194 @@ export class SystemDiscovery {
   private async policy(id: string) {
     const value = await this.latest(id + ".policy");
     return value ? DiscoveryPolicyRecordSchema.parse(value) : null;
+  }
+  private async activitySettings(id: string) {
+    const value = await this.latest(id + ".activity");
+    return value ? ActivitySettingsRecordSchema.parse(value) : null;
+  }
+  private async contentJobs() {
+    const names = (await readdir(this.root)).filter((n) => /^cp_[a-f0-9]{32}\.json$/.test(n));
+    if (names.length > 1000) throw new ServixDeploymentError("discovery-content-capacity", 503);
+    const jobs: ContentPreviewJob[] = [];
+    for (const name of names) {
+      const job = ContentPreviewJobSchema.parse(await this.read(name));
+      if (Date.parse(job.createdAt) < this.now().getTime() - 7 * 86400000)
+        await unlink(join(this.root, name));
+      else jobs.push(job);
+    }
+    return jobs;
+  }
+  async requestContent(actor: string, input: unknown) {
+    return this.serial(async () => {
+      const request = ContentPreviewInputSchema.parse(input);
+      const { device, observation } = await this.browseDevice(actor, request.deviceId);
+      if (
+        ![
+          ...(device.source ? [device.source.repository] : []),
+          ...observation.system.disks.map((d) => d.root),
+        ].includes(request.root) ||
+        safety.excluded(request.path)
+      )
+        throw new ServixDeploymentError("discovery-content-scope-denied", 403);
+      const metrics = await this.read(request.deviceId + ".collector.json");
+      if (
+        !metrics ||
+        CollectorRecord.parse(metrics).receivedAt !==
+          ((await this.read(request.deviceId + ".observation.json")) as { receivedAt: string })
+            .receivedAt
+      )
+        throw new ServixDeploymentError("discovery-content-update-required");
+      const jobs = await this.contentJobs();
+      if (
+        jobs.some(
+          (j) =>
+            j.request.deviceId === device.deviceId &&
+            ["queued", "working"].includes(j.status) &&
+            Date.parse(j.expiresAt) > this.now().getTime(),
+        )
+      )
+        throw new ServixDeploymentError("discovery-content-busy");
+      if (
+        jobs.length >= 1000 ||
+        jobs.filter((j) => j.request.deviceId === device.deviceId).length >= 100
+      )
+        throw new ServixDeploymentError("discovery-content-capacity", 503);
+      const job = ContentPreviewJobSchema.parse({
+        version: 1,
+        requestId: "cp_" + randomUUID().replaceAll("-", ""),
+        actor,
+        workspaceId: "ws_server20",
+        request,
+        status: "queued",
+        createdAt: this.now().toISOString(),
+        expiresAt: new Date(this.now().getTime() + 600000).toISOString(),
+      });
+      await this.save(job.requestId + ".json", job, true);
+      return job;
+    });
+  }
+  async content(actor: string, id: string) {
+    if (!/^cp_[a-f0-9]{32}$/.test(id))
+      throw new ServixDeploymentError("discovery-content-not-found", 404);
+    const value = await this.read(id + ".json");
+    const job = value ? ContentPreviewJobSchema.parse(value) : null;
+    const device = (await this.connectors.discoveryDevices(actor)).find(
+      (d) =>
+        d.deviceId === job?.request.deviceId &&
+        d.userId === actor &&
+        d.workspaceAuthorized &&
+        d.status === "active",
+    );
+    if (
+      !job ||
+      job.actor !== actor ||
+      !device ||
+      Date.parse(job.createdAt) < this.now().getTime() - 7 * 86400000
+    )
+      throw new ServixDeploymentError("discovery-content-not-found", 404);
+    return ["queued", "working"].includes(job.status) &&
+      Date.parse(job.expiresAt) <= this.now().getTime()
+      ? { ...job, status: "expired" as const }
+      : job;
+  }
+  async claimContent(credential: string) {
+    return this.serial(async () => {
+      const device = await this.connectors.checkCredential(credential);
+      await this.directory();
+      for (const job of await this.contentJobs())
+        if (
+          job.request.deviceId === device.deviceId &&
+          job.actor === device.userId &&
+          job.status === "queued" &&
+          Date.parse(job.expiresAt) > this.now().getTime()
+        ) {
+          await this.browseDevice(job.actor, device.deviceId);
+          const next = { ...job, status: "working" as const };
+          await this.save(job.requestId + ".json", next);
+          return next;
+        }
+      return null;
+    });
+  }
+  async finishContent(credential: string, input: unknown) {
+    return this.serial(async () => {
+      const device = await this.connectors.checkCredential(credential),
+        result = ContentPreviewJobSchema.parse(input);
+      const job = await this.content(device.userId, result.requestId);
+      if (
+        job.status !== "working" ||
+        !["succeeded", "declined", "failed"].includes(result.status) ||
+        job.request.deviceId !== device.deviceId ||
+        JSON.stringify({
+          ...result,
+          status: job.status,
+          result: undefined,
+          errorCode: undefined,
+        }) !== JSON.stringify({ ...job, result: undefined, errorCode: undefined })
+      )
+        throw new ServixDeploymentError("discovery-content-scope-denied", 403);
+      await this.browseDevice(job.actor, device.deviceId);
+      if (result.status === "succeeded") {
+        const r = result.result;
+        if (
+          !r ||
+          result.errorCode ||
+          r.before !== undefined ||
+          r.beforeAt !== undefined ||
+          Date.parse(r.approvedAt) < Date.parse(job.createdAt) ||
+          Date.parse(r.observedAt) < Date.parse(r.approvedAt) ||
+          Date.parse(r.observedAt) > this.now().getTime() + 60000
+        )
+          throw new ServixDeploymentError("discovery-content-scope-denied", 403);
+        const previous = (await this.contentJobs())
+          .filter(
+            (j) =>
+              j.status === "succeeded" &&
+              j.actor === job.actor &&
+              j.request.deviceId === device.deviceId &&
+              j.request.root === job.request.root &&
+              j.request.path === job.request.path &&
+              j.result,
+          )
+          .sort((a, b) => Date.parse(b.result!.observedAt) - Date.parse(a.result!.observedAt))[0];
+        result.result = {
+          ...r,
+          after: safety.redact(r.after),
+          ...(previous?.result
+            ? { before: safety.redact(previous.result.after), beforeAt: previous.result.observedAt }
+            : {}),
+        };
+      } else if (result.result)
+        throw new ServixDeploymentError("discovery-content-scope-denied", 403);
+      await this.save(job.requestId + ".json", result);
+      return result;
+    });
+  }
+  async configureActivity(actor: string, input: unknown) {
+    return this.serial(async () => {
+      const body = ActivitySettingsInputSchema.parse(input);
+      const device = (await this.connectors.discoveryDevices(actor)).find(
+        (d) => d.deviceId === body.deviceId && d.status === "active",
+      );
+      if (!device || !device.workspaceAuthorized || device.userId !== actor)
+        throw new ServixDeploymentError("discovery-device-access-denied", 403);
+      const prior = await this.activitySettings(body.deviceId);
+      if ((prior?.revision ?? 0) !== body.expectedRevision)
+        throw new ServixDeploymentError("discovery-revision-changed");
+      const { expectedRevision: _, ...configuration } = body;
+      const record = ActivitySettingsRecordSchema.parse({
+        ...configuration,
+        revision: body.expectedRevision + 1,
+        actor,
+        updatedAt: this.now().toISOString(),
+      });
+      await this.save(
+        `${body.deviceId}.activity.r${String(record.revision).padStart(8, "0")}.json`,
+        record,
+        true,
+      );
+      return record;
+    });
   }
   private async browseDevice(actor: string, id: string) {
     const device = (await this.connectors.discoveryDevices(actor)).find(
@@ -267,7 +480,15 @@ export class SystemDiscovery {
   async policyForConnector(credential: string) {
     const device = await this.connectors.checkCredential(credential);
     const record = await this.policy(device.deviceId);
-    return { revision: record?.revision ?? 0, policy: record?.policy ?? defaultDiscoveryPolicy };
+    const activity = await this.activitySettings(device.deviceId);
+    return {
+      revision: record?.revision ?? 0,
+      policy: record?.policy ?? defaultDiscoveryPolicy,
+      activity: {
+        revision: activity?.revision ?? 0,
+        settings: activity?.settings ?? defaultActivitySettings,
+      },
+    };
   }
   async configure(actor: string, input: unknown) {
     return this.serial(async () => {
@@ -376,10 +597,20 @@ export class SystemDiscovery {
           seen.add(key);
         }
       }
-      history = history.slice(-policy.maxEvents);
-      // Durable, bounded history. The agent's coverage explicitly records its own loss.
-      while (Buffer.byteLength(JSON.stringify(history)) > 1_000_000) history.shift();
+      const activity = await this.activitySettings(device.deviceId);
+      history = safety.retainActivity(
+        history,
+        policy,
+        activity?.settings ?? defaultActivitySettings,
+        this.now().getTime(),
+      );
       observation.events = [];
+      // New telemetry lives outside the old strict record for rollback compatibility.
+      const collector = observation.collector;
+      delete observation.collector;
+      const receivedAt = this.now().toISOString();
+      if (collector)
+        await this.save(device.deviceId + ".collector.json", { receivedAt, collector });
       const cursors = retainedCursors.filter((c) => c.bootId !== observation.bootId);
       if (cursors.length >= 32) throw new ServixDeploymentError("discovery-epoch-capacity", 503);
       cursors.push({
@@ -389,7 +620,7 @@ export class SystemDiscovery {
       });
       const stored = StoredObservation.parse({
         actor: device.userId,
-        receivedAt: this.now().toISOString(),
+        receivedAt,
         observation,
         source: proof ?? prior?.source ?? null,
         cursors,
@@ -464,18 +695,30 @@ export class SystemDiscovery {
       !devices.some((d) => d.deviceId === ConnectorIdSchema.parse(historyDeviceId))
     )
       throw new ServixDeploymentError("discovery-device-access-denied", 403);
+    await this.directory();
+    const contentRequests = historyDeviceId ? await this.contentJobs() : [];
     const systems = await Promise.all(
       devices.map(async (d) => {
         const policy = await this.policy(d.deviceId),
           value = await this.read(d.deviceId + ".observation.json");
         const record = value ? StoredObservation.parse(value) : undefined;
+        const configuration = await this.activitySettings(d.deviceId);
+        const settings = configuration?.settings ?? defaultActivitySettings;
+        const metrics = await this.read(d.deviceId + ".collector.json");
+        const metricRecord = metrics ? CollectorRecord.parse(metrics) : null;
         const cutoff = this.now().getTime() - (policy?.policy.retentionDays ?? 7) * 86400000;
-        const history = (record?.history ?? [])
+        const safeHistory = (record?.history ?? [])
           .filter((e) => Date.parse(e.at) >= cutoff)
           .flatMap((e) => {
             const safe = safety.safeEvent(e);
             return safe ? [{ ...safe, bootId: e.bootId }] : [];
           });
+        const history = safety.retainActivity(
+          safeHistory,
+          policy?.policy ?? defaultDiscoveryPolicy,
+          settings,
+          this.now().getTime(),
+        );
         return {
           deviceId: d.deviceId,
           name: d.name,
@@ -491,6 +734,35 @@ export class SystemDiscovery {
           observation: record?.observation ?? null,
           history: historyDeviceId === d.deviceId ? history : history.slice(-20),
           historyCount: history.length,
+          contentRequests:
+            historyDeviceId === d.deviceId &&
+            d.userId === actor &&
+            d.workspaceAuthorized &&
+            d.status === "active"
+              ? contentRequests
+                  .filter((j) => j.actor === actor && j.request.deviceId === d.deviceId)
+                  .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+                  .slice(0, 20)
+                  .map((j) =>
+                    ["queued", "working"].includes(j.status) &&
+                    Date.parse(j.expiresAt) <= this.now().getTime()
+                      ? { ...j, status: "expired" as const }
+                      : j,
+                  )
+              : [],
+          collector:
+            record && metricRecord?.receivedAt === record.receivedAt
+              ? metricRecord.collector
+              : null,
+          activity: {
+            configuration,
+            settings,
+            workCount: history.filter((e) => safety.activityCategory(e, settings) === "work")
+              .length,
+            noiseCount: history.filter((e) => safety.activityCategory(e, settings) === "noise")
+              .length,
+            rows: historyDeviceId === d.deviceId ? safety.summarizeActivity(history, settings) : [],
+          },
         };
       }),
     );
@@ -519,6 +791,7 @@ export class SystemDiscovery {
   async prune() {
     return this.serial(async () => {
       await this.directory();
+      await this.contentJobs();
       const files = (await readdir(this.root)).filter((n) =>
         /^fc_[a-f0-9]{32}\.observation\.json$/.test(n),
       );
@@ -527,7 +800,13 @@ export class SystemDiscovery {
         const record = StoredObservation.parse(await this.read(file));
         const policy = await this.policy(file.slice(0, 35));
         const cutoff = this.now().getTime() - (policy?.policy.retentionDays ?? 7) * 86400000;
-        const retained = record.history.filter((e) => Date.parse(e.at) >= cutoff);
+        const settings = await this.activitySettings(file.slice(0, 35));
+        const retained = safety.retainActivity(
+          record.history.filter((e) => Date.parse(e.at) >= cutoff),
+          policy?.policy ?? defaultDiscoveryPolicy,
+          settings?.settings ?? defaultActivitySettings,
+          this.now().getTime(),
+        );
         if (retained.length !== record.history.length)
           await this.save(file, { ...record, history: retained });
       }

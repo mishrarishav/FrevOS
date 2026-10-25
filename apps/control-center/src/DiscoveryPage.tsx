@@ -1,4 +1,8 @@
 import {
+  type ActivitySettings,
+  ActivitySettingsInputSchema,
+  defaultActivitySettings,
+  type ContentPreviewJob,
   type DeliveryPlanInput,
   DeliveryPlanInputSchema,
   type DeliveryReport,
@@ -67,9 +71,13 @@ export function DiscoveryPage({
   const [activityDay, setActivityDay] = useState("");
   const [activityPath, setActivityPath] = useState("");
   const [activityLimit, setActivityLimit] = useState(100);
-  const [settings, setSettings] = useState<{ system: System; policy: DiscoveryPolicy } | null>(
-    null,
-  );
+  const [activitySegment, setActivitySegment] = useState<"work" | "noise" | "all">("work");
+  const [preview, setPreview] = useState<ContentPreviewJob | null>(null);
+  const [settings, setSettings] = useState<{
+    system: System;
+    policy: DiscoveryPolicy;
+    activity: ActivitySettings;
+  } | null>(null);
   const [editor, setEditor] = useState<{ report: DeliveryReport; plan: DeliveryPlanInput } | null>(
     null,
   );
@@ -118,6 +126,49 @@ export function DiscoveryPage({
     setActivityDay("");
     setActivityPath("");
     setActivityLimit(100);
+    setActivitySegment("work");
+    setPreview(null);
+  }
+  useEffect(() => {
+    if (!preview || !["queued", "working"].includes(preview.status) || !api.contentPreview) return;
+    const abort = new AbortController();
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      try {
+        const next = await api.contentPreview!(workspaceId, preview.requestId, abort.signal);
+        if (!abort.signal.aborted) setPreview(next);
+      } catch {
+        if (!abort.signal.aborted)
+          setNotice("Content request status unavailable. No additional file access is granted.");
+      }
+      if (!abort.signal.aborted) timer = setTimeout(() => void poll(), 2000);
+    };
+    timer = setTimeout(() => void poll(), 1000);
+    return () => {
+      abort.abort();
+      clearTimeout(timer);
+    };
+  }, [api, workspaceId, preview]);
+  async function requestContent(system: System, root: string, path: string) {
+    if (busy || !api.requestContent) return;
+    setBusy(true);
+    try {
+      setPreview(
+        await api.requestContent(workspaceId, {
+          version: 1,
+          deviceId: system.deviceId,
+          root,
+          path,
+        }),
+      );
+      setNotice("");
+    } catch {
+      setNotice(
+        "File request unavailable. Update the connector once, use an allowed file on an online system and finish any pending request first.",
+      );
+    } finally {
+      setBusy(false);
+    }
   }
   useEffect(() => {
     if (!userId) return;
@@ -139,7 +190,7 @@ export function DiscoveryPage({
       /* Optional preference. */
     }
   }
-  async function save(kind: "policy" | "plan") {
+  async function save(kind: "policy" | "plan" | "activity") {
     if (busy) return;
     setBusy(true);
     setNotice("");
@@ -152,6 +203,17 @@ export function DiscoveryPage({
           policy: settings.policy,
         });
         await api.discoveryPolicy(workspaceId, input);
+        setSettings(null);
+      } else if (kind === "activity" && settings && api.discoveryActivity) {
+        await api.discoveryActivity(
+          workspaceId,
+          ActivitySettingsInputSchema.parse({
+            version: 1,
+            deviceId: settings.system.deviceId,
+            expectedRevision: settings.system.activity?.configuration?.revision ?? 0,
+            settings: settings.activity,
+          }),
+        );
         setSettings(null);
       } else if (kind === "plan" && editor && api.deliveryPlan) {
         await api.deliveryPlan(workspaceId, DeliveryPlanInputSchema.parse(editor.plan));
@@ -218,6 +280,7 @@ export function DiscoveryPage({
           setSettings({
             system: s,
             policy: structuredClone(s.policy?.policy ?? defaultDiscoveryPolicy),
+            activity: structuredClone(s.activity?.settings ?? defaultActivitySettings),
           });
         }}
       >
@@ -337,17 +400,30 @@ export function DiscoveryPage({
     </div>
   );
   const selected = state.systems.find((s) => s.deviceId === details);
-  const activity = (selected?.history ?? [])
+  useEffect(() => {
+    if (!selected) return;
+    const retained = selected.contentRequests ?? [];
+    if (!preview && retained.length) setPreview(retained[0]!);
+    else if (preview) {
+      const latest = retained.find((j) => j.requestId === preview.requestId);
+      if (latest && latest.status !== preview.status) setPreview(latest);
+    }
+  }, [selected, preview]);
+  const activity = (
+    selected?.activity?.rows ??
+    (selected?.history ?? []).map((e) => ({ ...e, category: "work", count: 1, firstAt: e.at }))
+  )
     .filter((event) => {
       const date = new Date(event.at);
       const day = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
       return (
+        (activitySegment === "all" || event.category === activitySegment) &&
         (!activityDay || day === activityDay) &&
         (!activityPath ||
           `${event.root}/${event.path}`.toLowerCase().includes(activityPath.toLowerCase()))
       );
     })
-    .reverse();
+    .sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
   const close = () => {
     if (!busy) {
       setSettings(null);
@@ -462,6 +538,9 @@ export function DiscoveryPage({
                         onClick={() =>
                           setSettings({
                             system: binding,
+                            activity: structuredClone(
+                              binding.activity?.settings ?? defaultActivitySettings,
+                            ),
                             policy: structuredClone(
                               binding.policy?.policy ?? defaultDiscoveryPolicy,
                             ),
@@ -608,6 +687,12 @@ export function DiscoveryPage({
                 </select>
               </label>
               {health(selected)}
+              <p>CPU and RAM above describe the whole computer.</p>
+              <p>
+                {selected.collector
+                  ? `Connector: ${(selected.collector.rss / 1048576).toFixed(1)} MB RAM (RSS), ${(selected.collector.heapUsed / 1048576).toFixed(1)} MB JavaScript heap · pending jobs ${selected.collector.pendingJobs} / ${selected.collector.maxPendingJobs}`
+                  : "Connector resource metrics unavailable from this installed version. Update the connector once for bounded processing and its own RAM measurement."}
+              </p>
               <p>
                 {selected.profileId
                   ? selected.sourceFresh
@@ -655,6 +740,104 @@ export function DiscoveryPage({
                 Notifications may coalesce edits; gaps are not reconstructed.
               </p>
               <h3>File activity</h3>
+              {selected.contentRequests?.length ? (
+                <label>
+                  Recent file requests
+                  <select
+                    value={preview?.requestId ?? ""}
+                    onChange={(e) =>
+                      setPreview(
+                        selected.contentRequests!.find((j) => j.requestId === e.target.value) ??
+                          null,
+                      )
+                    }
+                  >
+                    {selected.contentRequests.map((j) => (
+                      <option key={j.requestId} value={j.requestId}>
+                        {j.status} · {j.request.path} · {new Date(j.createdAt).toLocaleString()}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              <p>
+                Request a file snapshot below. The computer's user must approve that exact request
+                in a local browser page. Earlier changes are available only when an earlier approved
+                snapshot exists; file notifications cannot reconstruct old content.
+              </p>
+              {preview ? (
+                <section className="discovery-event" aria-label="Requested file content">
+                  <h3>Requested file content · {preview.status}</h3>
+                  <p>
+                    {preview.request.root} / {preview.request.path}
+                  </p>
+                  {["queued", "working"].includes(preview.status) ? (
+                    <p>
+                      Waiting for one-time approval on that computer. Expires{" "}
+                      {new Date(preview.expiresAt).toLocaleString()}.
+                    </p>
+                  ) : null}
+                  {preview.errorCode ? <p>{preview.errorCode.replaceAll("-", " ")}</p> : null}
+                  {preview.result ? (
+                    <>
+                      <p>
+                        Masked UTF-8 text, at most 8 KiB. Comparing approved snapshots; intervening
+                        edits may be missing.
+                      </p>
+                      <div className="discovery-diff">
+                        <section>
+                          <h4>
+                            Before ·{" "}
+                            {preview.result.beforeAt
+                              ? new Date(preview.result.beforeAt).toLocaleString()
+                              : "Baseline unavailable"}
+                          </h4>
+                          <pre>
+                            {preview.result.before ?? "No earlier approved snapshot was retained."}
+                          </pre>
+                        </section>
+                        <section>
+                          <h4>Current · {new Date(preview.result.observedAt).toLocaleString()}</h4>
+                          <pre>{preview.result.after}</pre>
+                        </section>
+                      </div>
+                    </>
+                  ) : null}
+                </section>
+              ) : null}
+              <label>
+                Activity segment
+                <select
+                  value={activitySegment}
+                  onChange={(e) => {
+                    setActivitySegment(e.target.value as "work" | "noise" | "all");
+                    setActivityLimit(100);
+                  }}
+                >
+                  <option value="work">
+                    Work / other activity ({selected.activity?.workCount ?? selected.historyCount})
+                  </option>
+                  <option value="noise">
+                    Temp / Cache / Tooling ({selected.activity?.noiseCount ?? 0})
+                  </option>
+                  <option value="all">All activity ({selected.historyCount})</option>
+                </select>
+              </label>
+              <p>
+                Path categories help review activity; they do not prove productive work. Summaries
+                count retained notifications, not edits. Separate event and byte quotas discard the
+                oldest activity in each segment. Excluded sensitive paths stay excluded.
+              </p>
+              <p>
+                Temp / Cache / Tooling: up to {selected.activity?.settings.noisePercent ?? 20}% of
+                the event and storage budget, retained for up to{" "}
+                {Math.min(
+                  selected.policy?.policy.retentionDays ?? 7,
+                  selected.activity?.settings.noiseRetentionDays ?? 2,
+                )}{" "}
+                days. Matching metadata notifications are summarized over{" "}
+                {selected.activity?.settings.summarySeconds ?? 30} seconds.
+              </p>
               <div className="discovery-form-grid">
                 <label>
                   Day (your local time)
@@ -687,6 +870,29 @@ export function DiscoveryPage({
                     <small>
                       {new Date(e.at).toLocaleString()} · {e.root}
                     </small>
+                    {e.count > 1 ? (
+                      <small>
+                        {e.count} retained notifications ·{" "}
+                        {new Date(e.firstAt).toLocaleTimeString()}–
+                        {new Date(e.at).toLocaleTimeString()}
+                      </small>
+                    ) : null}
+                    {e.kind !== "gap" ? (
+                      <button
+                        type="button"
+                        className="button secondary"
+                        disabled={
+                          busy ||
+                          !selected.online ||
+                          !selected.collector ||
+                          selected.userId !== userId ||
+                          (!!preview && ["queued", "working"].includes(preview.status))
+                        }
+                        onClick={() => void requestContent(selected, e.root, e.path)}
+                      >
+                        Request file content
+                      </button>
+                    ) : null}
                     <small>
                       {typeof e.attribution === "object"
                         ? `OS audit: ${e.attribution.user} · ${e.attribution.process} · PID ${e.attribution.pid} · record ${e.attribution.recordId}`
@@ -756,6 +962,86 @@ export function DiscoveryPage({
               </div>
             </header>
             <div className="discovery-scroll discovery-form">
+              <section>
+                <h3>Activity segments and summaries</h3>
+                <p>
+                  These settings apply on the server immediately. Updated collectors also reserve
+                  their local buffers. They do not enable collection of excluded files or file
+                  contents.
+                </p>
+                <label>
+                  Temp / cache / tooling folders (one relative path per line, matched at a folder
+                  boundary)
+                  <textarea
+                    value={settings.activity.noiseFolders.join("\n")}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        activity: {
+                          ...settings.activity,
+                          noiseFolders: e.target.value.split("\n").filter(Boolean),
+                        },
+                      })
+                    }
+                  />
+                </label>
+                <label>
+                  Summary interval (5–300 seconds)
+                  <input
+                    type="number"
+                    min={5}
+                    max={300}
+                    value={settings.activity.summarySeconds}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        activity: { ...settings.activity, summarySeconds: Number(e.target.value) },
+                      })
+                    }
+                  />
+                </label>
+                <label>
+                  Temp / cache retention (1–30 days, within overall retention)
+                  <input
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={settings.activity.noiseRetentionDays}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        activity: {
+                          ...settings.activity,
+                          noiseRetentionDays: Number(e.target.value),
+                        },
+                      })
+                    }
+                  />
+                </label>
+                <label>
+                  Temp / cache quota (5–50% of events and bytes)
+                  <input
+                    type="number"
+                    min={5}
+                    max={50}
+                    value={settings.activity.noisePercent}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        activity: { ...settings.activity, noisePercent: Number(e.target.value) },
+                      })
+                    }
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="button secondary"
+                  disabled={busy}
+                  onClick={() => void save("activity")}
+                >
+                  Save activity segments
+                </button>
+              </section>
               <label>
                 <input
                   type="checkbox"

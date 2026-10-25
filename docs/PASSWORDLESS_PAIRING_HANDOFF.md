@@ -1,6 +1,7 @@
 # Passwordless system pairing — 2026-10-25
 
-Status: implementation/local validation PASS; configured rollout pending.
+Status: PASS — implementation, configured live rollout and exact downloaded ZIP
+verification complete. No real other laptop was silently enrolled or approved.
 Repository: `D:\FREVOS`; worktree `.local/worktrees/servix-dashboard`.
 Branch: `codex/passwordless-system-pairing`.
 Base/deployed source: `e8716d71631136ebc4fa2b54dde3a68de1e10977`.
@@ -106,8 +107,52 @@ synthetic account are verified. Real customer tasks remain untouched.
 - `docs/adr/0059-passwordless-system-pairing.md`
 - `docs/adr/README.md`
 
-Final source SHA, deployment/ZIP identities, diff stat and live receipts are
-added after configured publication. This Windows pilot does not change Linux
+## Final configured delivery
+
+Actual DevSetu UI request `pr_b41479e0865369cab52f9861e90e5434` publishes resulting
+source commit `1d79cc26fd41ebf178e1ade8a76f1f595cd15997` on the task branch.
+The isolated frozen build and independent SYSTEM activation succeeded. Active
+manifest:
+`71a2a55e03d35179462fe817c44246e5487267c52abef56352a050fdb15dab6a`.
+Archive: 131,442,004 bytes; SHA256
+`9fbe66e12a4346e9e570f09bd0c01ca327123bfd71602c64b0a67b1414fe60c4`.
+Native receipt confirms HTTP/UI 200, databaseWritten false, sibling preservation
+and retained private recovery backups. No manual release Git/build or PR/merge
+was substituted for the configured pipeline.
+
+- `node .local/Download-PasswordlessPackage.cjs`: exit 0. The actual HTTP
+  200/no-store Windows download matches the sealed manifest entry byte for byte.
+  ZIP size 38,993,069 bytes, SHA256
+  `025ad131629641b3955843eee60002eb6a6e2db8c3132deee458991b130a06da`.
+- Its own `node.exe` executes `.local/Test-PasswordlessWindows.cjs` against the
+  downloaded/extracted package: exit 0. The real PostgreSQL/Fastify/account/
+  browser/native ACL/DPAPI/Limited task test again passes, with one owner browser
+  login, zero installer account login, one proposal/approval/device, first health,
+  continued monitoring after setup closes, and passwordless fresh setup resume.
+  Three viewports and zero page errors; Node v24.19.0. Synthetic isolated
+  enrollment only. Owned fixture task/data are cleaned up after scope checks.
+- `node .local/Test-PasswordlessLiveUi.cjs`: exit 0. Actual live Discovery opens
+  the approval dialog with no password field. Desktop/mobile checks pass. Missing
+  browser authentication, foreign proposal origin and missing device credential
+  are denied; no real proposal/approval is created. One initial read-only browser
+  navigation hit `ERR_NETWORK_CHANGED`; a fresh browser retry passed.
+- `node .local/ArtifactBaseline.cjs verify passwordless-pairing`: exit 0; three
+  profiles, two pipelines, eleven environment hashes, the exact active customer
+  release and stopped local services are unchanged.
+- `node .local/component-native-receipts.cjs native-passwordless-pairing`: exit
+  0; operator receipt matches the active manifest and preserves siblings.
+- `git diff --check`: exit 0. Published base-to-result diff: 24 files,
+  2,211 insertions, 19 deletions, including preserved prior result docs. Final
+  handoff/Current State results are documentation-only local updates saved after
+  publication. No further implementation change is pending.
+
+Readiness: use the new Windows ZIP, open Setup.cmd, enter the configured server
+origin and optional local metadata choice, then approve its code from Discovery
+in the authorized user's own logged-in browser. No administrator password needs
+to be entered or shared on the new computer. The real target still needs that
+specific human approval and its first health report.
+
+This Windows pilot does not change Linux
 project setup, invite/send messages, grant administrator/project/deployment
 rights, touch customer Production or exit Phase 4. A new real laptop still needs
 the human's explicit browser approval; that is not silently automated here.

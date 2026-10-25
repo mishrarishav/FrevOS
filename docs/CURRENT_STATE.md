@@ -1,8 +1,22 @@
 # DevSetu Current State
 
-Last updated: 2026-10-25
+Last updated: 2026-10-26
 
-## Passwordless system pairing (local PASS; rollout pending, 2026-10-25)
+## Bounded activity and requested file snapshots (implementation preflight, 2026-10-26)
+
+ADRs 0060/0061 on `codex/discovery-activity-noise` stack on deployed
+`1d79cc26fd41ebf178e1ade8a76f1f595cd15997`. L-1465 is reported by its owner to
+be paired and reporting system monitoring. Implement configurable activity
+segments/summaries, independently bounded history, bounded collector processing,
+same-device explicit local update and one-time locally approved masked file
+snapshots. Native update/interruption recovery and real local consent browser
+preflight pass. Full local CI passes 311 tests and all required gates; configured
+rollout remains pending. The actual owner's
+laptop is not claimed updated. Preserve preceding final-result documentation.
+No customer/Production/data changes. See
+[handoff and follow-up scope](ACTIVITY_MONITORING_HANDOFF.md).
+
+## Passwordless system pairing (bounded Windows pilot PASS, 2026-10-25)
 
 The owner does not authorize sharing the administrator password with a new
 computer. ADR 0059, branch `codex/passwordless-system-pairing`, stacks on deployed
@@ -21,7 +35,21 @@ Windows ZIP, actual native ACL/DPAPI/Limited task and real isolated Fastify/
 PostgreSQL/browser test pass with separate installer/owner contexts, one owner
 login, one proposal/approval/device, fresh health and passwordless task resume.
 Existing configuration/environment/customer release baseline is captured.
-Configured rollout remains pending. See [handoff](PASSWORDLESS_PAIRING_HANDOFF.md).
+Final UI request `pr_b41479e0865369cab52f9861e90e5434` is live at resulting source
+`1d79cc26fd41ebf178e1ade8a76f1f595cd15997`, manifest
+`71a2a55e03d35179462fe817c44246e5487267c52abef56352a050fdb15dab6a`.
+Frozen isolated CI and independent SYSTEM activation pass; HTTP/UI 200,
+databaseWritten false and siblings preserved. The actual 38,993,069-byte Windows
+ZIP matches sealed SHA256
+`025ad131629641b3955843eee60002eb6a6e2db8c3132deee458991b130a06da`.
+Its own Node v24.19.0 again passes the real isolated two-browser/native/DPAPI/task
+flow: one owner login, zero installer logins, one proposal/approval/device,
+fresh health, continued monitoring and passwordless fresh-setup resume. Live
+approval UI and deny checks pass; a transient network-change browser failure
+passed on fresh retry. All three profiles, two pipelines, eleven environments
+and the exact customer release/stopped services remain unchanged. No real other
+laptop is claimed paired; its owner must approve the specific code. See
+[handoff](PASSWORDLESS_PAIRING_HANDOFF.md).
 
 ## System-first pairing correction (bounded Windows pilot PASS, 2026-10-25)
 

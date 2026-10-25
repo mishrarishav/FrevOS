@@ -7,6 +7,7 @@ import {
   type DeliveryPlanInput,
   type DiscoveryObservation,
   defaultDiscoveryPolicy,
+  defaultActivitySettings,
   ProjectSchema,
 } from "@frevos/contracts";
 import { afterEach, expect, it } from "vitest";
@@ -14,6 +15,158 @@ import { DeveloperConnectorStore } from "../src/developer-connectors.js";
 import { SystemDiscovery } from "../src/system-discovery.js";
 
 const cleanups: (() => Promise<unknown>)[] = [];
+it("applies revisioned noise settings to legacy events, reserves Work and enforces owner/expiry/one-time file previews", async () => {
+  const f = await fixture();
+  const input = {
+    version: 1,
+    deviceId: f.alice.deviceId,
+    expectedRevision: 0,
+    settings: defaultActivitySettings,
+  };
+  await expect(f.store.configureActivity("usr_bob", input)).rejects.toThrow(
+    "discovery-device-access-denied",
+  );
+  await f.store.configureActivity("usr_alice", input);
+  await expect(f.store.configureActivity("usr_alice", input)).rejects.toThrow(
+    "discovery-revision-changed",
+  );
+  await f.store.configure("usr_alice", f.policy);
+  const observation = {
+    ...f.observation,
+    policyRevision: 1,
+    collector: {
+      version: 1 as const,
+      rss: 10000000,
+      heapUsed: 1000000,
+      pendingJobs: 0,
+      maxPendingJobs: 1257 as const,
+    },
+  };
+  for (let batch = 0; batch < 10; batch++)
+    await f.store.observe(f.alice.credential, {
+      ...observation,
+      events: Array.from({ length: 20 }, (_, i) => ({
+        sequence: batch * 20 + i + 1,
+        at: f.clock().toISOString(),
+        root: "C:\\fixture",
+        path: batch < 4 ? "src/work.ts" : "Temp/cache.tmp",
+        kind: "modified",
+        source: "filesystem-notification",
+        attribution: "unavailable",
+      })),
+    });
+  const state = (await f.store.state("usr_alice", f.alice.deviceId)).systems[0]!;
+  expect(state.activity).toMatchObject({ workCount: 80, noiseCount: 20 });
+  expect(state.activity!.rows).toHaveLength(2);
+  expect(state.collector).toMatchObject({ rss: 10000000 });
+  const raw = JSON.parse(
+    await readFile(join(f.root, "discovery", f.alice.deviceId + ".observation.json"), "utf8"),
+  );
+  expect(raw.observation.collector).toBeUndefined();
+  const request = {
+    version: 1,
+    deviceId: f.alice.deviceId,
+    root: "C:\\fixture",
+    path: "src/work.ts",
+  };
+  await expect(f.store.requestContent("usr_bob", request)).rejects.toThrow();
+  await expect(f.store.requestContent("usr_alice", { ...request, path: ".env" })).rejects.toThrow();
+  await expect(f.store.requestContent("usr_alice", { ...request, root: "Z:\\" })).rejects.toThrow();
+  const first = await f.store.requestContent("usr_alice", request);
+  await expect(f.store.content("usr_bob", first.requestId)).rejects.toThrow();
+  await expect(f.store.requestContent("usr_alice", request)).rejects.toThrow(
+    "discovery-content-busy",
+  );
+  const working = (await f.store.claimContent(f.alice.credential))!;
+  await expect(
+    f.store.finishContent(f.bob.credential, { ...working, status: "declined" }),
+  ).rejects.toThrow();
+  const result = await f.store.finishContent(f.alice.credential, {
+    ...working,
+    status: "succeeded",
+    result: {
+      approvedAt: f.clock().toISOString(),
+      observedAt: f.clock().toISOString(),
+      after: 'const value = 1;\nconst password = "SYNTHETIC_PRIVATE";',
+    },
+  });
+  expect(result.result!.after).not.toContain("SYNTHETIC_PRIVATE");
+  expect(result.result!.before).toBeUndefined();
+  await expect(f.store.finishContent(f.alice.credential, result)).rejects.toThrow();
+  await f.store.requestContent("usr_alice", request);
+  const second = (await f.store.claimContent(f.alice.credential))!;
+  const compared = await f.store.finishContent(f.alice.credential, {
+    ...second,
+    status: "succeeded",
+    result: {
+      approvedAt: f.clock().toISOString(),
+      observedAt: f.clock().toISOString(),
+      after: "const value = 2;",
+    },
+  });
+  expect(compared.result!.before).toContain("const value = 1;");
+  expect(JSON.stringify(compared)).not.toContain("SYNTHETIC_PRIVATE");
+  const expiring = await f.store.requestContent("usr_alice", request);
+  f.advance(600001);
+  expect((await f.store.content("usr_alice", expiring.requestId)).status).toBe("expired");
+  f.allowed.delete("usr_alice");
+  await expect(f.store.content("usr_alice", first.requestId)).rejects.toThrow();
+});
+it("denies unsupported collectors and redirected, unapproved or forged content results; expires retained requests", async () => {
+  const f = await fixture(),
+    request = { version: 1, deviceId: f.alice.deviceId, root: "C:\\fixture", path: "src/code.ts" };
+  await f.store.observe(f.alice.credential, f.observation);
+  await expect(f.store.requestContent("usr_alice", request)).rejects.toThrow(
+    "discovery-content-update-required",
+  );
+  await expect(f.store.content("usr_alice", "bad")).rejects.toThrow();
+  await expect(f.store.content("usr_alice", "cp_" + "f".repeat(32))).rejects.toThrow();
+  await f.store.observe(f.alice.credential, {
+    ...f.observation,
+    collector: { version: 1, rss: 10, heapUsed: 5, pendingJobs: 0, maxPendingJobs: 1257 },
+  });
+  await f.store.requestContent("usr_alice", request);
+  const job = (await f.store.claimContent(f.alice.credential))!;
+  const result = {
+    ...job,
+    status: "succeeded",
+    result: {
+      approvedAt: f.clock().toISOString(),
+      observedAt: f.clock().toISOString(),
+      after: "current",
+    },
+  };
+  await expect(
+    f.store.finishContent(f.alice.credential, {
+      ...result,
+      request: { ...request, path: "other.ts" },
+    }),
+  ).rejects.toThrow();
+  await expect(
+    f.store.finishContent(f.alice.credential, { ...result, result: undefined }),
+  ).rejects.toThrow();
+  await expect(
+    f.store.finishContent(f.alice.credential, {
+      ...result,
+      result: { ...result.result, before: "invented" },
+    }),
+  ).rejects.toThrow();
+  await expect(
+    f.store.finishContent(f.alice.credential, { ...result, status: "declined" }),
+  ).rejects.toThrow();
+  expect(
+    (
+      await f.store.finishContent(f.alice.credential, {
+        ...job,
+        status: "declined",
+        errorCode: "content-approval-declined",
+      })
+    ).result,
+  ).toBeUndefined();
+  f.advance(8 * 86400000);
+  await f.store.prune();
+  await expect(f.store.content("usr_alice", job.requestId)).rejects.toThrow();
+});
 afterEach(async () => {
   for (const fn of cleanups.splice(0).reverse()) await fn();
 });
@@ -164,6 +317,7 @@ it("scopes observations/policies and project plans to verified workspace actors;
   expect(await f.store.policyForConnector(f.alice.credential)).toEqual({
     revision: 0,
     policy: defaultDiscoveryPolicy,
+    activity: { revision: 0, settings: defaultActivitySettings },
   });
   expect(
     await f.store.observe(f.alice.credential, { ...f.observation, policyRevision: 1 }),

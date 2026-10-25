@@ -13,8 +13,12 @@ DevSetu - connect this Windows computer
 
 System monitoring does not require Git, a project, or an empty code folder.
 It reports CPU, RAM, operating system and drive space. Optional file activity
-collects bounded metadata from readable local drives with configured exclusions;
-it does not upload file contents. History starts after tracking is enabled.
+collects bounded metadata from readable local drives with configured exclusions.
+It does not automatically upload file contents. An explicit file-content request
+opens a separate local approval page for that exact file once (UTF-8, at most
+8 KiB, sensitive paths excluded and secret lines masked). Declining or expiry
+does not read the file. Comparisons need earlier retained approved snapshots;
+notifications cannot reconstruct earlier file contents.
 
 Projects are added separately in DevSetu. Use Setup-Project.cmd only when you
 explicitly want to bind this computer to a configured project Git checkout.
@@ -25,3 +29,15 @@ VPN/account issue and use Retry connection. Keep the launcher open during setup.
 After a successful installation, reopening Setup.cmd reuses its protected
 connection without asking for the administrator password. Setup-Account.cmd
 keeps the older account-login setup for explicit compatibility use.
+
+Updating an already paired system: download the current ZIP from your trusted
+DevSetu server, extract it and open its Setup.cmd. Click Connect this computer
+with the saved server. Setup verifies and updates only this user's existing
+connector, preserving its device identity, credential, task and monitoring data.
+No uninstall, account password or new pairing approval is required. The previous
+runtime is kept privately for recovery (at most three update staging copies;
+further updates fail closed rather than growing recovery storage indefinitely).
+This is an explicit local update; existing versions do not update themselves.
+The updated collector bounds pending work and reserves separate activity quotas;
+server segments/summaries already work with older connectors. Read-only text
+requests and connector-specific RAM metrics require the updated collector.

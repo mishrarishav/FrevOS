@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, realpath } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { join, dirname, basename } from "node:path";
 import { tmpdir } from "node:os";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { DeveloperConnectorStore, SystemPairings } from "../src/developer-connectors.js";
 import { SystemDiscovery } from "../src/system-discovery.js";
 const client = createRequire(import.meta.url)("../../../deployment/servix/DeviceEnrollment.cjs");
@@ -120,8 +120,7 @@ it("pairs with an approved target code, never requests an account password, surv
       digest: preview.digest,
       decision: "approve",
     });
-    for (let i = 0; i < 100 && !installs; i++) await new Promise((r) => setTimeout(r, 10));
-    expect(installs).toBe(1);
+    await vi.waitFor(() => expect(installs).toBe(1), { timeout: 5000, interval: 10 });
     expect(wizard.state.online).toBe(false);
     health = true;
     for (let i = 0; i < 100 && wizard.state.phase !== "connected"; i++)

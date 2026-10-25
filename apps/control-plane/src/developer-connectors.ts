@@ -1289,6 +1289,8 @@ export class SystemPairings {
       deviceId: device.deviceId,
       actor: device.userId,
       ready: !record || record.status === "approved",
+      observedAt: system?.observedAt ?? null,
+      collectorVersion: system?.collector?.version ?? null,
       online:
         system?.online === true &&
         !!system.observation &&

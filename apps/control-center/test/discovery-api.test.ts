@@ -2,9 +2,64 @@ import {
   DeliveryPlanInputSchema,
   DiscoveryPolicyInputSchema,
   defaultDiscoveryPolicy,
+  defaultActivitySettings,
 } from "@frevos/contracts";
 import { expect, it } from "vitest";
 import { createControlCenterApi } from "../src/api.js";
+it("uses typed workspace and CSRF routes for independently revisioned activity settings and requested content", async () => {
+  const deviceId = "fc_" + "a".repeat(32),
+    at = "2026-10-26T00:00:00.000Z";
+  const input = {
+    version: 1 as const,
+    deviceId,
+    expectedRevision: 0,
+    settings: defaultActivitySettings,
+  };
+  const request = { version: 1 as const, deviceId, root: "D:\\", path: "src/app.ts" };
+  const job = {
+    version: 1,
+    requestId: "cp_" + "b".repeat(32),
+    actor: "usr_fixture",
+    workspaceId: "ws_server20",
+    request,
+    status: "queued",
+    createdAt: at,
+    expiresAt: "2026-10-26T00:10:00.000Z",
+  };
+  const calls: { url: string; init?: RequestInit | undefined }[] = [];
+  const api = createControlCenterApi(
+    async (url, init) => {
+      calls.push({ url: String(url), init });
+      return new Response(
+        JSON.stringify(
+          String(url).endsWith("activity-settings")
+            ? {
+                version: 1,
+                deviceId,
+                settings: defaultActivitySettings,
+                revision: 1,
+                actor: "usr_fixture",
+                updatedAt: at,
+              }
+            : job,
+        ),
+      );
+    },
+    "/frevos",
+    () => "fixture-csrf",
+  );
+  await api.discoveryActivity!("ws_server20", input);
+  expect((await api.requestContent!("ws_server20", request)).request).toEqual(request);
+  expect((await api.contentPreview!("ws_server20", job.requestId)).status).toBe("queued");
+  expect(calls.map((c) => c.url)).toEqual([
+    "/frevos/v1/workspaces/ws_server20/discovery/activity-settings",
+    "/frevos/v1/workspaces/ws_server20/discovery/content",
+    "/frevos/v1/workspaces/ws_server20/discovery/content/" + job.requestId,
+  ]);
+  expect(calls[0]!.init?.headers).toMatchObject({ "x-csrf-token": "fixture-csrf" });
+  expect(calls[1]!.init?.headers).toMatchObject({ "x-csrf-token": "fixture-csrf" });
+  expect(JSON.parse(String(calls[0]!.init?.body))).toEqual(input);
+});
 
 it("routes directory metadata and verified folder choices through workspace-scoped CSRF tools", async () => {
   const calls: { url: string; init: RequestInit | undefined }[] = [],

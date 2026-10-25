@@ -1,4 +1,9 @@
 import {
+  type ActivitySettingsInput,
+  ActivitySettingsRecordSchema,
+  type ContentPreviewInput,
+  type ContentPreviewJob,
+  ContentPreviewJobSchema,
   type AccountProfile,
   AccountProfileSchema,
   authCookiePolicy,
@@ -107,6 +112,13 @@ export interface ControlCenterApi {
     historyDeviceId?: string,
   ): Promise<DiscoveryState>;
   discoveryPolicy?(workspaceId: string, input: DiscoveryPolicyInput): Promise<unknown>;
+  discoveryActivity?(workspaceId: string, input: ActivitySettingsInput): Promise<unknown>;
+  requestContent?(workspaceId: string, input: ContentPreviewInput): Promise<ContentPreviewJob>;
+  contentPreview?(
+    workspaceId: string,
+    requestId: string,
+    signal?: AbortSignal,
+  ): Promise<ContentPreviewJob>;
   browseFolders?(
     workspaceId: string,
     input: import("@frevos/contracts").FolderBrowseInput,
@@ -339,6 +351,20 @@ export function createControlCenterApi(
       ),
     discoveryPolicy: (workspaceId, input) =>
       post(`${workspacePath(workspaceId)}/discovery/policy`, input, DiscoveryPolicyRecordSchema),
+    discoveryActivity: (workspaceId, input) =>
+      post(
+        `${workspacePath(workspaceId)}/discovery/activity-settings`,
+        input,
+        ActivitySettingsRecordSchema,
+      ),
+    requestContent: (workspaceId, input) =>
+      post(`${workspacePath(workspaceId)}/discovery/content`, input, ContentPreviewJobSchema),
+    contentPreview: (workspaceId, id, signal) =>
+      get(
+        `${workspacePath(workspaceId)}/discovery/content/${encodeURIComponent(id)}`,
+        ContentPreviewJobSchema,
+        signal,
+      ),
     lookupSystemPairing: (workspaceId, code) =>
       post(
         `${workspacePath(workspaceId)}/connectors/enrollments/lookup`,

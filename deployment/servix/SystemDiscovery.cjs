@@ -5,7 +5,15 @@ const fs = require("node:fs/promises"),
   os = require("node:os");
 const { randomUUID, createHash } = require("node:crypto");
 const { execFile } = require("node:child_process");
-const { excluded, redact, within, pseudoPath } = require("./DiscoverySafety.cjs");
+const {
+  excluded,
+  redact,
+  within,
+  pseudoPath,
+  defaultActivitySettings,
+  retainActivity,
+  activityCategory,
+} = require("./DiscoverySafety.cjs");
 const textExtensions = new Set([
   ".js",
   ".jsx",
@@ -139,6 +147,9 @@ class SystemDiscovery {
     this.stopped = false;
     this.busy = false;
     this.work = Promise.resolve();
+    this.workQueue = [];
+    this.working = false;
+    this.activity = defaultActivitySettings;
     this.scanQueue = [];
     this.broadQueue = [];
     this.scanning = false;
@@ -293,12 +304,11 @@ class SystemDiscovery {
       source: event.source ?? "filesystem-notification",
       attribution: event.attribution ?? "unavailable",
     });
-    while (
-      this.queue.length > this.policy.maxEvents ||
-      Buffer.byteLength(JSON.stringify(this.queue)) > 1_000_000
-    ) {
-      this.queue.shift();
-      this.dropped++;
+    const retained = retainActivity(this.queue, this.policy, this.activity);
+    const dropped = this.queue.length - retained.length;
+    this.queue = retained;
+    if (dropped) {
+      this.dropped += dropped;
       this.gap("buffer-overflow");
     }
     this.dirty = true;
@@ -317,11 +327,43 @@ class SystemDiscovery {
       key,
       setTimeout(() => {
         this.pendingFiles.delete(key);
-        this.work = this.work
-          .then(() => this.record(root, file, type))
-          .catch(() => this.gap("content-unavailable"));
+        this.scheduleRecord(root, file, type);
       }, 250),
     );
+  }
+  scheduleRecord(root, file, type) {
+    const noise =
+      activityCategory({ root, path: path.relative(root, file) }, this.activity) === "noise";
+    const noiseLimit = Math.floor((256 * this.activity.noisePercent) / 100);
+    if (noise && this.workQueue.filter((j) => j.noise).length >= noiseLimit) {
+      this.dropped++;
+      this.gap("buffer-overflow");
+      return;
+    }
+    if (this.workQueue.length >= 256) {
+      const discard = noise ? -1 : this.workQueue.findIndex((j) => j.noise);
+      this.dropped++;
+      this.gap("buffer-overflow");
+      if (discard === -1) return;
+      this.workQueue.splice(discard, 1);
+    }
+    this.workQueue.push({ root, file, type, noise });
+    if (this.working) return;
+    this.working = true;
+    this.work = (async () => {
+      try {
+        while (this.workQueue.length && !this.stopped) {
+          const job = this.workQueue.shift();
+          try {
+            await this.record(job.root, job.file, job.type);
+          } catch {
+            this.gap("content-unavailable");
+          }
+        }
+      } finally {
+        this.working = false;
+      }
+    })();
   }
   async record(root, file, type) {
     if (!this.policy.enabled || this.stopped) return;
@@ -372,8 +414,12 @@ class SystemDiscovery {
     }
     if (info?.isDirectory()) {
       this.enqueue({ root, path: path.relative(root, file).replaceAll("\\", "/"), kind });
-      this.scanQueue.push({ root, directory: file });
-      void this.scan();
+      if (!this.watchers.has(file)) {
+        if (this.scanQueue.length < this.policy.maxDirectories) {
+          this.scanQueue.push({ root, directory: file });
+          void this.scan();
+        } else this.gap("watch-limit");
+      }
       return;
     }
     let content;
@@ -494,8 +540,12 @@ class SystemDiscovery {
     this.broadQueue.length = 0;
     for (const timer of this.pendingFiles.values()) clearTimeout(timer);
     this.pendingFiles.clear();
+    this.workQueue.length = 0;
   }
   async configure(record) {
+    // Old servers do not advertise this capability: omit new telemetry there.
+    this.activity = record.activity?.settings ?? defaultActivitySettings;
+    this.activitySupported = record.activity?.settings?.version === 1;
     if (
       JSON.stringify(record.policy) === JSON.stringify(this.policy) &&
       record.revision === this.revision &&
@@ -680,6 +730,18 @@ class SystemDiscovery {
         at: new Date().toISOString(),
         policyRevision: this.revision,
         system: await this.sample(),
+        ...(this.activitySupported
+          ? {
+              collector: {
+                version: 1,
+                rss: process.memoryUsage().rss,
+                heapUsed: process.memoryUsage().heapUsed,
+                pendingJobs:
+                  this.pendingFiles.size + this.workQueue.length + (this.working ? 1 : 0),
+                maxPendingJobs: 1257,
+              },
+            }
+          : {}),
         coverage: {
           status: !this.policy.enabled
             ? "disabled"
@@ -724,6 +786,8 @@ class SystemDiscovery {
     this.stopped = true;
     clearInterval(this.timer);
     clearInterval(this.folderTimer);
+    clearInterval(this.contentTimer);
+    this.closeContent?.();
     this.closeWatchers();
     await this.work;
     await this.persist();
@@ -749,6 +813,39 @@ class SystemDiscovery {
       this.folderBusy = false;
     }
   }
+  async contentTick() {
+    if (
+      this.contentBusy ||
+      this.stopped ||
+      !this.consent ||
+      !this.policy.enabled ||
+      !this.activitySupported
+    )
+      return;
+    this.contentBusy = true;
+    try {
+      const { job } = await this.api("/v1/connector/discovery/content/claim", {});
+      if (job) {
+        const result = await require("./FolderBrowse.cjs").preview(
+          this.config,
+          job,
+          await this.rootProvider(),
+          this.consent,
+          {
+            onClose: (close) => {
+              this.closeContent = close;
+            },
+          },
+        );
+        if (!this.stopped) await this.api("/v1/connector/discovery/content/complete", result);
+      }
+    } catch {
+      /* Expired/offline previews never grant persistent file access. */
+    } finally {
+      this.contentBusy = false;
+      this.closeContent = undefined;
+    }
+  }
 }
 function start(config, api, verifyRepository) {
   const collector = new SystemDiscovery(config, api);
@@ -761,6 +858,7 @@ function start(config, api, verifyRepository) {
       collector.timer = setInterval(() => void collector.tick(), 5000);
       void collector.folderTick();
       collector.folderTimer = setInterval(() => void collector.folderTick(), 2000);
+      collector.contentTimer = setInterval(() => void collector.contentTick(), 3000);
     })
     .catch(() => {
       /* Discovery failure never launches services or changes enrollment. */

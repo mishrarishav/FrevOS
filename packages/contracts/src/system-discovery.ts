@@ -45,6 +45,58 @@ export const DiscoveryPolicySchema = z
   })
   .strict();
 export type DiscoveryPolicy = z.infer<typeof DiscoveryPolicySchema>;
+export const ActivitySettingsSchema = z
+  .object({
+    version: z.literal(1),
+    noiseFolders: z.array(DiscoveryRelativeFolderSchema.refine((s) => !!s)).max(40),
+    summarySeconds: z.number().int().min(5).max(300),
+    noiseRetentionDays: z.number().int().min(1).max(30),
+    noisePercent: z.number().int().min(5).max(50),
+  })
+  .strict();
+export type ActivitySettings = z.infer<typeof ActivitySettingsSchema>;
+export const defaultActivitySettings: ActivitySettings = {
+  version: 1,
+  noiseFolders: [
+    "Temp",
+    "tmp",
+    "cache",
+    "caches",
+    ".codex/vendor_imports",
+    ".codex/tmp",
+    ".vscode/extensions",
+  ],
+  summarySeconds: 30,
+  noiseRetentionDays: 2,
+  noisePercent: 20,
+};
+export const ActivitySettingsInputSchema = z
+  .object({
+    version: z.literal(1),
+    deviceId: ConnectorIdSchema,
+    expectedRevision: z.number().int().nonnegative(),
+    settings: ActivitySettingsSchema,
+  })
+  .strict();
+export type ActivitySettingsInput = z.infer<typeof ActivitySettingsInputSchema>;
+export const ActivitySettingsRecordSchema = ActivitySettingsInputSchema.omit({
+  expectedRevision: true,
+})
+  .extend({
+    revision: z.number().int().positive(),
+    actor: text(128).min(1),
+    updatedAt: z.iso.datetime(),
+  })
+  .strict();
+export const CollectorMetricsSchema = z
+  .object({
+    version: z.literal(1),
+    rss: z.number().int().nonnegative(),
+    heapUsed: z.number().int().nonnegative(),
+    pendingJobs: z.number().int().nonnegative().max(2000),
+    maxPendingJobs: z.literal(1257),
+  })
+  .strict();
 export const defaultDiscoveryPolicy: DiscoveryPolicy = {
   version: 1,
   enabled: false,
@@ -185,9 +237,50 @@ export const DiscoveryObservationSchema = z
       })
       .strict(),
     events: z.array(DiscoveryEventSchema).max(20),
+    collector: CollectorMetricsSchema.optional(),
   })
   .strict();
 export type DiscoveryObservation = z.infer<typeof DiscoveryObservationSchema>;
+export const ContentPreviewInputSchema = z
+  .object({
+    version: z.literal(1),
+    deviceId: ConnectorIdSchema,
+    root: text(240).min(1),
+    path: DiscoveryRelativeFolderSchema.refine((s) => !!s && s.length <= 512),
+  })
+  .strict();
+export type ContentPreviewInput = z.infer<typeof ContentPreviewInputSchema>;
+export const ContentPreviewJobSchema = z
+  .object({
+    version: z.literal(1),
+    requestId: z.string().regex(/^cp_[a-f0-9]{32}$/),
+    actor: text(128).min(1),
+    workspaceId: z.literal("ws_server20"),
+    request: ContentPreviewInputSchema,
+    createdAt: z.iso.datetime(),
+    expiresAt: z.iso.datetime(),
+    status: z.enum(["queued", "working", "succeeded", "declined", "failed", "expired"]),
+    result: z
+      .object({
+        approvedAt: z.iso.datetime(),
+        observedAt: z.iso.datetime(),
+        after: text(8192),
+        before: text(8192).optional(),
+        beforeAt: z.iso.datetime().optional(),
+      })
+      .strict()
+      .optional(),
+    errorCode: z
+      .enum([
+        "content-scope-denied",
+        "content-request-expired",
+        "content-unavailable",
+        "content-approval-declined",
+      ])
+      .optional(),
+  })
+  .strict();
+export type ContentPreviewJob = z.infer<typeof ContentPreviewJobSchema>;
 
 export const FolderBrowseInputSchema = z
   .object({
@@ -350,6 +443,27 @@ export const DiscoveryStateSchema = z
             observation: DiscoveryObservationSchema.nullable(),
             history: z.array(DiscoveryEventSchema.extend({ bootId: z.uuid() })).max(10000),
             historyCount: z.number().int().nonnegative().max(10000),
+            contentRequests: z.array(ContentPreviewJobSchema).max(20).optional(),
+            collector: CollectorMetricsSchema.nullable().optional(),
+            activity: z
+              .object({
+                configuration: ActivitySettingsRecordSchema.nullable(),
+                settings: ActivitySettingsSchema,
+                workCount: z.number().int().nonnegative(),
+                noiseCount: z.number().int().nonnegative(),
+                rows: z
+                  .array(
+                    DiscoveryEventSchema.extend({
+                      bootId: z.uuid(),
+                      category: z.enum(["work", "noise"]),
+                      count: z.number().int().positive(),
+                      firstAt: z.iso.datetime(),
+                    }),
+                  )
+                  .max(10000),
+              })
+              .strict()
+              .optional(),
           })
           .strict(),
       )

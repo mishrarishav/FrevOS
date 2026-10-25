@@ -1033,6 +1033,26 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
     async (request) => discovery().configure(await connectorActor(request, true), request.body),
   );
   server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/discovery/content"),
+    async (request) =>
+      discovery().requestContent(await connectorActor(request, true), request.body),
+  );
+  server.get<{ Params: WorkspaceParams & { requestId: string } }>(
+    route("/v1/workspaces/:workspaceId/discovery/content/:requestId"),
+    async (request) => discovery().content(await connectorActor(request), request.params.requestId),
+  );
+  server.post(route("/v1/connector/discovery/content/claim"), async (request) => ({
+    job: await discovery().claimContent(connectorCredential(request)),
+  }));
+  server.post(route("/v1/connector/discovery/content/complete"), async (request) =>
+    discovery().finishContent(connectorCredential(request), request.body),
+  );
+  server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/discovery/activity-settings"),
+    async (request) =>
+      discovery().configureActivity(await connectorActor(request, true), request.body),
+  );
+  server.post<{ Params: WorkspaceParams }>(
     route("/v1/workspaces/:workspaceId/discovery/plans"),
     async (request) => discovery().savePlan(await connectorActor(request, true), request.body),
   );
