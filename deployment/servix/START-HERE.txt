@@ -1,0 +1,23 @@
+DevSetu - connect this Windows computer
+
+1. Extract the ZIP completely. Open Setup.cmd from the extracted folder.
+2. The setup page opens in your browser. Enter the same DevSetu server URL,
+   username and password that you use in DevSetu. Keep your VPN connected.
+3. Optionally enable file activity, then click Connect this computer.
+4. Wait for Connected and reporting health. Open Discovery to view your laptop.
+   You can close the setup window after that; the connector runs in the background
+   for your Windows user and starts again when you sign in.
+
+System monitoring does not require Git, a project, or an empty code folder.
+It reports CPU, RAM, operating system and drive space. Optional file activity
+collects bounded metadata from readable local drives with configured exclusions;
+it does not upload file contents. History starts after tracking is enabled.
+
+Projects are added separately in DevSetu. Use Setup-Project.cmd only when you
+explicitly want to bind this computer to a configured project Git checkout.
+Existing files do not need to be deleted or moved for system monitoring.
+
+If connection fails, the page shows its stage and a safe error code. Correct the
+VPN/account issue and use Retry connection. Keep the launcher open during setup.
+After a successful installation, reopening Setup.cmd reuses its saved connection
+for the same account. The password is never saved in the setup preferences.

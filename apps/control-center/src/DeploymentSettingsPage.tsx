@@ -770,9 +770,9 @@ export function DeploymentSettingsPage({
               <section className="panel settings-card">
                 <h2>5. System connector</h2>
                 <p>
-                  Download and extract the installer, open <strong>Setup.cmd</strong>, sign in to
-                  DevSetu, then choose this project and your local Git folder. Windows requires this
-                  one-time local installation.
+                  Open <strong>Setup.cmd</strong> to connect this computer for monitoring without a
+                  project or Git installation. To add this project's Git folder separately, use
+                  <strong> Setup-Project.cmd</strong> from the same extracted package.
                 </p>
                 <a
                   className="button secondary"

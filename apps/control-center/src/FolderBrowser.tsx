@@ -41,16 +41,21 @@ export function FolderBrowser({
       .then((state) => {
         if (abort.signal.aborted) return;
         const s = state.systems.find((s) => s.deviceId === deviceId);
-        if (!s?.sourceFresh || !s.online || !s.source) throw Error();
+        if (!s?.online || (s.profileId && (!s.sourceFresh || !s.source))) throw Error();
+        const initialRoot =
+          s.source?.repository ?? (!projectOnly && s.observation?.system.disks[0]?.root);
+        if (!initialRoot) throw Error();
         setSystem(s);
-        setRoot(s.source.repository);
+        setRoot(initialRoot);
       })
       .catch(() => {
         if (!abort.signal.aborted)
-          setError("This source is offline or unverified. Reconnect it before browsing.");
+          setError(
+            "This system is offline or has no verified readable drives. Reconnect it before browsing.",
+          );
       });
     return () => abort.abort();
-  }, [api, workspaceId, deviceId]);
+  }, [api, workspaceId, deviceId, projectOnly]);
   // biome-ignore lint/correctness/useExhaustiveDependencies: reload requests a fresh directory page.
   useEffect(() => {
     if (!root) return;
@@ -127,7 +132,7 @@ export function FolderBrowser({
   const roots = system
     ? [
         ...new Set([
-          system.source!.repository,
+          ...(system.source ? [system.source.repository] : []),
           ...(projectOnly ? [] : (system.observation?.system.disks.map((d) => d.root) ?? [])),
         ]),
       ]

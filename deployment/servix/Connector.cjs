@@ -621,6 +621,27 @@ async function connector(config) {
     if (!response.ok) throw Error("connector-http-" + response.status);
     return response.json();
   };
+  if (config.mode === "system") {
+    if (
+      config.repository ||
+      config.profileId ||
+      config.repositoryId ||
+      config.centralRepository ||
+      !path.isAbsolute(config.monitoringRoot || "")
+    )
+      throw Error("system-enrollment-scope");
+    const collector = require("./SystemDiscovery.cjs").start(config, api);
+    const beat = async () => {
+      try {
+        await api("/v1/connector/heartbeat", {});
+      } catch {
+        /* Retry after network loss without project actions. */
+      }
+    };
+    await beat();
+    setInterval(() => void beat(), 5000);
+    return collector;
+  }
   const development = require("./LocalDevelopment.cjs").start(config, inspectRepository, api);
   require("./SystemDiscovery.cjs").start(config, api, () => inspectRepository(config));
   let heartbeatPending = false;
@@ -744,6 +765,7 @@ module.exports = {
   chooseRepository,
   validateJob,
   bindCentralCheckout,
+  connector,
 };
 if (require.main === module) {
   (async () => {
@@ -753,7 +775,8 @@ if (require.main === module) {
       if (input.length > 16384) throw Error("connector-config-capacity");
     }
     const config = JSON.parse(input);
-    config.profileId ||= "servix-development";
+    if (config.mode !== "system") config.profileId ||= "servix-development";
+    if (config.mode === "system" && process.argv[2]) throw Error("system-enrollment-scope");
     if (process.argv[2] === "--bind") {
       await bindCentralCheckout(config);
       return;

@@ -7,6 +7,7 @@ import {
   type ConnectorProbe,
   ConnectorProbeSchema,
   ConnectorSchema,
+  ConnectorRecordBaseSchema,
   type DeploymentChange,
   DeploymentChangeSchema,
   type DeploymentSettings,
@@ -39,7 +40,7 @@ async function writeSeed(path: string, bytes: Buffer) {
     await file.close();
   }
 }
-const DeviceRecord = ConnectorSchema.omit({
+const DeviceRecord = ConnectorRecordBaseSchema.omit({
   online: true,
   source: true,
   folderSelection: true,
@@ -48,7 +49,16 @@ const DeviceRecord = ConnectorSchema.omit({
   changeNotes: true,
 })
   .extend({ credentialHash: z.string().regex(/^[a-f0-9]{64}$/) })
-  .strict();
+  .strict()
+  .superRefine((device, ctx) => {
+    if (
+      device.mode === "system" ? !!device.repositoryId || !!device.profileId : !device.repositoryId
+    )
+      ctx.addIssue({
+        code: "custom",
+        message: "Connector purpose does not match its repository scope",
+      });
+  });
 const JobSchema = z
   .object({
     version: z.literal(1),
@@ -138,10 +148,11 @@ export class DeveloperConnectorStore {
   }
   async heartbeat(credential: string, input: unknown = {}) {
     const device = await this.authenticate(credential);
-    await this.configured?.authorizeSource?.(
-      device.userId,
-      device.profileId ?? "servix-development",
-    );
+    if (device.mode !== "system")
+      await this.configured?.authorizeSource?.(
+        device.userId,
+        device.profileId ?? "servix-development",
+      );
     // Presence must not wait behind a long Git import or claim the next job.
     if (this.heartbeats.size >= 1000 && !this.heartbeats.has(device.deviceId))
       throw new ServixDeploymentError("connector-capacity", 503);
@@ -155,6 +166,11 @@ export class DeveloperConnectorStore {
       })
       .strict()
       .parse(input);
+    if (
+      device.mode === "system" &&
+      (body.probe || body.folderPicker || body.folderBrowser || body.changeNotes)
+    )
+      throw new ServixDeploymentError("connector-project-binding-required", 403);
     if (body.folderPicker) this.folderPickers.add(device.deviceId);
     else this.folderPickers.delete(device.deviceId);
     if (body.folderBrowser) this.folderBrowsers.add(device.deviceId);
@@ -180,6 +196,8 @@ export class DeveloperConnectorStore {
     return this.serial(async () => {
       const device = (await this.list(actor)).find((d) => d.deviceId === id);
       if (!device?.online) throw new ServixDeploymentError("connector-offline");
+      if (device.mode === "system")
+        throw new ServixDeploymentError("connector-project-binding-required", 403);
       if (requestedRepository ? !device.folderBrowser : !device.folderPicker)
         throw new ServixDeploymentError("connector-update-required");
       const profile = await this.profile(device.profileId ?? "servix-development");
@@ -220,6 +238,8 @@ export class DeveloperConnectorStore {
   async claimFolder(credential: string) {
     return this.serial(async () => {
       const device = await this.authenticate(credential);
+      if (device.mode === "system")
+        throw new ServixDeploymentError("connector-project-binding-required", 403);
       const selection = this.folderSelection(device.deviceId);
       if (!selection || selection.status !== "queued") return null;
       selection.status = "choosing";
@@ -229,6 +249,8 @@ export class DeveloperConnectorStore {
   async finishFolder(credential: string, input: unknown) {
     return this.serial(async () => {
       const device = await this.authenticate(credential);
+      if (device.mode === "system")
+        throw new ServixDeploymentError("connector-project-binding-required", 403);
       const result = FolderSelectionSchema.parse(input);
       const selection = this.folderSelection(device.deviceId);
       if (
@@ -268,6 +290,7 @@ export class DeveloperConnectorStore {
   }
   async checkCredential(credential: string) {
     const device = await this.authenticate(credential);
+    if (device.mode === "system") return device;
     await this.configured?.authorizeSource?.(
       device.userId,
       device.profileId ?? "servix-development",
@@ -281,6 +304,8 @@ export class DeveloperConnectorStore {
   }
   async baseline(credential: string, input: unknown) {
     const device = await this.checkCredential(credential);
+    if (device.mode === "system")
+      throw new ServixDeploymentError("connector-project-binding-required", 403);
     const git = await this.repository(device.profileId ?? "servix-development");
     await git.head();
     const { heads } = z
@@ -304,6 +329,8 @@ export class DeveloperConnectorStore {
   async seed(credential: string, head: string, bytes: Buffer) {
     return this.serial(async () => {
       const device = await this.checkCredential(credential);
+      if (device.mode === "system")
+        throw new ServixDeploymentError("connector-project-binding-required", 403);
       const profile = await this.configured?.connectorProfile(device.profileId!);
       if (!profile || profile.archived || bytes.length < 32 || bytes.length > 64 * 1024 * 1024)
         throw new ServixDeploymentError("connector-seed-denied", 403);
@@ -412,6 +439,41 @@ export class DeveloperConnectorStore {
     return this.serial(async () => {
       await this.permission(actor);
       const request = PairConnectorSchema.parse(input);
+      if (request.mode === "system") {
+        if (request.profileId)
+          throw new ServixDeploymentError("connector-pairing-scope-invalid", 400);
+        if ((await this.list(actor)).filter((d) => d.status === "active").length >= 10)
+          throw new ServixDeploymentError("connector-device-limit");
+        const deviceId = "fc_" + randomBytes(16).toString("hex"),
+          credential = deviceId + "." + secret();
+        const device = DeviceRecord.parse({
+          version: 1,
+          mode: "system",
+          deviceId,
+          userId: actor,
+          workspaceId: "ws_server20",
+          name: request.name,
+          status: "active",
+          createdAt: this.now().toISOString(),
+          expiresAt: new Date(this.now().getTime() + 90 * 86400000).toISOString(),
+          lastSeenAt: null,
+          credentialHash: digest(credential),
+        });
+        await this.save(deviceId + ".json", device, true);
+        return {
+          version: 1,
+          mode: "system" as const,
+          deviceId,
+          credential,
+          expiresAt: device.expiresAt,
+          profileId: undefined,
+          repositoryId: undefined,
+          repositoryOrigin: undefined,
+          repositoryOrigins: undefined,
+          sourceFolder: undefined,
+          centralRepository: undefined,
+        };
+      }
       const profileId = request.profileId ?? "servix-development";
       await this.configured?.authorizeSource?.(actor, profileId);
       const profile = await this.profile(profileId);
@@ -606,7 +668,11 @@ export class DeveloperConnectorStore {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
     const device = (await this.list(actor)).find((d) => d.deviceId === deviceId);
-    if (!device?.online || (device.profileId ?? "servix-development") !== profileId)
+    if (
+      !device?.online ||
+      device.mode === "system" ||
+      (device.profileId ?? "servix-development") !== profileId
+    )
       throw new ServixDeploymentError("connector-offline");
     if (changeDetails && !this.changeNoteDevices.has(deviceId))
       throw new ServixDeploymentError("connector-update-required");
@@ -643,6 +709,8 @@ export class DeveloperConnectorStore {
   async claim(credential: string) {
     return this.serial(async () => {
       const device = await this.authenticate(credential);
+      if (device.mode === "system")
+        throw new ServixDeploymentError("connector-project-binding-required", 403);
       await this.save(device.deviceId + ".json", {
         ...device,
         lastSeenAt: this.now().toISOString(),
@@ -681,6 +749,8 @@ export class DeveloperConnectorStore {
   async complete(credential: string, id: string, head: string, bytes: Buffer) {
     return this.serial(async () => {
       const device = await this.authenticate(credential);
+      if (device.mode === "system")
+        throw new ServixDeploymentError("connector-project-binding-required", 403);
       ServixRequestIdSchema.parse(id);
       ServixHeadSchema.parse(head);
       const job = JobSchema.parse(await this.read(id + ".source.json"));
@@ -713,6 +783,8 @@ export class DeveloperConnectorStore {
   async fail(credential: string, id: string, input: unknown) {
     return this.serial(async () => {
       const device = await this.authenticate(credential);
+      if (device.mode === "system")
+        throw new ServixDeploymentError("connector-project-binding-required", 403);
       ServixRequestIdSchema.parse(id);
       const body = z
           .object({

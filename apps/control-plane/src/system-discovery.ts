@@ -118,7 +118,7 @@ export class SystemDiscovery {
         d.workspaceAuthorized &&
         d.userId === actor &&
         d.online &&
-        d.source,
+        (d.source || d.mode === "system"),
     );
     if (!device) throw new ServixDeploymentError("discovery-device-access-denied", 403);
     const value = await this.read(id + ".observation.json");
@@ -132,9 +132,10 @@ export class SystemDiscovery {
       const request = FolderBrowseInputSchema.parse(input);
       const { device, observation } = await this.browseDevice(actor, request.deviceId);
       if (
-        ![device.source!.repository, ...observation.system.disks.map((d) => d.root)].includes(
-          request.root,
-        )
+        ![
+          ...(device.source ? [device.source.repository] : []),
+          ...observation.system.disks.map((d) => d.root),
+        ].includes(request.root)
       )
         throw new ServixDeploymentError("discovery-folder-scope-denied", 403);
       const names = (await readdir(this.root)).filter((n) => /^fb_[a-f0-9]{32}\.json$/.test(n));
@@ -275,15 +276,20 @@ export class SystemDiscovery {
       const device = devices.find((d) => d.deviceId === body.deviceId && d.status === "active");
       if (!device || !device.workspaceAuthorized || device.userId !== actor)
         throw new ServixDeploymentError("discovery-device-access-denied", 403);
+      if (device.mode === "system" && body.policy.contentFolders.length)
+        throw new ServixDeploymentError("connector-project-binding-required", 403);
       const prior = await this.policy(body.deviceId);
       if (body.policy.priorityFolders.length) {
         const { observation } = await this.browseDevice(actor, body.deviceId);
-        const roots = [device.source!.repository, ...observation.system.disks.map((d) => d.root)];
+        const roots = [
+          ...(device.source ? [device.source.repository] : []),
+          ...observation.system.disks.map((d) => d.root),
+        ];
         if (
           body.policy.priorityFolders.some(
             (f) =>
               !roots.includes(f.root) ||
-              (!body.policy.allLocalDrives && f.root !== device.source!.repository),
+              (!body.policy.allLocalDrives && f.root !== device.source?.repository),
           )
         )
           throw new ServixDeploymentError("discovery-folder-scope-denied", 403);
@@ -312,7 +318,8 @@ export class SystemDiscovery {
       const acknowledged = Math.max(0, ...observation.events.map((e) => e.sequence));
       if (
         device.deviceId !== observation.deviceId ||
-        (device.profileId ?? "servix-development") !== observation.profileId
+        (device.mode === "system" ? null : (device.profileId ?? "servix-development")) !==
+          observation.profileId
       )
         throw new ServixDeploymentError("discovery-scope-mismatch", 403);
       const record = await this.policy(device.deviceId),
@@ -412,7 +419,11 @@ export class SystemDiscovery {
         body.deviceIds.some(
           (id) =>
             !devices.some(
-              (d) => d.deviceId === id && d.status === "active" && d.workspaceAuthorized,
+              (d) =>
+                d.deviceId === id &&
+                d.mode !== "system" &&
+                d.status === "active" &&
+                d.workspaceAuthorized,
             ),
         )
       )
@@ -469,7 +480,7 @@ export class SystemDiscovery {
           deviceId: d.deviceId,
           name: d.name,
           userId: d.userId,
-          profileId: d.profileId ?? "servix-development",
+          profileId: d.mode === "system" ? null : (d.profileId ?? "servix-development"),
           status: d.workspaceAuthorized ? d.status : "workspace-access-revoked",
           source: d.source ?? record?.source ?? null,
           sourceFresh: !!d.source && d.online,

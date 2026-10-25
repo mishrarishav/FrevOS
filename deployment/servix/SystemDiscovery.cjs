@@ -114,7 +114,11 @@ async function installationIdentity(config) {
 }
 class SystemDiscovery {
   constructor(config, api, options = {}) {
-    this.config = config;
+    this.config =
+      config.mode === "system"
+        ? { ...config, repository: config.monitoringRoot, profileId: null }
+        : config;
+    if (config.mode === "system") this.sourceVerified = true;
     this.api = api;
     this.rootProvider = options.rootProvider || localRoots;
     this.policy = { ...defaults };
@@ -227,6 +231,7 @@ class SystemDiscovery {
   }
   selected(file) {
     return (
+      this.config.mode !== "system" &&
       within(this.config.repository, file) &&
       this.policy.contentFolders.some((p) =>
         within(path.resolve(this.config.repository, p), file),
@@ -587,7 +592,10 @@ class SystemDiscovery {
     }
     if (!this.toolsAt || Date.now() - this.toolsAt > 60000) {
       try {
-        const report = await require("./SystemPrerequisites.cjs").inspect(this.config.repository);
+        const report =
+          this.config.mode === "system"
+            ? { tools: [] }
+            : await require("./SystemPrerequisites.cjs").inspect(this.config.repository);
         this.tools = report.tools.map(({ id, required, detected, status }) => ({
           id,
           required,

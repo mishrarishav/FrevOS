@@ -233,7 +233,11 @@ export function DiscoveryPage({
     {
       id: "projects",
       label: "Project bindings",
-      value: (s) => s.bindings.map((b) => b.profileId).join(", "),
+      value: (s) =>
+        s.bindings
+          .map((b) => b.profileId)
+          .filter(Boolean)
+          .join(", ") || "System monitoring · no project",
     },
     { id: "owner", label: "Connector account", value: (s) => s.userId },
     {
@@ -396,23 +400,36 @@ export function DiscoveryPage({
                 Observed: {s.observedAt ? new Date(s.observedAt).toLocaleString() : "Not yet"}
               </small>
               <small>
-                {s.sourceFresh ? "Project folder" : "Last verified folder"}:{" "}
-                {s.source?.repository ?? "Source verification unavailable"}
+                {s.profileId
+                  ? s.sourceFresh
+                    ? "Project folder"
+                    : "Last verified folder"
+                  : "Connection"}
+                :{" "}
+                {s.source?.repository ??
+                  (s.profileId
+                    ? "Source verification unavailable"
+                    : "System monitoring · add projects later")}
               </small>
               {systemActions(s)}
               <div className="discovery-bindings">
                 {s.bindings.map((binding) => (
                   <div key={binding.deviceId}>
-                    <strong>{binding.profileId}</strong>
-                    <small>{binding.source?.repository ?? "Source not verified"}</small>
+                    <strong>{binding.profileId ?? "System monitoring"}</strong>
+                    <small>
+                      {binding.source?.repository ??
+                        (binding.profileId ? "Source not verified" : "No project required")}
+                    </small>
                     <div className="record-row-actions">
                       <a
                         className="button secondary"
                         href={addBasePath(
-                          `/projects/local-development?project=${encodeURIComponent(binding.profileId)}`,
+                          binding.profileId
+                            ? `/projects/local-development?project=${encodeURIComponent(binding.profileId)}`
+                            : "/projects/components",
                         )}
                       >
-                        Local preview &amp; services
+                        {binding.profileId ? "Local preview & services" : "Add a project"}
                       </a>
                       <button
                         type="button"
@@ -564,21 +581,31 @@ export function DiscoveryPage({
             </header>
             <div className="discovery-scroll">
               <label>
-                Project source
+                Connection
                 <select value={selected.deviceId} onChange={(e) => openActivity(e.target.value)}>
                   {discoverySystems(state.systems)
                     .find((s) => s.bindings.some((b) => b.deviceId === selected.deviceId))
                     ?.bindings.map((b) => (
                       <option key={b.deviceId} value={b.deviceId}>
-                        {b.profileId}
+                        {b.profileId ?? "System monitoring"}
                       </option>
                     ))}
                 </select>
               </label>
               {health(selected)}
               <p>
-                {selected.sourceFresh ? "Project folder" : "Last verified folder"}:{" "}
-                <strong>{selected.source?.repository ?? "Source verification unavailable"}</strong>
+                {selected.profileId
+                  ? selected.sourceFresh
+                    ? "Project folder"
+                    : "Last verified folder"
+                  : "Connection"}
+                :{" "}
+                <strong>
+                  {selected.source?.repository ??
+                    (selected.profileId
+                      ? "Source verification unavailable"
+                      : "System monitoring · no project binding")}
+                </strong>
               </p>
               {selected.observation?.system.disks.map((d) => (
                 <p key={d.root}>
@@ -751,11 +778,14 @@ export function DiscoveryPage({
                     })
                   }
                 />
-                All local drives (otherwise this project folder)
+                {settings.system.profileId
+                  ? "All local drives (otherwise this project folder)"
+                  : "All local drives (otherwise your home folder)"}
               </label>
               <label>
                 Content history folders (one project-relative folder per line; “.” for project root)
                 <textarea
+                  disabled={!settings.system.profileId}
                   value={settings.policy.contentFolders.join("\n")}
                   onChange={(e) =>
                     setSettings({
@@ -775,7 +805,7 @@ export function DiscoveryPage({
               <button
                 type="button"
                 className="button secondary"
-                disabled={!settings.system.online}
+                disabled={!settings.system.online || !settings.system.profileId}
                 onClick={() => setFolderPicker({ system: settings.system, mode: "content" })}
               >
                 Choose content folder
@@ -989,26 +1019,28 @@ export function DiscoveryPage({
               </label>
               <fieldset>
                 <legend>Assigned project source systems</legend>
-                {state.systems.map((s) => (
-                  <label key={s.deviceId}>
-                    <input
-                      type="checkbox"
-                      checked={editor.plan.deviceIds.includes(s.deviceId)}
-                      onChange={(e) =>
-                        setEditor({
-                          ...editor,
-                          plan: {
-                            ...editor.plan,
-                            deviceIds: e.target.checked
-                              ? [...editor.plan.deviceIds, s.deviceId]
-                              : editor.plan.deviceIds.filter((id) => id !== s.deviceId),
-                          },
-                        })
-                      }
-                    />
-                    {s.observation?.system.systemName ?? s.name} · {s.profileId}
-                  </label>
-                ))}
+                {state.systems
+                  .filter((s) => !!s.profileId)
+                  .map((s) => (
+                    <label key={s.deviceId}>
+                      <input
+                        type="checkbox"
+                        checked={editor.plan.deviceIds.includes(s.deviceId)}
+                        onChange={(e) =>
+                          setEditor({
+                            ...editor,
+                            plan: {
+                              ...editor.plan,
+                              deviceIds: e.target.checked
+                                ? [...editor.plan.deviceIds, s.deviceId]
+                                : editor.plan.deviceIds.filter((id) => id !== s.deviceId),
+                            },
+                          })
+                        }
+                      />
+                      {s.observation?.system.systemName ?? s.name} · {s.profileId}
+                    </label>
+                  ))}
               </fieldset>
               <h3>Weighted deliverables</h3>
               {editor.plan.milestones.map((m, i) => {

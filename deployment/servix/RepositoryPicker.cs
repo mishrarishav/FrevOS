@@ -10,8 +10,29 @@ using System.Windows.Forms;
 internal static class RepositoryPicker
 {
     [STAThread]
-    private static void Main()
+    private static void Main(string[] args)
     {
+        if (args.Length == 1 && (args[0] == "--protect-setup" || args[0] == "--protect-install"))
+        {
+            try {
+                string inputPath;
+                using (var reader = new System.IO.StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false))) inputPath = reader.ReadToEnd();
+                var target = System.IO.Path.GetFullPath(inputPath);
+                var temp = System.IO.Path.GetFullPath(System.IO.Path.GetTempPath()).TrimEnd('\\');
+                var installRoot = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"FrevOS","Connector");
+                var expectedParent = args[0] == "--protect-install" ? installRoot : temp;
+                var pattern = args[0] == "--protect-install" ? "^fc_[a-f0-9]{32}$" : "^devsetu-setup-[A-Za-z0-9]+$";
+                if (!String.Equals(System.IO.Path.GetDirectoryName(target).TrimEnd('\\'), expectedParent.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase) || !System.Text.RegularExpressions.Regex.IsMatch(System.IO.Path.GetFileName(target), pattern)) Environment.Exit(1);
+                var directory = new System.IO.DirectoryInfo(target);
+                if (!directory.Exists || (directory.Attributes & System.IO.FileAttributes.ReparsePoint) != 0) Environment.Exit(1);
+                var owner = System.Security.Principal.WindowsIdentity.GetCurrent().User;
+                var acl = new System.Security.AccessControl.DirectorySecurity();
+                acl.SetOwner(owner); acl.SetAccessRuleProtection(true,false);
+                foreach (var sid in new[] {owner,new System.Security.Principal.SecurityIdentifier("S-1-5-18")}) acl.AddAccessRule(new System.Security.AccessControl.FileSystemAccessRule(sid,System.Security.AccessControl.FileSystemRights.FullControl,System.Security.AccessControl.InheritanceFlags.ContainerInherit|System.Security.AccessControl.InheritanceFlags.ObjectInherit,System.Security.AccessControl.PropagationFlags.None,System.Security.AccessControl.AccessControlType.Allow));
+                directory.SetAccessControl(acl); Environment.Exit(0);
+            } catch { Environment.Exit(1); }
+            return;
+        }
         var output = new System.IO.StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false));
         output.AutoFlush = true;
         var serializer = new JavaScriptSerializer { MaxJsonLength = 4096 };

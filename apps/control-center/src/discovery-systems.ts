@@ -13,9 +13,12 @@ export function discoverySystems(sources: DiscoverySource[]): DiscoverySystem[] 
   return [...groups].map(([systemKey, bindings]) => {
     const sorted = [...bindings].sort(
       (a, b) =>
-        Number(b.online) * 16 +
+        Number(b.online) * 64 +
+        Number(!b.profileId) * 16 +
         Number(b.policy?.policy.enabled ?? false) * 8 -
-        (Number(a.online) * 16 + Number(a.policy?.policy.enabled ?? false) * 8),
+        (Number(a.online) * 64 +
+          Number(!a.profileId) * 16 +
+          Number(a.policy?.policy.enabled ?? false) * 8),
     );
     return { ...sorted[0]!, systemKey, bindings: sorted, online: bindings.some((s) => s.online) };
   });

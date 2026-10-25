@@ -5,6 +5,8 @@
   marker.remove();
   let report = null;
   let busy = false;
+  let polling = false;
+  let installationObserved = false;
   const el = (id) => document.getElementById(id);
   const text = (tag, value) => {
     const element = document.createElement(tag);
@@ -91,6 +93,32 @@
       update();
     }
   }
+  async function status() {
+    if (polling) return;
+    polling = true;
+    try {
+      const state = await call("/status", {});
+      if (state.installing) {
+        installationObserved = true;
+        busy = true;
+        const elapsed = Math.max(0, Math.floor((Date.now() - Date.parse(state.startedAt)) / 1000));
+        el("message").textContent =
+          `${state.message}\nElapsed: ${elapsed} seconds. Refreshing will not start another installation.`;
+        update();
+      } else if (installationObserved && state.message) {
+        installationObserved = false;
+        busy = false;
+        if (state.result) render(state.result.report);
+        else render(await call("/check", {}));
+        el("message").textContent = state.message;
+        update();
+      }
+    } catch {
+      /* The active request or next status check reports availability. */
+    } finally {
+      polling = false;
+    }
+  }
   el("check").onclick = () =>
     action(async () => {
       render(await call("/check", {}));
@@ -123,5 +151,16 @@
       el("finish").textContent = "Completed";
       report = null;
     });
-  void action(async () => render(await call("/check", {})));
+  void action(async () => {
+    const state = await call("/status", {});
+    if (state.installing) {
+      // The shared server owns an existing operation across browser refreshes.
+      setTimeout(() => void status(), 0);
+      el("message").textContent = state.message;
+      return;
+    }
+    render(state.result?.report || (await call("/check", {})));
+    if (state.message) el("message").textContent = state.message;
+  });
+  setInterval(() => void status(), 1500);
 })();

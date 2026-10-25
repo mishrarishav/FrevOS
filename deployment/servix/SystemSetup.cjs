@@ -12,11 +12,11 @@ const setupClient = require("node:fs").readFileSync(
   "utf8",
 );
 const page = String.raw`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DevSetu · System check</title>
-<style>body{font:15px system-ui;margin:0;background:#f6f7fb;color:#18263c}main{max-width:980px;margin:36px auto;padding:24px;background:white;border:1px solid #d9dfeb;border-radius:12px}h1{font-size:24px}header{position:sticky;top:0;background:white;padding:12px 0}button{padding:10px 16px;border-radius:7px;border:1px solid #cad3e1;background:#fff;cursor:pointer;margin:4px}button.primary{background:#175ddc;color:white}button:disabled{opacity:.5;cursor:wait}article{border-top:1px solid #dde3ee;padding:16px 0}small{display:block;color:#556479}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f3f5fa;padding:12px}label{display:block;margin:12px 0}#message{white-space:pre-wrap}#tools{max-height:55vh;overflow:auto}@media(max-width:600px){main{margin:0;padding:16px;border:0}}</style>
+<style>body{font:15px system-ui;margin:0;background:#f6f7fb;color:#18263c}main{max-width:980px;margin:36px auto;padding:24px;background:white;border:1px solid #d9dfeb;border-radius:12px}h1{font-size:24px}header{position:sticky;top:0;background:white;padding:12px 0}button{padding:10px 16px;border-radius:7px;border:1px solid #cad3e1;background:#fff;cursor:pointer;margin:4px}button.primary{background:#175ddc;color:white}button:disabled{opacity:.5;cursor:not-allowed}article{border-top:1px solid #dde3ee;padding:16px 0}small{display:block;color:#556479}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f3f5fa;padding:12px}label{display:block;margin:12px 0}#message{white-space:pre-wrap}#tools{max-height:55vh;overflow:auto}@media(max-width:600px){main{margin:0;padding:16px;border:0}}</style>
 <style>main{overflow-wrap:anywhere}</style>
-<main><header><h1>DevSetu · System check</h1><p id="system">Checking tools and project requirements…</p><button id="check">Recheck system</button><button class="primary" id="install" disabled>Install selected</button><button class="primary" id="finish" disabled>Continue setup</button></header>
+<main><header><h1>DevSetu · System check</h1><p id="system">Checking tools and project requirements…</p><button id="check">Recheck system</button><button class="primary" id="install" disabled>Install selected</button><button class="primary" id="finish" disabled>Continue setup</button><p id="message" role="status"></p></header>
 <p id="folder"></p><div id="tools"></div><p>Enrolled devices report OS, tool readiness, CPU, RAM and disk health. Project packages, environment profiles and database access are configured separately.</p><label><input type="checkbox" id="consent">Enable file activity for configured local drives, with existing OS audit attribution when readable. Text history is limited to selected project folders.</label>
-<p>Review each package source and required privilege. Installation may show an operating-system authorization prompt. Your running applications are not stopped.</p><p id="message" role="status"></p></main>
+<p>Review each package source and required privilege. Installation may show an operating-system authorization prompt. Your running applications are not stopped.</p></main>
 <meta name="devsetu-setup-csrf" content=__TOKEN__><script>${setupClient}</script></html>`;
 async function serve(repository, options = {}) {
   repository = path.resolve(repository);
@@ -25,6 +25,7 @@ async function serve(repository, options = {}) {
   const sessionCookie = randomBytes(32).toString("hex"),
     cookieName = "devsetu-setup-" + correlationId;
   let bootstrapped = false;
+  let installStartedAt, lastInstallation, installMessage;
   let origin,
     installing = false,
     completed = false;
@@ -104,6 +105,13 @@ async function serve(repository, options = {}) {
         if (input.length > 16384) throw Error();
       }
       const body = JSON.parse(input);
+      if (request.url === "/status" && !Object.keys(body).length)
+        return send(200, {
+          installing,
+          startedAt: installStartedAt,
+          result: lastInstallation,
+          message: installMessage,
+        });
       if (request.url === "/check" && !Object.keys(body).length)
         return send(200, await prerequisites.inspect(repository));
       if (
@@ -127,6 +135,10 @@ async function serve(repository, options = {}) {
         )
           throw Error();
         installing = true;
+        installStartedAt = new Date().toISOString();
+        installMessage =
+          "Installing selected tools. Check the Windows permission prompt. Installation can take up to ten minutes per package.";
+        lastInstallation = undefined;
         ownsInstall = true;
         const approval = {
           version: 1,
@@ -167,6 +179,10 @@ async function serve(repository, options = {}) {
             }),
             { flag: "wx", mode: 0o600 },
           );
+          lastInstallation = installed;
+          installMessage =
+            installed.receipts.map((r) => `${r.id}: ${r.outcome}`).join("\n") +
+            "\nSystem checked again. Review any remaining requirement.";
           return send(200, installed);
         } finally {
           installing = false;
@@ -202,7 +218,11 @@ async function serve(repository, options = {}) {
       }
       return send(400, { error: "Unsupported setup operation" });
     } catch {
-      if (ownsInstall) installing = false;
+      if (ownsInstall) {
+        installing = false;
+        installMessage =
+          "Selected installation could not complete. Recheck the system and package manager availability.";
+      }
       return send(400, {
         error:
           "System check or selected installation could not complete. Recheck the system and package manager availability",
@@ -224,27 +244,7 @@ async function serve(repository, options = {}) {
   let pageUrl;
   try {
     await fs.chmod(sessionDirectory, 0o700);
-    if (process.platform === "win32")
-      await new Promise((resolve, reject) => {
-        const child = spawn(
-          path.join(process.env.WINDIR, "System32/WindowsPowerShell/v1.0/powershell.exe"),
-          [
-            "-NoProfile",
-            "-NonInteractive",
-            "-ExecutionPolicy",
-            "RemoteSigned",
-            "-File",
-            path.join(__dirname, "Protect-SetupSession.ps1"),
-          ],
-          { windowsHide: true, stdio: ["pipe", "ignore", "ignore"] },
-        );
-        child.on("error", reject);
-        child.on("exit", (code) =>
-          code === 0 ? resolve() : reject(Error("private-setup-session-unavailable")),
-        );
-        child.stdin.on("error", () => {});
-        child.stdin.end(sessionDirectory);
-      });
+    if (process.platform === "win32") await require("./SetupSession.cjs").protect(sessionDirectory);
     const pageFile = path.join(sessionDirectory, "system-check.html");
     const privatePage = `<!doctype html><html lang="en"><meta charset="utf-8"><title>DevSetu system check</title><form method="post" action="${origin}/bootstrap"><input type="hidden" name="session" value="${token}"><button type="submit">Open private system check</button></form><script>document.forms[0].submit()</script></html>`;
     await fs.writeFile(pageFile, privatePage, { flag: "wx", mode: 0o600 });

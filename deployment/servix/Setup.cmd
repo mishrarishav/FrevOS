@@ -1,3 +1,5 @@
 @echo off
-powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File "%~dp0Setup-Connector.ps1"
+"%~dp0node.exe" "%~dp0SystemEnrollment.cjs"
+echo.
+echo Keep this window open while DevSetu setup is in use.
 pause

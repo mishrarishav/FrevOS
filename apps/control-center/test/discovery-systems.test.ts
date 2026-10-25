@@ -78,4 +78,7 @@ it("groups project bindings only by reported installation and account, preservin
     ]),
   ).toHaveLength(2);
   expect(discoverySystems([a, { ...b, online: false }])[0]?.online).toBe(true);
+  const monitoring = { ...a, deviceId: "fc_" + "c".repeat(32), profileId: null };
+  expect(discoverySystems([b, monitoring])[0]?.deviceId).toBe(monitoring.deviceId);
+  expect(discoverySystems([b, { ...monitoring, online: false }])[0]?.deviceId).toBe(b.deviceId);
 });

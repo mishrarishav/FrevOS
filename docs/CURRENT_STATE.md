@@ -1,77 +1,77 @@
 # DevSetu Current State
 
-Last updated: 2026-10-24
+Last updated: 2026-10-25
 
-## Servix backend artifact deployment (in progress, 2026-10-25)
+## System-first pairing correction (local PASS; rollout pending, 2026-10-25)
 
-The owner authorizes a runnable backend build, real DevSetu deployment and
-Development verification before preparing the same artifact for Production.
-All existing uploads, attachments, environments, backups and external file
-storage must be preserved. Branch `feature/servix-build-artifact`, base
-`69dd69e12649d30e9c63a453cb526ea373b17a10`, ADR 0057. Preceding result docs remain.
-The platform artifact path is live at source
-`b34508857358b64f19a6e60b256bd02681c268ea`, manifest
-`f74ff5a3bf85d03e48ea566e533151bc759ac4ae6e6883854460ab89bd291936`,
-actual UI request `pr_5a28fa201f787cb9060623799154f19b`. The independent updater,
-HTTP/UI health, sibling preservation and isolated packaged startup pass.
-Development's existing launcher gained verified bundle selection, with its task
-and both running listeners preserved. A source pre-commit hook prepares locked
-dependencies automatically. Its first real Servix request
-`sd_000d3e0938ef8a4b042db2f2854bf0b6` failed at Git publication: reading all
-1,709 cached tarballs over SMB exceeds the source command budget. A bounded
-availability check is under validation; actual npm ci retains SRI verification
-and rejects corruption before artifact creation. No application was stopped.
-The cache correction passes 286 tests/full CI and is published at
-`61ae1e99fbc6e3180f4e20c9342a53874394719c`; its internal rollout is in progress.
-Customer publication now succeeds at `2de3315ff22ec8ad9793aaa0a556cc0d0ceb45c1`.
-Request `sd_a0344bc57d804636617d413360b5a011` then hit the ten-minute frontend
-installation limit, with 1,693 cache hits and no reported network/integrity error.
-The build had not reached application activation. The next bounded correction
-uses LOCAL SERVICE's private local scratch, retains durable artifacts/logs in
-the controller store, fails fast offline and allows twenty minutes for the
-large Windows frontend installation. Existing failed workspaces remain intact.
-The initial scratch rollout at `9070c9af3964799bd0980244e4985fef48bf281f`
-failed its frozen CI before activation. Reproduction identified a Git binding
-fixture reusing its earlier 60-second request after lengthy real Git operations.
-The bounded correction issues a fresh fixture request for binding and explicitly
-checks expired-request rejection; runtime authorization remains unchanged.
-The correction is now active at `1e20ebe97ff2b7f45958aabb37d529f3662c8d33`,
-manifest `354af1a7df55a335163f2b56b97392f58b2f2d3f212d21f0ffe0bfce62d8af27`,
-actual UI request `pr_03925c9be8e71e26ef1d21c562632830`. Frozen CI, native
-publication, independent activation, HTTP/UI health and sibling preservation
-passed. Profiles, component configurations and all 11 environment hashes match
-the baseline. Servix request `sd_2fba221e1855f7f17d9004617130ba12` published
-`e04137b4a862e8760a59b95da7e0de9a32bc6d38` through the real UI and is building
-in the confirmed LOCAL SERVICE private C: workspace. No activation is yet claimed.
-That run subsequently built and activated release
-`599a63262003575eee3a3bf42799cd7376ae05c3563cdffa8989c6af51e3d163`.
-Backend bundle `5ff7622a9f316edbe0485c47f179f6c1bccac75241e6540f1d0079b11172fb0c`
-matches the isolated compiler result. Actual UI rollback
-`sd_a238715b901b996e40eeabb4d2bfa30c` and identical-artifact restore
-`sd_9b2f6358cc7a00e4e25a93ced199261c` passed health, browser and three
-pre-deployment attachment SHA256 comparisons each, with no new build.
-The live receipt exposed a pre-existing PowerShell 5.1 inventory defect:
-`Sort-Object path -Unique` collapses hashtable records to one on that runtime.
-The correction uses an explicit path expression. A real six-file fixture fails
-before the correction and passes afterward, including changed/missing non-first
-files and duplicate-folder deduplication. Full CI and an additional live saved-
-artifact cycle are required before declaring the strengthened guard verified.
-The current Development runtime still starts source with npm, port 5001 healthy.
-The isolated customer build now compiles 85 application modules into a runnable
-bundle, retaining per-project dependencies, module paths and mutable data roots.
-Three real compiler tests pass, including execution after moving source folders.
-Platform CI passes 285 tests, type/build/coverage and the high audit gate; five
-low and six moderate platform advisories remain. Artifact verifier, packaging,
-PowerShell selection, preservation and saved-release recovery tests pass.
-The customer runtime lock entries are unchanged; its existing dependency audit
-has 6 moderate, 28 high and 3 critical advisories, requiring explicit review.
-Server20's existing trusted execution boundary inspected server21 read-only:
-Node v20.11.1, manual Production PID 10760 (owner SID recorded privately),
-Development PID 18292. SHA256 inventories cover 8,176 Production uploads,
-223 external blob files, 139 Development uploads, four Development DB files,
-11 environment files and both frontend web.config files. No application/DB
-activation is claimed. The new Production form remains unsaved and unconnected.
-Production stays excluded from the old adapter. Phase 4 exit remains open.
+The owner requests a simpler working connection after a new laptop repeatedly
+fails the installer. Branch `codex/system-first-pairing`, base/deployed source
+`a9cdebbe7cc7085451405beae8152972fed3c66b`, ADR 0058. Preserve the preceding
+Current State/handoff updates. Scope: connect a computer without Git/project
+selection, visible/recoverable local setup, consented monitoring and explicit
+later project setup. Existing project credentials and deployment remain scoped;
+no Production, database, customer-source or unrelated roadmap changes.
+
+The default Windows setup now pairs a computer without project/Git selection.
+System-only credentials explicitly deny project operations and text history.
+Actual Windows DPAPI/Limited-task health/resume tests, consented metadata tests,
+Chromium refresh/retry/responsive checks and the legacy prerequisite status
+regression pass. Full local CI passes 294 tests, coverage/type/build and the
+high audit gate (existing five low/six moderate advisories). The preceding
+customer configuration/environment/release baseline is captured. Configured
+platform publication and the new downloadable package still need live
+verification; the owner's other laptop is not claimed Online. See
+[handoff](SYSTEM_FIRST_PAIRING_HANDOFF.md).
+
+## Servix backend artifact deployment (Development PASS, 2026-10-25)
+
+The owner's bounded artifact request is implemented on
+`feature/servix-build-artifact`, base
+`69dd69e12649d30e9c63a453cb526ea373b17a10`, ADR 0057. Preceding result docs
+are preserved. Platform source `a9cdebbe7cc7085451405beae8152972fed3c66b`
+is active at manifest
+`9c31907f8bf77c8f19a33920a37c9fed8f88bf208a950f38d79b83674e92bb6b` through
+actual UI request `pr_3689116227498418bb2ebfcce03e5d38`. Frozen CI,
+independent activation, HTTP/UI health and sibling preservation passed. Local
+CI passes 287 tests, build/coverage and the high audit gate; five low and six
+moderate platform advisories remain.
+
+Actual DevSetu publication/build/Development deployment
+`sd_2fba221e1855f7f17d9004617130ba12` uses customer source
+`e04137b4a862e8760a59b95da7e0de9a32bc6d38`. Release
+`599a63262003575eee3a3bf42799cd7376ae05c3563cdffa8989c6af51e3d163` contains
+a 2,282,888-byte compiled backend: 85 application modules and 23 dependency
+bindings. Bundle SHA256
+`5ff7622a9f316edbe0485c47f179f6c1bccac75241e6540f1d0079b11172fb0c` matches
+the isolated compiler result. Existing runtime dependencies, source, unknown
+files and mutable data are retained.
+
+Both actual UI recovery cycles passed without rebuilding. Final rollback
+`sd_34ea154e9b5fcc750eec9d774d6cb64f` and restore
+`sd_4fa6678413b3b23b2ba677ad4b09f6e3` each checked all 145 Development
+protected files and passed bootstrap health, browser load and three served
+attachment hashes. The restored process is verified to run the bundle.
+
+Live testing corrected slow SMB cache preparation, a frontend install timeout
+(private LOCAL SERVICE C: scratch/offline installs), an expired Git test fixture,
+and PowerShell 5.1 inventory deduplication. The new six-file regression rejects
+changed/missing non-first files and duplicate-folder errors. Initial one-entry
+inventory receipts are superseded as preservation evidence by the full baseline
+audit and corrected live guard. Full audit after the final cycle checked all
+8,542 originals, 11 environments, both web.config files and IIS: zero missing or
+changed files. Seventeen Unicode filenames are decoded against the retained raw
+UTF-8 snapshot with every original hash unchanged; no filename was edited.
+Production PID 10760 and its original owner are preserved.
+
+Production candidate `sp_6c3b764d29f94e12a25b09c23914cfdb` packages the identical
+backend, pinned runtime/configuration, source recovery snapshot and task XML.
+Local runtime and unregistered Task Scheduler definition validation pass.
+Production is BLOCKED on the candidate's scoped approval, target runtime adoption
+and startup/DB recovery review. No Production activation/database write is
+claimed; the old adapter still excludes Production. Existing customer dependency
+advisories (6 moderate, 28 high, 3 critical) remain unresolved. Phase 4 exit stays
+open. See [complete handoff](SERVIX_BACKEND_ARTIFACT_HANDOFF.md) for commands,
+identities, preservation evidence, changed files and limitations.
 
 ## System folder workspace corrections (bounded pilot PASS, 2026-10-24)
 

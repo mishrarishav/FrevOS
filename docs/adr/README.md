@@ -114,3 +114,6 @@ and generic nested-service discovery.
 [0057: Built backend artifacts and preservation-first promotion](0057-servix-backend-build-artifact.md)
 records isolated backend bundling, real DevSetu Development acceptance, immutable
 promotion and the owner's no-deletion/data-preservation requirement.
+
+[0058: Pair the computer before its projects](0058-system-first-pairing.md)
+records system-only enrollment, Git-independent monitoring and recoverable setup.

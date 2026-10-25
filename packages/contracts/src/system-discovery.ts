@@ -153,7 +153,7 @@ export const DiscoveryObservationSchema = z
   .object({
     version: z.literal(1),
     deviceId: ConnectorIdSchema,
-    profileId: text(64).min(1),
+    profileId: text(64).min(1).nullable(),
     bootId: z.uuid(),
     at: z.iso.datetime(),
     policyRevision: z.number().int().nonnegative(),
@@ -340,7 +340,7 @@ export const DiscoveryStateSchema = z
             deviceId: ConnectorIdSchema,
             name: text(120),
             userId: text(128),
-            profileId: text(64),
+            profileId: text(64).nullable(),
             status: z.enum(["active", "revoked", "workspace-access-revoked"]),
             source: ConnectorProbeSchema.nullable(),
             sourceFresh: z.boolean(),

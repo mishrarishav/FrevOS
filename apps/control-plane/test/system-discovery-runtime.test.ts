@@ -29,6 +29,48 @@ async function eventually(test: () => boolean) {
   }
   expect(test()).toBe(true);
 }
+it("tracks consented system-only metadata in actual folders without prerequisites or content snapshots", async () => {
+  const root = await mkdtemp(join(tmpdir(), "devsetu-system-metadata-"));
+  cleanups.push(() => rm(root, { recursive: true, force: true }));
+  const stateRoot = join(root, "state"),
+    deviceId = "fc_" + "e".repeat(32);
+  await mkdir(stateRoot);
+  await writeFile(
+    join(stateRoot, "discovery-consent.json"),
+    JSON.stringify({ version: 1, deviceId, metadata: true }),
+  );
+  const file = join(root, "code.ts");
+  await writeFile(file, "export const initial = true;\n");
+  const collector = new SystemDiscovery(
+    { mode: "system", deviceId, monitoringRoot: root, stateRoot },
+    async () => ({}),
+    { rootProvider: async () => [root] },
+  );
+  await collector.initialize();
+  cleanups.push(() => collector.stop());
+  await collector.configure({
+    revision: 1,
+    policy: {
+      ...defaultDiscoveryPolicy,
+      enabled: true,
+      useExistingAudit: false,
+      contentFolders: ["."],
+    },
+  });
+  await eventually(() => !collector.scanning && collector.watchers.has(root));
+  await writeFile(file, "export const privateBody = 'synthetic-content';\n");
+  await eventually(() => collector.queue.some((e: { path: string }) => e.path === "code.ts"));
+  await collector.work;
+  expect(
+    collector.queue.find((e: { path: string }) => e.path === "code.ts").content,
+  ).toBeUndefined();
+  expect(collector.versions.size).toBe(0);
+  expect((await collector.sample()).tools).toEqual([]);
+  await collector.persist();
+  expect(await readFile(join(stateRoot, "discovery/spool.json"), "utf8")).not.toContain(
+    "synthetic-content",
+  );
+});
 it("collects actual filesystem changes with selected redacted text, bounded offline receipts and no symlink or credential-file capture", async () => {
   const root = await mkdtemp(join(tmpdir(), "devsetu-discovery-events-"));
   cleanups.push(() => rm(root, { recursive: true, force: true }));

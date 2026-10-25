@@ -29,13 +29,17 @@ export const FolderSelectionSchema = z
   })
   .strict();
 export type FolderSelection = z.infer<typeof FolderSelectionSchema>;
-export const ConnectorSchema = z
+export const ConnectorRecordBaseSchema = z
   .object({
     version: z.literal(1),
     deviceId: ConnectorIdSchema,
     userId: UserIdSchema,
     workspaceId: z.literal("ws_server20"),
-    repositoryId: z.string().regex(/^gitrepo_[a-f0-9]{32}$/),
+    repositoryId: z
+      .string()
+      .regex(/^gitrepo_[a-f0-9]{32}$/)
+      .optional(),
+    mode: z.literal("system").optional(),
     profileId: DeploymentProfileIdSchema.optional(),
     name: z.string().trim().min(1).max(80),
     status: z.enum(["active", "revoked"]),
@@ -50,6 +54,20 @@ export const ConnectorSchema = z
     changeNotes: z.boolean().optional(),
   })
   .strict();
+export const ConnectorSchema = ConnectorRecordBaseSchema.superRefine((device, ctx) => {
+  if (
+    device.mode === "system"
+      ? !!device.repositoryId ||
+        !!device.profileId ||
+        !!device.source ||
+        !!device.folderSelection ||
+        !!device.folderPicker ||
+        !!device.folderBrowser ||
+        !!device.changeNotes
+      : !device.repositoryId
+  )
+    ctx.addIssue({ code: "custom", message: "Connector purpose does not match its scope" });
+});
 export type DeveloperConnector = z.infer<typeof ConnectorSchema>;
 export const DeveloperInviteResultSchema = z
   .object({
@@ -66,6 +84,7 @@ export const PairConnectorSchema = z
     version: z.literal(1),
     name: z.string().trim().min(1).max(80),
     profileId: DeploymentProfileIdSchema.optional(),
+    mode: z.literal("system").optional(),
   })
   .strict();
 export const InviteDeveloperSchema = z

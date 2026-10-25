@@ -87,6 +87,8 @@ export class LocalDevelopment {
   }
   async observe(credential: string, input: unknown) {
     const device = await this.connectors.checkCredential(credential);
+    if (device.mode === "system")
+      throw new ServixDeploymentError("connector-project-binding-required", 403);
     const snapshot = LocalDevSnapshotSchema.parse(input);
     if (
       snapshot.deviceId !== device.deviceId ||
@@ -185,6 +187,8 @@ export class LocalDevelopment {
   async claim(credential: string) {
     return this.serial(async () => {
       const device = await this.connectors.checkCredential(credential);
+      if (device.mode === "system")
+        throw new ServixDeploymentError("connector-project-binding-required", 403);
       const jobs = (await this.jobs()).filter(
         (j) => j.request.deviceId === device.deviceId && busy(j),
       );
@@ -207,6 +211,8 @@ export class LocalDevelopment {
   async complete(credential: string, input: unknown) {
     return this.serial(async () => {
       const device = await this.connectors.checkCredential(credential);
+      if (device.mode === "system")
+        throw new ServixDeploymentError("connector-project-binding-required", 403);
       const result = z
         .object({
           requestId: LocalDevRequestIdSchema,
