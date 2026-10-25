@@ -32,6 +32,7 @@
         if (s.defaults && !edited) {
           el("server").value = s.defaults.server;
           el("activity").checked = s.defaults.fileActivity;
+          el("notifications").checked = s.defaults.notifications === true;
         }
       }
       el("message").textContent = error || s.message;
@@ -72,6 +73,7 @@
       await call("/connect", {
         server: el("server").value.trim(),
         fileActivity: el("activity").checked,
+        notifications: el("notifications").checked,
       });
     } catch (e) {
       error = e.message;

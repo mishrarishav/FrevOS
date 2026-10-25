@@ -1,4 +1,26 @@
 import {
+  type NotificationState,
+  NotificationStateSchema,
+  type NotificationDraftInput,
+  type AgentNotification,
+  NotificationSchema,
+  type NotificationApprovalInput,
+  type AgentWorkspaceState,
+  AgentWorkspaceStateSchema,
+  type ModelConnectionInput,
+  type ModelProposal,
+  ModelProposalSchema,
+  type ModelCommitInput,
+  type ModelConnection,
+  ModelConnectionSchema,
+  type ModelTestResult,
+  ModelTestResultSchema,
+  type AgentInput,
+  type Agent,
+  AgentSchema,
+  type AgentRunInput,
+  type AgentRun,
+  AgentRunSchema,
   type ActivitySettingsInput,
   ActivitySettingsRecordSchema,
   type ContentPreviewInput,
@@ -100,6 +122,21 @@ export interface WorkspaceSnapshot {
 }
 
 export interface ControlCenterApi {
+  agentState?(workspaceId: string, signal?: AbortSignal): Promise<AgentWorkspaceState>;
+  agentNotifications?(workspaceId: string, signal?: AbortSignal): Promise<NotificationState>;
+  draftNotification?(
+    workspaceId: string,
+    input: NotificationDraftInput,
+  ): Promise<AgentNotification>;
+  approveNotification?(
+    workspaceId: string,
+    input: NotificationApprovalInput,
+  ): Promise<AgentNotification>;
+  prepareModel?(workspaceId: string, input: ModelConnectionInput): Promise<ModelProposal>;
+  commitModel?(workspaceId: string, input: ModelCommitInput): Promise<ModelConnection>;
+  testModel?(workspaceId: string, id: string): Promise<ModelTestResult>;
+  saveAgent?(workspaceId: string, input: AgentInput): Promise<Agent>;
+  runAgent?(workspaceId: string, input: AgentRunInput): Promise<AgentRun>;
   lookupSystemPairing?(workspaceId: string, code: string): Promise<SystemEnrollmentPreview>;
   decideSystemPairing?(
     workspaceId: string,
@@ -341,6 +378,26 @@ export function createControlCenterApi(
   };
 
   return {
+    agentNotifications: (ws, signal) =>
+      get(`${workspacePath(ws)}/agents/notifications`, NotificationStateSchema, signal),
+    draftNotification: (ws, input) =>
+      post(`${workspacePath(ws)}/agents/notifications/draft`, input, NotificationSchema),
+    approveNotification: (ws, input) =>
+      post(`${workspacePath(ws)}/agents/notifications/approve`, input, NotificationSchema),
+    agentState: (ws, signal) =>
+      get(`${workspacePath(ws)}/agents`, AgentWorkspaceStateSchema, signal),
+    prepareModel: (ws, input) =>
+      post(`${workspacePath(ws)}/agents/models/prepare`, input, ModelProposalSchema),
+    commitModel: (ws, input) =>
+      post(`${workspacePath(ws)}/agents/models/commit`, input, ModelConnectionSchema),
+    testModel: (ws, id) =>
+      post(
+        `${workspacePath(ws)}/agents/models/${encodeURIComponent(id)}/test`,
+        {},
+        ModelTestResultSchema,
+      ),
+    saveAgent: (ws, input) => post(`${workspacePath(ws)}/agents/configuration`, input, AgentSchema),
+    runAgent: (ws, input) => post(`${workspacePath(ws)}/agents/runs`, input, AgentRunSchema),
     localDevelopmentState: (workspaceId, signal) =>
       get(`${workspacePath(workspaceId)}/local-development`, LocalDevStateSchema, signal),
     discoveryState: (workspaceId, signal, historyDeviceId) =>

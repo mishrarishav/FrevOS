@@ -2,6 +2,28 @@
 
 Last updated: 2026-10-26
 
+## Configurable agents and measured health (implementation in progress, 2026-10-26)
+
+Owner-approved ADRs 0062/0063 bound this follow-up on
+`codex/agentic-monitoring-pilot`, stacking on the deployed
+`1f22ed2a6523678adcff35d8e8d1b9507ddce517` pilot. Scope: bounded real health
+sample graphs; protected, revisioned configurable model connections; multiple
+read-only agents with individual versioned skills/memory and deterministic
+source guardrails; requested bounded project-folder metadata candidates; inert
+notification drafts with exact actor/device/message approval and separate local
+opt-in. Preserve preceding activity/update/recovery results and all customer
+configuration/data. These are bounded owner-requested pilots, not completion of
+the entire later agent/workflow roadmap. No Production, autonomous personnel
+action, model shell, repository mutation, email or real employee test messages.
+
+Final local CI passes 340 tests, typecheck/build/audit and all unchanged coverage
+gates. Real PostgreSQL/Fastify/built-UI browser acceptance and native Windows
+same-device update/opt-in/interrupted-runtime recovery pass. Configured rollout
+and exact newly downloaded ZIP acceptance remain pending.
+The supplied provider's authenticated synthetic probe returns HTTP 503
+`unavailable`; a saved connection is not proof of working inference. See
+[agentic pilot handoff](AGENTIC_MONITORING_HANDOFF.md).
+
 ## Bounded activity and requested file snapshots (implementation preflight, 2026-10-26)
 
 ADRs 0060/0061 on `codex/discovery-activity-noise` stack on deployed
@@ -10,8 +32,12 @@ be paired and reporting system monitoring. Implement configurable activity
 segments/summaries, independently bounded history, bounded collector processing,
 same-device explicit local update and one-time locally approved masked file
 snapshots. Native update/interruption recovery and real local consent browser
-preflight pass. Full local CI passes 311 tests and all required gates; configured
-rollout remains pending. The actual owner's
+preflight pass. Full local CI passes 311 tests and all required gates. Configured
+request `pr_0cd5ce4127b2cdbd8e86bf28d74b790a` is live at source
+`1f22ed2a6523678adcff35d8e8d1b9507ddce517`, manifest
+`ebc0522f68a4a967a1eedbe3a5bfb6e84bd23d749bd2399011b0be87a82f8040`.
+Frozen CI, independent SYSTEM activation, HTTP/UI 200, exact-download native
+update/interruption recovery and customer baseline verification pass. The actual owner's
 laptop is not claimed updated. Preserve preceding final-result documentation.
 No customer/Production/data changes. See
 [handoff and follow-up scope](ACTIVITY_MONITORING_HANDOFF.md).

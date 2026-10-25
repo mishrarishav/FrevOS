@@ -21,6 +21,10 @@ import {
   servixExecution,
 } from "./servix-deployment.js";
 import { SystemDiscovery } from "./system-discovery.js";
+import { AgentWorkspace } from "./agent-workspace.js";
+import { ProtectedModelSecrets } from "./model-secrets.js";
+import { AgentNotifications } from "./agent-notifications.js";
+import type { ProjectFolderSearchJob } from "@frevos/contracts";
 
 const config = loadConfig(process.env);
 const pool = createDatabasePool(config.databaseUrl);
@@ -33,6 +37,145 @@ try {
   let componentDeployments: ComponentDeployments | undefined;
   let localDevelopment: LocalDevelopment | undefined;
   let systemDiscovery: SystemDiscovery | undefined;
+  const agentWorkspaces = new Map<string, AgentWorkspace>();
+  const notifications = new Map<string, AgentNotifications>();
+  const agentNotifications = (workspaceId: string) => {
+    let service = notifications.get(workspaceId);
+    if (service) return service;
+    if (!config.servixRoot || !developerConnectors || systemDiscovery?.workspaceId !== workspaceId)
+      throw new ServixDeploymentError("notifications-unavailable", 503);
+    service = new AgentNotifications(
+      join(config.servixRoot, "jobs", "agent-workspaces", workspaceId, "notifications"),
+      workspaceId,
+      developerConnectors,
+      async (actor) => {
+        const e = await new WorkspaceRepository(pool).getEvidence(workspaceId, actor);
+        return (
+          e?.workspace.status === "active" &&
+          e.membership?.status === "active" &&
+          e.membership.grantedScopes.some((s) => s === "project:write")
+        );
+      },
+      (actor, runId) => agentWorkspace(workspaceId).notificationSource(actor, runId),
+    );
+    notifications.set(workspaceId, service);
+    return service;
+  };
+  const agentWorkspace = (workspaceId: string) => {
+    let service = agentWorkspaces.get(workspaceId);
+    if (service) return service;
+    if (!config.servixRoot || agentWorkspaces.size >= 100)
+      throw new ServixDeploymentError("agent-workspace-unavailable", 503);
+    const root = join(config.servixRoot, "jobs", "agent-workspaces", workspaceId);
+    service = new AgentWorkspace(
+      root,
+      workspaceId,
+      async (ws, actor, write) => {
+        const evidence = await new WorkspaceRepository(pool).getEvidence(ws, actor);
+        return (
+          evidence?.workspace.status === "active" &&
+          evidence.membership?.status === "active" &&
+          evidence.membership.grantedScopes.some(
+            (scope) => scope === (write ? "project:write" : "project:read"),
+          )
+        );
+      },
+      new ProtectedModelSecrets(join(root, "secrets")),
+      async (actor, projectId) => {
+        const repository = new WorkspaceRepository(pool);
+        const evidence = await repository.getEvidence(workspaceId, actor);
+        if (
+          evidence?.workspace.status !== "active" ||
+          evidence.membership?.status !== "active" ||
+          !evidence.membership.grantedScopes.some((s) => s === "project:read")
+        )
+          throw new ServixDeploymentError("agent-access-denied", 403);
+        const projects = await repository.listProjects(workspaceId);
+        if (projectId && !projects.some((p) => p.projectId === projectId))
+          throw new ServixDeploymentError("agent-project-not-found", 404);
+        if (systemDiscovery?.workspaceId !== workspaceId)
+          return {
+            systems: [],
+            reports: projects
+              .filter((p) => !projectId || p.projectId === projectId)
+              .map((p) => ({
+                projectId: p.projectId,
+                projectName: p.displayName,
+                clientName: null,
+                plan: null,
+                completedPercent: null,
+                plannedPercent: null,
+                status: "plan-missing" as const,
+                overdue: [],
+                asOf: new Date().toISOString(),
+              })),
+          };
+        const state = await systemDiscovery.state(actor);
+        const folderEvidence: ProjectFolderSearchJob[] = [];
+        if (projectId) {
+          const report = state.reports.find((r) => r.projectId === projectId);
+          if (!report?.plan?.bindings.length) {
+            const targets = state.systems
+              .filter(
+                (s) =>
+                  s.userId === actor &&
+                  s.online &&
+                  s.policy?.policy.enabled &&
+                  s.observation?.coverage.roots.length,
+              )
+              .slice(0, 2);
+            const results = await Promise.allSettled(
+              targets.map(async (s) => {
+                const job = await systemDiscovery!.requestProjectFolders(actor, {
+                  version: 1,
+                  projectId,
+                  deviceId: s.deviceId,
+                });
+                for (let i = 0; i < 8; i++) {
+                  await new Promise((r) => setTimeout(r, 1000));
+                  const result = await systemDiscovery!.projectFolders(actor, job.id);
+                  if (!["queued", "working"].includes(result.status)) return result;
+                }
+                return systemDiscovery!.projectFolders(actor, job.id);
+              }),
+            );
+            for (const result of results)
+              if (result.status === "fulfilled") folderEvidence.push(result.value);
+          }
+          const related = state.systems
+            .filter(
+              (s) =>
+                report?.plan?.bindings.some(
+                  (b) =>
+                    b.deviceId === s.deviceId &&
+                    b.userId === s.userId &&
+                    b.repositoryId === s.source?.repositoryId,
+                ) ||
+                folderEvidence.some(
+                  (j) => j.request.deviceId === s.deviceId && !!j.result?.matches.length,
+                ),
+            )
+            .slice(0, 2);
+          for (const s of related) {
+            const detailed = await systemDiscovery.state(actor, s.deviceId),
+              full = detailed.systems.find((d) => d.deviceId === s.deviceId);
+            if (full) s.history = full.history;
+          }
+        }
+        return {
+          ...state,
+          folderEvidence,
+          reports: state.reports.filter(
+            (r) =>
+              projects.some((p) => p.projectId === r.projectId) &&
+              (!projectId || r.projectId === projectId),
+          ),
+        };
+      },
+    );
+    agentWorkspaces.set(workspaceId, service);
+    return service;
+  };
   if (config.servixRoot) {
     const execution = servixExecution(
       config.servixRoot,
@@ -140,6 +283,13 @@ try {
     ...(componentDeployments === undefined ? {} : { componentDeployments }),
     ...(localDevelopment === undefined ? {} : { localDevelopment }),
     ...(systemDiscovery === undefined ? {} : { systemDiscovery }),
+    ...(config.servixRoot ? { agentWorkspace } : {}),
+    ...(systemDiscovery
+      ? {
+          agentNotifications,
+          connectorNotifications: agentNotifications(systemDiscovery.workspaceId),
+        }
+      : {}),
     ...(config.servixRoot && config.authMode === "local"
       ? {
           localAccounts: new LocalAccounts(

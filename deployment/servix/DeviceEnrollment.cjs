@@ -59,7 +59,11 @@ async function serve(options = {}) {
     message: "Connect this computer without sharing an administrator password.",
     online: false,
     defaults: initial
-      ? { server: initial.server, fileActivity: initial.fileActivity === true }
+      ? {
+          server: initial.server,
+          fileActivity: initial.fileActivity === true,
+          notifications: initial.notifications === true,
+        }
       : undefined,
   };
   const remoteFetch = options.fetch || fetch;
@@ -67,9 +71,12 @@ async function serve(options = {}) {
     options.helper ||
     async function (name, input) {
       if (
-        !["Pairing-State.ps1", "Resume-SystemConnector.ps1", "Update-SystemConnector.ps1"].includes(
-          name,
-        )
+        ![
+          "Pairing-State.ps1",
+          "Resume-SystemConnector.ps1",
+          "Update-SystemConnector.ps1",
+          "Notification-Consent.ps1",
+        ].includes(name)
       )
         throw Error("setup-operation-denied");
       const script = path.join(entry.directory, name);
@@ -222,7 +229,11 @@ async function serve(options = {}) {
     try {
       const server = runtime.serverOrigin(body.server);
       state.server = server;
-      state.defaults = { server, fileActivity: body.fileActivity };
+      state.defaults = {
+        server,
+        fileActivity: body.fileActivity,
+        notifications: body.notifications === true,
+      };
       state.phase = "checking";
       state.message = "Checking this computer's protected connection…";
       if (pending && pending.server !== server) pending = null;
@@ -324,11 +335,19 @@ async function serve(options = {}) {
         };
         await (options.install || runtime.installRuntime)(config);
       }
+      if (!options.resume || options.notificationConsent)
+        await (options.notificationConsent || ((r) => helper("Notification-Consent.ps1", r)))({
+          version: 1,
+          deviceId: config.deviceId,
+          server,
+          enabled: body.notifications === true,
+        });
       await saveIndex(connectionFile, {
         server,
         deviceId: config.deviceId,
         username: config.accountName,
         fileActivity: body.fileActivity,
+        notifications: body.notifications === true,
       });
       state.phase = "waiting";
       state.message = "Connector started. Waiting for an authenticated health report…";
@@ -371,7 +390,7 @@ async function serve(options = {}) {
   }
   const client = await fs.readFile(path.join(__dirname, "DeviceEnrollmentClient.js"), "utf8");
   const html = () =>
-    `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DevSetu · Connect this computer</title><style>body{margin:0;font:16px system-ui;background:#f5f7fb;color:#17253d}main{max-width:650px;margin:4vh auto;padding:28px;background:white;border:1px solid #d8dfe9;border-radius:12px}label{display:block;margin:16px 0}input[type=url]{box-sizing:border-box;width:100%;padding:12px;border:1px solid #bac6d7;border-radius:6px}button,a{display:inline-block;padding:11px 16px;margin:8px 8px 0 0}button{border:0;border-radius:6px;background:#175ddc;color:white;cursor:pointer}button:disabled{opacity:.6;cursor:not-allowed}#code{font-size:34px;letter-spacing:4px;font-weight:700}#message{background:#eef3fc;padding:14px;white-space:pre-wrap;overflow-wrap:anywhere}small{color:#536078}@media(max-width:680px){main{margin:0;border:0;padding:20px}}</style><main><h1>Connect this computer</h1><p>No administrator password. No project or Git required.</p><form id="form"><label>DevSetu server URL<input type="url" id="server" required autocomplete="url" placeholder="Your DevSetu address"></label><label><input type="checkbox" id="activity"> Enable file activity on readable local drives</label><small>Health includes CPU, RAM, operating system and drive space. File activity needs your choice here and approval in DevSetu. File contents and project execution are not included.</small><p><button id="connect">Connect this computer</button></p></form><section id="approval" hidden><h2>Approve from DevSetu</h2><p id="device"></p><p id="code"></p><button id="copy" type="button">Copy pairing code</button><a id="approve" target="_blank" rel="noopener">Open DevSetu Discovery</a><small>Use your own signed-in browser on this computer or another computer. Only approve the code shown on the computer you intend to connect.</small></section><p id="message" role="status"></p><a id="discovery" hidden target="_blank" rel="noopener">Open Discovery</a><a id="projects" hidden target="_blank" rel="noopener">Add a project later</a></main><meta name="setup-token" content="${token}"><script>${client}</script></html>`;
+    `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DevSetu · Connect this computer</title><style>body{margin:0;font:16px system-ui;background:#f5f7fb;color:#17253d}main{max-width:650px;margin:4vh auto;padding:28px;background:white;border:1px solid #d8dfe9;border-radius:12px}label{display:block;margin:16px 0}input[type=url]{box-sizing:border-box;width:100%;padding:12px;border:1px solid #bac6d7;border-radius:6px}button,a{display:inline-block;padding:11px 16px;margin:8px 8px 0 0}button{border:0;border-radius:6px;background:#175ddc;color:white;cursor:pointer}button:disabled{opacity:.6;cursor:not-allowed}#code{font-size:34px;letter-spacing:4px;font-weight:700}#message{background:#eef3fc;padding:14px;white-space:pre-wrap;overflow-wrap:anywhere}small{color:#536078}@media(max-width:680px){main{margin:0;border:0;padding:20px}}</style><main><h1>Connect this computer</h1><p>No administrator password. No project or Git required.</p><form id="form"><label>DevSetu server URL<input type="url" id="server" required autocomplete="url" placeholder="Your DevSetu address"></label><label><input type="checkbox" id="activity"> Enable file activity on readable local drives</label><label><input type="checkbox" id="notifications"> Show individually approved DevSetu notifications from the account that paired this computer</label><small>Health includes CPU, RAM, operating system and drive space. File activity needs your choice here and approval in DevSetu. File contents and project execution are not included.</small><p><button id="connect">Connect this computer</button></p></form><section id="approval" hidden><h2>Approve from DevSetu</h2><p id="device"></p><p id="code"></p><button id="copy" type="button">Copy pairing code</button><a id="approve" target="_blank" rel="noopener">Open DevSetu Discovery</a><small>Use your own signed-in browser on this computer or another computer. Only approve the code shown on the computer you intend to connect.</small></section><p id="message" role="status"></p><a id="discovery" hidden target="_blank" rel="noopener">Open Discovery</a><a id="projects" hidden target="_blank" rel="noopener">Add a project later</a></main><meta name="setup-token" content="${token}"><script>${client}</script></html>`;
   const server = http.createServer(async (req, res) => {
     const send = (code, value) => {
       res.writeHead(code, { "content-type": "application/json", "cache-control": "no-store" });
@@ -433,7 +452,10 @@ async function serve(options = {}) {
       if (req.url === "/status" && !Object.keys(body).length) return send(200, { ...state, busy });
       if (
         req.url !== "/connect" ||
-        Object.keys(body).sort().join(",") !== "fileActivity,server" ||
+        !["fileActivity,server", "fileActivity,notifications,server"].includes(
+          Object.keys(body).sort().join(","),
+        ) ||
+        (body.notifications !== undefined && typeof body.notifications !== "boolean") ||
         typeof body.fileActivity !== "boolean" ||
         typeof body.server !== "string"
       )

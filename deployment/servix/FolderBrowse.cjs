@@ -362,4 +362,106 @@ async function preview(config, job, roots, consent, options = {}) {
     }
   }
 }
-module.exports = { browse, preview };
+async function search(config, job, trackingRoots, actualRoots, consent, options = {}) {
+  const fs = require("node:fs/promises");
+  const { excluded } = require("./DiscoverySafety.cjs");
+  const now = options.now || Date.now,
+    started = now();
+  const result = { matches: [], scannedDirectories: 0, partial: false, gaps: [] };
+  const gap = (code) => {
+    result.partial = true;
+    if (!result.gaps.includes(code)) result.gaps.push(code);
+  };
+  const normalized = (s) =>
+    s
+      .normalize("NFKC")
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]/gu, "");
+  try {
+    if (
+      !consent ||
+      job.version !== 1 ||
+      job.workspaceId !== "ws_server20" ||
+      !/^fd_[a-f0-9]{32}$/.test(job.id) ||
+      job.request?.deviceId !== config.deviceId ||
+      job.status !== "working" ||
+      !Number.isFinite(Date.parse(job.expiresAt)) ||
+      Date.parse(job.expiresAt) <= Date.now() ||
+      !Array.isArray(job.roots) ||
+      !job.roots.length ||
+      job.roots.length > 64 ||
+      job.roots.some((r) => !trackingRoots.includes(r) || !actualRoots.some((a) => within(a, r)))
+    )
+      throw Error("scope");
+    const query =
+      typeof job.query === "string" && job.query.length <= 120 ? normalized(job.query) : "";
+    if (query.length < 2) {
+      gap("query-unavailable");
+      return { ...job, status: "succeeded", result };
+    }
+    const queue = [];
+    for (const root of job.roots) {
+      try {
+        const info = await fs.lstat(root);
+        if (!info.isDirectory() || info.isSymbolicLink()) {
+          gap("path-unavailable");
+          continue;
+        }
+        queue.push({ root, folder: root, dev: info.dev });
+      } catch {
+        gap("path-unavailable");
+      }
+    }
+    while (
+      queue.length &&
+      result.scannedDirectories < 1000 &&
+      now() - started < 2000 &&
+      result.matches.length < 40
+    ) {
+      const { root, folder, dev } = queue.shift();
+      result.scannedDirectories++;
+      let directory;
+      try {
+        const current = await fs.lstat(folder);
+        if (!current.isDirectory() || current.isSymbolicLink() || current.dev !== dev) {
+          gap("path-unavailable");
+          continue;
+        }
+        directory = await fs.opendir(folder);
+        for await (const entry of directory) {
+          if (now() - started >= 2000 || result.matches.length >= 40) {
+            gap("search-limit");
+            break;
+          }
+          if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
+          const selected = path.join(folder, entry.name),
+            rel = path.relative(root, selected).split(path.sep).join("/");
+          if (
+            !relative(rel) ||
+            rel.length > 512 ||
+            metadataExcluded(rel) ||
+            excluded(
+              path.relative(
+                actualRoots.find((a) => within(a, selected)),
+                selected,
+              ),
+            ) ||
+            within(config.stateRoot, selected) ||
+            within(__dirname, selected)
+          )
+            continue;
+          if (normalized(entry.name).startsWith(query)) result.matches.push({ root, path: rel });
+          if (queue.length < 1000) queue.push({ root, folder: selected, dev });
+          else gap("search-limit");
+        }
+      } catch (e) {
+        gap(e.code === "EACCES" || e.code === "EPERM" ? "permission-denied" : "path-unavailable");
+      }
+    }
+    if (queue.length) gap("search-limit");
+    return { ...job, status: "succeeded", result };
+  } catch {
+    return { ...job, status: "failed" };
+  }
+}
+module.exports = { browse, preview, search };

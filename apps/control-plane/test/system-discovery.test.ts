@@ -15,6 +15,56 @@ import { DeveloperConnectorStore } from "../src/developer-connectors.js";
 import { SystemDiscovery } from "../src/system-discovery.js";
 
 const cleanups: (() => Promise<unknown>)[] = [];
+it("keeps deduplicated bounded real health samples and scopes requested project folder searches", async () => {
+  const f = await fixture();
+  await f.store.configure("usr_alice", f.policy);
+  const observation = {
+    ...f.observation,
+    policyRevision: 1,
+    coverage: { ...f.observation.coverage, status: "collecting" as const, roots: ["C:\\fixture"] },
+  };
+  for (let i = 0; i < 185; i++) {
+    f.advance(5000);
+    await f.store.observe(f.alice.credential, {
+      ...observation,
+      at: f.clock().toISOString(),
+      system: { ...observation.system, cpuPercent: i % 100 },
+    });
+  }
+  await f.connectors.heartbeat(f.alice.credential, {
+    probe: {
+      version: 1,
+      profileId: "servix-development",
+      repository: "C:\\fixture",
+      origin: "//10.9.69.20/e$/FrevOS/git/servix.git",
+      head: "a".repeat(40),
+      branch: "feature/fixture",
+      checkedAt: f.clock().toISOString(),
+    },
+  });
+  await f.store.observe(f.alice.credential, { ...observation, at: f.clock().toISOString() });
+  const state = await f.store.state("usr_alice", f.alice.deviceId);
+  expect(state.systems[0]!.healthHistory).toHaveLength(180);
+  expect((await f.store.state("usr_alice")).systems[0]!.healthHistory).toHaveLength(12);
+  const body = { version: 1, projectId: "prj_fixture", deviceId: f.alice.deviceId };
+  await expect(f.store.requestProjectFolders("usr_bob", body)).rejects.toThrow();
+  await expect(
+    f.store.requestProjectFolders("usr_alice", { ...body, projectId: "prj_outside" }),
+  ).rejects.toThrow();
+  const j = await f.store.requestProjectFolders("usr_alice", body),
+    job = (await f.store.claimProjectFolders(f.alice.credential))!;
+  expect(job.query).toBe("Fixture project");
+  await f.store.finishProjectFolders(f.alice.credential, {
+    ...job,
+    status: "succeeded",
+    result: { matches: [], scannedDirectories: 1000, partial: true, gaps: ["search-limit"] },
+  });
+  expect((await f.store.projectFolders("usr_alice", j.id)).result!.partial).toBe(true);
+  f.advance(901000);
+  expect((await f.store.state("usr_alice", f.alice.deviceId)).systems[0]!.healthHistory).toEqual(
+    [],
+  );
+});
 it("applies revisioned noise settings to legacy events, reserves Work and enforces owner/expiry/one-time file previews", async () => {
   const f = await fixture();
   const input = {
@@ -318,6 +368,8 @@ it("scopes observations/policies and project plans to verified workspace actors;
     revision: 0,
     policy: defaultDiscoveryPolicy,
     activity: { revision: 0, settings: defaultActivitySettings },
+    notifications: { version: 1 },
+    folderSearch: { version: 1 },
   });
   expect(
     await f.store.observe(f.alice.credential, { ...f.observation, policyRevision: 1 }),

@@ -20,6 +20,7 @@ import { SystemPairingDialog } from "./SystemPairingDialog.js";
 import { RecordBadge, type RecordColumn, RecordWorkspace } from "./RecordWorkspace.js";
 import { addBasePath } from "./routing.js";
 import { WorkspaceDialog } from "./WorkspaceDialog.js";
+import { HealthGraphs } from "./HealthGraphs.js";
 
 type System = DiscoveryState["systems"][number];
 const bytes = (n: number) => `${(n / 1073741824).toFixed(1)} GB`;
@@ -688,6 +689,7 @@ export function DiscoveryPage({
               </label>
               {health(selected)}
               <p>CPU and RAM above describe the whole computer.</p>
+              <HealthGraphs points={selected.healthHistory ?? []} online={selected.online} />
               <p>
                 {selected.collector
                   ? `Connector: ${(selected.collector.rss / 1048576).toFixed(1)} MB RAM (RSS), ${(selected.collector.heapUsed / 1048576).toFixed(1)} MB JavaScript heap · pending jobs ${selected.collector.pendingJobs} / ${selected.collector.maxPendingJobs}`

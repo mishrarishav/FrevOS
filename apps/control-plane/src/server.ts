@@ -30,6 +30,8 @@ import {
 } from "@frevos/contracts";
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import { z } from "zod";
+import type { AgentWorkspace } from "./agent-workspace.js";
+import type { AgentNotifications } from "./agent-notifications.js";
 import type { ComponentDeployments } from "./component-deployments.js";
 import { hashesMatch, type OidcTransaction, type OidcTransactionCodec } from "./crypto.js";
 import type { DeploymentSettingsStore } from "./deployment-settings.js";
@@ -161,6 +163,9 @@ interface BuildServerOptions {
   readonly developerConnectors?: DeveloperConnectorStore;
   readonly localDevelopment?: LocalDevelopment;
   readonly systemDiscovery?: SystemDiscovery;
+  readonly agentWorkspace?: (workspaceId: string) => AgentWorkspace;
+  readonly agentNotifications?: (workspaceId: string) => AgentNotifications;
+  readonly connectorNotifications?: AgentNotifications;
 }
 
 interface WorkspaceParams {
@@ -916,6 +921,112 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
       throw new HttpError(401, "connector-authentication-required");
     return value.slice(7);
   };
+  const agentContext = async (
+    request: FastifyRequest<{ Params: WorkspaceParams }>,
+    write = false,
+  ) => {
+    const evidence = await requireWorkspace(
+      request,
+      options,
+      write ? "project:write" : "project:read",
+      now(),
+    );
+    if (write)
+      requireCsrf(
+        request,
+        evidence.session.session,
+        options.publicOrigin,
+        options.authCookies.csrf,
+      );
+    if (!options.agentWorkspace) throw new HttpError(503, "agent-workspace-unavailable");
+    return {
+      service: options.agentWorkspace(evidence.workspaceId),
+      actor: evidence.session.session.context.userId,
+    };
+  };
+  server.get<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/agents"),
+    async (request) => {
+      const c = await agentContext(request);
+      return c.service.state(c.actor);
+    },
+  );
+  server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/agents/models/prepare"),
+    async (request) => {
+      const c = await agentContext(request, true);
+      return c.service.prepareModel(c.actor, request.body);
+    },
+  );
+  server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/agents/models/commit"),
+    async (request) => {
+      const c = await agentContext(request, true);
+      return c.service.commitModel(c.actor, request.body);
+    },
+  );
+  server.post<{ Params: WorkspaceParams & { connectionId: string } }>(
+    route("/v1/workspaces/:workspaceId/agents/models/:connectionId/test"),
+    async (request) => {
+      const c = await agentContext(request, true);
+      if (request.body && Object.keys(request.body).length)
+        throw new HttpError(400, "invalid-request");
+      return c.service.testModel(c.actor, request.params.connectionId);
+    },
+  );
+  server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/agents/configuration"),
+    async (request) => {
+      const c = await agentContext(request, true);
+      return c.service.saveAgent(c.actor, request.body);
+    },
+  );
+  server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/agents/runs"),
+    async (request, reply) => {
+      const c = await agentContext(request, true);
+      return reply.status(202).send(await c.service.requestRun(c.actor, request.body));
+    },
+  );
+  const notificationContext = async (
+    request: FastifyRequest<{ Params: WorkspaceParams }>,
+    write = false,
+  ) => {
+    const c = await agentContext(request, write);
+    if (!options.agentNotifications) throw new HttpError(503, "notifications-unavailable");
+    return { service: options.agentNotifications(request.params.workspaceId), actor: c.actor };
+  };
+  server.get<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/agents/notifications"),
+    async (request) => {
+      const c = await notificationContext(request);
+      return c.service.state(c.actor);
+    },
+  );
+  server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/agents/notifications/draft"),
+    async (request) => {
+      const c = await notificationContext(request, true);
+      return c.service.draft(c.actor, request.body);
+    },
+  );
+  server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/agents/notifications/approve"),
+    async (request) => {
+      const c = await notificationContext(request, true);
+      return c.service.approve(c.actor, request.body);
+    },
+  );
+  server.post(route("/v1/connector/notifications/claim"), async (request) => {
+    if (!options.connectorNotifications) throw new HttpError(503, "notifications-unavailable");
+    return {
+      job: await options.connectorNotifications.claim(connectorCredential(request), request.body),
+    };
+  });
+  server.post(route("/v1/connector/notifications/complete"), async (request) => {
+    if (!options.connectorNotifications) throw new HttpError(503, "notifications-unavailable");
+    return options.connectorNotifications.complete(connectorCredential(request), request.body);
+  });
   const connectorActor = async (
     request: FastifyRequest<{ Params: WorkspaceParams }>,
     write = false,
@@ -1027,6 +1138,22 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
   }));
   server.post(route("/v1/connector/discovery/folders/complete"), async (request) =>
     discovery().finishFolders(connectorCredential(request), request.body),
+  );
+  server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/discovery/project-folders"),
+    async (request) =>
+      discovery().requestProjectFolders(await connectorActor(request, true), request.body),
+  );
+  server.get<{ Params: WorkspaceParams & { requestId: string } }>(
+    route("/v1/workspaces/:workspaceId/discovery/project-folders/:requestId"),
+    async (request) =>
+      discovery().projectFolders(await connectorActor(request), request.params.requestId),
+  );
+  server.post(route("/v1/connector/discovery/project-folders/claim"), async (request) => ({
+    job: await discovery().claimProjectFolders(connectorCredential(request)),
+  }));
+  server.post(route("/v1/connector/discovery/project-folders/complete"), async (request) =>
+    discovery().finishProjectFolders(connectorCredential(request), request.body),
   );
   server.post<{ Params: WorkspaceParams }>(
     route("/v1/workspaces/:workspaceId/discovery/policy"),

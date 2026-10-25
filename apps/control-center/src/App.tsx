@@ -58,6 +58,7 @@ import { ComponentConfiguration } from "./ComponentDeployments.js";
 import { DeploymentSettingsPage } from "./DeploymentSettingsPage.js";
 import { DeploymentsPage } from "./DeploymentsPage.js";
 import { DiscoveryPage } from "./DiscoveryPage.js";
+import { AgentsPage } from "./AgentsPage.js";
 import {
   activity,
   approvals,
@@ -293,15 +294,16 @@ export function App({
 
   const route = resolveRoute(pathname);
   const projectWorkspace =
-    experience.workspace.workspaceId === "ws_server20" &&
-    [
-      "projects",
-      "deployment-setup",
-      "component-setup",
-      "local-development",
-      "discovery",
-      "deployments",
-    ].includes(route?.id ?? "");
+    route?.id === "agents" ||
+    (experience.workspace.workspaceId === "ws_server20" &&
+      [
+        "projects",
+        "deployment-setup",
+        "component-setup",
+        "local-development",
+        "discovery",
+        "deployments",
+      ].includes(route?.id ?? ""));
 
   return (
     <div className={projectWorkspace ? "app-canvas record-app-canvas" : "app-canvas"}>
@@ -392,6 +394,14 @@ export function App({
               scopeName={workspaceDisplayName(experience.workspace)}
             />
           ) : null}
+          {route?.id === "agents" ? (
+            <AgentsPage
+              api={api}
+              workspaceId={experience.workspace.workspaceId}
+              scopeName={workspaceDisplayName(experience.workspace)}
+              projects={experience.projects}
+            />
+          ) : null}
           {(route?.id === "deployment-setup" || route?.id === "projects") &&
           experience.workspace.workspaceId === "ws_server20" ? (
             <DeploymentSettingsPage
@@ -404,6 +414,7 @@ export function App({
           {route &&
           route.id !== "control-center" &&
           route.id !== "design-system" &&
+          route.id !== "agents" &&
           route.id !== "projects" ? (
             route.id === "project-operations" ? null : (route.id === "deployments" ||
                 route.id === "deployment-setup" ||
@@ -1133,8 +1144,9 @@ function ControlCenter({
               <div>
                 <h3>Authenticated boundary active</h3>
                 <p>
-                  Session and workspace records are server verified. Commands, agents, approvals,
-                  audit persistence, and protected actions remain unavailable.
+                  Session and workspace records are server verified. The configured agent pilot
+                  supports requested read-only analysis. Broader commands and protected actions
+                  remain separately gated.
                 </p>
               </div>
             </div>

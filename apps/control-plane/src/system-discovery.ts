@@ -12,6 +12,7 @@ import {
   ContentPreviewInputSchema,
   ContentPreviewJobSchema,
   type ContentPreviewJob,
+  SystemHealthPointSchema,
   type Client,
   ConnectorIdSchema,
   ConnectorProbeSchema,
@@ -54,6 +55,7 @@ const safety = createRequire(import.meta.url)("../../../deployment/servix/Discov
 const CollectorRecord = z
   .object({ receivedAt: z.iso.datetime(), collector: CollectorMetricsSchema })
   .strict();
+const HealthHistory = z.array(SystemHealthPointSchema).max(180);
 const StoredObservation = z
   .object({
     actor: z.string(),
@@ -78,7 +80,9 @@ const StoredObservation = z
   })
   .strict();
 type Catalog = { projects: Project[]; clients: Client[] };
+import { ProjectFolderSearch } from "./project-folder-search.js";
 export class SystemDiscovery {
+  readonly workspaceId = "ws_server20" as const;
   private chain: Promise<unknown> = Promise.resolve();
   constructor(
     readonly root: string,
@@ -86,6 +90,40 @@ export class SystemDiscovery {
     private readonly catalog: (actor: string) => Promise<Catalog>,
     private readonly now = () => new Date(),
   ) {}
+  private folderSearchService?: ProjectFolderSearch;
+  private folderSearch() {
+    if (this.folderSearchService) return this.folderSearchService;
+    this.folderSearchService = new ProjectFolderSearch(
+      join(this.root, "folder-search"),
+      (credential) => this.connectors.checkCredential(credential),
+      async (actor, input) => {
+        const catalog = await this.catalog(actor);
+        const project = catalog.projects.find(
+          (p) => p.projectId === input.projectId && p.status === "active",
+        );
+        if (!project) throw new ServixDeploymentError("folder-search-project-denied", 403);
+        const { observation } = await this.browseDevice(actor, input.deviceId);
+        const policy = await this.policy(input.deviceId);
+        if (!policy?.policy.enabled || !observation.coverage.roots.length)
+          throw new ServixDeploymentError("folder-search-consent-required", 403);
+        return { query: project.displayName, roots: observation.coverage.roots };
+      },
+      this.now,
+    );
+    return this.folderSearchService;
+  }
+  requestProjectFolders(actor: string, input: unknown) {
+    return this.folderSearch().request(actor, input);
+  }
+  projectFolders(actor: string, id: string) {
+    return this.folderSearch().get(actor, id);
+  }
+  claimProjectFolders(credential: string) {
+    return this.folderSearch().claim(credential);
+  }
+  finishProjectFolders(credential: string, input: unknown) {
+    return this.folderSearch().complete(credential, input);
+  }
   private serial<T>(fn: () => Promise<T>) {
     const result = this.chain.then(fn);
     this.chain = result.catch(() => undefined);
@@ -488,6 +526,8 @@ export class SystemDiscovery {
         revision: activity?.revision ?? 0,
         settings: activity?.settings ?? defaultActivitySettings,
       },
+      notifications: { version: 1 },
+      folderSearch: { version: 1 },
     };
   }
   async configure(actor: string, input: unknown) {
@@ -611,6 +651,23 @@ export class SystemDiscovery {
       const receivedAt = this.now().toISOString();
       if (collector)
         await this.save(device.deviceId + ".collector.json", { receivedAt, collector });
+      const previousHealth = await this.read(device.deviceId + ".health.json");
+      const point = {
+        at: observation.at,
+        cpuPercent: observation.system.cpuPercent,
+        memoryTotal: observation.system.memoryTotal,
+        memoryAvailable: observation.system.memoryAvailable,
+      };
+      const health = [
+        ...(previousHealth ? HealthHistory.parse(previousHealth) : []).filter(
+          (p) => p.at !== point.at,
+        ),
+        point,
+      ]
+        .filter((p) => Date.parse(p.at) >= this.now().getTime() - 900000)
+        .sort((a, b) => Date.parse(a.at) - Date.parse(b.at))
+        .slice(-180);
+      await this.save(device.deviceId + ".health.json", HealthHistory.parse(health));
       const cursors = retainedCursors.filter((c) => c.bootId !== observation.bootId);
       if (cursors.length >= 32) throw new ServixDeploymentError("discovery-epoch-capacity", 503);
       cursors.push({
@@ -706,6 +763,10 @@ export class SystemDiscovery {
         const settings = configuration?.settings ?? defaultActivitySettings;
         const metrics = await this.read(d.deviceId + ".collector.json");
         const metricRecord = metrics ? CollectorRecord.parse(metrics) : null;
+        const health = await this.read(d.deviceId + ".health.json");
+        const healthHistory = (health ? HealthHistory.parse(health) : []).filter(
+          (p) => Date.parse(p.at) >= this.now().getTime() - 900000,
+        );
         const cutoff = this.now().getTime() - (policy?.policy.retentionDays ?? 7) * 86400000;
         const safeHistory = (record?.history ?? [])
           .filter((e) => Date.parse(e.at) >= cutoff)
@@ -730,6 +791,7 @@ export class SystemDiscovery {
           online:
             !!record && d.online && this.now().getTime() - Date.parse(record.receivedAt) < 30000,
           observedAt: record?.receivedAt ?? null,
+          healthHistory: historyDeviceId === d.deviceId ? healthHistory : healthHistory.slice(-12),
           policy,
           observation: record?.observation ?? null,
           history: historyDeviceId === d.deviceId ? history : history.slice(-20),

@@ -12,6 +12,11 @@ import { SelfUpdates } from "../src/self-updates.js";
 import { buildServer, SESSION_COOKIE, CSRF_COOKIE } from "../src/server.js";
 import { DeveloperConnectorStore } from "../src/developer-connectors.js";
 import { SystemDiscovery } from "../src/system-discovery.js";
+import { AgentWorkspace } from "../src/agent-workspace.js";
+import { AgentNotifications } from "../src/agent-notifications.js";
+import { ProtectedModelSecrets } from "../src/model-secrets.js";
+import { sealModelCredential } from "./fixtures/model-seal.js";
+import { defaultAgentGuardrails, type ModelProposal } from "@frevos/contracts";
 
 it("protects account metadata and password actions, revokes sessions, preserves hashes and scopes, and authorizes only pinned self-updates", async () => {
   const container = await new PostgreSqlContainer(
@@ -85,6 +90,24 @@ it("protects account metadata and password actions, revokes sessions, preserves 
       projects: [],
       clients: [],
     }));
+    const agentService = new AgentWorkspace(
+      join(root, "agents", "ws_server20"),
+      "ws_server20",
+      async (ws, actor) => ws === "ws_server20" && actor === owner.userId,
+      new ProtectedModelSecrets(join(root, "agents", "ws_server20", "secrets")),
+      async () => ({ systems: [], reports: [] }),
+      {
+        validateEndpoint: async () => {},
+        complete: async () => ({ text: "Synthetic read-only suggestion", model: "synthetic" }),
+      },
+    );
+    const notices = new AgentNotifications(
+      join(root, "notices"),
+      "ws_server20",
+      connectors,
+      async (actor) => actor === owner.userId,
+      (actor, id) => agentService.notificationSource(actor, id),
+    );
     server = await buildServer({
       publicOrigin: origin,
       authMode: "local",
@@ -94,6 +117,9 @@ it("protects account metadata and password actions, revokes sessions, preserves 
       selfUpdates: new SelfUpdates(maintenance),
       developerConnectors: connectors,
       systemDiscovery: discovery,
+      agentWorkspace: () => agentService,
+      agentNotifications: () => notices,
+      connectorNotifications: notices,
     });
     const login = async (username: string, password: string) => {
       const response = await server!.inject({
@@ -191,6 +217,155 @@ it("protects account metadata and password actions, revokes sessions, preserves 
         headers: { authorization: "Bearer " + token },
         payload: {},
       });
+    const agentBase = "/v1/workspaces/ws_server20/agents";
+    const modelInput = {
+      version: 1,
+      expectedRevision: 0,
+      name: "Synthetic test provider",
+      endpoint: "https://model.example/chat",
+      model: "",
+      protocol: "chat-completions",
+      authentication: "bearer",
+      allowWorkspaceSummary: false,
+      credential: "replace",
+    };
+    expect((await get(agentBase)).statusCode).toBe(200);
+    expect((await get(agentBase, devAuth)).statusCode).toBe(403);
+    expect((await get(agentBase.replace("ws_server20", "ws_other"))).statusCode).toBe(404);
+    for (const suffix of [
+      "/models/prepare",
+      "/models/commit",
+      "/configuration",
+      "/runs",
+      "/notifications/draft",
+      "/notifications/approve",
+    ]) {
+      expect(
+        (await post(agentBase + suffix, {}, { ...ownerAuth, "x-csrf-token": "bad" })).statusCode,
+      ).toBe(403);
+    }
+    const prep = await post(agentBase + "/models/prepare", modelInput);
+    expect(prep.statusCode).toBe(200);
+    const model = await post(
+      agentBase + "/models/commit",
+      sealModelCredential(prep.json<ModelProposal>(), "SYNTHETIC_HTTP_MODEL_CREDENTIAL"),
+    );
+    expect(model.statusCode).toBe(200);
+    const mc = model.json().id;
+    expect((await post(agentBase + `/models/${mc}/test`, {})).json().status).toBe("ready");
+    expect(
+      (await post(agentBase + `/models/${mc}/test`, {}, { ...ownerAuth, "x-csrf-token": "bad" }))
+        .statusCode,
+    ).toBe(403);
+    const configured = await post(agentBase + "/configuration", {
+      version: 1,
+      expectedRevision: 0,
+      name: "Analyst",
+      role: "Read-only",
+      parentId: null,
+      connectionId: mc,
+      skills: "Read verified evidence",
+      memory: "",
+      guardrails: { ...defaultAgentGuardrails, allowNotificationDrafts: true },
+      enabled: true,
+    });
+    expect(configured.statusCode).toBe(200);
+    const requestedRun = await post(agentBase + "/runs", {
+      version: 1,
+      agentId: configured.json().id,
+      prompt: "Synthetic status",
+    });
+    expect(requestedRun.statusCode).toBe(202);
+    await agentService.waitForRuns();
+    expect((await get(agentBase)).json().runs[0].status).toBe("succeeded");
+    expect((await get(agentBase + "/notifications")).statusCode).toBe(200);
+    const notificationInput = {
+      version: 1,
+      runId: requestedRun.json().id,
+      deviceId,
+      title: "Synthetic local test",
+      message: "Review the fixture milestones",
+    };
+    const draftNotice = await post(agentBase + "/notifications/draft", notificationInput);
+    expect(draftNotice.statusCode).toBe(200);
+    expect(
+      (
+        await post(agentBase + "/notifications/approve", {
+          version: 1,
+          id: draftNotice.json().id,
+          expectedRevision: 1,
+          digest: draftNotice.json().digest,
+          approve: true,
+        })
+      ).statusCode,
+    ).toBe(409);
+    for (const suffix of ["claim", "complete"]) {
+      expect(
+        (
+          await server.inject({
+            method: "POST",
+            url: "/v1/connector/notifications/" + suffix,
+            headers: { authorization: "Bearer " + proof },
+            payload:
+              suffix === "claim"
+                ? { version: 1, enabled: true, capability: "windows-balloon" }
+                : {
+                    version: 1,
+                    id: draftNotice.json().id,
+                    digest: draftNotice.json().digest,
+                    status: "declined",
+                  },
+          })
+        ).statusCode,
+      ).toBe(401);
+    }
+    const claimNotice = await server.inject({
+      method: "POST",
+      url: "/v1/connector/notifications/claim",
+      headers: { authorization: "Bearer " + credential },
+      payload: { version: 1, enabled: true, capability: "windows-balloon" },
+    });
+    expect(claimNotice.json()).toEqual({ job: null });
+    await connectors.heartbeat(credential);
+    const approveNotice = await post(agentBase + "/notifications/approve", {
+      version: 1,
+      id: draftNotice.json().id,
+      expectedRevision: 1,
+      digest: draftNotice.json().digest,
+      approve: true,
+    });
+    expect(approveNotice.statusCode).toBe(200);
+    const claimedNotice = await server.inject({
+      method: "POST",
+      url: "/v1/connector/notifications/claim",
+      headers: { authorization: "Bearer " + credential },
+      payload: { version: 1, enabled: true, capability: "windows-balloon" },
+    });
+    expect(claimedNotice.json().job.status).toBe("delivering");
+    const completeNotice = await server.inject({
+      method: "POST",
+      url: "/v1/connector/notifications/complete",
+      headers: { authorization: "Bearer " + credential },
+      payload: {
+        version: 1,
+        id: draftNotice.json().id,
+        digest: draftNotice.json().digest,
+        status: "display-requested",
+      },
+    });
+    expect(completeNotice.statusCode).toBe(200);
+    const searchRoute = "/v1/workspaces/ws_server20/discovery/project-folders";
+    expect(
+      (await post(searchRoute, { version: 1, projectId: "prj_missing", deviceId })).statusCode,
+    ).toBe(403);
+    expect((await get(searchRoute + "/fd_" + "a".repeat(32))).statusCode).toBe(404);
+    expect(
+      (await deviceRequest("/v1/connector/discovery/project-folders/claim", credential)).json(),
+    ).toEqual({ job: null });
+    expect(
+      (await deviceRequest("/v1/connector/discovery/project-folders/complete", credential))
+        .statusCode,
+    ).toBe(400);
     expect((await deviceRequest("/v1/connector/enrollment/poll", proof)).json()).toMatchObject({
       status: "approved",
     });

@@ -159,6 +159,15 @@ export const DiscoveryEventSchema = z
   })
   .strict();
 export type DiscoveryEvent = z.infer<typeof DiscoveryEventSchema>;
+export const SystemHealthPointSchema = z
+  .object({
+    at: z.iso.datetime(),
+    cpuPercent: z.number().min(0).max(100).nullable(),
+    memoryTotal: z.number().int().nonnegative(),
+    memoryAvailable: z.number().int().nonnegative(),
+  })
+  .strict();
+export type SystemHealthPoint = z.infer<typeof SystemHealthPointSchema>;
 export const SystemSampleSchema = z
   .object({
     systemName: text(128).min(1),
@@ -281,6 +290,47 @@ export const ContentPreviewJobSchema = z
   })
   .strict();
 export type ContentPreviewJob = z.infer<typeof ContentPreviewJobSchema>;
+export const ProjectFolderSearchInputSchema = z
+  .object({ version: z.literal(1), projectId: ProjectIdSchema, deviceId: ConnectorIdSchema })
+  .strict();
+export const ProjectFolderSearchJobSchema = z
+  .object({
+    version: z.literal(1),
+    id: z.string().regex(/^fd_[a-f0-9]{32}$/),
+    actor: text(128).min(1),
+    workspaceId: z.literal("ws_server20"),
+    request: ProjectFolderSearchInputSchema,
+    query: text(120).min(1),
+    roots: z.array(text(240).min(1)).min(1).max(64),
+    createdAt: z.iso.datetime(),
+    expiresAt: z.iso.datetime(),
+    status: z.enum(["queued", "working", "succeeded", "failed", "expired"]),
+    completedAt: z.iso.datetime().optional(),
+    result: z
+      .object({
+        matches: z
+          .array(
+            z
+              .object({
+                root: text(240).min(1),
+                path: DiscoveryRelativeFolderSchema.refine((s) => !!s && s.length <= 512),
+              })
+              .strict(),
+          )
+          .max(40),
+        scannedDirectories: z.number().int().nonnegative().max(1000),
+        partial: z.boolean(),
+        gaps: z
+          .array(
+            z.enum(["search-limit", "permission-denied", "path-unavailable", "query-unavailable"]),
+          )
+          .max(4),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
+export type ProjectFolderSearchJob = z.infer<typeof ProjectFolderSearchJobSchema>;
 
 export const FolderBrowseInputSchema = z
   .object({
@@ -439,6 +489,7 @@ export const DiscoveryStateSchema = z
             sourceFresh: z.boolean(),
             online: z.boolean(),
             observedAt: z.iso.datetime().nullable(),
+            healthHistory: z.array(SystemHealthPointSchema).max(180).optional(),
             policy: DiscoveryPolicyRecordSchema.nullable(),
             observation: DiscoveryObservationSchema.nullable(),
             history: z.array(DiscoveryEventSchema.extend({ bootId: z.uuid() })).max(10000),

@@ -2,8 +2,8 @@
 
 ## Scope and source
 
-Status: implementation, full local CI and native preflight PASS; configured live
-publication is pending final verification. Repository `D:\FREVOS`, worktree
+Status: implementation, full local/frozen CI, native replay and configured live
+publication PASS. Repository `D:\FREVOS`, worktree
 `.local/worktrees/servix-dashboard`, branch `codex/discovery-activity-noise`.
 Base `1d79cc26fd41ebf178e1ade8a76f1f595cd15997`. No PR or merge. ADRs 0060/0061
 record the owner's 2026-10-26 approval. Preserve the preceding Current State
@@ -93,10 +93,27 @@ running. The new owner password is used only by the authorized private login
 boundary, not source or reports. No external agent/model context was sent in
 these tests.
 
-The result commit, complete published diff stat, sealed manifest, actual download
-digest, uninstrumented native package replay, native receipt, live UI and
-preservation verification will be recorded after publication. No Production/
-customer source, environment, database, upload or attachment change is authorized.
+Configured UI request `pr_0cd5ce4127b2cdbd8e86bf28d74b790a` succeeded at resulting
+source `1f22ed2a6523678adcff35d8e8d1b9507ddce517`. Published diff: 26 files,
+2097 insertions, 47 deletions, including preserved preceding result documents.
+The sealed manifest is
+`ebc0522f68a4a967a1eedbe3a5bfb6e84bd23d749bd2399011b0be87a82f8040`;
+archive SHA256
+`a9f6cac6186051806a02fe853d26bfa6fdbdda1a2ac2adc03ffe2f276ab39fc3`
+(131,470,976 bytes). Frozen CI passed before independent SYSTEM activation on
+DCAPP7; HTTP/UI 200, databaseWritten false, siblings preserved and private
+recovery retained. The current 39,001,732-byte Windows download matches sealed
+SHA256 `43a613800be88394d557c58fb28a1ee5f786c07a130ec72806300b2f0587515c`.
+
+The exact downloaded ZIP's own Node v24.19.0 and uninstrumented setup parent pass
+the real isolated PostgreSQL/Fastify/two-browser/native task/DPAPI flow against
+the sealed deployed server and UI files. Actual same-device update, continued
+health and deliberately interrupted-runtime recovery pass with one account
+login, one proposal/approval/device, three viewports and zero page errors. The
+owner's actual laptop is not silently updated by this test. The three profiles,
+two pipelines, eleven environments and customer release/stopped services verify
+unchanged after activation. No Production/customer source, environment,
+database, upload or attachment change occurred.
 
 ## Authorized follow-up in the active goal
 

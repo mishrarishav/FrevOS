@@ -5,10 +5,57 @@ import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
 
 const require = createRequire(import.meta.url),
-  { browse } = require("../../../deployment/servix/FolderBrowse.cjs"),
+  { browse, search } = require("../../../deployment/servix/FolderBrowse.cjs"),
   { discover } = require("../../../deployment/servix/LocalDevelopment.cjs"),
   { projectFolders } = require("../../../deployment/servix/SystemPrerequisites.cjs");
 const roots: string[] = [];
+it("locates bounded metadata candidates without contents, links, secret folders or arbitrary roots", async () => {
+  const root = await mkdtemp(join(tmpdir(), "devsetu-search-runtime-"));
+  roots.push(root);
+  const state = join(root, "state"),
+    outside = join(root, "outside");
+  await mkdir(state);
+  await mkdir(outside);
+  await mkdir(join(root, "Fixture-app"));
+  await writeFile(join(root, "Fixture-app", "code.txt"), "never read this private content");
+  await mkdir(join(root, ".ssh", "Fixture-hidden"), { recursive: true });
+  await mkdir(join(outside, "Fixture-escape"));
+  await symlink(outside, join(root, "escape"), process.platform === "win32" ? "junction" : "dir");
+  const deviceId = "fc_" + "a".repeat(32),
+    config = { deviceId, stateRoot: state },
+    job = {
+      version: 1,
+      id: "fd_" + "b".repeat(32),
+      workspaceId: "ws_server20",
+      actor: "usr_fixture",
+      query: "Fixture",
+      request: { version: 1, projectId: "prj_fixture", deviceId },
+      roots: [root],
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 120000).toISOString(),
+      status: "working",
+    };
+  const found = await search(config, job, [root], [root], true);
+  expect(found.status).toBe("succeeded");
+  expect(found.result.matches.some((m: { path: string }) => m.path === "Fixture-app")).toBe(true);
+  expect(
+    found.result.matches.some(
+      (m: { path: string }) => m.path.includes(".ssh") || m.path.startsWith("escape/"),
+    ),
+  ).toBe(false);
+  expect(JSON.stringify(found)).not.toContain("private content");
+  expect((await search(config, job, [root], [root], false)).status).toBe("failed");
+  expect((await search(config, { ...job, roots: [outside] }, [root], [root], true)).status).toBe(
+    "failed",
+  );
+  expect(
+    (await search(config, { ...job, query: "!" }, [root], [root], true)).result.gaps,
+  ).toContain("query-unavailable");
+  let now = 0;
+  expect(
+    (await search(config, job, [root], [root], true, { now: () => (now += 2100) })).result.partial,
+  ).toBe(true);
+});
 afterEach(async () => {
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
 });

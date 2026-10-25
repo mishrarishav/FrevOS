@@ -45,6 +45,60 @@ const defaults = {
   maxDirectories: 10000,
   priorityFolders: [],
 };
+async function notificationCapability() {
+  if (process.platform === "win32") return "windows-balloon";
+  if (
+    process.platform === "linux" &&
+    (process.env.DISPLAY || process.env.WAYLAND_DISPLAY) &&
+    process.env.DBUS_SESSION_BUS_ADDRESS
+  ) {
+    try {
+      await fs.access("/usr/bin/notify-send");
+      return "linux-desktop";
+    } catch {}
+  }
+  return "unavailable";
+}
+async function showNotification(job, options = {}) {
+  const platform = options.platform || process.platform;
+  const invoke =
+    options.invoke ||
+    ((file, args, input) =>
+      new Promise((resolve) => {
+        const child = execFile(
+          file,
+          args,
+          { windowsHide: true, timeout: 12000, maxBuffer: 1024 },
+          (error) => resolve(!error),
+        );
+        child.stdin?.on("error", () => {});
+        child.stdin?.end(input || "");
+      }));
+  if (platform === "win32") {
+    const script =
+      "$ErrorActionPreference='Stop';Add-Type -AssemblyName System.Windows.Forms;Add-Type -AssemblyName System.Drawing;$r=[Console]::In.ReadToEnd()|ConvertFrom-Json;if($r.version -ne 1 -or $r.title.Length -gt 80 -or $r.message.Length -gt 800){exit 2};$n=[Windows.Forms.NotifyIcon]::new();try{$n.Icon=[Drawing.SystemIcons]::Information;$n.Text='DevSetu';$n.Visible=$true;$n.BalloonTipTitle=$r.title;$n.BalloonTipText=$r.message;$n.ShowBalloonTip(7000);Start-Sleep -Milliseconds 8000}finally{$n.Dispose()}";
+    const ok = await invoke(
+      path.join(
+        process.env.WINDIR || "C:/Windows",
+        "System32/WindowsPowerShell/v1.0/powershell.exe",
+      ),
+      ["-NoProfile", "-NonInteractive", "-Command", script],
+      JSON.stringify({ version: 1, title: job.title, message: job.message }),
+    );
+    return ok ? "display-requested" : "unsupported";
+  }
+  if (platform === "linux")
+    return (await invoke("/usr/bin/notify-send", [
+      "--app-name=DevSetu",
+      "--expire-time=8000",
+      "--",
+      job.title,
+      job.message,
+    ]))
+      ? "display-requested"
+      : "unsupported";
+  return "unsupported";
+}
 function run(file, args) {
   return new Promise((resolve, reject) =>
     execFile(file, args, { windowsHide: true, timeout: 15000, maxBuffer: 32768 }, (e, out) =>
@@ -129,6 +183,8 @@ class SystemDiscovery {
     if (config.mode === "system") this.sourceVerified = true;
     this.api = api;
     this.rootProvider = options.rootProvider || localRoots;
+    this.showNotification = options.showNotification || showNotification;
+    this.notificationCapability = options.notificationCapability || notificationCapability;
     this.policy = { ...defaults };
     this.revision = 0;
     this.storage = path.join(config.stateRoot, "discovery");
@@ -543,6 +599,8 @@ class SystemDiscovery {
     this.workQueue.length = 0;
   }
   async configure(record) {
+    this.notificationSupported = record.notifications?.version === 1;
+    this.folderSearchSupported = record.folderSearch?.version === 1;
     // Old servers do not advertise this capability: omit new telemetry there.
     this.activity = record.activity?.settings ?? defaultActivitySettings;
     this.activitySupported = record.activity?.settings?.version === 1;
@@ -787,6 +845,8 @@ class SystemDiscovery {
     clearInterval(this.timer);
     clearInterval(this.folderTimer);
     clearInterval(this.contentTimer);
+    clearInterval(this.notificationTimer);
+    clearInterval(this.searchTimer);
     this.closeContent?.();
     this.closeWatchers();
     await this.work;
@@ -846,6 +906,172 @@ class SystemDiscovery {
       this.closeContent = undefined;
     }
   }
+  async searchTick() {
+    if (
+      this.stopped ||
+      this.searchBusy ||
+      !this.folderSearchSupported ||
+      !this.consent ||
+      !this.policy.enabled
+    )
+      return;
+    this.searchBusy = true;
+    try {
+      const { job } = await this.api("/v1/connector/discovery/project-folders/claim", {});
+      if (job) {
+        const result = await require("./FolderBrowse.cjs").search(
+          this.config,
+          job,
+          this.roots,
+          await this.rootProvider(),
+          this.consent,
+        );
+        if (!this.stopped)
+          await this.api("/v1/connector/discovery/project-folders/complete", result);
+      }
+    } catch {
+      /* Metadata requests never grant content or execution authority. */
+    } finally {
+      this.searchBusy = false;
+    }
+  }
+  async notificationConsent() {
+    try {
+      const file = path.join(this.config.stateRoot, "notifications-consent.json"),
+        info = await fs.lstat(file);
+      if (!info.isFile() || info.isSymbolicLink() || info.size > 4096) return false;
+      const c = JSON.parse(await fs.readFile(file, "utf8"));
+      return (
+        c.version === 1 &&
+        c.deviceId === this.config.deviceId &&
+        c.server === this.config.server &&
+        c.accountName === this.config.accountName &&
+        c.enabled === true
+      );
+    } catch {
+      return false;
+    }
+  }
+  async notificationTick() {
+    if (this.stopped || this.notificationBusy || !this.notificationSupported) return;
+    this.notificationBusy = true;
+    try {
+      const enabled = await this.notificationConsent(),
+        capability = await this.notificationCapability();
+      const { job } = await this.api("/v1/connector/notifications/claim", {
+        version: 1,
+        enabled,
+        capability,
+      });
+      if (!job || !enabled || this.stopped) return;
+      const a = job.approval,
+        now = Date.now(),
+        digest = createHash("sha256")
+          .update(
+            JSON.stringify([
+              job.version,
+              job.workspaceId,
+              job.actor,
+              job.id,
+              job.runId,
+              job.deviceId,
+              job.title,
+              job.message,
+              job.createdAt,
+            ]),
+          )
+          .digest("hex");
+      if (
+        job.version !== 1 ||
+        typeof job.actor !== "string" ||
+        !/^[A-Za-z0-9_-]{1,128}$/.test(job.actor) ||
+        !/^ws_[A-Za-z0-9_-]{1,120}$/.test(job.workspaceId) ||
+        !/^ar_[a-f0-9]{32}$/.test(job.runId) ||
+        !/^nt_[a-f0-9]{32}$/.test(job.id) ||
+        job.deviceId !== this.config.deviceId ||
+        job.status !== "delivering" ||
+        typeof job.title !== "string" ||
+        !job.title ||
+        job.title.length > 80 ||
+        typeof job.message !== "string" ||
+        !job.message ||
+        job.message.length > 800 ||
+        [...(job.title + job.message)].some(
+          (c) => c.charCodeAt(0) < 32 && c !== "\n" && c !== "\t",
+        ) ||
+        job.digest !== digest ||
+        !a ||
+        a.version !== 1 ||
+        a.actor !== job.actor ||
+        a.workspaceId !== job.workspaceId ||
+        a.target !== job.deviceId ||
+        a.correlationId !== job.id ||
+        a.action !== "notification:deliver" ||
+        a.digest !== digest ||
+        a.expiresAt !== job.expiresAt ||
+        !a.consumedAt ||
+        [job.createdAt, a.issuedAt, a.expiresAt, a.consumedAt].some(
+          (v) => !Number.isFinite(Date.parse(v)),
+        ) ||
+        Date.parse(a.expiresAt) - Date.parse(a.issuedAt) > 600000 ||
+        Date.parse(a.expiresAt) <= Date.parse(a.issuedAt) ||
+        Date.parse(a.consumedAt) > Date.parse(a.expiresAt) ||
+        Date.parse(a.consumedAt) < Date.parse(a.issuedAt) ||
+        Date.parse(a.consumedAt) > now + 60000 ||
+        Date.parse(a.issuedAt) < Date.parse(job.createdAt) ||
+        Date.parse(job.expiresAt) <= now ||
+        Date.parse(a.issuedAt) > now + 60000
+      )
+        return;
+      if (
+        this.config.accountName?.startsWith("pair:") &&
+        this.config.accountName !==
+          "pair:" + createHash("sha256").update(job.actor).digest("hex").slice(0, 40)
+      )
+        return;
+      const file = path.join(this.storage, "notification-receipts.json");
+      let receipts = [];
+      try {
+        const info = await fs.lstat(file);
+        if (!info.isFile() || info.isSymbolicLink() || info.size > 20000) return;
+        receipts = JSON.parse(await fs.readFile(file, "utf8"));
+        if (
+          !Array.isArray(receipts) ||
+          receipts.length > 100 ||
+          receipts.some((r) => !/^nt_[a-f0-9]{32}$/.test(r.id))
+        )
+          return;
+      } catch (e) {
+        if (e.code !== "ENOENT") return;
+      }
+      let status = "declined";
+      if (!receipts.some((r) => r.id === job.id) && (await this.notificationConsent())) {
+        const temp = file + "." + randomUUID() + ".tmp",
+          handle = await fs.open(temp, "wx", 0o600);
+        try {
+          await handle.writeFile(
+            JSON.stringify([...receipts, { id: job.id, at: new Date().toISOString() }].slice(-100)),
+          );
+          await handle.sync();
+        } finally {
+          await handle.close();
+        }
+        await fs.rename(temp, file);
+        status = await this.showNotification(job);
+      }
+      if (!this.stopped)
+        await this.api("/v1/connector/notifications/complete", {
+          version: 1,
+          id: job.id,
+          digest,
+          status,
+        });
+    } catch {
+      /* Delivery uncertainty never authorizes a retry or executable action. */
+    } finally {
+      this.notificationBusy = false;
+    }
+  }
 }
 function start(config, api, verifyRepository) {
   const collector = new SystemDiscovery(config, api);
@@ -859,10 +1085,20 @@ function start(config, api, verifyRepository) {
       void collector.folderTick();
       collector.folderTimer = setInterval(() => void collector.folderTick(), 2000);
       collector.contentTimer = setInterval(() => void collector.contentTick(), 3000);
+      collector.notificationTimer = setInterval(() => void collector.notificationTick(), 5000);
+      collector.searchTimer = setInterval(() => void collector.searchTick(), 2000);
     })
     .catch(() => {
       /* Discovery failure never launches services or changes enrollment. */
     });
   return collector;
 }
-module.exports = { SystemDiscovery, start, localRoots, operatingSystem, defaultPolicy: defaults };
+module.exports = {
+  SystemDiscovery,
+  start,
+  localRoots,
+  operatingSystem,
+  defaultPolicy: defaults,
+  showNotification,
+  notificationCapability,
+};

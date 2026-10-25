@@ -73,6 +73,7 @@ export function RecordWorkspace<T>({
   statuses,
   renderCard,
   renderActions,
+  renderSurface,
   actions,
   defaultView = "cards",
   notice,
@@ -94,16 +95,18 @@ export function RecordWorkspace<T>({
   statuses: { id: string; label: string }[];
   renderCard: (record: T) => ReactNode;
   renderActions: (record: T) => ReactNode;
+  renderSurface?: ((records: T[]) => ReactNode) | undefined;
   actions?: ReactNode;
   defaultView?: Preferences["view"];
   notice?: string;
   loading?: boolean;
   error?: string;
   onRetry?: () => void;
-  noun?: "projects" | "systems";
+  noun?: "projects" | "systems" | "agents";
 }) {
   const key = `frevos:${userId}:${workspaceId}:${page}:records:v1`;
-  const listLabel = noun === "systems" ? "System list" : "Project list";
+  const listLabel =
+    noun === "systems" ? "System list" : noun === "agents" ? "Agent list" : "Project list";
   const [preferences, setPreferences] = useState(() => readPreferences(key, defaultView));
   const [filtersOpen, setFiltersOpen] = useState(false);
   useEffect(() => {
@@ -172,28 +175,32 @@ export function RecordWorkspace<T>({
         </div>
         <div className="record-title-row">
           <h1>{title}</h1>
-          <fieldset className="record-view-switch" aria-label={`${title} view`}>
-            <button
-              type="button"
-              aria-pressed={cards}
-              onClick={() => {
-                update({ view: "cards" });
-                setFiltersOpen(false);
-              }}
-            >
-              <LayoutGrid size={15} /> Card view
-            </button>
-            <button
-              type="button"
-              aria-pressed={!cards}
-              onClick={() => {
-                update({ view: "table" });
-                setFiltersOpen(false);
-              }}
-            >
-              <Table2 size={15} /> Table view
-            </button>
-          </fieldset>
+          {!renderSurface ? (
+            <fieldset className="record-view-switch" aria-label={`${title} view`}>
+              <button
+                type="button"
+                aria-pressed={cards}
+                onClick={() => {
+                  update({ view: "cards" });
+                  setFiltersOpen(false);
+                }}
+              >
+                <LayoutGrid size={15} /> Card view
+              </button>
+              <button
+                type="button"
+                aria-pressed={!cards}
+                onClick={() => {
+                  update({ view: "table" });
+                  setFiltersOpen(false);
+                }}
+              >
+                <Table2 size={15} /> Table view
+              </button>
+            </fieldset>
+          ) : (
+            <span className="record-scope">Network view</span>
+          )}
           <div className="record-header-actions">{actions}</div>
         </div>
       </header>
@@ -228,7 +235,11 @@ export function RecordWorkspace<T>({
               aria-label={`Search ${noun}`}
               value={preferences.search}
               onChange={(e) => update({ search: e.target.value })}
-              placeholder="Search project, source folder or server…"
+              placeholder={
+                noun === "agents"
+                  ? "Search agent, role or model…"
+                  : "Search project, source folder or server…"
+              }
             />
           </label>
           <span className="record-count">
@@ -266,14 +277,14 @@ export function RecordWorkspace<T>({
           </div>
         ) : error ? (
           <div className="record-empty" role="alert">
-            <h2>Projects could not be loaded</h2>
+            <h2>{noun} could not be loaded</h2>
             <p>{error}</p>
             <button type="button" className="button secondary" onClick={onRetry}>
               Retry
             </button>
           </div>
         ) : (
-          <div className={`record-body ${cards ? "with-card-filters" : ""}`}>
+          <div className={`record-body ${cards && !renderSurface ? "with-card-filters" : ""}`}>
             {/* biome-ignore lint/a11y/noNoninteractiveTabindex: the internal card/table scroller needs keyboard access. */}
             <section className="record-scroll" aria-label={listLabel} tabIndex={0}>
               {rows.length === 0 ? (
@@ -282,11 +293,15 @@ export function RecordWorkspace<T>({
                   <p>
                     {records.length
                       ? `Adjust search or filters to see your ${noun}.`
-                      : noun === "systems"
-                        ? "Install and pair a system connector for a configured project."
-                        : "Add a project from Projects to connect its source and destination."}
+                      : noun === "agents"
+                        ? "Add a model connection and configure an agent."
+                        : noun === "systems"
+                          ? "Install and pair a system connector for a configured project."
+                          : "Add a project from Projects to connect its source and destination."}
                   </p>
                 </div>
+              ) : renderSurface ? (
+                renderSurface(rows)
               ) : cards ? (
                 <div className="record-cards">
                   {rows.map((r) => (
@@ -356,7 +371,7 @@ export function RecordWorkspace<T>({
                 </table>
               )}
             </section>
-            {cards ? (
+            {cards && !renderSurface ? (
               <aside className="record-filters" aria-label="Card filters">
                 {filterPanel}
               </aside>
