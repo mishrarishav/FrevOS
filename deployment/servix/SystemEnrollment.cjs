@@ -102,7 +102,11 @@ async function installRuntime(config, options = {}) {
         "-File",
         path.join(folder, "Install-SystemConnector.ps1"),
       ],
-      { windowsHide: true, stdio: ["pipe", "ignore", "ignore"] },
+      {
+        windowsHide: true,
+        stdio: ["pipe", "ignore", "ignore"],
+        env: sessionHelper.windowsEnvironment(),
+      },
     );
     const timer = setTimeout(() => {
       child.kill();
@@ -297,7 +301,11 @@ async function serve(options = {}) {
                 "-File",
                 script,
               ],
-              { windowsHide: true, stdio: ["pipe", "ignore", "ignore"] },
+              {
+                windowsHide: true,
+                stdio: ["pipe", "ignore", "ignore"],
+                env: sessionHelper.windowsEnvironment(),
+              },
             );
             const timer = setTimeout(() => {
               c.kill();
@@ -501,9 +509,17 @@ async function serve(options = {}) {
 }
 module.exports = { serve, installRuntime, runtimeFiles, serverOrigin };
 if (require.main === module)
-  serve().catch(() => {
-    process.stderr.write(
-      "DevSetu setup could not open. Keep this window open and contact your workspace administrator.\n",
-    );
-    process.exitCode = 1;
-  });
+  serve()
+    .then((setup) => {
+      process.stdout.write(
+        "DevSetu setup is ready in your browser.\nIf it did not open, open this private setup page:\n" +
+          setup.pageUrl +
+          "\nKeep this window open until Connected appears.\n",
+      );
+    })
+    .catch(() => {
+      process.stderr.write(
+        "DevSetu setup could not open. Keep this window open and contact your workspace administrator.\n",
+      );
+      process.exitCode = 1;
+    });

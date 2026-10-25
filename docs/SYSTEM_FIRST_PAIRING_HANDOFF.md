@@ -1,6 +1,7 @@
 # System-first Windows pairing — 2026-10-25
 
-Status: implementation and local validation PASS; configured rollout pending.
+Status: implementation/local validation PASS; initial rollout PASS; final
+compatibility/environment correction rollout pending.
 Repository: `D:\FREVOS`, worktree `.local/worktrees/servix-dashboard`.
 Branch: `codex/system-first-pairing`.
 Base/deployed source before this correction:
@@ -25,6 +26,10 @@ and directory browsing with local metadata consent. Server policy additionally
 gates tracking. System-only connections never collect or accept text history.
 System rows group only by reported installation/account identity; project
 bindings stay visible. Plan sources still require a verified project binding.
+Records use `system-fc_<id>.json`; the old project reader ignores that namespace.
+An interrupted initial naming transition validates and retains identical bytes
+before removing the old name; conflicting targets fail closed. This preserves
+project readers when recovering to an older platform release.
 
 Browser status survives refresh, simultaneous install requests are rejected,
 same-session retries reuse their pairing, and successfully installed enrollments
@@ -36,6 +41,10 @@ unsigned downloaded PowerShell helper before the UI opens. Runtime bytes are
 SHA256-checked and materialized in a new owned installation; original download
 zone markers and global execution policy are retained. Resume checks the pinned
 runtime and exact task action plus the resolved owner SID.
+Setup children use Windows PowerShell's own module search path rather than
+inheriting PowerShell 7's incompatible module paths. An actual resume regression
+reproduced `CommandNotFoundException` at the hash command; the normalized child
+environment passes. The host's environment and execution policy stay unchanged.
 
 The legacy project prerequisite page now shows a persistent installation status,
 elapsed time and final receipt after refresh. Disabled controls use the normal
@@ -63,6 +72,13 @@ materialize reviewed bytes for their installed RemoteSigned task.
   High audit gate passed: existing five low/six moderate advisories remain.
   The subsequent connection/home-folder label clarification is checked again
   by the configured frozen build before activation.
+- `node .local/Run-CleanWindowsCI.cjs > .local/system-pairing-release-ci-clean.log
+  2>&1`: exit 0, 295 tests (86 contracts, 85 UI, 124 control-plane), full
+  type/build/audit/coverage pass after naming migration and module-environment
+  corrections; control-plane statement coverage 95.18%. This starts the same
+  unmodified `pnpm run ci` with the builder's clean Windows module environment.
+  A preceding run from PowerShell 7 failed the existing Get-Acl fixture because
+  inherited module paths loaded incompatible modules; no test was weakened.
 - `pnpm --filter @frevos/control-plane exec vitest run
   test/system-discovery-runtime.test.ts test/system-enrollment.test.ts`:
   exit 0, nine tests. Real owned-folder changes produce system-only metadata;
@@ -84,6 +100,20 @@ The actual Windows runtime test uses real domain stores on loopback; it does not
 alter live accounts or customer data. Per-user interactive task tests run on a
 Windows user host and are explicitly skipped for Linux and Windows CI service
 identities that cannot run interactive user tasks.
+
+Initial actual DevSetu UI request `pr_d089627b55c1b4004f416b2b9b155481`
+published source `ec728e68eec1cc36536595b51bd57e01b215a1eb`, passed frozen
+build and independently activated manifest
+`6a105e2927bbc066d91fbd8342f0f93dc248fd62c426199757a50502806acda3`.
+Archive SHA256
+`12dd6793fb3f1bc6ce384a7829bfd6906b5b5b09db355877fea0fe6863225cd2`,
+131,408,144 bytes. Native receipt: HTTP/UI 200, SYSTEM updater, siblings preserved,
+databaseWritten false. Baseline verification passes for all three profiles, two
+pipelines, eleven environments, customer active release and stopped local apps.
+Actual built Discovery UI with synthetic read-only responses passes unassigned
+drive/folder navigation, disabled text controls, explicit project link and two
+responsive viewports without page errors. A final revision adds backward-reader
+record isolation, safe interrupted migration and PowerShell 7 launch resilience.
 
 ## Changed files for this correction
 

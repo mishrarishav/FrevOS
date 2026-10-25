@@ -36,3 +36,15 @@ Validate account/device scope, monitoring without Git, denied project actions,
 consent, restart/retry, actual Windows task/DPAPI and downloaded-file behavior.
 Retain existing source/preview/deployment regressions. Use actual configured
 platform publication/deployment for rollout; report any unverified target.
+
+The compatibility review adds a separate `system-fc_<id>.json` namespace.
+Pre-correction releases enumerate only `fc_<id>.json` project records and must
+not parse the new purpose during platform rollback. If an initial correction
+record exists under the old name, validate it, create an identical durable
+target and only then remove the old name; mismatched targets fail closed.
+Credentials and project-record bytes remain unchanged. Record rollout revisions
+separately; this does not authorize a Production rollback.
+
+Normalize Windows PowerShell's module environment at the setup execution
+boundary: PowerShell 7's inherited PSModulePath must not select incompatible
+core modules during registration/resume. Keep the host environment unchanged.

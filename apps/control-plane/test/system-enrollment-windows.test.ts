@@ -15,10 +15,19 @@ const run = promisify(execFile);
 const source = fileURLToPath(new URL("../../../deployment/servix/", import.meta.url));
 const fixture = fileURLToPath(new URL("./fixtures/system-enrollment-task.ps1", import.meta.url));
 const enrollment = createRequire(import.meta.url)(join(source, "SystemEnrollment.cjs"));
+const { windowsEnvironment } = createRequire(import.meta.url)(join(source, "SetupSession.cjs"));
 const digest = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
 function input(file: string, args: string[], value: string) {
   return new Promise<void>((resolve, reject) => {
-    const child = spawn(file, args, { windowsHide: true, stdio: ["pipe", "ignore", "ignore"] });
+    const child = spawn(file, args, {
+      windowsHide: true,
+      stdio: ["pipe", "ignore", "pipe"],
+      env: windowsEnvironment(),
+    });
+    let diagnostic = "";
+    child.stderr.on("data", (bytes) => {
+      if (diagnostic.length < 32768) diagnostic += bytes;
+    });
     const timer = setTimeout(() => {
       child.kill();
       reject(Error("Fixture command timeout"));
@@ -26,7 +35,33 @@ function input(file: string, args: string[], value: string) {
     child.once("error", reject);
     child.once("exit", (code) => {
       clearTimeout(timer);
-      code === 0 ? resolve() : reject(Error("Fixture command failed: " + code));
+      const safe = [
+        "Resume fields differ",
+        "Protected enrollment differs",
+        "Runtime changed",
+        "Task identity differs",
+        "Linked enrollment",
+        "PropertyNotFoundStrict",
+        "System enrollment fields differ",
+      ].find((s) => diagnostic.includes(s));
+      const category = diagnostic.match(
+        /FullyQualifiedErrorId\s*:\s*([A-Za-z][A-Za-z0-9.,]*)/,
+      )?.[1];
+      const line = diagnostic.match(/:([0-9]+) char:/)?.[1];
+      code === 0
+        ? resolve()
+        : reject(
+            Error(
+              "Fixture command failed: " +
+                file.split(/[\\/]/).at(-1) +
+                " " +
+                code +
+                " " +
+                (safe || category || "unavailable") +
+                " line=" +
+                line,
+            ),
+          );
     });
     child.stdin.on("error", () => {});
     child.stdin.end(value);

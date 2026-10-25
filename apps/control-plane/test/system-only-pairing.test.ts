@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile, rm, rename, readdir } from "node:fs/promises";
 import { join, resolve, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { defaultDiscoveryPolicy, type DiscoveryObservation } from "@frevos/contracts";
@@ -168,7 +168,7 @@ it("pairs an unassigned system without repository access, accepts consented meta
       }),
     ).rejects.toMatchObject({ code: "discovery-device-access-denied" });
     expect(gitCalls).toBe(0);
-    const record = join(root, "connectors", paired.deviceId + ".json"),
+    const record = join(root, "connectors", "system-" + paired.deviceId + ".json"),
       original = await readFile(record, "utf8");
     await writeFile(
       record,
@@ -186,6 +186,68 @@ it("pairs an unassigned system without repository access, accepts consented meta
     connectors.close();
     expect(dirname(resolve(root))).toBe(resolve(tmpdir()));
     expect(root).toContain("devsetu-system-only-");
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+it("keeps system records outside the old Git-device namespace and safely resumes an interrupted naming migration", async () => {
+  const root = await mkdtemp(join(tmpdir(), "devsetu-system-namespace-"));
+  const store = () =>
+    new DeveloperConnectorStore(
+      root,
+      async () => true,
+      { head: async () => "a".repeat(40), importBundle: async () => {} },
+      async () => {},
+    );
+  let connectors = store();
+  try {
+    const project = await connectors.pair("usr_alice", { version: 1, name: "Existing project" });
+    const legacyFile = join(root, project.deviceId + ".json"),
+      before = await readFile(legacyFile);
+    const system = await connectors.pair("usr_alice", {
+      version: 1,
+      mode: "system",
+      name: "System",
+    });
+    const target = join(root, "system-" + system.deviceId + ".json"),
+      original = await readFile(target);
+    expect((await readdir(root)).filter((n) => /^fc_[a-f0-9]{32}\.json$/.test(n))).toEqual([
+      project.deviceId + ".json",
+    ]);
+    const oldName = join(root, system.deviceId + ".json");
+    await rename(target, oldName);
+    connectors.close();
+    connectors = store();
+    expect((await connectors.list("usr_alice")).length).toBe(2);
+    expect(await readFile(target)).toEqual(original);
+    await expect(readFile(oldName)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await readFile(legacyFile)).toEqual(before);
+    await writeFile(oldName, original);
+    connectors.close();
+    connectors = store();
+    await connectors.heartbeat(system.credential);
+    await expect(readFile(oldName)).rejects.toMatchObject({ code: "ENOENT" });
+    await writeFile(oldName, original);
+    await writeFile(
+      target,
+      JSON.stringify({ ...JSON.parse(original.toString()), name: "Conflicting migration target" }),
+    );
+    connectors.close();
+    connectors = store();
+    await expect(connectors.list("usr_alice")).rejects.toMatchObject({
+      code: "connector-storage-unavailable",
+    });
+    expect(await readFile(oldName)).toEqual(original);
+    await writeFile(target, original);
+    connectors.close();
+    connectors = store();
+    await connectors.revoke("usr_alice", system.deviceId);
+    await expect(connectors.heartbeat(system.credential)).rejects.toMatchObject({
+      code: "connector-authentication-required",
+    });
+    expect(await readFile(legacyFile)).toEqual(before);
+  } finally {
+    connectors.close();
     await rm(root, { recursive: true, force: true });
   }
 });

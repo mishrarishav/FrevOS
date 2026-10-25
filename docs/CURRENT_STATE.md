@@ -2,7 +2,7 @@
 
 Last updated: 2026-10-25
 
-## System-first pairing correction (local PASS; rollout pending, 2026-10-25)
+## System-first pairing correction (initial live PASS; final correction pending, 2026-10-25)
 
 The owner requests a simpler working connection after a new laptop repeatedly
 fails the installer. Branch `codex/system-first-pairing`, base/deployed source
@@ -22,6 +22,15 @@ customer configuration/environment/release baseline is captured. Configured
 platform publication and the new downloadable package still need live
 verification; the owner's other laptop is not claimed Online. See
 [handoff](SYSTEM_FIRST_PAIRING_HANDOFF.md).
+
+Initial UI rollout `pr_d089627b55c1b4004f416b2b9b155481` is live at source
+`ec728e68eec1cc36536595b51bd57e01b215a1eb`, manifest
+`6a105e2927bbc066d91fbd8342f0f93dc248fd62c426199757a50502806acda3`.
+Health/UI and the customer baseline pass. Final review separates system records
+from legacy Git-reader filenames and normalizes child Windows PowerShell module
+paths; actual task resume and interrupted/conflicting naming tests pass. Clean
+builder-equivalent full CI passes 295 tests. Final configured rollout and exact
+download smoke remain pending; no other laptop is claimed connected.
 
 ## Servix backend artifact deployment (Development PASS, 2026-10-25)
 

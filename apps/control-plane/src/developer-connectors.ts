@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { lstat, mkdir, open, readdir, readFile, unlink } from "node:fs/promises";
+import { link, lstat, mkdir, open, readdir, readFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import {
@@ -95,6 +95,7 @@ export interface ConnectorGit {
   exportBundle?(file: string, heads: string[]): Promise<void>;
 }
 export class DeveloperConnectorStore {
+  private systemMigration?: Promise<void>;
   private chain: Promise<unknown> = Promise.resolve();
   private stopped = false;
   private readonly baselineFiles = new Set<string>();
@@ -371,6 +372,44 @@ export class DeveloperConnectorStore {
     await mkdir(this.root, { recursive: true });
     if ((await lstat(this.root)).isSymbolicLink())
       throw new ServixDeploymentError("connector-storage-unavailable", 503);
+    this.systemMigration ??= this.migrateSystemRecords();
+    await this.systemMigration;
+  }
+  private async migrateSystemRecords() {
+    // Older releases enumerate only fc_*.json. Keep the new purpose outside
+    // that namespace so rollback can retain its records without breaking Git.
+    for (const name of (await readdir(this.root)).filter((n) =>
+      /^fc_[a-f0-9]{32}\.json$/.test(n),
+    )) {
+      const value = await this.read(name);
+      if ((value as { mode?: unknown }).mode !== "system") continue;
+      const device = DeviceRecord.parse(value);
+      if (name !== device.deviceId + ".json")
+        throw new ServixDeploymentError("connector-storage-unavailable", 503);
+      const target = "system-" + name;
+      try {
+        await link(join(this.root, name), join(this.root, target));
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+      }
+      await this.read(target);
+      if (!(await readFile(join(this.root, name))).equals(await readFile(join(this.root, target))))
+        throw new ServixDeploymentError("connector-storage-unavailable", 503);
+      // The identical durable target is present before removing the old name.
+      await unlink(join(this.root, name));
+    }
+  }
+  private async device(id: string) {
+    await this.directory();
+    try {
+      const device = DeviceRecord.parse(await this.read("system-" + id + ".json"));
+      if (device.mode !== "system" || device.deviceId !== id)
+        throw new ServixDeploymentError("connector-storage-unavailable", 503);
+      return device;
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+    }
+    return DeviceRecord.parse(await this.read(id + ".json"));
   }
   private async read(name: string) {
     const file = join(this.root, name),
@@ -400,7 +439,9 @@ export class DeveloperConnectorStore {
   async list(actor: string) {
     await this.permission(actor);
     await this.directory();
-    const names = (await readdir(this.root)).filter((n) => /^fc_[a-f0-9]{32}\.json$/.test(n));
+    const names = (await readdir(this.root)).filter((n) =>
+      /^(?:system-)?fc_[a-f0-9]{32}\.json$/.test(n),
+    );
     if (names.length > 1000) throw new ServixDeploymentError("connector-capacity", 503);
     const records = await Promise.all(
       names.map(async (n) => DeviceRecord.parse(await this.read(n))),
@@ -459,7 +500,7 @@ export class DeveloperConnectorStore {
           lastSeenAt: null,
           credentialHash: digest(credential),
         });
-        await this.save(deviceId + ".json", device, true);
+        await this.save("system-" + deviceId + ".json", device, true);
         return {
           version: 1,
           mode: "system" as const,
@@ -528,7 +569,9 @@ export class DeveloperConnectorStore {
     if (actor !== "usr_windows_admin")
       return (await this.list(actor)).map((d) => ({ ...d, workspaceAuthorized: true }));
     await this.directory();
-    const names = (await readdir(this.root)).filter((n) => /^fc_[a-f0-9]{32}\.json$/.test(n));
+    const names = (await readdir(this.root)).filter((n) =>
+      /^(?:system-)?fc_[a-f0-9]{32}\.json$/.test(n),
+    );
     if (names.length > 1000) throw new ServixDeploymentError("connector-capacity", 503);
     const records = await Promise.all(
       names.map(async (n) => DeviceRecord.parse(await this.read(n))),
@@ -554,7 +597,7 @@ export class DeveloperConnectorStore {
       throw new ServixDeploymentError("connector-authentication-required", 401);
     let d: z.infer<typeof DeviceRecord>;
     try {
-      d = DeviceRecord.parse(await this.read(credential.slice(0, 35) + ".json"));
+      d = await this.device(credential.slice(0, 35));
     } catch {
       throw new ServixDeploymentError("connector-authentication-required", 401);
     }
@@ -571,10 +614,13 @@ export class DeveloperConnectorStore {
     return this.serial(async () => {
       await this.permission(actor);
       ConnectorIdSchema.parse(id);
-      const d = DeviceRecord.parse(await this.read(id + ".json"));
+      const d = await this.device(id);
       if (d.userId !== actor && actor !== "usr_windows_admin")
         throw new ServixDeploymentError("connector-access-denied", 403);
-      await this.save(id + ".json", { ...d, status: "revoked" });
+      await this.save((d.mode === "system" ? "system-" : "") + id + ".json", {
+        ...d,
+        status: "revoked",
+      });
       this.probes.delete(id);
       this.folderSelections.delete(id);
       this.folderPickers.delete(id);

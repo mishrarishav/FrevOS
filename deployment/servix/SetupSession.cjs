@@ -4,6 +4,13 @@ const fs = require("node:fs/promises"),
   os = require("node:os"),
   { spawn } = require("node:child_process"),
   { pathToFileURL } = require("node:url");
+// Windows PowerShell must resolve its own modules, even when setup was launched
+// from PowerShell 7. Inherited PSModulePath can select incompatible core modules.
+function windowsEnvironment() {
+  return Object.fromEntries(
+    Object.entries(process.env).filter(([key]) => key.toLowerCase() !== "psmodulepath"),
+  );
+}
 async function protect(directory, install = false) {
   if (process.platform !== "win32") {
     await fs.chmod(directory, 0o700);
@@ -25,7 +32,7 @@ async function protect(directory, install = false) {
           "-File",
           path.join(__dirname, "Protect-SetupSession.ps1"),
         ],
-        { windowsHide: true, stdio: ["pipe", "ignore", "ignore"] },
+        { windowsHide: true, stdio: ["pipe", "ignore", "ignore"], env: windowsEnvironment() },
       );
       c.once("error", () => reject(Error("setup-session-protection-unavailable")));
       c.once("exit", (v) =>
@@ -91,4 +98,4 @@ function open(url) {
   );
   child.on("error", () => {});
 }
-module.exports = { protect, entry, open };
+module.exports = { protect, entry, open, windowsEnvironment };
