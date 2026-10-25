@@ -8,6 +8,18 @@ $old=(Get-FileHash -LiteralPath (Join-Path $PreviousPackageRoot 'release-manifes
 $previous=Test-HttpManifest $PreviousPackageRoot $old
 $sourceHead=(& git -C $root rev-parse HEAD|Out-String).Trim()
 if($LASTEXITCODE -ne 0 -or $sourceHead -cnotmatch '^[a-f0-9]{40}$'){throw 'Source identity unavailable'}
+function Assert-PackagedRuntimeModules([string]$PackageRoot) {
+ $boundary=[IO.Path]::GetFullPath($PackageRoot)+'\';$queue=[Collections.Generic.Queue[string]]::new();$seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+ $queue.Enqueue((Join-Path $PackageRoot 'apps\control-plane\dist\main.js'));$queue.Enqueue((Join-Path $PackageRoot 'apps\control-plane\node_modules\@frevos\contracts\dist\index.js'))
+ while($queue.Count){
+  $file=[IO.Path]::GetFullPath($queue.Dequeue());if(-not $file.StartsWith($boundary,[StringComparison]::OrdinalIgnoreCase) -or -not $file.EndsWith('.js',[StringComparison]::OrdinalIgnoreCase)){throw 'Packaged module escaped application'}
+  if(-not $seen.Add($file)){continue};if($seen.Count -gt 256){throw 'Packaged module capacity'}
+  Assert-NoReparsePath $file
+  if(-not(Test-Path -LiteralPath $file -PathType Leaf) -or (Get-Item -LiteralPath $file).Length -gt 2000000){throw 'Packaged runtime module missing'}
+  $code=[IO.File]::ReadAllText($file)
+  foreach($match in [regex]::Matches($code,'\b(?:from\s*|import\s*)["''](?<module>\.[^"''\r\n]+)["'']')){$queue.Enqueue([IO.Path]::GetFullPath((Join-Path ([IO.Path]::GetDirectoryName($file)) $match.Groups['module'].Value)))}
+ }
+}
 function Get-SourceGuard {
  $paths=@()
  foreach($relative in @('apps\control-center\src','apps\control-plane\src','packages\contracts\src','deployment\servix','deployment\server20')){$paths+=@(Get-ChildItem -LiteralPath (Join-Path $root $relative) -Recurse -File|Select-Object -ExpandProperty FullName)}
@@ -88,6 +100,7 @@ try{
   [IO.File]::WriteAllText($mainFile,$main,[Text.UTF8Encoding]::new($false))
  }
  if((Get-SourceGuard) -cne $sourceGuard){throw 'Source changed during the release build; no artifact will be published'}
+ Assert-PackagedRuntimeModules $package
  $inputs=@('apps/control-center/src/EnvironmentVariables.tsx','apps/control-center/src/environment-seal.ts','packages/contracts/src/local-development.ts','apps/control-plane/src/local-development.ts','apps/control-center/src/LocalDevelopmentPage.tsx')+@('apps/control-plane/src/atomic-record.ts','packages/contracts/src/component-deployments.ts','apps/control-plane/src/component-deployments.ts','apps/control-plane/src/component-git.ts','apps/control-center/src/ComponentDeployments.tsx','packages/contracts/src/deployment-change.ts','apps/control-center/src/DeploymentActionDialog.tsx','apps/control-center/src/PlatformProjectDetails.tsx','apps/control-plane/src/local-accounts.ts','apps/control-plane/src/self-updates.ts','apps/control-center/src/AccountControls.tsx','apps/control-center/src/main.tsx','packages/contracts/src/local-accounts.ts','deployment/server20/Install-SelfUpdate.ps1','deployment/server20/Run-SelfUpdate.ps1','apps/control-center/index.html','apps/control-center/public/favicon.svg','apps/control-center/package.json','pnpm-lock.yaml','pnpm-workspace.yaml','apps/control-plane/src/config.ts','apps/control-plane/src/main.ts','apps/control-plane/src/server.ts','apps/control-plane/src/repositories.ts','apps/control-plane/src/developer-connectors.ts','apps/control-plane/src/servix-deployment.ts','apps/control-center/src/api.ts','apps/control-center/src/App.tsx','apps/control-center/src/DeploymentsPage.tsx','apps/control-center/src/RecordWorkspace.tsx','apps/control-center/src/WorkspaceDialog.tsx','apps/control-center/src/DeveloperAccess.tsx','apps/control-center/src/deployment-request-id.ts','apps/control-center/src/servix-deployment-state.ts','apps/control-center/src/styles.css','apps/control-center/src/DeploymentSettingsPage.tsx','apps/control-center/src/routing.ts','apps/control-plane/src/deployment-settings.ts','packages/contracts/src/deployment-settings.ts','packages/contracts/src/servix-deployment.ts','packages/contracts/src/developer-connectors.ts','packages/contracts/src/index.ts')+@(Get-ChildItem (Join-Path $root 'deployment\servix') -File|ForEach-Object {'deployment/servix/'+$_.Name})+@('deployment/server20/HttpCommon.ps1','deployment/server20/Start-Server20.ps1','deployment/server20/Apply-ServixDashboard.ps1','deployment/server20/Verify-HttpManifest.mjs','deployment/server20/New-ServixDashboardRelease.ps1')
  $inputs+=@('packages/contracts/src/system-discovery.ts','apps/control-plane/src/system-discovery.ts','apps/control-center/src/DiscoveryPage.tsx','apps/control-plane/package.json','packages/contracts/package.json','packages/contracts/tsconfig.build.json')
  $inputs+=@('apps/control-center/src/FolderBrowser.tsx','apps/control-center/src/discovery-systems.ts')

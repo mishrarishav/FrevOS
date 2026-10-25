@@ -61,6 +61,33 @@ are resolved privately from the explicit owner instruction, never copied here.
 
 ## Validation record
 
+The first configured request `pr_c783a5aa64db4ce59b0800487729b596` published
+source `5caeaf504e4a9b92ae4ef4af1f4cb3bd5429a36b` but was deliberately stopped
+before any activation after inspecting the existing executor's older enrolled
+operator. Its fixed copy list omitted the new agent modules. The exact owned
+builder PID/parent/job/source and still-active preceding manifest were checked
+before stopping only that builder and its inherited Linux-download child. The
+pipeline records a failed build; it is not presented as a successful rollout.
+The existing platform remained active. Two enrolled operator scripts were
+updated from the exact frozen approved source with atomic backup/hash checks;
+credential bytes and task configuration were preserved. No other process or
+customer service was stopped. Receipt: `.local/agentic-native-operator-update.json`.
+
+A follow-up adds a deterministic packaged relative-module closure check before
+sealing, so a missing transitive application/contract module cannot become an
+activation candidate. `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy
+Bypass -File .local/Test-AgenticModuleClosure.ps1`, exit 0: actual operator guard
+accepts a valid graph and rejects missing and escaped modules. The follow-up
+also constrains the agent flex item: at 390px its measured width becomes 366px
+instead of a clipped 499px. Actual built-UI browser flow passes again; all
+header controls remain reachable, with internal scrolling for the network and
+summary. It will be retried through the same configured source/build/deploy flow.
+
+Native non-root Debian 12/Node v24.19.0 secret-boundary acceptance also passes in
+an isolated read-only, network-disabled container: real Unix ownership/modes,
+encrypted storage, wrong-actor denial, broad-mode denial and missing-master
+fail-closed behavior. This is not Linux desktop/systemd installer acceptance.
+
 Final `node .local/Run-CleanWindowsCI.cjs` (clean child `PSModulePath`, running
 `pnpm run ci`), exit 0, log `.local/agentic-ci-final.log`: repository/format/lint,
 typecheck, 340 tests (88 contracts, 91 UI, 161 control plane), coverage, builds
