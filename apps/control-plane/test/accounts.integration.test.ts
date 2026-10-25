@@ -16,7 +16,11 @@ import { AgentWorkspace } from "../src/agent-workspace.js";
 import { AgentNotifications } from "../src/agent-notifications.js";
 import { ProtectedModelSecrets } from "../src/model-secrets.js";
 import { sealModelCredential } from "./fixtures/model-seal.js";
-import { defaultAgentGuardrails, type ModelProposal } from "@frevos/contracts";
+import {
+  defaultAgentGuardrails,
+  type ModelProposal,
+  ModelTestResultSchema,
+} from "@frevos/contracts";
 
 it("protects account metadata and password actions, revokes sessions, preserves hashes and scopes, and authorizes only pinned self-updates", async () => {
   const container = await new PostgreSqlContainer(
@@ -90,6 +94,7 @@ it("protects account metadata and password actions, revokes sessions, preserves 
       projects: [],
       clients: [],
     }));
+    let modelDelayMs = 0;
     const agentService = new AgentWorkspace(
       join(root, "agents", "ws_server20"),
       "ws_server20",
@@ -98,7 +103,10 @@ it("protects account metadata and password actions, revokes sessions, preserves 
       async () => ({ systems: [], reports: [] }),
       {
         validateEndpoint: async () => {},
-        complete: async () => ({ text: "Synthetic read-only suggestion", model: "synthetic" }),
+        complete: async () => {
+          if (modelDelayMs) await new Promise((r) => setTimeout(r, modelDelayMs));
+          return { text: "Synthetic read-only suggestion", model: "synthetic" };
+        },
       },
     );
     const notices = new AgentNotifications(
@@ -253,6 +261,18 @@ it("protects account metadata and password actions, revokes sessions, preserves 
     expect(model.statusCode).toBe(200);
     const mc = model.json().id;
     expect((await post(agentBase + `/models/${mc}/test`, {})).json().status).toBe("ready");
+    await server.listen({ port: 0, host: "127.0.0.1" });
+    const address = server.server.address();
+    if (!address || typeof address === "string") throw Error("No fixture TCP listener");
+    modelDelayMs = 11000;
+    const delayed = await fetch(`http://127.0.0.1:${address.port}${agentBase}/models/${mc}/test`, {
+      method: "POST",
+      headers: { ...ownerAuth, "content-type": "application/json" },
+      body: "{}",
+    });
+    expect(delayed.status).toBe(200);
+    expect(ModelTestResultSchema.parse(await delayed.json()).status).toBe("ready");
+    modelDelayMs = 0;
     expect(
       (await post(agentBase + `/models/${mc}/test`, {}, { ...ownerAuth, "x-csrf-token": "bad" }))
         .statusCode,

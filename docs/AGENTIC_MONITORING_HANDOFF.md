@@ -61,6 +61,41 @@ are resolved privately from the explicit owner instruction, never copied here.
 
 ## Validation record
 
+The first final rollout `pr_fd726ef64e3fef0958cb0d4e5df96041` at source
+`6a4369386852a066b01eeea05776b04a18516a5b` is live with manifest
+`d2526464a09afe90aca112adbaf9004f48190cbce600ca800e6b060acdb141f5`.
+Its native SYSTEM receipt confirms HTTP/UI 200, siblings preserved and no
+database write. Sealed archive SHA256 is
+`6ff615a0238f5f16e616b46f82f88a2feb603017214d63c15247678235ad5f38`
+(131,556,006 bytes). The actual 39,006,537-byte Windows download matches sealed
+SHA256 `7879157f23c7134fb8663f4503c0274df64be9bfedb6da94fba154e530f78456`.
+Post-rollout customer baseline verification passes. The model connection is
+saved behind its protected reference and three editable agents are configured
+as owner data, not product defaults. No real notification was delivered.
+
+The exact downloaded ZIP's own Node v24.19.0 passes actual Windows/native
+acceptance against the same sealed server/UI bytes (local package first
+verified against the live manifest, avoiding slow UNC module loading). The
+test uses real PostgreSQL/Fastify, separate installer/owner browsers, native
+ACL/DPAPI/Limited tasks, one login/proposal/approval/device, preserved credentials,
+fresh health, same-device update, local notification opt-in, bounded previous
+consent replacement and interrupted-runtime recovery. A real typed HTTP folder
+request is claimed and completed by that installed collector: it finds the
+new synthetic project folder on D: using at most 1000 directories/two seconds,
+without file contents. Three viewports and zero page errors pass. Synthetic
+fixture files/tasks/containers are cleaned independently of customer data.
+Receipt: `.local/agentic-downloaded-windows-result.json`.
+
+Live model testing exposed an integration mismatch: the normal HTTP idle socket
+limit is ten seconds, while the bounded provider test may take longer. The
+server persisted a timeout result but the browser received HTTP 502. A bounded
+follow-up extends only the already authenticated/CSRF-checked model-test reply
+socket to forty seconds, retaining its existing protected-key/DNS/inference and
+concurrency bounds. The ordinary server limits remain unchanged. A real TCP
+Fastify/PostgreSQL test with an eleven-second synthetic provider response passes
+HTTP 200 and the strict model-result contract; this test would lose the socket
+without the fix. It is not a claim of owner-provider availability.
+
 The first configured request `pr_c783a5aa64db4ce59b0800487729b596` published
 source `5caeaf504e4a9b92ae4ef4af1f4cb3bd5429a36b` but was deliberately stopped
 before any activation after inspecting the existing executor's older enrolled
@@ -129,3 +164,60 @@ policy, workspace/actor/device scope, revision/replay/expiry, inert drafts,
 read-only plans, real filesystem metadata bounds, receipt-before-display and
 real Fastify/PostgreSQL authentication/CSRF. Publication identities and complete
 changed-file/diff inventory will be recorded after configured rollout.
+
+## Complete published source inventory
+
+Base `1f22ed2a6523678adcff35d8e8d1b9507ddce517` to resulting source `6a4369386852a066b01eeea05776b04a18516a5b`: 49 files changed, 7120 insertions(+), 62 deletions(-).
+No PR or merge; the configured DevSetu source publisher created these commits.
+Final runtime receipts and these delivery-result documentation updates are
+recorded separately after activation.
+
+- `apps/control-center/src/AgentNetwork.tsx`
+- `apps/control-center/src/AgentNotificationsPanel.tsx`
+- `apps/control-center/src/AgentsPage.tsx`
+- `apps/control-center/src/App.tsx`
+- `apps/control-center/src/DiscoveryPage.tsx`
+- `apps/control-center/src/HealthGraphs.tsx`
+- `apps/control-center/src/RecordWorkspace.tsx`
+- `apps/control-center/src/api.ts`
+- `apps/control-center/src/model-seal.ts`
+- `apps/control-center/src/styles.css`
+- `apps/control-center/test/agents-api.test.ts`
+- `apps/control-center/test/health-graphs.test.tsx`
+- `apps/control-center/test/model-seal.test.ts`
+- `apps/control-plane/src/agent-notifications.ts`
+- `apps/control-plane/src/agent-workspace.ts`
+- `apps/control-plane/src/main.ts`
+- `apps/control-plane/src/model-gateway.ts`
+- `apps/control-plane/src/model-secrets.ts`
+- `apps/control-plane/src/project-folder-search.ts`
+- `apps/control-plane/src/server.ts`
+- `apps/control-plane/src/system-discovery.ts`
+- `apps/control-plane/test/accounts.integration.test.ts`
+- `apps/control-plane/test/agent-notifications.test.ts`
+- `apps/control-plane/test/agent-workspace.test.ts`
+- `apps/control-plane/test/fixtures/model-seal.ts`
+- `apps/control-plane/test/model-gateway.test.ts`
+- `apps/control-plane/test/model-secrets.test.ts`
+- `apps/control-plane/test/notification-runtime.test.ts`
+- `apps/control-plane/test/project-folder-search.test.ts`
+- `apps/control-plane/test/system-discovery.test.ts`
+- `apps/control-plane/test/system-folders-runtime.test.ts`
+- `deployment/server20/HttpCommon.ps1`
+- `deployment/server20/New-ServixDashboardRelease.ps1`
+- `deployment/servix/DeviceEnrollment.cjs`
+- `deployment/servix/DeviceEnrollmentClient.js`
+- `deployment/servix/FolderBrowse.cjs`
+- `deployment/servix/ModelSecret.ps1`
+- `deployment/servix/New-ConnectorDownload.ps1`
+- `deployment/servix/Notification-Consent.ps1`
+- `deployment/servix/SystemDiscovery.cjs`
+- `docs/ACTIVITY_MONITORING_HANDOFF.md`
+- `docs/AGENTIC_MONITORING_HANDOFF.md`
+- `docs/CURRENT_STATE.md`
+- `docs/adr/0062-configurable-agent-monitoring-pilot.md`
+- `docs/adr/0063-requested-project-folder-discovery.md`
+- `packages/contracts/src/agent-workspace.ts`
+- `packages/contracts/src/index.ts`
+- `packages/contracts/src/system-discovery.ts`
+- `packages/contracts/test/agent-workspace.test.ts`

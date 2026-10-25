@@ -967,10 +967,14 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
   );
   server.post<{ Params: WorkspaceParams & { connectionId: string } }>(
     route("/v1/workspaces/:workspaceId/agents/models/:connectionId/test"),
-    async (request) => {
+    async (request, reply) => {
       const c = await agentContext(request, true);
       if (request.body && Object.keys(request.body).length)
         throw new HttpError(400, "invalid-request");
+      // Only this authenticated, CSRF-checked and concurrency-bounded probe may
+      // outlive the normal idle socket limit (DNS + protected key + inference).
+      if (typeof reply.raw.setTimeout === "function")
+        reply.raw.setTimeout(40_000, () => reply.raw.destroy());
       return c.service.testModel(c.actor, request.params.connectionId);
     },
   );
