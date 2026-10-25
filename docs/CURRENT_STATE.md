@@ -30,11 +30,32 @@ The build had not reached application activation. The next bounded correction
 uses LOCAL SERVICE's private local scratch, retains durable artifacts/logs in
 the controller store, fails fast offline and allows twenty minutes for the
 large Windows frontend installation. Existing failed workspaces remain intact.
-The scratch rollout at `9070c9af3964799bd0980244e4985fef48bf281f`
+The initial scratch rollout at `9070c9af3964799bd0980244e4985fef48bf281f`
 failed its frozen CI before activation. Reproduction identified a Git binding
 fixture reusing its earlier 60-second request after lengthy real Git operations.
 The bounded correction issues a fresh fixture request for binding and explicitly
 checks expired-request rejection; runtime authorization remains unchanged.
+The correction is now active at `1e20ebe97ff2b7f45958aabb37d529f3662c8d33`,
+manifest `354af1a7df55a335163f2b56b97392f58b2f2d3f212d21f0ffe0bfce62d8af27`,
+actual UI request `pr_03925c9be8e71e26ef1d21c562632830`. Frozen CI, native
+publication, independent activation, HTTP/UI health and sibling preservation
+passed. Profiles, component configurations and all 11 environment hashes match
+the baseline. Servix request `sd_2fba221e1855f7f17d9004617130ba12` published
+`e04137b4a862e8760a59b95da7e0de9a32bc6d38` through the real UI and is building
+in the confirmed LOCAL SERVICE private C: workspace. No activation is yet claimed.
+That run subsequently built and activated release
+`599a63262003575eee3a3bf42799cd7376ae05c3563cdffa8989c6af51e3d163`.
+Backend bundle `5ff7622a9f316edbe0485c47f179f6c1bccac75241e6540f1d0079b11172fb0c`
+matches the isolated compiler result. Actual UI rollback
+`sd_a238715b901b996e40eeabb4d2bfa30c` and identical-artifact restore
+`sd_9b2f6358cc7a00e4e25a93ced199261c` passed health, browser and three
+pre-deployment attachment SHA256 comparisons each, with no new build.
+The live receipt exposed a pre-existing PowerShell 5.1 inventory defect:
+`Sort-Object path -Unique` collapses hashtable records to one on that runtime.
+The correction uses an explicit path expression. A real six-file fixture fails
+before the correction and passes afterward, including changed/missing non-first
+files and duplicate-folder deduplication. Full CI and an additional live saved-
+artifact cycle are required before declaring the strengthened guard verified.
 The current Development runtime still starts source with npm, port 5001 healthy.
 The isolated customer build now compiles 85 application modules into a runnable
 bundle, retaining per-project dependencies, module paths and mutable data roots.

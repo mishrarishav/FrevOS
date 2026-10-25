@@ -42,7 +42,9 @@ function Get-PersistentFiles {
             }
         }
     }
-    return @($files | Sort-Object path -Unique)
+    # Windows PowerShell 5.1 does not resolve dictionary keys for named sort
+    # properties; use an expression so distinct protected files stay distinct.
+    return @($files | Sort-Object { $_.path } -Unique)
 }
 function Assert-PersistentFiles([object[]]$Before) {
     foreach($file in $Before) {
