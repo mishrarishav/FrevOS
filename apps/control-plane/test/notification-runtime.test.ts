@@ -3,11 +3,55 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
+import { spawn } from "node:child_process";
 import { expect, it } from "vitest";
 import { notificationDigest } from "../src/agent-notifications.js";
 import { WorkspaceIdSchema } from "@frevos/contracts";
 const { SystemDiscovery, showNotification } = createRequire(import.meta.url)(
   "../../../deployment/servix/SystemDiscovery.cjs",
+);
+it.runIf(process.platform === "win32")(
+  "preserves Hindi text through the actual Windows PowerShell notification input boundary without displaying a popup",
+  async () => {
+    const message = "नमस्ते — कृपया परियोजना के milestones की समीक्षा करें";
+    const status = await showNotification(
+      { title: "परियोजना", message },
+      {
+        platform: "win32",
+        invoke: (file: string, args: string[], input: string) =>
+          new Promise<boolean>((resolve, reject) => {
+            const actual = args.at(-1)!;
+            const boundary = actual.indexOf("$n=[Windows.Forms.NotifyIcon]::new()");
+            if (boundary < 0) return reject(Error("Notification boundary missing"));
+            const probe =
+              actual.slice(0, boundary) +
+              "[Console]::Out.Write([Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($r.message)))";
+            const child = spawn(file, ["-NoProfile", "-NonInteractive", "-Command", probe], {
+              env: Object.fromEntries(
+                Object.entries(process.env).filter(([k]) => k.toLowerCase() !== "psmodulepath"),
+              ),
+              windowsHide: true,
+              stdio: ["pipe", "pipe", "ignore"],
+            });
+            let output = "";
+            const timer = setTimeout(() => {
+              child.kill();
+              reject(Error("Notification boundary timeout"));
+            }, 10000);
+            child.stdout.on("data", (b) => (output += b));
+            child.on("error", reject);
+            child.on("close", (code) => {
+              clearTimeout(timer);
+              resolve(
+                code === 0 && Buffer.from(output.trim(), "base64").toString("utf8") === message,
+              );
+            });
+            child.stdin.end(input);
+          }),
+      },
+    );
+    expect(status).toBe("display-requested");
+  },
 );
 it("keeps notification text out of executable commands on Windows/Linux and reports unsupported delivery", async () => {
   const calls: unknown[][] = [],

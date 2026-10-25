@@ -96,6 +96,17 @@ Fastify/PostgreSQL test with an eleven-second synthetic provider response passes
 HTTP 200 and the strict model-result contract; this test would lose the socket
 without the fix. It is not a claim of owner-provider availability.
 
+A final Windows notification compatibility check found that default PowerShell
+stdin decoding corrupted Hindi text. The static notification boundary now sets
+UTF-8 input explicitly, matching the other protected local helpers. A native
+PowerShell test executes the actual validation/input prefix and compares the
+decoded Hindi message through an ASCII-safe result, without constructing a
+NotifyIcon or displaying any popup. It fails against the preceding prefix and
+passes with the fix. No message or command text is interpolated into executable
+PowerShell; text still arrives only over private stdin. The final client ZIP
+must contain this corrected collector; a server-only update cannot change an
+already installed older collector.
+
 The first configured request `pr_c783a5aa64db4ce59b0800487729b596` published
 source `5caeaf504e4a9b92ae4ef4af1f4cb3bd5429a36b` but was deliberately stopped
 before any activation after inspecting the existing executor's older enrolled

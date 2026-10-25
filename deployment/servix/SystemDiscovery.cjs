@@ -76,7 +76,7 @@ async function showNotification(job, options = {}) {
       }));
   if (platform === "win32") {
     const script =
-      "$ErrorActionPreference='Stop';Add-Type -AssemblyName System.Windows.Forms;Add-Type -AssemblyName System.Drawing;$r=[Console]::In.ReadToEnd()|ConvertFrom-Json;if($r.version -ne 1 -or $r.title.Length -gt 80 -or $r.message.Length -gt 800){exit 2};$n=[Windows.Forms.NotifyIcon]::new();try{$n.Icon=[Drawing.SystemIcons]::Information;$n.Text='DevSetu';$n.Visible=$true;$n.BalloonTipTitle=$r.title;$n.BalloonTipText=$r.message;$n.ShowBalloonTip(7000);Start-Sleep -Milliseconds 8000}finally{$n.Dispose()}";
+      "$ErrorActionPreference='Stop';[Console]::InputEncoding=[Text.UTF8Encoding]::new($false);Add-Type -AssemblyName System.Windows.Forms;Add-Type -AssemblyName System.Drawing;$r=[Console]::In.ReadToEnd()|ConvertFrom-Json;if($r.version -ne 1 -or $r.title.Length -gt 80 -or $r.message.Length -gt 800){exit 2};$n=[Windows.Forms.NotifyIcon]::new();try{$n.Icon=[Drawing.SystemIcons]::Information;$n.Text='DevSetu';$n.Visible=$true;$n.BalloonTipTitle=$r.title;$n.BalloonTipText=$r.message;$n.ShowBalloonTip(7000);Start-Sleep -Milliseconds 8000}finally{$n.Dispose()}";
     const ok = await invoke(
       path.join(
         process.env.WINDIR || "C:/Windows",
