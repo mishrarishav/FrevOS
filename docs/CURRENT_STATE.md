@@ -2,7 +2,28 @@
 
 Last updated: 2026-10-25
 
-## System-first pairing correction (initial live PASS; final correction pending, 2026-10-25)
+## Passwordless system pairing (local PASS; rollout pending, 2026-10-25)
+
+The owner does not authorize sharing the administrator password with a new
+computer. ADR 0059, branch `codex/passwordless-system-pairing`, stacks on deployed
+`e8716d71631136ebc4fa2b54dde3a68de1e10977`. Scope: client-held system credentials,
+short lookup code and explicit approval from the authorized browser; protected
+resume without account credentials. Preserve system/project purpose separation,
+all previous result documentation and the configured deployment workflow. No
+Production, broad permission, invitation sending or unrelated phase work.
+
+Default setup now shows a short target-bound lookup code instead of account
+credentials. Discovery's explicit browser approval persists actor/workspace/
+purpose/target/correlation/expiry evidence before creating the system-only
+device. Client credentials stay CurrentUser DPAPI; the server sees hashes.
+Full CI passes 302 tests and all coverage/type/build/high-audit gates. A real
+Windows ZIP, actual native ACL/DPAPI/Limited task and real isolated Fastify/
+PostgreSQL/browser test pass with separate installer/owner contexts, one owner
+login, one proposal/approval/device, fresh health and passwordless task resume.
+Existing configuration/environment/customer release baseline is captured.
+Configured rollout remains pending. See [handoff](PASSWORDLESS_PAIRING_HANDOFF.md).
+
+## System-first pairing correction (bounded Windows pilot PASS, 2026-10-25)
 
 The owner requests a simpler working connection after a new laptop repeatedly
 fails the installer. Branch `codex/system-first-pairing`, base/deployed source
@@ -16,11 +37,11 @@ The default Windows setup now pairs a computer without project/Git selection.
 System-only credentials explicitly deny project operations and text history.
 Actual Windows DPAPI/Limited-task health/resume tests, consented metadata tests,
 Chromium refresh/retry/responsive checks and the legacy prerequisite status
-regression pass. Full local CI passes 294 tests, coverage/type/build and the
+regression pass. Full local CI passes 295 tests, coverage/type/build and the
 high audit gate (existing five low/six moderate advisories). The preceding
-customer configuration/environment/release baseline is captured. Configured
-platform publication and the new downloadable package still need live
-verification; the owner's other laptop is not claimed Online. See
+customer configuration/environment/release baseline is preserved. Configured
+platform publication and the exact downloadable package pass live verification;
+the owner's other laptop must run the new package and is not claimed Online. See
 [handoff](SYSTEM_FIRST_PAIRING_HANDOFF.md).
 
 Initial UI rollout `pr_d089627b55c1b4004f416b2b9b155481` is live at source
@@ -29,8 +50,19 @@ Initial UI rollout `pr_d089627b55c1b4004f416b2b9b155481` is live at source
 Health/UI and the customer baseline pass. Final review separates system records
 from legacy Git-reader filenames and normalizes child Windows PowerShell module
 paths; actual task resume and interrupted/conflicting naming tests pass. Clean
-builder-equivalent full CI passes 295 tests. Final configured rollout and exact
-download smoke remain pending; no other laptop is claimed connected.
+builder-equivalent full CI passes 295 tests. Final UI request
+`pr_949a30860a3412900cd40fbe07080c36` is live at resulting source
+`e8716d71631136ebc4fa2b54dde3a68de1e10977`, manifest
+`b65214b741667d3816c891bda1160aee814f3f0390dedf73ca0ee791eff6a123`.
+Native receipt confirms HTTP/UI 200, siblings preserved and databaseWritten false.
+The 38,983,805-byte actual download matches its sealed ZIP hash
+`efd6453ab254240f3e9e465cc792b4971f7a94ae322ab78ed0f6b1c016de73a8`.
+Its bundled Node v24.19.0, native ACL, DPAPI, Limited task, first health report,
+continued monitoring after setup closes and same-device fresh-setup resume pass
+in an isolated real-domain loopback test with one pairing/three observations.
+Final built Discovery UI navigation and all 11 environment/customer configuration
+baseline checks pass. The previous sealed reader also passes isolated project
+compatibility with unchanged record bytes. No other laptop is claimed connected.
 
 ## Servix backend artifact deployment (Development PASS, 2026-10-25)
 

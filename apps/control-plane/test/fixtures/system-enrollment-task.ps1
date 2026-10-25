@@ -9,7 +9,8 @@ if(Test-Path -LiteralPath (Join-Path $root 'device.dpapi')){
  Add-Type -AssemblyName System.Security
  $clear=[Security.Cryptography.ProtectedData]::Unprotect([IO.File]::ReadAllBytes((Join-Path $root 'device.dpapi')),$null,[Security.Cryptography.DataProtectionScope]::CurrentUser)
  try{$config=[Text.Encoding]::UTF8.GetString($clear)|ConvertFrom-Json}finally{[Array]::Clear($clear,0,$clear.Length)}
- if($config.mode -cne 'system' -or $config.deviceId -cne $DeviceId -or $config.accountName -cne 'synthetic-enrollment-fixture' -or ([uri]$config.server).Host -cne '127.0.0.1'){throw 'Fixture protected scope differs'}
+ $testActorHash=[BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes('usr_fixture'))).Replace('-','').ToLowerInvariant().Substring(0,40)
+ if($config.mode -cne 'system' -or $config.deviceId -cne $DeviceId -or $config.accountName -cnotin @('synthetic-enrollment-fixture',('pair:'+$testActorHash)) -or ([uri]$config.server).Host -cne '127.0.0.1'){throw 'Fixture protected scope differs'}
  $config=$null
 }
 if($task){

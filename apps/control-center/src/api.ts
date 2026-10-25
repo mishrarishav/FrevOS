@@ -8,6 +8,8 @@ import {
   type ConnectGithubRepositoryRequest,
   ConnectorListSchema,
   ConnectorRevocationSchema,
+  SystemEnrollmentPreviewSchema,
+  type SystemEnrollmentPreview,
   type DeliveryPlanInput,
   DeliveryPlanSchema,
   type DeploymentChange,
@@ -93,6 +95,12 @@ export interface WorkspaceSnapshot {
 }
 
 export interface ControlCenterApi {
+  lookupSystemPairing?(workspaceId: string, code: string): Promise<SystemEnrollmentPreview>;
+  decideSystemPairing?(
+    workspaceId: string,
+    id: string,
+    input: { version: 1; digest: string; decision: "approve" | "reject" },
+  ): Promise<SystemEnrollmentPreview>;
   discoveryState?(
     workspaceId: string,
     signal?: AbortSignal,
@@ -331,6 +339,18 @@ export function createControlCenterApi(
       ),
     discoveryPolicy: (workspaceId, input) =>
       post(`${workspacePath(workspaceId)}/discovery/policy`, input, DiscoveryPolicyRecordSchema),
+    lookupSystemPairing: (workspaceId, code) =>
+      post(
+        `${workspacePath(workspaceId)}/connectors/enrollments/lookup`,
+        { code },
+        SystemEnrollmentPreviewSchema,
+      ),
+    decideSystemPairing: (workspaceId, id, input) =>
+      post(
+        `${workspacePath(workspaceId)}/connectors/enrollments/${encodeURIComponent(id)}/decision`,
+        input,
+        SystemEnrollmentPreviewSchema,
+      ),
     browseFolders: (workspaceId, input) =>
       post(`${workspacePath(workspaceId)}/discovery/folders`, input, FolderBrowseJobSchema),
     folderBrowseResult: (workspaceId, requestId, signal) =>

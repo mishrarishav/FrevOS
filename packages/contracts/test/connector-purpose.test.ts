@@ -1,5 +1,10 @@
 import { expect, it } from "vitest";
-import { ConnectorSchema, PairConnectorSchema } from "../src/index.js";
+import {
+  ConnectorSchema,
+  PairConnectorSchema,
+  SystemEnrollmentStartSchema,
+  SystemEnrollmentPreviewSchema,
+} from "../src/index.js";
 
 it("accepts an unassigned computer and rejects every project capability in a system credential", () => {
   const id = `fc_${"a".repeat(32)}`;
@@ -62,4 +67,35 @@ it("accepts an unassigned computer and rejects every project capability in a sys
       changeNotes: false,
     }),
   ).toMatchObject({ mode: "system" });
+});
+it("keeps passwordless proposals hash-only and browser previews free of credential material", () => {
+  const input = {
+    version: 1,
+    deviceId: `fc_${"a".repeat(32)}`,
+    name: "Computer",
+    platform: "win32",
+    architecture: "x64",
+    fileActivity: false,
+    credentialHash: "a".repeat(64),
+    pollHash: "b".repeat(64),
+    codeHash: "c".repeat(64),
+  };
+  expect(SystemEnrollmentStartSchema.parse(input)).toEqual(input);
+  for (const field of [
+    { password: "forbidden" },
+    { credential: "forbidden" },
+    { profileId: "servix-development" },
+    { workspaceId: "ws_other" },
+    { command: "forbidden" },
+  ])
+    expect(SystemEnrollmentStartSchema.safeParse({ ...input, ...field }).success).toBe(false);
+  expect(
+    SystemEnrollmentPreviewSchema.safeParse({
+      ...input,
+      enrollmentId: `ep_${"d".repeat(32)}`,
+      expiresAt: "2026-10-25T12:00:00.000Z",
+      status: "pending",
+      digest: "e".repeat(64),
+    }).success,
+  ).toBe(false);
 });

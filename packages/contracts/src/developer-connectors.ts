@@ -69,6 +69,34 @@ export const ConnectorSchema = ConnectorRecordBaseSchema.superRefine((device, ct
     ctx.addIssue({ code: "custom", message: "Connector purpose does not match its scope" });
 });
 export type DeveloperConnector = z.infer<typeof ConnectorSchema>;
+export const SystemEnrollmentStartSchema = z
+  .object({
+    version: z.literal(1),
+    deviceId: ConnectorIdSchema,
+    name: z.string().trim().min(1).max(80),
+    platform: z.enum(["win32", "linux"]),
+    architecture: z.enum(["x64", "arm64"]),
+    fileActivity: z.boolean(),
+    credentialHash: z.string().regex(/^[a-f0-9]{64}$/),
+    pollHash: z.string().regex(/^[a-f0-9]{64}$/),
+    codeHash: z.string().regex(/^[a-f0-9]{64}$/),
+  })
+  .strict();
+export const SystemEnrollmentPreviewSchema = z
+  .object({
+    version: z.literal(1),
+    enrollmentId: z.string().regex(/^ep_[a-f0-9]{32}$/),
+    deviceId: ConnectorIdSchema,
+    name: z.string().max(80),
+    platform: z.enum(["win32", "linux"]),
+    architecture: z.enum(["x64", "arm64"]),
+    fileActivity: z.boolean(),
+    expiresAt: IsoTimestampSchema,
+    status: z.enum(["pending", "approving", "approved", "rejected", "expired"]),
+    digest: z.string().regex(/^[a-f0-9]{64}$/),
+  })
+  .strict();
+export type SystemEnrollmentPreview = z.infer<typeof SystemEnrollmentPreviewSchema>;
 export const DeveloperInviteResultSchema = z
   .object({
     version: z.literal(1),

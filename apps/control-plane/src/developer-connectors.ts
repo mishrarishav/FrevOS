@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { link, lstat, mkdir, open, readdir, readFile, unlink } from "node:fs/promises";
-import { join } from "node:path";
+import { join, dirname, isAbsolute } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import {
   ConnectorIdSchema,
@@ -18,6 +18,9 @@ import {
   PairConnectorSchema,
   PreservedPathSchema,
   RedeemDeveloperSchema,
+  SystemEnrollmentStartSchema,
+  SystemEnrollmentPreviewSchema,
+  defaultDiscoveryPolicy,
   SERVIX_REPOSITORY,
   ServixHeadSchema,
   ServixRequestIdSchema,
@@ -28,6 +31,7 @@ import { replaceDurableRecord } from "./atomic-record.js";
 import { hashesMatch, sha256 } from "./crypto.js";
 import { type DeploymentSettingsStore, repositoryOrigins } from "./deployment-settings.js";
 import { ServixDeploymentError } from "./servix-deployment.js";
+import type { SystemDiscovery } from "./system-discovery.js";
 
 const digest = (s: string) => sha256(s).toString("hex");
 const secret = () => randomBytes(32).toString("base64url");
@@ -564,6 +568,47 @@ export class DeveloperConnectorStore {
       };
     });
   }
+  async authorizeSystemPairing(actor: string) {
+    await this.permission(actor);
+  }
+  async acceptSystemEnrollment(actor: string, input: unknown) {
+    const request = SystemEnrollmentStartSchema.parse(input);
+    return this.serial(async () => {
+      await this.permission(actor);
+      let prior: z.infer<typeof DeviceRecord> | undefined;
+      try {
+        prior = await this.device(request.deviceId);
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+      }
+      if (prior) {
+        if (
+          prior.mode !== "system" ||
+          prior.userId !== actor ||
+          prior.credentialHash !== request.credentialHash ||
+          prior.status !== "active"
+        )
+          throw new ServixDeploymentError("pairing-device-collision", 409);
+        return;
+      }
+      if ((await this.list(actor)).filter((d) => d.status === "active").length >= 10)
+        throw new ServixDeploymentError("connector-device-limit");
+      const device = DeviceRecord.parse({
+        version: 1,
+        mode: "system",
+        deviceId: request.deviceId,
+        userId: actor,
+        workspaceId: "ws_server20",
+        name: request.name,
+        status: "active",
+        createdAt: this.now().toISOString(),
+        expiresAt: new Date(this.now().getTime() + 90 * 86400000).toISOString(),
+        lastSeenAt: null,
+        credentialHash: request.credentialHash,
+      });
+      await this.save("system-" + request.deviceId + ".json", device, true);
+    });
+  }
   async discoveryDevices(actor: string) {
     await this.permission(actor);
     if (actor !== "usr_windows_admin")
@@ -854,5 +899,401 @@ export class DeveloperConnectorStore {
       await this.save(id + ".source.json", { ...job, status: "failed", errorCode: body.errorCode });
       return { failed: true };
     });
+  }
+}
+
+const EnrollmentRecord = SystemEnrollmentStartSchema.extend({
+  enrollmentId: z.string().regex(/^ep_[a-f0-9]{32}$/),
+  workspaceId: z.literal("ws_server20"),
+  createdAt: z.iso.datetime(),
+  expiresAt: z.iso.datetime(),
+  status: z.enum(["pending", "approving", "approved", "rejected"]),
+  actor: z.string().nullable(),
+  digest: z.string().regex(/^[a-f0-9]{64}$/),
+}).strict();
+type Enrollment = z.infer<typeof EnrollmentRecord>;
+
+// A short code is only an authenticated lookup handle. Device credentials and
+// the separate polling proof are generated locally and are never recoverable here.
+export class SystemPairings {
+  private chain: Promise<unknown> = Promise.resolve();
+  private readonly limits = new Map<string, { at: number; count: number }>();
+  constructor(
+    readonly root: string,
+    private readonly connectors: DeveloperConnectorStore,
+    private readonly discovery: SystemDiscovery,
+    private readonly now = () => new Date(),
+  ) {}
+  private serial<T>(fn: () => Promise<T>) {
+    const result = this.chain.then(fn);
+    this.chain = result.catch(() => undefined);
+    return result;
+  }
+  private rate(key: string, max: number) {
+    const now = this.now().getTime();
+    for (const [k, v] of this.limits) if (now - v.at >= 60000) this.limits.delete(k);
+    if (this.limits.size >= 4096 && !this.limits.has(key))
+      throw new ServixDeploymentError("pairing-capacity", 503);
+    const entry = this.limits.get(key) ?? { at: now, count: 0 };
+    entry.count++;
+    this.limits.set(key, entry);
+    if (entry.count > max) throw new ServixDeploymentError("pairing-rate-limited", 429);
+  }
+  private async directory() {
+    if (!isAbsolute(this.root)) throw new ServixDeploymentError("pairing-storage-unavailable", 503);
+    for (let cursor = this.root; ; cursor = dirname(cursor)) {
+      try {
+        if ((await lstat(cursor)).isSymbolicLink())
+          throw new ServixDeploymentError("pairing-storage-unavailable", 503);
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+      }
+      if (dirname(cursor) === cursor) break;
+    }
+    await mkdir(this.root, { recursive: true, mode: 0o700 });
+    if ((await lstat(this.root)).isSymbolicLink())
+      throw new ServixDeploymentError("pairing-storage-unavailable", 503);
+  }
+  private async read(name: string) {
+    const file = join(this.root, name),
+      s = await lstat(file);
+    if (!s.isFile() || s.isSymbolicLink() || s.size > 16384)
+      throw new ServixDeploymentError("pairing-storage-unavailable", 503);
+    return JSON.parse(await readFile(file, "utf8"));
+  }
+  private async save(name: string, value: unknown, fresh = false) {
+    await this.directory();
+    const dest = join(this.root, name),
+      tmp = fresh ? dest : dest + "." + randomUUID() + ".tmp";
+    const file = await open(tmp, "wx", 0o600);
+    try {
+      await file.writeFile(JSON.stringify(value));
+      await file.sync();
+    } finally {
+      await file.close();
+    }
+    if (!fresh) await replaceDurableRecord(tmp, dest);
+  }
+  private async records() {
+    await this.directory();
+    const names = (await readdir(this.root)).filter((n) =>
+      /^record-fc_[a-f0-9]{32}\.json$/.test(n),
+    );
+    if (names.length > 10000) throw new ServixDeploymentError("pairing-capacity", 503);
+    const records = await Promise.all(
+      names.map(async (name) => {
+        const record = this.validateRecord(await this.read(name));
+        if (name !== "record-" + record.deviceId + ".json")
+          throw new ServixDeploymentError("pairing-storage-unavailable", 503);
+        return record;
+      }),
+    );
+    const retained: Enrollment[] = [];
+    for (const record of records) {
+      if (
+        ["pending", "rejected"].includes(record.status) &&
+        this.now().getTime() - Date.parse(record.expiresAt) > 1800000
+      )
+        await unlink(join(this.root, "record-" + record.deviceId + ".json"));
+      else retained.push(record);
+    }
+    return retained;
+  }
+  private validateRecord(value: unknown) {
+    const r = EnrollmentRecord.parse(value);
+    const proposal = SystemEnrollmentStartSchema.parse({
+      version: r.version,
+      deviceId: r.deviceId,
+      name: r.name,
+      platform: r.platform,
+      architecture: r.architecture,
+      fileActivity: r.fileActivity,
+      credentialHash: r.credentialHash,
+      pollHash: r.pollHash,
+      codeHash: r.codeHash,
+    });
+    const target = {
+      ...proposal,
+      enrollmentId: r.enrollmentId,
+      workspaceId: r.workspaceId,
+      createdAt: r.createdAt,
+      expiresAt: r.expiresAt,
+    };
+    if (digest(JSON.stringify(target)) !== r.digest)
+      throw new ServixDeploymentError("pairing-target-integrity-failed", 503);
+    return r;
+  }
+  private async evidence(
+    name: string,
+    expected: Record<string, string | number | boolean>,
+    stamp: string,
+    create: boolean,
+  ) {
+    let value: Record<string, unknown>;
+    try {
+      value = z.record(z.string(), z.unknown()).parse(await this.read(name));
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "ENOENT" || !create)
+        throw new ServixDeploymentError("pairing-audit-unavailable", 503);
+      await this.save(name, { ...expected, [stamp]: this.now().toISOString() }, true);
+      return;
+    }
+    if (
+      Object.keys(value).sort().join(",") !== [...Object.keys(expected), stamp].sort().join(",") ||
+      Object.entries(expected).some(([k, v]) => value[k] !== v) ||
+      !z.iso.datetime().safeParse(value[stamp]).success
+    )
+      throw new ServixDeploymentError("pairing-audit-mismatch", 503);
+  }
+  private preview(r: Enrollment) {
+    return SystemEnrollmentPreviewSchema.parse({
+      version: 1,
+      enrollmentId: r.enrollmentId,
+      deviceId: r.deviceId,
+      name: r.name,
+      platform: r.platform,
+      architecture: r.architecture,
+      fileActivity: r.fileActivity,
+      expiresAt: r.expiresAt,
+      status: Date.parse(r.expiresAt) <= this.now().getTime() ? "expired" : r.status,
+      digest: r.digest,
+    });
+  }
+  async start(input: unknown, network: string) {
+    this.rate("start:" + digest(network), 10);
+    const request = SystemEnrollmentStartSchema.parse(input);
+    if (
+      request.credentialHash === request.pollHash ||
+      request.pollHash === request.codeHash ||
+      request.credentialHash === request.codeHash
+    )
+      throw new ServixDeploymentError("pairing-proof-purpose-invalid", 400);
+    return this.serial(async () => {
+      const records = await this.records(),
+        prior = records.find((r) => r.deviceId === request.deviceId);
+      if (prior) {
+        const same = Object.entries(request).every(([k, v]) => prior[k as keyof Enrollment] === v);
+        if (!same) throw new ServixDeploymentError("pairing-target-changed", 409);
+        return this.preview(prior);
+      }
+      if (
+        records.filter(
+          (r) => r.status === "pending" && Date.parse(r.expiresAt) > this.now().getTime(),
+        ).length >= 128 ||
+        records.length >= 10000
+      )
+        throw new ServixDeploymentError("pairing-capacity", 503);
+      if (
+        records.some(
+          (r) => r.codeHash === request.codeHash && Date.parse(r.expiresAt) > this.now().getTime(),
+        )
+      )
+        throw new ServixDeploymentError("pairing-code-collision", 409);
+      const createdAt = this.now().toISOString(),
+        enrollmentId = "ep_" + randomBytes(16).toString("hex"),
+        expiresAt = new Date(this.now().getTime() + 600000).toISOString();
+      const target = { ...request, enrollmentId, workspaceId: "ws_server20", createdAt, expiresAt };
+      const record = EnrollmentRecord.parse({
+        ...target,
+        status: "pending",
+        actor: null,
+        digest: digest(JSON.stringify(target)),
+      });
+      await this.save("record-" + request.deviceId + ".json", record, true);
+      return this.preview(record);
+    });
+  }
+  async poll(proof: string) {
+    if (!/^fc_[a-f0-9]{32}\.[A-Za-z0-9_-]{43}$/.test(proof))
+      throw new ServixDeploymentError("pairing-proof-required", 401);
+    this.rate("poll:" + digest(proof), 40);
+    let record: Enrollment;
+    try {
+      record = this.validateRecord(await this.read("record-" + proof.slice(0, 35) + ".json"));
+    } catch {
+      throw new ServixDeploymentError("pairing-proof-required", 401);
+    }
+    if (!hashesMatch(proof, Buffer.from(record.pollHash, "hex")))
+      throw new ServixDeploymentError("pairing-proof-required", 401);
+    return this.preview(record);
+  }
+  async lookup(actor: string, input: unknown) {
+    await this.connectors.authorizeSystemPairing(actor);
+    this.rate("lookup:" + actor, 30);
+    const { code } = z
+      .object({ code: z.string().max(16) })
+      .strict()
+      .parse(input);
+    const normalized = code.toUpperCase().replace(/[\s-]/g, "");
+    if (!/^[A-HJ-NP-Z2-9]{8}$/.test(normalized))
+      throw new ServixDeploymentError("pairing-code-invalid", 404);
+    const record = (await this.records()).find((r) => r.codeHash === digest(normalized));
+    if (!record || Date.parse(record.expiresAt) <= this.now().getTime())
+      throw new ServixDeploymentError("pairing-code-expired-or-invalid", 404);
+    return this.preview(record);
+  }
+  async decide(actor: string, id: string, input: unknown) {
+    await this.connectors.authorizeSystemPairing(actor);
+    if (!/^ep_[a-f0-9]{32}$/.test(id)) throw new ServixDeploymentError("pairing-not-found", 404);
+    const body = z
+      .object({
+        version: z.literal(1),
+        digest: z.string().regex(/^[a-f0-9]{64}$/),
+        decision: z.enum(["approve", "reject"]),
+      })
+      .strict()
+      .parse(input);
+    return this.serial(async () => {
+      const record = (await this.records()).find((r) => r.enrollmentId === id);
+      if (!record) throw new ServixDeploymentError("pairing-not-found", 404);
+      if (record.digest !== body.digest || Date.parse(record.expiresAt) <= this.now().getTime())
+        throw new ServixDeploymentError("pairing-expired-or-changed", 409);
+      if (record.actor && record.actor !== actor)
+        throw new ServixDeploymentError("pairing-actor-mismatch", 403);
+      if (
+        record.status === "rejected" ||
+        (body.decision === "reject" && record.status !== "pending")
+      )
+        throw new ServixDeploymentError("pairing-already-decided", 409);
+      if (record.status === "approved") {
+        await this.evidence(
+          "consumed-" + id + ".json",
+          {
+            version: 1,
+            actor,
+            workspaceId: "ws_server20",
+            action: "connector:pair:system",
+            target: record.deviceId,
+            digest: record.digest,
+            correlationId: id,
+          },
+          "consumedAt",
+          false,
+        );
+        return this.preview(record);
+      }
+      if (body.decision === "reject") {
+        record.actor = actor;
+        record.status = "rejected";
+        await this.save("record-" + record.deviceId + ".json", record);
+        return this.preview(record);
+      }
+      if (record.status === "pending") {
+        if ((await this.connectors.list(actor)).filter((d) => d.status === "active").length >= 10)
+          throw new ServixDeploymentError("connector-device-limit");
+        await this.evidence(
+          "intent-" + id + ".json",
+          {
+            version: 1,
+            actor,
+            workspaceId: "ws_server20",
+            action: "connector:pair:system",
+            target: record.deviceId,
+            digest: record.digest,
+            correlationId: id,
+            expiresAt: record.expiresAt,
+            singleUse: true,
+          },
+          "issuedAt",
+          true,
+        );
+        record.status = "approving";
+        record.actor = actor;
+        await this.save("record-" + record.deviceId + ".json", record);
+      }
+      await this.evidence(
+        "intent-" + id + ".json",
+        {
+          version: 1,
+          actor,
+          workspaceId: "ws_server20",
+          action: "connector:pair:system",
+          target: record.deviceId,
+          digest: record.digest,
+          correlationId: id,
+          expiresAt: record.expiresAt,
+          singleUse: true,
+        },
+        "issuedAt",
+        false,
+      );
+      await this.evidence(
+        "consumed-" + id + ".json",
+        {
+          version: 1,
+          actor,
+          workspaceId: "ws_server20",
+          action: "connector:pair:system",
+          target: record.deviceId,
+          digest: record.digest,
+          correlationId: id,
+        },
+        "consumedAt",
+        true,
+      );
+      await this.connectors.acceptSystemEnrollment(
+        actor,
+        SystemEnrollmentStartSchema.parse({
+          version: record.version,
+          deviceId: record.deviceId,
+          name: record.name,
+          platform: record.platform,
+          architecture: record.architecture,
+          fileActivity: record.fileActivity,
+          credentialHash: record.credentialHash,
+          pollHash: record.pollHash,
+          codeHash: record.codeHash,
+        }),
+      );
+      if (record.fileActivity) {
+        const current = (await this.discovery.state(actor)).systems.find(
+          (s) => s.deviceId === record.deviceId,
+        )?.policy;
+        if (!current)
+          await this.discovery.configure(actor, {
+            version: 1,
+            deviceId: record.deviceId,
+            expectedRevision: 0,
+            policy: { ...defaultDiscoveryPolicy, enabled: true, contentFolders: [] },
+          });
+      }
+      record.status = "approved";
+      await this.save("record-" + record.deviceId + ".json", record);
+      return this.preview(record);
+    });
+  }
+  async status(credential: string) {
+    const device = await this.connectors.checkCredential(credential);
+    if (device.mode !== "system")
+      throw new ServixDeploymentError("connector-project-binding-required", 403);
+    const record = (await this.records()).find((r) => r.deviceId === device.deviceId);
+    if (record?.status === "approved")
+      await this.evidence(
+        "consumed-" + record.enrollmentId + ".json",
+        {
+          version: 1,
+          actor: device.userId,
+          workspaceId: "ws_server20",
+          action: "connector:pair:system",
+          target: device.deviceId,
+          digest: record.digest,
+          correlationId: record.enrollmentId,
+        },
+        "consumedAt",
+        false,
+      );
+    const state = await this.discovery.state(device.userId),
+      system = state.systems.find((s) => s.deviceId === device.deviceId);
+    return {
+      version: 1,
+      deviceId: device.deviceId,
+      actor: device.userId,
+      ready: !record || record.status === "approved",
+      online:
+        system?.online === true &&
+        !!system.observation &&
+        !!system.observedAt &&
+        this.now().getTime() - Date.parse(system.observedAt) < 30000,
+    };
   }
 }

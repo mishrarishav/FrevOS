@@ -1,9 +1,12 @@
 DevSetu - connect this Windows computer
 
 1. Extract the ZIP completely. Open Setup.cmd from the extracted folder.
-2. The setup page opens in your browser. Enter the same DevSetu server URL,
-   username and password that you use in DevSetu. Keep your VPN connected.
-3. Optionally enable file activity, then click Connect this computer.
+2. The setup page opens in your browser. Enter the DevSetu server URL. Keep
+   your VPN connected. No administrator username or password is needed here.
+3. Optionally enable file activity, then click Connect this computer. A short
+   code appears. On your own logged-in DevSetu browser (on this computer or
+   another computer), open Discovery > Approve connection. Enter that code,
+   check the computer name and access, then Approve this computer.
 4. Wait for Connected and reporting health. Open Discovery to view your laptop.
    You can close the setup window after that; the connector runs in the background
    for your Windows user and starts again when you sign in.
@@ -19,5 +22,6 @@ Existing files do not need to be deleted or moved for system monitoring.
 
 If connection fails, the page shows its stage and a safe error code. Correct the
 VPN/account issue and use Retry connection. Keep the launcher open during setup.
-After a successful installation, reopening Setup.cmd reuses its saved connection
-for the same account. The password is never saved in the setup preferences.
+After a successful installation, reopening Setup.cmd reuses its protected
+connection without asking for the administrator password. Setup-Account.cmd
+keeps the older account-login setup for explicit compatibility use.

@@ -1,7 +1,8 @@
 # System-first Windows pairing — 2026-10-25
 
-Status: implementation/local validation PASS; initial rollout PASS; final
-compatibility/environment correction rollout pending.
+Status: PASS — bounded Windows pairing correction, configured rollout and exact
+downloaded-package verification complete. The owner's other laptop must run
+the new package; this test does not claim that laptop is remotely connected.
 Repository: `D:\FREVOS`, worktree `.local/worktrees/servix-dashboard`.
 Branch: `codex/system-first-pairing`.
 Base/deployed source before this correction:
@@ -114,6 +115,57 @@ Actual built Discovery UI with synthetic read-only responses passes unassigned
 drive/folder navigation, disabled text controls, explicit project link and two
 responsive viewports without page errors. A final revision adds backward-reader
 record isolation, safe interrupted migration and PowerShell 7 launch resilience.
+
+## Final delivery evidence
+
+Final actual UI request `pr_949a30860a3412900cd40fbe07080c36` publishes resulting
+commit `e8716d71631136ebc4fa2b54dde3a68de1e10977` on the same task branch.
+Its frozen isolated build and independent SYSTEM activation succeeded.
+Active manifest:
+`b65214b741667d3816c891bda1160aee814f3f0390dedf73ca0ee791eff6a123`.
+Archive: 131,409,939 bytes, SHA256
+`c4830ea6128b3186c24f67aa71c0270ff2634e08c7ef0dea905215d0642ed9b5`.
+Native receipt: HTTP/UI 200, databaseWritten false, siblings preserved and
+private recovery backups retained. This is an actual DevSetu source-to-deploy
+run, not manual per-release Git/build work. There is no PR or merge.
+
+- `node .local/Test-LegacyConnectorReader.cjs`: exit 0. The actual previous
+  sealed artifact's reader (manifest `9c31907f...92bb6b`) reads/heartbeats the
+  unchanged project credential, ignores the new system namespace and denies
+  the system token. Both record byte buffers remain identical. This is an
+  isolated backward-reader test, not a live platform rollback.
+- `node .local/Download-SystemPairingPackage.cjs native-system-pairing-final`:
+  exit 0 after correcting the diagnostic's release-root path. HTTP 200/no-store;
+  the actual downloadable ZIP exactly matches its sealed manifest entry.
+  ZIP: 38,983,805 bytes, SHA256
+  `efd6453ab254240f3e9e465cc792b4971f7a94ae322ab78ed0f6b1c016de73a8`.
+- The downloaded `node.exe` runs `.local/Test-DownloadedSystemPackage.cjs`
+  against its extracted package: exit 0, Node v24.19.0. Actual native ACL helper,
+  marked downloaded files, CurrentUser DPAPI and Limited task pass. Real
+  connector/discovery domain stores on an isolated loopback server receive
+  three health observations. Monitoring survives closing setup; reopening
+  reuses the same device (one pairing), with no Git/project, unexpected
+  capability or page error. Three responsive viewports pass. Synthetic account
+  only, file activity off, and the owned task/device/temp data are cleaned up.
+- `node .local/Test-UnassignedDiscoveryUi.cjs`: exit 0 against the final built
+  live UI with synthetic read-only route responses; unassigned drive and
+  existing-folder navigation, content restrictions and project navigation pass.
+- `node .local/ArtifactBaseline.cjs verify system-pairing`: exit 0 after final
+  activation; all three profiles, two pipelines, eleven environment files,
+  the exact current customer release and stopped local services are unchanged.
+- `node .local/component-native-receipts.cjs native-system-pairing-final`:
+  exit 0; the final operator receipt matches the active artifact.
+- `git diff --check`: exit 0. Published scope from base to resulting commit:
+  37 files, 2,637 insertions, 175 deletions, including the retained prior handoff.
+  Final Current State/handoff result updates are saved after publication and
+  remain documentation-only local changes; no further code change is pending.
+
+Readiness: the corrected Windows package is available from DevSetu's existing
+Download for Windows action and `/downloads/frevos-connector.zip`. Extract into
+a new folder, open `Setup.cmd`, use the same server/account and Connect this
+computer. Metadata activity is optional. Projects remain a separate later step.
+Phase 4 exit and the previously blocked customer Production activation remain
+outside this completed correction.
 
 ## Changed files for this correction
 

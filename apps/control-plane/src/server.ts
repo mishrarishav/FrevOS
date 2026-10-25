@@ -33,7 +33,8 @@ import { z } from "zod";
 import type { ComponentDeployments } from "./component-deployments.js";
 import { hashesMatch, type OidcTransaction, type OidcTransactionCodec } from "./crypto.js";
 import type { DeploymentSettingsStore } from "./deployment-settings.js";
-import type { DeveloperConnectorStore } from "./developer-connectors.js";
+import { type DeveloperConnectorStore, SystemPairings } from "./developer-connectors.js";
+import { join } from "node:path";
 import {
   type GithubOnboardingStore,
   PERSONAL_AGENT_WORKSPACE_ID,
@@ -949,6 +950,53 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
     if (!options.systemDiscovery) throw new HttpError(503, "discovery-unavailable");
     return options.systemDiscovery;
   };
+  let pairingStore: SystemPairings | undefined;
+  const pairings = () =>
+    (pairingStore ??= new SystemPairings(
+      join(connectors().root, "enrollments"),
+      connectors(),
+      discovery(),
+      now,
+    ));
+  server.post(route("/v1/connector/enrollment/start"), async (request, reply) => {
+    if (request.headers.origin !== options.publicOrigin)
+      throw new HttpError(403, "pairing-origin-denied");
+    return reply
+      .header("cache-control", "no-store")
+      .send(await pairings().start(request.body, request.ip));
+  });
+  server.post(route("/v1/connector/enrollment/poll"), async (request, reply) => {
+    z.object({}).strict().parse(request.body);
+    return reply
+      .header("cache-control", "no-store")
+      .send(await pairings().poll(connectorCredential(request)));
+  });
+  server.post(route("/v1/connector/system-status"), async (request, reply) => {
+    z.object({}).strict().parse(request.body);
+    return reply
+      .header("cache-control", "no-store")
+      .send(await pairings().status(connectorCredential(request)));
+  });
+  server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/connectors/enrollments/lookup"),
+    async (request, reply) =>
+      reply
+        .header("cache-control", "no-store")
+        .send(await pairings().lookup(await connectorActor(request, true), request.body)),
+  );
+  server.post<{ Params: WorkspaceParams & { enrollmentId: string } }>(
+    route("/v1/workspaces/:workspaceId/connectors/enrollments/:enrollmentId/decision"),
+    async (request, reply) =>
+      reply
+        .header("cache-control", "no-store")
+        .send(
+          await pairings().decide(
+            await connectorActor(request, true),
+            request.params.enrollmentId,
+            request.body,
+          ),
+        ),
+  );
   server.get<{ Params: WorkspaceParams }>(
     route("/v1/workspaces/:workspaceId/discovery"),
     async (request) =>

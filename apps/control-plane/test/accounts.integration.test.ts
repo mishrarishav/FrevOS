@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { createHash } from "node:crypto";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { Pool } from "pg";
 import { expect, it } from "vitest";
@@ -9,6 +10,8 @@ import { IdentitySessionRepository, WorkspaceRepository } from "../src/repositor
 import { LocalAccounts } from "../src/local-accounts.js";
 import { SelfUpdates } from "../src/self-updates.js";
 import { buildServer, SESSION_COOKIE, CSRF_COOKIE } from "../src/server.js";
+import { DeveloperConnectorStore } from "../src/developer-connectors.js";
+import { SystemDiscovery } from "../src/system-discovery.js";
 
 it("protects account metadata and password actions, revokes sessions, preserves hashes and scopes, and authorizes only pinned self-updates", async () => {
   const container = await new PostgreSqlContainer(
@@ -72,6 +75,16 @@ it("protects account metadata and password actions, revokes sessions, preserves 
       label: "Synthetic sealed build",
     };
     await writeFile(join(maintenance, "catalog.json"), JSON.stringify(candidate));
+    const connectors = new DeveloperConnectorStore(
+      join(root, "connectors"),
+      async (actor) => actor === owner.userId || actor === dev.userId,
+      { head: async () => "a".repeat(40), importBundle: async () => {} },
+      async () => {},
+    );
+    const discovery = new SystemDiscovery(join(root, "discovery"), connectors, async () => ({
+      projects: [],
+      clients: [],
+    }));
     server = await buildServer({
       publicOrigin: origin,
       authMode: "local",
@@ -79,6 +92,8 @@ it("protects account metadata and password actions, revokes sessions, preserves 
       workspaces,
       localAccounts: service,
       selfUpdates: new SelfUpdates(maintenance),
+      developerConnectors: connectors,
+      systemDiscovery: discovery,
     });
     const login = async (username: string, password: string) => {
       const response = await server!.inject({
@@ -104,6 +119,88 @@ it("protects account metadata and password actions, revokes sessions, preserves 
       server!.inject({ method: "GET", url, headers });
     const post = async (url: string, payload: Record<string, unknown>, headers = ownerAuth) =>
       server!.inject({ method: "POST", url, headers, payload });
+    const h = (v: string) => createHash("sha256").update(v).digest("hex"),
+      deviceId = "fc_" + "f".repeat(32),
+      credential = deviceId + "." + "c".repeat(43),
+      proof = deviceId + "." + "p".repeat(43);
+    const proposal = {
+      version: 1,
+      deviceId,
+      name: "Synthetic passwordless laptop",
+      platform: "win32",
+      architecture: "x64",
+      fileActivity: false,
+      credentialHash: h(credential),
+      pollHash: h(proof),
+      codeHash: h("ABCDEFGH"),
+    };
+    const start = "/v1/connector/enrollment/start",
+      lookup = "/v1/workspaces/ws_server20/connectors/enrollments/lookup";
+    expect(
+      (await server.inject({ method: "POST", url: start, payload: proposal })).statusCode,
+    ).toBe(403);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: start,
+          headers: { origin },
+          payload: { ...proposal, profileId: "servix-development" },
+        })
+      ).statusCode,
+    ).toBe(400);
+    const pending = await server.inject({
+      method: "POST",
+      url: start,
+      headers: { origin },
+      payload: proposal,
+    });
+    expect(pending.statusCode).toBe(200);
+    const preview = pending.json(),
+      decision = `/v1/workspaces/ws_server20/connectors/enrollments/${preview.enrollmentId}/decision`;
+    expect(
+      (await server.inject({ method: "POST", url: lookup, payload: { code: "ABCDEFGH" } }))
+        .statusCode,
+    ).toBe(401);
+    expect(
+      (await post(lookup, { code: "ABCDEFGH" }, { ...ownerAuth, "x-csrf-token": "bad" }))
+        .statusCode,
+    ).toBe(403);
+    expect(
+      (await post(lookup.replace("ws_server20", "ws_other"), { code: "ABCDEFGH" })).statusCode,
+    ).toBe(404);
+    expect((await post(lookup, { code: "ABCDEFGH" })).statusCode).toBe(200);
+    expect(
+      (
+        await post(decision, {
+          version: 1,
+          digest: preview.digest,
+          decision: "approve",
+          deviceId: "fc_" + "b".repeat(32),
+        })
+      ).statusCode,
+    ).toBe(400);
+    expect(
+      (await post(decision, { version: 1, digest: preview.digest, decision: "approve" }))
+        .statusCode,
+    ).toBe(200);
+    const deviceRequest = (url: string, token: string) =>
+      server!.inject({
+        method: "POST",
+        url,
+        headers: { authorization: "Bearer " + token },
+        payload: {},
+      });
+    expect((await deviceRequest("/v1/connector/enrollment/poll", proof)).json()).toMatchObject({
+      status: "approved",
+    });
+    expect((await deviceRequest("/v1/connector/enrollment/poll", credential)).statusCode).toBe(401);
+    expect((await deviceRequest("/v1/connector/system-status", proof)).statusCode).toBe(401);
+    expect((await deviceRequest("/v1/connector/system-status", credential)).json()).toMatchObject({
+      ready: true,
+      online: false,
+      actor: owner.userId,
+    });
     expect((await server.inject({ method: "GET", url: "/v1/account" })).statusCode).toBe(401);
     expect((await get("/v1/account")).json()).toMatchObject({
       account: { username: "owner.admin" },

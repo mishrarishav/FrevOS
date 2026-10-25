@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 import type { ControlCenterApi } from "./api.js";
 import { type DiscoverySystem, discoverySystems } from "./discovery-systems.js";
 import { FolderBrowser } from "./FolderBrowser.js";
+import { SystemPairingDialog } from "./SystemPairingDialog.js";
 import { RecordBadge, type RecordColumn, RecordWorkspace } from "./RecordWorkspace.js";
 import { addBasePath } from "./routing.js";
 import { WorkspaceDialog } from "./WorkspaceDialog.js";
@@ -54,6 +55,7 @@ export function DiscoveryPage({
   scopeName: string;
 }) {
   const [state, setState] = useState<DiscoveryState>({ systems: [], reports: [] });
+  const [pairing, setPairing] = useState(false);
   const [userId, setUserId] = useState(""),
     [tab, setTab] = useState<"systems" | "reports">("systems");
   const [loading, setLoading] = useState(true),
@@ -286,6 +288,9 @@ export function DiscoveryPage({
   ];
   const controls = (
     <div className="record-row-actions">
+      <button type="button" className="button secondary" onClick={() => setPairing(true)}>
+        Approve connection
+      </button>
       {tab === "systems" ? (
         <label className="record-inline-choice">
           <input
@@ -351,6 +356,16 @@ export function DiscoveryPage({
   };
   return (
     <div className="deployments-workspace discovery-workspace">
+      {pairing ? (
+        <SystemPairingDialog
+          api={api}
+          workspaceId={workspaceId}
+          onClose={() => {
+            setPairing(false);
+            setReload((v) => v + 1);
+          }}
+        />
+      ) : null}
       {tab === "systems" ? (
         <RecordWorkspace
           key={`systems:${userId}`}

@@ -117,3 +117,6 @@ promotion and the owner's no-deletion/data-preservation requirement.
 
 [0058: Pair the computer before its projects](0058-system-first-pairing.md)
 records system-only enrollment, Git-independent monitoring and recoverable setup.
+
+[0059: Approve a computer without sharing the administrator password](0059-passwordless-system-pairing.md)
+records target-bound, expiring browser approval and passwordless system setup.
