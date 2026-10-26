@@ -2,7 +2,7 @@
 
 Last updated: 2026-10-26
 
-## Configurable agents and measured health (implementation in progress, 2026-10-26)
+## Configurable agents and measured health (bounded live pilot PASS, 2026-10-26)
 
 Owner-approved ADRs 0062/0063 bound this follow-up on
 `codex/agentic-monitoring-pilot`, stacking on the deployed
@@ -16,12 +16,25 @@ configuration/data. These are bounded owner-requested pilots, not completion of
 the entire later agent/workflow roadmap. No Production, autonomous personnel
 action, model shell, repository mutation, email or real employee test messages.
 
-Final local CI passes 340 tests, typecheck/build/audit and all unchanged coverage
-gates. Real PostgreSQL/Fastify/built-UI browser acceptance and native Windows
-same-device update/opt-in/interrupted-runtime recovery pass. Configured rollout
-and exact newly downloaded ZIP acceptance remain pending.
-The supplied provider's authenticated synthetic probe returns HTTP 503
-`unavailable`; a saved connection is not proof of working inference. See
+Final local CI passes 341 tests, typecheck/build/audit and all unchanged coverage
+gates. Configured request `pr_d7190750e13d561d08f064bcd08c4ba0` activated source
+`7acce2d8df5a2da02462e27a3f9e05f3fab4d06d`, manifest
+`d8a4047960c9d9a62f31ffb640fd77fb0900f16470f9e1ee7d279a6752b8832f`.
+Independent SYSTEM receipt confirms HTTP/UI 200 and sibling preservation.
+Exact downloaded Windows ZIP acceptance passes real PostgreSQL/Fastify,
+passwordless pairing/update, native ACL/DPAPI/Limited task, local opt-in,
+requested D: folder metadata search, Hindi input and interrupted recovery.
+Live real-sample graphs, responsive UI, protected connection and three editable
+agents pass; customer configuration/environment baseline is preserved.
+The supplied provider's direct authenticated synthetic probe returns HTTP 503
+`unavailable`, and the live configured test reports `timeout`; working model
+inference is not established. Existing remote collectors need an explicit local
+same-device update for new capabilities; L-1465 was not remotely updated. No
+real employee notice, customer Production activation or full Linux desktop
+acceptance is claimed. Delivery-result documentation is separate from the
+activated source. The owner subsequently authorized publishing this dedicated
+branch, including the delivery documentation, to the existing GitHub origin;
+the configured deployment source remains DevSetu central Git. See
 [agentic pilot handoff](AGENTIC_MONITORING_HANDOFF.md).
 
 ## Bounded activity and requested file snapshots (implementation preflight, 2026-10-26)

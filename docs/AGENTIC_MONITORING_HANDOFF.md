@@ -1,10 +1,103 @@
 # Configurable agent and measured monitoring pilot
 
-Status: local acceptance PASS; configured rollout and exact-download acceptance
-remain pending. This is not yet a live acceptance claim.
+Status: PASS for the bounded application pilot, configured live rollout and
+exact-download native acceptance. Owner-provider inference remains unavailable
+(live test: timeout); this is not an end-to-end working AI-answer claim.
 Repository: FrevOS, branch `codex/agentic-monitoring-pilot`.
 Base: `1f22ed2a6523678adcff35d8e8d1b9507ddce517`. No PR or merge.
 Decisions: ADRs 0062/0063, the owner's supplied screenshots and explicit request.
+
+## Final live delivery, 2026-10-26
+
+The actual DevSetu source publication/build/independent SYSTEM activation flow
+completed request `pr_d7190750e13d561d08f064bcd08c4ba0` at source
+`7acce2d8df5a2da02462e27a3f9e05f3fab4d06d`. No manual Git publication or
+customer application deployment substituted for this flow. Final identities:
+
+- Active manifest SHA256:
+  `d8a4047960c9d9a62f31ffb640fd77fb0900f16470f9e1ee7d279a6752b8832f`.
+- Sealed archive SHA256:
+  `fef6ddfe809eed2778f554c0ccc7b59ec38ec1e3e537bfbe57c7c9db19626558`
+  (131,554,806 bytes).
+- Actual Windows ZIP SHA256:
+  `899f43fbf6c189311ca64c67ccb082156c0f1ecb04f0c52d339584397ebd45b9`
+  (39,006,564 bytes).
+- Native activation receipt: HTTP health 200, UI 200, sibling applications
+  preserved, databaseWritten false, private rollback backups retained.
+
+`node .local/Agentic-FinalAcceptance.cjs`, exit 0, verifies the downloaded ZIP
+against the live manifest and the exact sealed server package. Its subcommands
+and observed outcomes are:
+
+- `node .local/Agentic-Unicode-Download.cjs`: exit 0, actual downloaded ZIP hash
+  and runtime-manifest integrity pass.
+- `node .local/Agentic-component-native-receipts.cjs native-agentic-unicode`:
+  exit 0, independent activation receipt and health/UI results pass.
+- `node .local/component-copy-native-release.cjs native-agentic-unicode` and
+  `node deployment/server20/Verify-HttpManifest.mjs <sealed-package> <manifest>`:
+  exit 0, local sealed bytes match the activated manifest. Full manifest output
+  stays in the private local receipt, not in this report.
+- `<downloaded-node.exe> .local/Test-AgenticFinalDownloaded.cjs <download>`:
+  exit 0, real PostgreSQL/Fastify, separate installer and owner browser contexts,
+  one owner login/proposal/approval/device, native ACL/DPAPI/Limited task,
+  setup-close survival, passwordless same-device update, unchanged credentials,
+  local notification opt-in, bounded consent backup, actual typed D: folder
+  search and interrupted-runtime recovery pass. Three viewports, zero page
+  errors. Synthetic fixture cleanup completes; no customer data is used.
+- `<downloaded-node.exe> .local/Test-DownloadedNotificationUnicode.cjs <download>`:
+  exit 0, actual Windows PowerShell preserves Hindi through the exact downloaded
+  collector's input boundary. No popup is constructed or displayed.
+- `node .local/Configure-AgenticFinalLive.cjs`: exit 0, actual live UI and three
+  viewports pass with zero page errors; the protected model connection and three
+  editable owner-configured agents survive activation unchanged. Test connection
+  returns a valid HTTP response with truthful `timeout` status, not HTTP 502.
+- `node .local/Test-AgenticLiveMonitoring.cjs`: exit 0, twelve actual received
+  L-1770 samples, measured graph points, separate noise segment and responsive
+  header controls pass at three viewports with zero page errors.
+- `node .local/Activity-ArtifactBaseline.cjs verify agentic-monitoring`: exit 0,
+  three profiles, two pipelines, eleven environment files and stopped local
+  customer services match the captured baseline.
+
+Final aggregate receipt: `.local/agentic-final-acceptance.json`; individual
+logs/results use `.local/agentic-final-*`. Final clean Windows CI
+`node .local/Run-CleanWindowsCI.cjs` (running `pnpm run ci`), exit 0, passes
+341 tests: 88 contracts, 91 UI, 162 control plane; repository/format/lint,
+typecheck, coverage, builds and the high audit gate pass. Control-plane
+statement/branch/line coverage: 95.05%/91.45%/96.49%; UI covered surfaces remain
+100%. Log: `.local/agentic-unicode-ci.log`. Existing audit findings are five
+low/six moderate, no high; the 586.00 kB UI chunk advisory remains. No coverage
+gate was lowered or external acceptance implementation changed.
+
+Use the existing live DevSetu browser session: refresh, open Discovery for
+health/activity and Agents for Model connections, editable agent configuration,
+Ask agent, run history and approved laptop notifications. The three configured
+roles are editable data, not fixed product identities. The model identifier is
+unconfirmed because the owner endpoint is unavailable. No actual employee
+notifications or autonomous personnel actions were performed.
+
+An older laptop needs the final Windows ZIP extracted and `Setup.cmd` run once
+on that laptop for new collector capabilities. The tested same-device update
+preserves pairing and credentials and does not require another administrator
+account password or uninstall. This session did not remotely update L-1465.
+Server-side graphs/Agents require a browser refresh only. Linux secret storage
+passed native non-root Debian container acceptance; Linux desktop installation,
+notifications, other laptops and successful owner-provider inference remain
+unverified. Customer Production activation is excluded. This pilot is ready for
+owner use of monitoring/configuration and a fresh model test after provider
+recovery; full roadmap phases and autonomous orchestration are not complete.
+
+Delivery-result edits to this handoff and `docs/CURRENT_STATE.md` are recorded
+after activation; they are not represented as bytes in the sealed artifact.
+The owner subsequently authorized publishing the current dedicated branch to
+the existing GitHub origin. That publication includes the preceding configured
+DevSetu source history and a separate documentation-result commit. It does not
+activate another release, change the central deployment source, create a pull
+request or merge the default branch.
+Final documentation checks: `pnpm run validate:repo`, exit 0 (96 Markdown
+files); `git diff --check`, exit 0; `node .local/Scan-ActivitySecrets.cjs`,
+exit 0 (owner secrets absent from the complete diff and untracked inputs).
+The final documentation diff was reviewed. Working checkout:
+`D:\FREVOS\.local\worktrees\servix-dashboard`.
 
 ## Scope and evidence rules
 
@@ -61,8 +154,8 @@ are resolved privately from the explicit owner instruction, never copied here.
 
 ## Validation record
 
-The first final rollout `pr_fd726ef64e3fef0958cb0d4e5df96041` at source
-`6a4369386852a066b01eeea05776b04a18516a5b` is live with manifest
+The first successful feature rollout `pr_fd726ef64e3fef0958cb0d4e5df96041` at source
+`6a4369386852a066b01eeea05776b04a18516a5b` was activated with manifest
 `d2526464a09afe90aca112adbaf9004f48190cbce600ca800e6b060acdb141f5`.
 Its native SYSTEM receipt confirms HTTP/UI 200, siblings preserved and no
 database write. Sealed archive SHA256 is
@@ -127,14 +220,14 @@ accepts a valid graph and rejects missing and escaped modules. The follow-up
 also constrains the agent flex item: at 390px its measured width becomes 366px
 instead of a clipped 499px. Actual built-UI browser flow passes again; all
 header controls remain reachable, with internal scrolling for the network and
-summary. It will be retried through the same configured source/build/deploy flow.
+summary. The subsequent configured retries succeeded as recorded above.
 
 Native non-root Debian 12/Node v24.19.0 secret-boundary acceptance also passes in
 an isolated read-only, network-disabled container: real Unix ownership/modes,
 encrypted storage, wrong-actor denial, broad-mode denial and missing-master
 fail-closed behavior. This is not Linux desktop/systemd installer acceptance.
 
-Final `node .local/Run-CleanWindowsCI.cjs` (clean child `PSModulePath`, running
+Preceding `node .local/Run-CleanWindowsCI.cjs` (clean child `PSModulePath`, running
 `pnpm run ci`), exit 0, log `.local/agentic-ci-final.log`: repository/format/lint,
 typecheck, 340 tests (88 contracts, 91 UI, 161 control plane), coverage, builds
 and high audit gate pass. Control-plane statement/branch/line coverage is
@@ -159,26 +252,26 @@ network inside its bounded internal scroller.
 one owner login/proposal/approval/device, same-device update without another
 account password, preserved credentials, local notification opt-in and bounded
 previous-consent replacement, continued health and interrupted-runtime recovery
-pass. No notification was sent to a real employee. Exact newly downloaded
-sealed ZIP acceptance remains a separate post-rollout check.
+pass. No notification was sent to a real employee. The separate exact downloaded
+sealed ZIP acceptance subsequently passed as recorded above.
 
 `node .local/Scan-ActivitySecrets.cjs`, exit 0: the two owner-approved secret
 values are absent from the complete diff and untracked publication inputs.
 `git diff --check`, exit 0. The complete diff was reviewed before publication.
 `node .local/Activity-ArtifactBaseline.cjs capture agentic-monitoring`, exit 0:
 three profiles, two pipelines, eleven environment files and stopped local
-services recorded; post-rollout verification is still required.
+services recorded; final post-rollout verification passed as recorded above.
 
 Targeted tests cover independent browser
 sealing, native Windows DPAPI/ACL, gateway destination/authentication/response
 policy, workspace/actor/device scope, revision/replay/expiry, inert drafts,
 read-only plans, real filesystem metadata bounds, receipt-before-display and
-real Fastify/PostgreSQL authentication/CSRF. Publication identities and complete
-changed-file/diff inventory will be recorded after configured rollout.
+real Fastify/PostgreSQL authentication/CSRF. Final publication identities and
+the complete changed-file/diff inventory are recorded in this handoff.
 
 ## Complete published source inventory
 
-Base `1f22ed2a6523678adcff35d8e8d1b9507ddce517` to resulting source `6a4369386852a066b01eeea05776b04a18516a5b`: 49 files changed, 7120 insertions(+), 62 deletions(-).
+Base `1f22ed2a6523678adcff35d8e8d1b9507ddce517` to resulting source `7acce2d8df5a2da02462e27a3f9e05f3fab4d06d`: 49 files changed, 7291 insertions(+), 62 deletions(-).
 No PR or merge; the configured DevSetu source publisher created these commits.
 Final runtime receipts and these delivery-result documentation updates are
 recorded separately after activation.
