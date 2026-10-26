@@ -1,0 +1,30 @@
+{
+  "buildAdaptation": "Build-DevRelease.cjs reuses the source-only builder with explicit isolated source/output arguments",
+  "files": [
+    {
+      "source": "D:/servixDev/tools/deploy/server21-dev/Invoke-DevTarget.ps1",
+      "file": "Invoke-DevTarget.ps1",
+      "sha256": "3e3dfef5f0d71aa51d4c1ece7c0aef112a7b41753415e31189a95c54dedc2707"
+    },
+    {
+      "source": "D:/servixDev/tools/deploy/server21-dev/Invoke-DevRelease.ps1",
+      "file": "Invoke-DevRelease.ps1",
+      "sha256": "ab649de7f2faaae0555056cc956666191959ca345f37a2ca302637c799ffc6d0"
+    },
+    {
+      "source": "D:/servixDev/tools/deploy/server21-dev/DeploymentFiles.psm1",
+      "file": "DeploymentFiles.psm1",
+      "sha256": "7e5768f77f7941c5ee169528133b5362196295406461fcdbdaf35a039262eb9a"
+    },
+    {
+      "source": "D:/servixDev/tools/deploy/server21-dev/Run-DevBackend.ps1",
+      "file": "Run-DevBackend.ps1",
+      "sha256": "bdbd45f173605f4ffb0ac0c3e29a4744aeda312e2a9b12d40d672b6729734527"
+    },
+    {
+      "source": "D:/servixDev/tools/deploy/server21-dev/web.config",
+      "file": "web.config",
+      "sha256": "a3601c19f3b50c7ebaef55b53f3b5c758bdfa89b30343d7c02d0992d650d07b4"
+    }
+  ]
+}

@@ -1,11 +1,15 @@
+const changeDetails = { message: "Update development code", approvedBy: "Fixture owner / CHG-123" };
+
 import { randomBytes } from "node:crypto";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import type { OutgoingHttpHeaders } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { defaultDiscoveryPolicy } from "@frevos/contracts";
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { Pool } from "pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { ComponentDeployments } from "../src/component-deployments.js";
 import { registerControlCenter } from "../src/control-center.js";
 import { type OidcTransaction, OidcTransactionCodec, sha256 } from "../src/crypto.js";
 import {
@@ -17,11 +21,14 @@ import {
   withApplicationPrincipalTransaction,
   withApplicationTransaction,
 } from "../src/database.js";
+import { DeploymentSettingsStore, defaultDeploymentSettings } from "../src/deployment-settings.js";
+import { DeveloperConnectorStore } from "../src/developer-connectors.js";
 import {
   GithubOnboardingRepository,
   PERSONAL_AGENT_WORKSPACE_ID,
   WINDOWS_GITHUB_AGENT_ID,
 } from "../src/github-onboarding.js";
+import { LocalDevelopment } from "../src/local-development.js";
 import type { AuthenticatedIdentity, OidcProvider } from "../src/oidc.js";
 import {
   ProjectAutomationRepository,
@@ -40,6 +47,8 @@ import {
   OIDC_TRANSACTION_COOKIE,
   SESSION_COOKIE,
 } from "../src/server.js";
+import { ServixDeploymentStore } from "../src/servix-deployment.js";
+import { SystemDiscovery } from "../src/system-discovery.js";
 
 const POSTGRES_IMAGE =
   "postgres:18.4-alpine3.23@sha256:996d0920e4ff9df1fc19dacb904492f3c1ec0ec1cc338f0ad7123be7731c5f5e";
@@ -729,6 +738,91 @@ describe("durable identity and session lifecycle", () => {
 });
 
 describe("Fastify BFF and protected workspace APIs", () => {
+  it("supports internal HTTP login, scoped cookies, CSRF and logout without accepting HTTPS cookies", async () => {
+    const origin = "http://10.9.69.20";
+    await expect(
+      buildServer({ publicOrigin: origin, identitySessions: identities, workspaces }),
+    ).rejects.toThrow("requires local auth");
+    const server = await buildServer({
+      publicOrigin: origin,
+      authMode: "local",
+      identitySessions: identities,
+      workspaces,
+      now: () => NOW,
+    });
+    try {
+      const login = await server.inject({
+        method: "POST",
+        url: "/auth/login",
+        headers: { origin },
+        payload: { username: "personal.admin", password: "personal-password" },
+      });
+      expect(login.statusCode).toBe(204);
+      const sessionCookie = cookiePair(login, "frevos-internal-session");
+      const csrfCookie = cookiePair(login, "frevos-internal-csrf");
+      expect(setCookieValue(login, "frevos-internal-session")).toContain("HttpOnly");
+      expect(setCookieValue(login, "frevos-internal-session")).not.toContain("Secure");
+      expect(setCookieValue(login, "frevos-internal-session")).toContain("SameSite=Strict");
+      const cookies = `${sessionCookie}; ${csrfCookie}`;
+      expect(
+        (await server.inject({ url: "/v1/session", headers: { cookie: cookies } })).statusCode,
+      ).toBe(200);
+      expect(
+        (await server.inject({ url: "/v1/workspaces/ws_alpha", headers: { cookie: cookies } }))
+          .statusCode,
+      ).toBe(200);
+      expect(
+        (
+          await server.inject({
+            url: "/v1/session",
+            headers: { cookie: sessionCookie.replace("frevos-internal-session", SESSION_COOKIE) },
+          })
+        ).statusCode,
+      ).toBe(401);
+      const csrf = csrfCookie.substring(csrfCookie.indexOf("=") + 1);
+      for (const headers of [
+        { origin: "http://wrong.invalid", "x-csrf-token": csrf },
+        { origin, "x-csrf-token": "wrong" },
+      ]) {
+        expect(
+          (
+            await server.inject({
+              method: "POST",
+              url: "/auth/logout",
+              headers: { cookie: cookies, ...headers },
+              payload: {},
+            })
+          ).statusCode,
+        ).toBe(403);
+      }
+      const rotated = await server.inject({
+        method: "POST",
+        url: "/auth/login",
+        headers: { origin, cookie: cookies },
+        payload: { username: "personal.admin", password: "personal-password" },
+      });
+      expect(rotated.statusCode).toBe(204);
+      expect(
+        (await server.inject({ url: "/v1/session", headers: { cookie: cookies } })).statusCode,
+      ).toBe(401);
+      const freshCookie = `${cookiePair(rotated, "frevos-internal-session")}; ${cookiePair(rotated, "frevos-internal-csrf")}`;
+      const freshCsrf = cookiePair(rotated, "frevos-internal-csrf").split("=")[1];
+      const logout = await server.inject({
+        method: "POST",
+        url: "/auth/logout",
+        headers: { cookie: freshCookie, origin, "x-csrf-token": freshCsrf },
+        payload: {},
+      });
+      expect(logout.statusCode).toBe(204);
+      expect(setCookieValue(logout, "frevos-internal-session")).toContain("Max-Age=0");
+      expect(
+        (await server.inject({ url: "/v1/session", headers: { cookie: freshCookie } })).statusCode,
+      ).toBe(401);
+    } finally {
+      await server.close();
+    }
+  });
+
   it("creates the same hardened server session from a local login", async () => {
     const server = await buildServer({
       publicOrigin: PUBLIC_ORIGIN,
@@ -1661,3 +1755,1177 @@ function setCookieValue(response: { headers: OutgoingHttpHeaders }, name: string
 function cookiePair(response: { headers: OutgoingHttpHeaders }, name: string): string {
   return setCookieValue(response, name).split(";", 1)[0] ?? "";
 }
+
+it("protects the fixed Servix deploy endpoint with workspace permission, CSRF and strict input", async () => {
+  await workspaces.createWorkspace({
+    workspaceId: "ws_server20",
+    displayName: "Servix deployment",
+    now: NOW,
+  });
+  await workspaces.createMembership({
+    workspaceId: "ws_server20",
+    userId: localPrincipal.userId,
+    grantedScopes: ["workspace:read", "project:read", "project:write"],
+    now: NOW,
+  });
+  const root = await mkdtemp(join(tmpdir(), "frevos-servix-http-"));
+  for (const directory of ["requests", "results"]) await mkdir(join(root, directory));
+  const store = new ServixDeploymentStore(
+    root,
+    {
+      head: async () => "a".repeat(40),
+      build: async () => {
+        throw new Error("fixture build failure");
+      },
+    },
+    async () => true,
+    () => NOW,
+  );
+  const server = await buildServer({
+    publicOrigin: PUBLIC_ORIGIN,
+    authMode: "local",
+    identitySessions: identities,
+    workspaces,
+    servixDeployment: store,
+    now: () => NOW,
+  });
+  try {
+    const url = "/v1/workspaces/ws_server20/servix/deployments";
+    expect((await server.inject({ method: "GET", url })).statusCode).toBe(401);
+    const login = await server.inject({
+      method: "POST",
+      url: "/auth/login",
+      headers: { origin: PUBLIC_ORIGIN },
+      payload: { username: "personal.admin", password: "personal-password" },
+    });
+    const session = cookiePair(login, SESSION_COOKIE),
+      csrf = cookiePair(login, CSRF_COOKIE);
+    const headers = {
+      cookie: session + "; " + csrf,
+      origin: PUBLIC_ORIGIN,
+      "x-csrf-token": csrf.slice(`${CSRF_COOKIE}=`.length),
+    };
+    expect((await server.inject({ method: "GET", url, headers })).statusCode).toBe(200);
+    const payload = {
+      version: 1,
+      requestId: `sd_${"d".repeat(32)}`,
+      confirmation: "deploy-servix-development",
+      changeDetails,
+    };
+    expect(
+      (await server.inject({ method: "POST", url, headers: { cookie: session }, payload }))
+        .statusCode,
+    ).toBe(403);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url,
+          headers: { ...headers, origin: "https://untrusted.example" },
+          payload,
+        })
+      ).statusCode,
+    ).toBe(403);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url,
+          headers,
+          payload: { ...payload, path: "D:\\Servix" },
+        })
+      ).statusCode,
+    ).toBe(400);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: url.replace("ws_server20", "ws_alpha"),
+          headers,
+          payload,
+        })
+      ).statusCode,
+    ).toBe(403);
+    const response = await server.inject({ method: "POST", url, headers, payload });
+    expect(response.statusCode).toBe(202);
+    expect(response.json()).toMatchObject({
+      sourceHead: "a".repeat(40),
+      target: "server21-servix-development",
+      requestedBy: localPrincipal.userId,
+    });
+    await expect.poll(async () => (await store.state()).runs[0]?.status).toBe("failed");
+    for (const digit of ["1", "2"]) {
+      const savedId = "sd_" + digit.repeat(32),
+        manifest = JSON.stringify({ fixture: digit }),
+        archive = "saved-archive-" + digit;
+      const directory = join(root, "builds", savedId);
+      await mkdir(join(directory, "release"), { recursive: true });
+      await writeFile(join(directory, "release", "manifest.json"), manifest);
+      await writeFile(join(directory, "release.zip"), archive);
+      await writeFile(
+        join(directory, "artifact.json"),
+        JSON.stringify({
+          manifestSha256: sha256(manifest).toString("hex"),
+          archiveSha256: sha256(archive).toString("hex"),
+        }),
+      );
+      const stamp = new Date(NOW.getTime() - 5000 + Number(digit) * 1000).toISOString();
+      await writeFile(
+        join(root, "jobs", savedId + ".json"),
+        JSON.stringify({
+          ...response.json(),
+          requestId: savedId,
+          status: "succeeded",
+          sourceHead: digit.repeat(40),
+          artifactDigest: sha256(manifest).toString("hex"),
+          createdAt: stamp,
+          updatedAt: stamp,
+        }),
+      );
+    }
+    const restoreUrl = "/v1/workspaces/ws_server20/servix/restores",
+      restorePayload = {
+        version: 1,
+        requestId: "sd_" + "3".repeat(32),
+        expectedCurrentRequestId: "sd_" + "2".repeat(32),
+        restoreRequestId: "sd_" + "1".repeat(32),
+        operation: "rollback",
+        confirmation: "restore-servix-development",
+        changeDetails,
+      };
+    expect(
+      (await server.inject({ method: "POST", url: restoreUrl, payload: restorePayload }))
+        .statusCode,
+    ).toBe(401);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: restoreUrl,
+          headers: { cookie: session },
+          payload: restorePayload,
+        })
+      ).statusCode,
+    ).toBe(403);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: restoreUrl,
+          headers,
+          payload: { ...restorePayload, path: "D:\\Servix" },
+        })
+      ).statusCode,
+    ).toBe(400);
+    const restored = await server.inject({
+      method: "POST",
+      url: restoreUrl,
+      headers,
+      payload: restorePayload,
+    });
+    expect(restored.statusCode).toBe(202);
+    expect(restored.json()).toMatchObject({
+      operation: "rollback",
+      status: "activating",
+      releaseRequestId: restorePayload.restoreRequestId,
+      previousRequestId: restorePayload.expectedCurrentRequestId,
+      requestedBy: localPrincipal.userId,
+    });
+    expect((await server.inject({ method: "POST", url, headers, payload })).json().requestId).toBe(
+      payload.requestId,
+    );
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: "/v1/servix-agent",
+          payload: { op: "activate" },
+        })
+      ).statusCode,
+    ).toBe(404);
+  } finally {
+    store.close();
+    await server.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+it("onboards an invited developer through authenticated workspace APIs without resetting existing accounts", async () => {
+  const root = await mkdtemp(join(tmpdir(), "frevos-connector-http-"));
+  const components = new ComponentDeployments(
+    join(root, "components"),
+    "ws_server20",
+    async (actor, owner) => !owner || actor === "usr_windows_admin",
+    "git",
+    () => NOW,
+  );
+  const deploymentSettings = new DeploymentSettingsStore(
+    join(root, "configuration"),
+    async () => true,
+    () => NOW,
+  );
+  const deploymentRoot = join(root, "deploy");
+  await mkdir(join(deploymentRoot, "results"), { recursive: true });
+  await writeFile(
+    join(deploymentRoot, "results", "heartbeat.json"),
+    JSON.stringify({ host: "DCAPP7", at: NOW.toISOString() }),
+  );
+  const deployment = new ServixDeploymentStore(
+    deploymentRoot,
+    {
+      head: async () => "a".repeat(40),
+      build: async () => {
+        throw Error("Test must not build");
+      },
+    },
+    async () => true,
+    () => NOW,
+  );
+  const owner = await identities.provisionLocalCredential({
+    username: "connector.owner",
+    password: "owner-test-password",
+    displayName: "Connector Owner",
+    userId: "usr_windows_admin",
+    now: NOW,
+  });
+  await workspaces.createMembership({
+    workspaceId: "ws_server20",
+    userId: owner.userId,
+    grantedScopes: ["workspace:read", "project:read", "project:write"],
+    now: NOW,
+  });
+  const connectors = new DeveloperConnectorStore(
+    root,
+    async (actor) => {
+      const evidence = await workspaces.getEvidence("ws_server20", actor);
+      return (
+        evidence?.membership?.status === "active" &&
+        evidence.membership.grantedScopes.some((s) => s === "project:write")
+      );
+    },
+    {
+      head: async () => "a".repeat(40),
+      importBundle: async () => undefined,
+      exportBundle: async (file) => {
+        await writeFile(file, Buffer.alloc(64, 7));
+      },
+    },
+    async (username, password, displayName) => {
+      await identities.provisionLocalCredential({
+        username,
+        password,
+        displayName,
+        requireNew: true,
+        developerWorkspaceId: "ws_server20",
+        now: NOW,
+      });
+    },
+    () => NOW,
+    async () => true,
+    deploymentSettings,
+    components,
+  );
+  components.connect(connectors);
+  const server = await buildServer({
+    publicOrigin: PUBLIC_ORIGIN,
+    authMode: "local",
+    identitySessions: identities,
+    workspaces,
+    developerConnectors: connectors,
+    deploymentSettings,
+    servixDeployment: deployment,
+    componentDeployments: components,
+    localDevelopment: new LocalDevelopment(join(root, "local-development"), connectors, () => NOW),
+    systemDiscovery: new SystemDiscovery(
+      join(root, "discovery"),
+      connectors,
+      async () => ({ projects: await workspaces.listProjects("ws_server20"), clients: [] }),
+      () => NOW,
+    ),
+    now: () => NOW,
+  });
+  const login = async (username: string, password: string) => {
+    const response = await server.inject({
+      method: "POST",
+      url: "/auth/login",
+      headers: { origin: PUBLIC_ORIGIN },
+      payload: { username, password },
+    });
+    expect(response.statusCode).toBe(204);
+    const session = cookiePair(response, SESSION_COOKIE),
+      csrf = cookiePair(response, CSRF_COOKIE);
+    return {
+      cookie: session + "; " + csrf,
+      origin: PUBLIC_ORIGIN,
+      "x-csrf-token": csrf.slice(CSRF_COOKIE.length + 1),
+    };
+  };
+  const url = "/v1/workspaces/ws_server20/connectors";
+  try {
+    expect((await server.inject({ method: "GET", url })).statusCode).toBe(401);
+    const headers = await login("connector.owner", "owner-test-password");
+    const componentUrl = "/v1/workspaces/ws_server20/component-deployments";
+    expect((await server.inject({ method: "GET", url: componentUrl })).statusCode).toBe(401);
+    expect(
+      (
+        await server.inject({
+          method: "GET",
+          url: componentUrl.replace("ws_server20", "ws_other"),
+          headers,
+        })
+      ).statusCode,
+    ).toBe(404);
+    expect((await server.inject({ method: "GET", url: componentUrl, headers })).json()).toEqual({
+      profiles: [],
+      executors: [],
+      runs: [],
+    });
+    const componentInput = {
+      version: 1,
+      profileId: "http-project",
+      expectedRevision: 0,
+      displayName: "HTTP project",
+      sourceFolder: "D:\\http-project",
+      archived: false,
+      components: [
+        {
+          id: "api",
+          name: "API",
+          context: ".",
+          recipe: "node-source",
+          output: ".",
+          builderId: "unassigned",
+          destinationId: "unassigned",
+          destinationBinding: "api",
+          dependsOn: [],
+          preservedPaths: ["uploads", ".env"],
+        },
+      ],
+    };
+    const componentPost = (path: string, payload: Record<string, unknown>, auth = headers) =>
+      server.inject({ method: "POST", url: path, headers: auth, payload });
+    expect(
+      (
+        await componentPost(componentUrl + "/configuration", componentInput, {
+          cookie: headers.cookie,
+        } as typeof headers)
+      ).statusCode,
+    ).toBe(403);
+    expect(
+      (
+        await componentPost(componentUrl + "/configuration", {
+          ...componentInput,
+          command: "forbidden",
+        })
+      ).statusCode,
+    ).toBe(400);
+    const savedComponent = await componentPost(componentUrl + "/configuration", componentInput);
+    expect(savedComponent.statusCode).toBe(200);
+    expect(savedComponent.json()).toMatchObject({ revision: 1, updatedBy: "usr_windows_admin" });
+    expect((await componentPost(componentUrl + "/configuration", componentInput)).statusCode).toBe(
+      409,
+    );
+    expect(
+      (
+        await componentPost(componentUrl + "/http-project/test", {
+          deviceId: "fc_" + "0".repeat(32),
+        })
+      ).json(),
+    ).toMatchObject({ ready: false });
+    const enrolled = await componentPost(componentUrl + "/executors", {
+      profileId: "http-project",
+      role: "builder",
+      name: "HTTP builder",
+    });
+    expect(enrolled.statusCode).toBe(200);
+    expect(enrolled.headers["cache-control"]).toBe("no-store");
+    const executor = enrolled.json() as { id: string; credential: string };
+    const workerHeaders = { authorization: "Bearer " + executor.credential };
+    const workerPost = (path: string, payload: Record<string, unknown>) =>
+      server.inject({ method: "POST", url: path, headers: workerHeaders, payload });
+    expect(
+      (
+        await workerPost("/v1/executor/heartbeat", { systemName: "fixture-host", bindings: [] })
+      ).json(),
+    ).toEqual({
+      online: true,
+    });
+    expect((await workerPost("/v1/executor/claim", {})).json()).toEqual({ job: null });
+    for (const suffix of ["artifact", "previous-artifact"]) {
+      expect(
+        (
+          await server.inject({
+            method: "GET",
+            url: "/v1/executor/jobs/cj_" + "a".repeat(32) + "/" + suffix,
+            headers: workerHeaders,
+          })
+        ).statusCode,
+      ).toBe(404);
+    }
+    expect(
+      (await workerPost("/v1/executor/jobs/cj_" + "a".repeat(32) + "/artifact", {})).statusCode,
+    ).toBe(400);
+    expect(
+      (await workerPost("/v1/executor/jobs/cj_" + "a".repeat(32) + "/complete", {})).statusCode,
+    ).toBe(404);
+    const unavailableRun = {
+      requestId: "pr_" + "a".repeat(32),
+      profileId: "http-project",
+      expectedRevision: 1,
+      operation: "deploy",
+      expectedCurrent: { api: null },
+      changeDetails: { message: "API deployment", approvedBy: "Fixture owner" },
+    };
+    expect((await componentPost(componentUrl + "/runs", unavailableRun)).statusCode).toBe(409);
+    expect(
+      (await componentPost(componentUrl + "/executors/" + executor.id + "/revoke", {})).json(),
+    ).toEqual({ revoked: true });
+    expect((await workerPost("/v1/executor/claim", {})).statusCode).toBe(401);
+    const settingsUrl = "/v1/workspaces/ws_server20/deployment-settings";
+    expect((await server.inject({ method: "GET", url: settingsUrl })).statusCode).toBe(401);
+    const loadedSettings = await server.inject({ method: "GET", url: settingsUrl, headers });
+    expect(loadedSettings.statusCode).toBe(200);
+    expect(loadedSettings.json().map((p: { profileId: string }) => p.profileId)).toEqual([
+      "devsetu-platform",
+      "servix-development",
+      "http-project",
+    ]);
+    const {
+      revision,
+      runner: _runner,
+      updatedAt: _at,
+      updatedBy: _by,
+      ...fields
+    } = defaultDeploymentSettings;
+    const settingsBody = {
+      ...fields,
+      expectedRevision: revision,
+      preservedPaths: ["backend/attachment"],
+    };
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: settingsUrl,
+          headers: { cookie: headers.cookie },
+          payload: settingsBody,
+        })
+      ).statusCode,
+    ).toBe(403);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: settingsUrl,
+          headers,
+          payload: { ...settingsBody, password: "forbidden" },
+        })
+      ).statusCode,
+    ).toBe(400);
+    expect(
+      (
+        await server.inject({ method: "POST", url: settingsUrl, headers, payload: settingsBody })
+      ).json(),
+    ).toMatchObject({ revision: 2, preservedPaths: ["backend/attachment"] });
+    expect(
+      (await server.inject({ method: "POST", url: settingsUrl, headers, payload: settingsBody }))
+        .statusCode,
+    ).toBe(409);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: url + "/pair",
+          headers: { cookie: headers.cookie },
+          payload: { version: 1, name: "Laptop" },
+        })
+      ).statusCode,
+    ).toBe(403);
+    const invite = await server.inject({
+      method: "POST",
+      url: "/v1/workspaces/ws_server20/developers/invite",
+      headers,
+      payload: { version: 1, username: "connector.alice", displayName: "Alice Developer" },
+    });
+    expect(invite.statusCode).toBe(200);
+    const redemption = { version: 1, code: invite.json().code, password: "alice-test-password" };
+    expect(
+      (await server.inject({ method: "POST", url: "/v1/developers/redeem", payload: redemption }))
+        .statusCode,
+    ).toBe(200);
+    expect(
+      (await server.inject({ method: "POST", url: "/v1/developers/redeem", payload: redemption }))
+        .statusCode,
+    ).toBe(403);
+    const dev = await login("connector.alice", "alice-test-password");
+    const nativeInput = {
+      ...componentInput,
+      profileId: "native-platform",
+      components: componentInput.components.map((c) => ({ ...c, recipe: "devsetu-native" })),
+    };
+    expect((await componentPost(componentUrl + "/configuration", nativeInput)).statusCode).toBe(
+      200,
+    );
+    expect(
+      (
+        await componentPost(
+          url + "/pair",
+          { version: 1, name: "Developer platform source", profileId: nativeInput.profileId },
+          dev,
+        )
+      ).statusCode,
+    ).toBe(403);
+    expect(
+      (
+        await componentPost(
+          componentUrl + "/runs",
+          { ...unavailableRun, profileId: nativeInput.profileId },
+          dev,
+        )
+      ).statusCode,
+    ).toBe(403);
+    const platformSource = await componentPost(url + "/pair", {
+      version: 1,
+      name: "Owner platform source",
+      profileId: nativeInput.profileId,
+    });
+    expect(platformSource.statusCode).toBe(200);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: settingsUrl,
+          headers: dev,
+          payload: { ...settingsBody, expectedRevision: 2 },
+        })
+      ).statusCode,
+    ).toBe(403);
+    for (const path of [
+      "/v1/workspaces",
+      "/v1/workspaces/ws_server20",
+      "/v1/workspaces/ws_server20/clients",
+      "/v1/workspaces/ws_server20/projects",
+    ]) {
+      expect((await server.inject({ method: "GET", url: path, headers: dev })).statusCode).toBe(
+        200,
+      );
+    }
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: "/v1/workspaces/ws_server20/clients",
+          headers: dev,
+          payload: { displayName: "Not authorized" },
+        })
+      ).statusCode,
+    ).toBe(403);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: "/v1/workspaces/ws_server20/developers/invite",
+          headers: dev,
+          payload: { version: 1, username: "someone.else", displayName: "Other" },
+        })
+      ).statusCode,
+    ).toBe(403);
+    const paired = await server.inject({
+      method: "POST",
+      url: url + "/pair",
+      headers: dev,
+      payload: { version: 1, name: "Portable laptop" },
+    });
+    expect(paired.statusCode).toBe(200);
+    const device = paired.json();
+    const auth = { authorization: "Bearer " + device.credential };
+    const testUrl = settingsUrl + "/servix-development/test";
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: testUrl,
+          headers: { cookie: dev.cookie },
+          payload: { deviceId: device.deviceId },
+        })
+      ).statusCode,
+    ).toBe(403);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: testUrl,
+          headers: dev,
+          payload: { command: "no" },
+        })
+      ).statusCode,
+    ).toBe(400);
+    await server.inject({
+      method: "POST",
+      url: "/v1/connector/heartbeat",
+      headers: auth,
+      payload: {
+        probe: {
+          version: 1,
+          profileId: "servix-development",
+          repository: "D:\\servixDev",
+          origin: defaultDeploymentSettings.repositoryOrigin,
+          repositoryId: "gitrepo_6cb7e163f807493fa37963196c49fbac",
+          remoteName: "frevos",
+          head: "a".repeat(40),
+          branch: "feature/dev",
+          checkedAt: NOW.toISOString(),
+        },
+      },
+    });
+    const localUrl = "/v1/workspaces/ws_server20/local-development";
+    expect((await server.inject({ method: "GET", url: localUrl })).statusCode).toBe(401);
+    expect(
+      (
+        await server.inject({
+          method: "GET",
+          url: localUrl.replace("ws_server20", "ws_other"),
+          headers: dev,
+        })
+      ).statusCode,
+    ).toBe(404);
+    const discoveryUrl = "/v1/workspaces/ws_server20/discovery";
+    expect((await server.inject({ method: "GET", url: discoveryUrl })).statusCode).toBe(401);
+    expect(
+      (
+        await server.inject({
+          method: "GET",
+          url: "/v1/workspaces/ws_elsewhere/discovery",
+          headers: dev,
+        })
+      ).statusCode,
+    ).not.toBe(200);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: discoveryUrl + "/policy",
+          headers: { cookie: dev.cookie },
+          payload: {},
+        })
+      ).statusCode,
+    ).toBe(403);
+    const policy = {
+      version: 1,
+      deviceId: device.deviceId,
+      expectedRevision: 0,
+      policy: { ...defaultDiscoveryPolicy, enabled: true, allLocalDrives: false },
+    };
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: discoveryUrl + "/policy",
+          headers: dev,
+          payload: policy,
+        })
+      ).statusCode,
+    ).toBe(200);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: discoveryUrl + "/policy",
+          headers,
+          payload: { ...policy, expectedRevision: 1 },
+        })
+      ).statusCode,
+    ).toBe(403);
+    const sample = {
+      version: 1,
+      deviceId: device.deviceId,
+      profileId: "servix-development",
+      bootId: "6c447c9b-2033-4276-8b80-1f860329ea02",
+      at: NOW.toISOString(),
+      policyRevision: 1,
+      system: {
+        systemName: "Fixture system",
+        platform: "win32",
+        os: "Windows fixture",
+        architecture: "x64",
+        cpuPercent: 15,
+        cpuCount: 4,
+        memoryTotal: 1000,
+        memoryAvailable: 500,
+        uptimeSeconds: 100,
+        disks: [],
+        tools: [],
+      },
+      coverage: {
+        status: "partial",
+        roots: [],
+        watchedDirectories: 0,
+        gaps: ["restart-history-unavailable"],
+        attribution: "unavailable",
+        droppedEvents: 0,
+      },
+      events: [],
+    };
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: "/v1/connector/discovery/observe",
+          payload: sample,
+        })
+      ).statusCode,
+    ).toBe(401);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: "/v1/connector/discovery/observe",
+          headers: auth,
+          payload: sample,
+        })
+      ).statusCode,
+    ).toBe(200);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: "/v1/connector/discovery/policy",
+          headers: auth,
+          payload: {},
+        })
+      ).json(),
+    ).toMatchObject({ revision: 1 });
+    expect(
+      (await server.inject({ method: "GET", url: discoveryUrl, headers: dev }))
+        .json()
+        .systems.find((s: { deviceId: string }) => s.deviceId === device.deviceId).observation
+        .system.cpuPercent,
+    ).toBe(15);
+    expect(
+      (await server.inject({ method: "GET", url: discoveryUrl, headers }))
+        .json()
+        .systems.some((s: { deviceId: string }) => s.deviceId === device.deviceId),
+    ).toBe(true);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: discoveryUrl + "/plans",
+          headers: dev,
+          payload: {
+            version: 1,
+            projectId: "prj_unbound",
+            expectedRevision: 0,
+            poReference: "PO-42",
+            poDate: "2026-10-14",
+            responsible: "Fixture",
+            timeZone: "Asia/Kolkata",
+            deviceIds: [],
+            milestones: [
+              {
+                id: "work",
+                title: "Work",
+                weight: 1,
+                dueDate: "2026-10-24",
+                acceptance: "pending",
+                evidence: "",
+              },
+            ],
+          },
+        })
+      ).statusCode,
+    ).toBe(403);
+    const localSnapshot = {
+      version: 1,
+      deviceId: device.deviceId,
+      profileId: "servix-development",
+      fingerprint: "e".repeat(64),
+      sourceReady: true,
+      revision: 0,
+      plan: null,
+      services: [],
+      candidates: [
+        {
+          id: "backend",
+          name: "Backend",
+          context: "backend",
+          recipe: "npm-script",
+          framework: "node",
+          scripts: ["start"],
+          manifestDigest: "f".repeat(64),
+          environments: [],
+        },
+      ],
+    };
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: "/v1/connector/local-development/observe",
+          payload: localSnapshot,
+        })
+      ).statusCode,
+    ).toBe(401);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: "/v1/connector/local-development/observe",
+          headers: auth,
+          payload: localSnapshot,
+        })
+      ).statusCode,
+    ).toBe(200);
+    expect(
+      (await server.inject({ method: "GET", url: localUrl, headers: dev })).json().connections[0]
+        .snapshot,
+    ).toEqual(localSnapshot);
+    expect(
+      (await server.inject({ method: "GET", url: localUrl, headers })).json().connections,
+    ).toEqual([]);
+    const localRequest = {
+      version: 1,
+      requestId: "ld_" + "7".repeat(32),
+      deviceId: device.deviceId,
+      profileId: "servix-development",
+      expectedRevision: 0,
+      fingerprint: localSnapshot.fingerprint,
+      operation: "configure",
+      plan: { services: [{ id: "backend", script: "start", port: 5000, database: "none" }] },
+    };
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: localUrl + "/actions",
+          headers: { cookie: dev.cookie },
+          payload: localRequest,
+        })
+      ).statusCode,
+    ).toBe(403);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: localUrl + "/actions",
+          headers: dev,
+          payload: { ...localRequest, command: "not-accepted" },
+        })
+      ).statusCode,
+    ).toBe(400);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: localUrl + "/actions",
+          headers: dev,
+          payload: localRequest,
+        })
+      ).statusCode,
+    ).toBe(202);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: "/v1/connector/local-development/claim",
+          headers: auth,
+          payload: {},
+        })
+      ).json().job.request,
+    ).toEqual(localRequest);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: "/v1/connector/local-development/complete",
+          headers: auth,
+          payload: { requestId: localRequest.requestId, status: "succeeded" },
+        })
+      ).statusCode,
+    ).toBe(200);
+    const healthFetch = vi.spyOn(globalThis, "fetch");
+    const chooseUrl = url + "/" + device.deviceId + "/choose-folder";
+    await server.inject({
+      method: "POST",
+      url: "/v1/connector/heartbeat",
+      headers: auth,
+      payload: { folderPicker: true },
+    });
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: chooseUrl,
+          headers: { cookie: dev.cookie },
+          payload: {},
+        })
+      ).statusCode,
+    ).toBe(403);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: chooseUrl,
+          headers: dev,
+          payload: { path: "D:\\not-accepted" },
+        })
+      ).statusCode,
+    ).toBe(400);
+    expect(
+      (await server.inject({ method: "POST", url: chooseUrl, headers, payload: {} })).statusCode,
+    ).toBe(409);
+    const chosen = await server.inject({
+      method: "POST",
+      url: chooseUrl,
+      headers: dev,
+      payload: {},
+    });
+    expect(chosen.statusCode).toBe(200);
+    const claimFolder = await server.inject({
+      method: "POST",
+      url: "/v1/connector/folder/claim",
+      headers: auth,
+      payload: {},
+    });
+    expect(claimFolder.json().selection.status).toBe("choosing");
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: "/v1/connector/folder/complete",
+          headers: auth,
+          payload: { ...claimFolder.json().selection, status: "cancelled" },
+        })
+      ).json(),
+    ).toEqual({ accepted: true });
+    await server.inject({
+      method: "POST",
+      url: "/v1/connector/heartbeat",
+      headers: auth,
+      payload: {
+        probe: {
+          version: 1,
+          profileId: "servix-development",
+          repository: "D:\\servixDev",
+          origin: defaultDeploymentSettings.repositoryOrigin,
+          repositoryId: "gitrepo_6cb7e163f807493fa37963196c49fbac",
+          remoteName: "frevos",
+          head: "a".repeat(40),
+          branch: "feature/dev",
+          checkedAt: NOW.toISOString(),
+        },
+        folderPicker: true,
+      },
+    });
+    try {
+      for (const response of [
+        new Response(
+          JSON.stringify({ status: "OK", authBootstrapReady: true, fullBootstrapReady: true }),
+        ),
+        new Response("{}", { status: 503 }),
+        new Response("{}"),
+      ]) {
+        healthFetch.mockResolvedValueOnce(response);
+        const tested = await server.inject({
+          method: "POST",
+          url: testUrl,
+          headers: dev,
+          payload: { deviceId: device.deviceId },
+        });
+        expect(tested.statusCode).toBe(200);
+        expect(tested.json().checks[2].status).toBe(
+          response.ok && tested.json().ready ? "passed" : "failed",
+        );
+      }
+      expect(healthFetch).toHaveBeenCalledWith(
+        "http://10.9.69.21:82/api/health",
+        expect.objectContaining({ redirect: "error" }),
+      );
+    } finally {
+      healthFetch.mockRestore();
+    }
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: "/v1/connector/heartbeat",
+          headers: auth,
+          payload: {},
+        })
+      ).json(),
+    ).toEqual({ online: true });
+    expect(
+      (await server.inject({ method: "POST", url: "/v1/connector/heartbeat", payload: {} }))
+        .statusCode,
+    ).toBe(401);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: "/v1/connector/claim",
+          headers: auth,
+          payload: {},
+        })
+      ).json(),
+    ).toEqual({ job: null });
+    expect((await server.inject({ method: "GET", url, headers: dev })).json()).toMatchObject([
+      { deviceId: device.deviceId, online: true },
+    ]);
+    expect(
+      (await server.inject({ method: "GET", url, headers }))
+        .json()
+        .map((d: { deviceId: string }) => d.deviceId),
+    ).toEqual([platformSource.json().deviceId]);
+    const sourceId = "sd_" + "1".repeat(32),
+      newHead = "b".repeat(40);
+    const developer = await identities.authenticateLocalCredential({
+      username: "connector.alice",
+      password: "alice-test-password",
+      now: NOW,
+    });
+    await server.inject({
+      method: "POST",
+      url: "/v1/connector/heartbeat",
+      headers: auth,
+      payload: {
+        probe: {
+          version: 1,
+          profileId: "servix-development",
+          repository: "D:\\servixDev",
+          origin: defaultDeploymentSettings.repositoryOrigin,
+          repositoryId: "gitrepo_6cb7e163f807493fa37963196c49fbac",
+          remoteName: "frevos",
+          head: "a".repeat(40),
+          branch: "feature/dev",
+          checkedAt: NOW.toISOString(),
+        },
+      },
+    });
+    const publication = connectors.prepare(developer!.userId, device.deviceId, sourceId);
+    void publication.catch(() => undefined);
+    await expect
+      .poll(async () => {
+        try {
+          await readFile(join(root, sourceId + ".source.json"));
+          return true;
+        } catch {
+          return false;
+        }
+      })
+      .toBe(true);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: "/v1/connector/claim",
+          headers: auth,
+          payload: {},
+        })
+      ).json(),
+    ).toMatchObject({ job: { requestId: sourceId } });
+    const baseline = await server.inject({
+      method: "POST",
+      url: "/v1/connector/source-base",
+      headers: auth,
+      payload: { heads: ["a".repeat(40)] },
+    });
+    expect(baseline.statusCode).toBe(200);
+    expect(baseline.rawPayload.length).toBe(64);
+    const upload = "/v1/connector/jobs/" + sourceId + "/bundle";
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: upload,
+          headers: { "content-type": "application/x-git-bundle", "x-frevos-source-head": newHead },
+          payload: Buffer.alloc(64),
+        })
+      ).statusCode,
+    ).toBe(401);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: upload,
+          headers: { ...auth, "content-type": "application/x-git-bundle" },
+          payload: Buffer.alloc(64),
+        })
+      ).statusCode,
+    ).toBe(400);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: upload,
+          headers: { ...auth, "content-type": "application/json", "x-frevos-source-head": newHead },
+          payload: {},
+        })
+      ).statusCode,
+    ).toBe(400);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: upload,
+          headers: {
+            ...auth,
+            "content-type": "application/x-git-bundle",
+            "x-frevos-source-head": newHead,
+          },
+          payload: Buffer.alloc(64),
+        })
+      ).statusCode,
+    ).toBe(200);
+    expect(await publication).toBe(newHead);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: url + "/" + device.deviceId + "/revoke",
+          headers,
+          payload: {},
+        })
+      ).statusCode,
+    ).toBe(200);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: "/v1/connector/claim",
+          headers: auth,
+          payload: {},
+        })
+      ).statusCode,
+    ).toBe(401);
+    await expect(
+      identities.provisionLocalCredential({
+        username: "connector.alice",
+        password: "replacement-password",
+        displayName: "Intruder",
+        requireNew: true,
+        developerWorkspaceId: "ws_server20",
+        now: NOW,
+      }),
+    ).rejects.toThrow("Local account already exists");
+    expect(
+      await identities.authenticateLocalCredential({
+        username: "connector.alice",
+        password: "alice-test-password",
+        now: NOW,
+      }),
+    ).not.toBeNull();
+    const principal = await identities.authenticateLocalCredential({
+      username: "connector.alice",
+      password: "alice-test-password",
+      now: NOW,
+    });
+    expect(
+      (await workspaces.getEvidence("ws_server20", principal!.userId))?.membership?.grantedScopes,
+    ).toEqual(["workspace:read", "client:read", "project:read", "project:write"]);
+  } finally {
+    connectors.close();
+    deployment.close();
+    await server.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});

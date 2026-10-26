@@ -2,6 +2,9 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
+    // Bound native Git/PostgreSQL process concurrency on Windows test hosts.
+    // All real workflows and coverage gates remain enabled.
+    ...(process.platform === "win32" ? { maxWorkers: 2 } : {}),
     env: {
       RYUK_CONTAINER_IMAGE:
         "testcontainers/ryuk:0.14.0@sha256:7c1a8a9a47c780ed0f983770a662f80deb115d95cce3e2daa3d12115b8cd28f0",

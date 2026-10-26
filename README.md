@@ -1,10 +1,10 @@
-# FrevOS
+# DevSetu
 
-FrevOS is a cloud-first AI Work Operating System. It is the control plane
+DevSetu is a cloud-first AI Work Operating System. It is the control plane
 around AI-assisted work: authorization, planning, policy, execution, evidence,
 approvals, audit, release, and deployment.
 
-FrevOS is not a code editor, a general-purpose chatbot, or an unrestricted
+DevSetu is not a code editor, a general-purpose chatbot, or an unrestricted
 remote shell. A user connects an authorized GitHub repository and directs
 bounded work from a web or mobile client. Cloud-hosted workers perform the
 work through controlled tools, and sensitive actions require explicit human

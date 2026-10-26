@@ -153,4 +153,34 @@ describe("control-plane configuration", () => {
     expect(() => loadConfig({ ...validEnvironment, FREVOS_BASE_PATH: "frevos" })).toThrow();
     expect(() => loadConfig({ ...validEnvironment, FREVOS_BASE_PATH: "/frevos/child" })).toThrow();
   });
+
+  it("allows owner-selected private HTTP only with explicit local-auth and loopback backend", () => {
+    const internal = {
+      DATABASE_URL: "postgresql://runtime.invalid/frevos",
+      FREVOS_PUBLIC_ORIGIN: "http://10.9.69.20",
+      FREVOS_AUTH_MODE: "local",
+      FREVOS_ALLOW_INTERNAL_HTTP: "true",
+    };
+    expect(loadConfig(internal).publicOrigin).toBe("http://10.9.69.20");
+    for (const origin of [
+      "http://127.0.0.1:8080",
+      "http://172.16.0.1",
+      "http://172.31.255.255",
+      "http://192.168.1.1",
+    ])
+      expect(loadConfig({ ...internal, FREVOS_PUBLIC_ORIGIN: origin }).authMode).toBe("local");
+    for (const override of [
+      { FREVOS_ALLOW_INTERNAL_HTTP: "false" },
+      { FREVOS_AUTH_MODE: "oidc" },
+      { HOST: "0.0.0.0" },
+      ...[
+        "http://example.com",
+        "http://8.8.8.8",
+        "http://172.32.0.1",
+        "http://192.169.1.1",
+        "ftp://10.9.69.20",
+      ].map((FREVOS_PUBLIC_ORIGIN) => ({ FREVOS_PUBLIC_ORIGIN })),
+    ])
+      expect(() => loadConfig({ ...internal, ...override })).toThrow();
+  });
 });

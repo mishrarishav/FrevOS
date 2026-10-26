@@ -1,5 +1,6 @@
+const changeDetails = { message: "Update development code", approvedBy: "Fixture owner / CHG-123" };
 import { GithubConnectionSchema } from "@frevos/contracts";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createControlCenterApi } from "../src/api.js";
 
 const session = {
@@ -8,6 +9,80 @@ const session = {
   authenticatedAt: "2026-08-11T08:00:00.000Z",
   expiresAt: "2026-08-11T20:00:00.000Z",
 };
+
+it("uses scoped account/reset contracts and signs out with CSRF without a JSON body", async () => {
+  const account = {
+    userId: "usr_owner",
+    username: "owner",
+    displayName: "Owner",
+    status: "active",
+    passwordChangedAt: "2026-10-22T00:00:00.000Z",
+    lastAuthenticatedAt: null,
+  };
+  const calls: { url: string; init: RequestInit | undefined }[] = [];
+  const api = createControlCenterApi(
+    async (url, init) => {
+      calls.push({ url: String(url), init });
+      if (String(url).endsWith("/auth/logout")) return new Response(null, { status: 204 });
+      return new Response(
+        JSON.stringify(
+          String(url).endsWith("/users")
+            ? [account]
+            : String(url).endsWith("/password")
+              ? { changed: true }
+              : { account, canManageUsers: true },
+        ),
+      );
+    },
+    "/frevos",
+    () => "csrf-fixture",
+  );
+  expect((await api.accountProfile?.())?.account?.username).toBe("owner");
+  expect(await api.listUsers?.("ws_server20")).toHaveLength(1);
+  await api.changePassword?.("old-password", "new-password");
+  await api.changePassword?.("admin-password", "reset-password", {
+    workspaceId: "ws_server20",
+    userId: "usr_target",
+  });
+  await api.logout?.();
+  expect(calls[2]?.url).toBe("/frevos/v1/account/password");
+  expect(calls[3]?.url).toBe("/frevos/v1/workspaces/ws_server20/users/usr_target/password");
+  expect(calls[4]?.init).toMatchObject({
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "x-csrf-token": "csrf-fixture" },
+  });
+  expect(calls[4]?.init?.body).toBeUndefined();
+});
+it("retains auth failure and network semantics when logout cannot be confirmed", async () => {
+  await expect(
+    createControlCenterApi(
+      async () => new Response(null, { status: 204 }),
+      "",
+      () => undefined,
+    ).logout?.(),
+  ).rejects.toMatchObject({ kind: "denied" });
+  await expect(
+    createControlCenterApi(
+      async () => {
+        throw Error("network");
+      },
+      "",
+      () => "csrf",
+    ).logout?.(),
+  ).rejects.toMatchObject({ kind: "unavailable" });
+  for (const status of [401, 500])
+    await expect(
+      createControlCenterApi(
+        async () => new Response(null, { status }),
+        "",
+        () => "csrf",
+      ).logout?.(),
+    ).rejects.toMatchObject({
+      kind: status === 401 ? "unauthenticated" : "unavailable",
+      responseStatus: status,
+    });
+});
 const workspace = {
   workspaceId: "ws_alpha",
   displayName: "Alpha Workspace",
@@ -243,6 +318,30 @@ describe("authenticated Control Center API", () => {
 
     await api.getSession();
     expect(paths).toEqual(["/frevos/v1/session"]);
+  });
+
+  it("reads only the internal CSRF cookie on HTTP origins", async () => {
+    vi.stubGlobal("location", { protocol: "http:" });
+    try {
+      const names: string[] = [];
+      let request: RequestInit | undefined;
+      const api = createControlCenterApi(
+        async (_input, init) => {
+          request = init;
+          return jsonResponse(automationOperation, 202);
+        },
+        undefined,
+        (name) => {
+          names.push(name);
+          return name === "frevos-internal-csrf" ? "internal-csrf" : undefined;
+        },
+      );
+      await api.createProjectAutomationOperation("ws_uat_demo", "prj_uat_trackgrn", inspectRequest);
+      expect(names).toEqual(["frevos-internal-csrf"]);
+      expect(request?.headers).toMatchObject({ "x-csrf-token": "internal-csrf" });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("loads and requests TrackGRN automation through CSRF-protected same-origin routes", async () => {
@@ -514,4 +613,129 @@ describe("authenticated Control Center API", () => {
       kind: "invalid-response",
     });
   });
+});
+
+it("loads Servix Git readiness and submits the same request id through the CSRF boundary", async () => {
+  const run = {
+    version: 1,
+    requestId: `sd_${"a".repeat(32)}`,
+    workspaceId: "ws_server20",
+    requestedBy: "usr_admin",
+    target: "server21-servix-development",
+    sourceHead: "b".repeat(40),
+    status: "building",
+    createdAt: "2026-10-21T00:00:00.000Z",
+    updatedAt: "2026-10-21T00:00:00.000Z",
+    expiresAt: "2026-10-21T00:40:00.000Z",
+  };
+  const state = {
+    available: true,
+    runnerOnline: true,
+    source: "server20 / servix.git / frevos-dev",
+    sourceHead: run.sourceHead,
+    target: "10.9.69.21 / D:\\servixDev",
+    runs: [],
+  };
+  const calls: Array<{ path: string; init: RequestInit | undefined }> = [];
+  const api = createControlCenterApi(
+    async (input, init) => {
+      calls.push({ path: String(input), init });
+      return jsonResponse(init?.method === "POST" ? run : state);
+    },
+    "/frevos",
+    () => "csrf-value",
+  );
+  await expect(api.getServixDeploymentState?.("ws_server20")).resolves.toEqual(state);
+  await expect(api.deployServix?.("ws_server20", run.requestId, changeDetails)).resolves.toEqual(
+    run,
+  );
+  expect(calls[1]).toMatchObject({
+    path: "/frevos/v1/workspaces/ws_server20/servix/deployments",
+    init: {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "x-csrf-token": "csrf-value" },
+      body: JSON.stringify({
+        version: 1,
+        requestId: run.requestId,
+        confirmation: "deploy-servix-development",
+        changeDetails,
+      }),
+    },
+  });
+  await api.deployServix?.("ws_server20", run.requestId, changeDetails, "fc_" + "c".repeat(32));
+  expect(JSON.parse(String(calls[2]?.init?.body))).toMatchObject({
+    connectorId: "fc_" + "c".repeat(32),
+  });
+  await api.restoreServix?.(
+    "ws_server20",
+    run.requestId,
+    "sd_" + "d".repeat(32),
+    "sd_" + "e".repeat(32),
+    "rollback",
+    changeDetails,
+  );
+  expect(calls[3]).toMatchObject({
+    path: "/frevos/v1/workspaces/ws_server20/servix/restores",
+    init: { method: "POST", headers: { "x-csrf-token": "csrf-value" } },
+  });
+  expect(JSON.parse(String(calls[3]?.init?.body))).toMatchObject({
+    operation: "rollback",
+    confirmation: "restore-servix-development",
+    changeDetails,
+    restoreRequestId: "sd_" + "e".repeat(32),
+  });
+});
+
+it("preserves a definitive restore rejection separately from an unconfirmed network response", async () => {
+  const api = createControlCenterApi(
+    async () => new Response("{}", { status: 409 }),
+    "",
+    () => "csrf",
+  );
+  await expect(
+    api.restoreServix?.(
+      "ws_server20",
+      "sd_" + "1".repeat(32),
+      "sd_" + "2".repeat(32),
+      "sd_" + "3".repeat(32),
+      "rollback",
+      changeDetails,
+    ),
+  ).rejects.toMatchObject({ responseStatus: 409 });
+});
+it("lists only server-authorized devices and sends invite/revoke requests through workspace CSRF", async () => {
+  const calls: Array<{ url: string; init: RequestInit | undefined }> = [];
+  const api = createControlCenterApi(
+    async (input, init) => {
+      const url = String(input);
+      calls.push({ url, init });
+      if (url.endsWith("/invite"))
+        return jsonResponse({
+          version: 1,
+          code: "fixture-one-time-code",
+          username: "alice",
+          expiresAt: "2026-10-22T00:00:00.000Z",
+        });
+      if (url.endsWith("/revoke")) return jsonResponse({ revoked: true });
+      return jsonResponse([]);
+    },
+    "/frevos",
+    () => "csrf-fixture",
+  );
+  expect(await api.listDeveloperConnectors?.("ws_server20")).toEqual([]);
+  expect(await api.inviteDeveloper?.("ws_server20", "alice", "Alice")).toMatchObject({
+    username: "alice",
+  });
+  expect(await api.revokeDeveloperConnector?.("ws_server20", "fc_device")).toEqual({
+    revoked: true,
+  });
+  expect(calls[1]).toMatchObject({
+    url: "/frevos/v1/workspaces/ws_server20/developers/invite",
+    init: {
+      headers: { "x-csrf-token": "csrf-fixture" },
+      body: JSON.stringify({ version: 1, username: "alice", displayName: "Alice" }),
+    },
+  });
+  expect(calls[2]?.url).toBe("/frevos/v1/workspaces/ws_server20/connectors/fc_device/revoke");
 });

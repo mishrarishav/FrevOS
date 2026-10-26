@@ -6,7 +6,7 @@ import "./styles.css";
 
 const root = document.querySelector<HTMLDivElement>("#root");
 if (!root) {
-  throw new Error("FrevOS Control Center root element is missing");
+  throw new Error("DevSetu Control Center root element is missing");
 }
 
 createRoot(root).render(

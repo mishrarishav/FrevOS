@@ -1,0 +1,43 @@
+DevSetu - connect this Windows computer
+
+1. Extract the ZIP completely. Open Setup.cmd from the extracted folder.
+2. The setup page opens in your browser. Enter the DevSetu server URL. Keep
+   your VPN connected. No administrator username or password is needed here.
+3. Optionally enable file activity, then click Connect this computer. A short
+   code appears. On your own logged-in DevSetu browser (on this computer or
+   another computer), open Discovery > Approve connection. Enter that code,
+   check the computer name and access, then Approve this computer.
+4. Wait for Connected and reporting health. Open Discovery to view your laptop.
+   You can close the setup window after that; the connector runs in the background
+   for your Windows user and starts again when you sign in.
+
+System monitoring does not require Git, a project, or an empty code folder.
+It reports CPU, RAM, operating system and drive space. Optional file activity
+collects bounded metadata from readable local drives with configured exclusions.
+It does not automatically upload file contents. An explicit file-content request
+opens a separate local approval page for that exact file once (UTF-8, at most
+8 KiB, sensitive paths excluded and secret lines masked). Declining or expiry
+does not read the file. Comparisons need earlier retained approved snapshots;
+notifications cannot reconstruct earlier file contents.
+
+Projects are added separately in DevSetu. Use Setup-Project.cmd only when you
+explicitly want to bind this computer to a configured project Git checkout.
+Existing files do not need to be deleted or moved for system monitoring.
+
+If connection fails, the page shows its stage and a safe error code. Correct the
+VPN/account issue and use Retry connection. Keep the launcher open during setup.
+After a successful installation, reopening Setup.cmd reuses its protected
+connection without asking for the administrator password. Setup-Account.cmd
+keeps the older account-login setup for explicit compatibility use.
+
+Updating an already paired system: download the current ZIP from your trusted
+DevSetu server, extract it and open its Setup.cmd. Click Connect this computer
+with the saved server. Setup verifies and updates only this user's existing
+connector, preserving its device identity, credential, task and monitoring data.
+No uninstall, account password or new pairing approval is required. The previous
+runtime is kept privately for recovery (at most three update staging copies;
+further updates fail closed rather than growing recovery storage indefinitely).
+This is an explicit local update; existing versions do not update themselves.
+The updated collector bounds pending work and reserves separate activity quotas;
+server segments/summaries already work with older connectors. Read-only text
+requests and connector-specific RAM metrics require the updated collector.
