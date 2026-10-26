@@ -1,17 +1,17 @@
 import { execFile } from "node:child_process";
-import { createRequire } from "node:module";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir, hostname } from "node:os";
-import { join, dirname } from "node:path";
+import { createRequire } from "node:module";
+import { hostname, tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { promisify } from "node:util";
-import { afterEach, expect, it } from "vitest";
 import {
   componentOrder,
-  PipelineInputSchema,
   type Pipeline,
+  PipelineInputSchema,
   type PipelineRequest,
 } from "@frevos/contracts";
+import { afterEach, expect, it } from "vitest";
 import { ComponentDeployments } from "../src/component-deployments.js";
 import { DeveloperConnectorStore } from "../src/developer-connectors.js";
 
@@ -82,7 +82,7 @@ it("validates dependencies, independent bindings and literal component paths", (
   ).toBe(false);
 });
 
-it.skipIf(process.platform !== "win32")(
+it.runIf(process.platform === "win32" || process.platform === "linux")(
   "publishes real Git, builds isolated components, deploys to distinct roots and repeatedly rolls back without touching persistent files",
   async () => {
     const root = await mkdtemp(join(tmpdir(), "devsetu-components-"));
@@ -293,7 +293,12 @@ it.skipIf(process.platform !== "win32")(
       });
     };
     await refresh();
-    const npmCli = join(dirname(process.execPath), "node_modules/npm/bin/npm-cli.js");
+    const npmCli = await realpath(
+      join(
+        dirname(process.execPath),
+        process.platform === "win32" ? "node_modules/npm/bin/npm-cli.js" : "npm",
+      ),
+    );
     expect((await store.projectSettings("usr_owner"))[0]).toMatchObject({
       profileId: profile.profileId,
       runner: "configured-components",

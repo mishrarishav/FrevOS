@@ -127,6 +127,20 @@ The follow-up changes only `apps/control-plane/src/servix-deployment.ts`,
 `apps/control-plane/test/servix-execution.test.ts`, this handoff and
 `docs/CURRENT_STATE.md`. Its validation status is tracked on PR #38.
 
+Run `40275696840` then passed all 155 applicable control-plane tests but failed
+the unchanged coverage gate because the large component lifecycle test was
+Windows-only. Enable the same actual Git/build/independent roots/deploy/rollback/
+preservation assertions on Windows and Linux, resolving npm's actual host entry
+point instead of assuming Windows's layout. Add separate cross-host tests for
+the Windows helper's private-stdin protocol, foreign scope, spawn/pipe failure,
+nonzero exit, oversized output and timeout termination. These simulate only the
+process boundary; they do not claim Linux executes Windows DPAPI. Native Windows
+DPAPI acceptance remains separate. Targeted Windows execution of the component
+and transport suites passed seven tests. Follow-up test files are
+`apps/control-plane/test/component-deployments.test.ts` and
+`apps/control-plane/test/model-secrets-windows-boundary.test.ts`. Do not lower
+coverage thresholds or exclude modules to make this integration pass.
+
 CPU/RAM graphs contain received whole-machine samples only, bounded to 180
 points/15 minutes. Missing samples and offline periods are gaps. They are not
 project productivity scores.

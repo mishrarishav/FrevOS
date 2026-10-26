@@ -13,6 +13,12 @@ or secrets. Existing real Git publication and environment-isolation tests apply.
 This is merge preparation only: no new live/customer deployment, identity or
 approval-policy change. The human owner must mark ready and squash merge after
 the exact final head's checks pass. See the agentic handoff for validation.
+Linux's next run passed all applicable tests but exposed a coverage gap from the
+Windows-only component lifecycle test. Run that same actual Git/build/deploy/
+rollback/preservation test on Windows and Linux with the host's enrolled npm
+entry point. Add isolated Windows secret-helper transport failure tests runnable
+on either host; these simulate the child protocol, not native DPAPI. Coverage
+thresholds and the separate native Windows acceptance remain unchanged.
 
 ## Configurable agents and measured health (bounded live pilot PASS, 2026-10-26)
 
