@@ -16,6 +16,7 @@ it("keeps service and transport secrets out of the repository build process", as
   vi.stubEnv("FREVOS_SECRET", "synthetic-private-transport");
   vi.stubEnv("NODE_OPTIONS", "--inspect");
   vi.stubEnv("PATHEXT", ".COM;.EXE;.BAT;.CMD");
+  vi.stubEnv("PATH", "synthetic-untrusted-executable-directory");
   const root = await mkdtemp(join(tmpdir(), "servix-execution-")),
     id = `sd_${"a".repeat(32)}`,
     head = "b".repeat(40),
@@ -44,6 +45,8 @@ it("keeps service and transport secrets out of the repository build process", as
       expect(options.env).not.toHaveProperty("FREVOS_SECRET");
       expect(options.env).not.toHaveProperty("NODE_OPTIONS");
       expect(options.env["PATHEXT"]).toBe(".COM;.EXE;.BAT;.CMD");
+      expect(options.env["PATH"]).not.toContain("synthetic-untrusted-executable-directory");
+      if (process.platform !== "win32") expect(options.env["PATH"]).toBe("/usr/bin:/bin");
     }
     expect(run.mock.calls[1]?.[1]).toContain("refs/heads/frevos-dev^{commit}");
     expect(run.mock.calls[2]?.[1]).toEqual(

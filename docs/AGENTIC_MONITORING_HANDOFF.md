@@ -101,6 +101,32 @@ The final documentation diff was reviewed. Working checkout:
 
 ## Scope and evidence rules
 
+### GitHub integration follow-up
+
+The owner requested integration into GitHub `main`. Draft PR
+[#38](https://github.com/mishrarishav/FrevOS/pull/38) targets `main` and includes
+the preceding configured deployment history. Initial GitHub Actions run
+`40275026284` failed its actual Linux Git publication test with `spawn git
+ENOENT`: the fixed Servix compatibility execution environment used its Windows
+PATH on every platform. The scoped follow-up uses `/usr/bin:/bin` on POSIX and
+retains the established Windows compatibility PATH. The service environment is
+still allowlisted; arbitrary PATH, database/transport secrets and NODE_OPTIONS
+remain excluded. The existing real Git bundle/import/preservation test remains
+enabled, and the environment regression also checks the executable-path boundary.
+No threshold is weakened and no failure is bypassed. This follow-up is not
+deployed by opening or merging the PR; the activated source/digest above remains
+the live acceptance identity. Final PR checks are a separate merge gate. The
+automated author must leave mark-ready and squash merge to the human owner per
+`docs/MERGE_POLICY.md`.
+Targeted command `pnpm --filter @frevos/control-plane exec vitest run
+test/servix-execution.test.ts test/connector-local-git.test.ts`, exit 0: both
+tests pass on Windows, including actual bundle publication/preservation.
+The complete Windows regression log is `.local/github-pr38-windows-ci.log`;
+GitHub's separate Linux test/image/audit result must pass on the final PR head.
+The follow-up changes only `apps/control-plane/src/servix-deployment.ts`,
+`apps/control-plane/test/servix-execution.test.ts`, this handoff and
+`docs/CURRENT_STATE.md`. Its validation status is tracked on PR #38.
+
 CPU/RAM graphs contain received whole-machine samples only, bounded to 180
 points/15 minutes. Missing samples and offline periods are gaps. They are not
 project productivity scores.

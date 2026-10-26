@@ -86,7 +86,9 @@ export function servixExecution(
   ])
     if (process.env[name] !== undefined) env[name] = process.env[name];
   env["PATH"] =
-    "E:\\FrevOS\\node\\node-v24.19.0-win-x64;C:\\Program Files\\Git\\cmd;C:\\Windows\\System32;C:\\Windows\\System32\\WindowsPowerShell\\v1.0";
+    process.platform === "win32"
+      ? "E:\\FrevOS\\node\\node-v24.19.0-win-x64;C:\\Program Files\\Git\\cmd;C:\\Windows\\System32;C:\\Windows\\System32\\WindowsPowerShell\\v1.0"
+      : "/usr/bin:/bin";
   const verifyIdentity = async () => {
     const identity = await execute(
       git,

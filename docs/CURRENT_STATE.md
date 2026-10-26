@@ -2,6 +2,18 @@
 
 Last updated: 2026-10-26
 
+## GitHub main integration (owner-authorized PR preparation, 2026-10-26)
+
+PR [#38](https://github.com/mishrarishav/FrevOS/pull/38) targets `main` from
+`codex/agentic-monitoring-pilot`. Its initial Ubuntu CI exposed that the fixed
+Servix compatibility Git environment used a Windows-only PATH on POSIX hosts.
+Keep the Windows compatibility environment and use a fixed trusted POSIX
+`/usr/bin:/bin` path on other hosts; do not inherit the service's arbitrary PATH
+or secrets. Existing real Git publication and environment-isolation tests apply.
+This is merge preparation only: no new live/customer deployment, identity or
+approval-policy change. The human owner must mark ready and squash merge after
+the exact final head's checks pass. See the agentic handoff for validation.
+
 ## Configurable agents and measured health (bounded live pilot PASS, 2026-10-26)
 
 Owner-approved ADRs 0062/0063 bound this follow-up on
