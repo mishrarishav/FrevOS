@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { DeploymentChangeSchema } from "./deployment-change.js";
 import {
-  CheckoutPathSchema,
   DeploymentProfileIdSchema,
   PreservedPathSchema,
   SourceCheckoutPathSchema,
@@ -126,7 +125,7 @@ export const ExecutorSchema = z
         z
           .object({
             id: ComponentIdSchema,
-            root: CheckoutPathSchema,
+            root: SourceCheckoutPathSchema,
             healthUrl: z
               .url()
               .max(240)

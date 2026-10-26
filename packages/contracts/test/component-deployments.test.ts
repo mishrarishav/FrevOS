@@ -140,6 +140,25 @@ it("accepts enrolled HTTP health origins while denying other protocols and embed
     ],
   };
   expect(ExecutorSchema.safeParse(executor).success).toBe(true);
+  for (const root of ["D:\\api", "/srv/devsetu/api"])
+    expect(
+      ExecutorSchema.safeParse({ ...executor, bindings: [{ ...executor.bindings[0], root }] })
+        .success,
+    ).toBe(true);
+  for (const root of [
+    "/",
+    "//srv/api",
+    "/srv//api",
+    "/srv/../api",
+    "/srv/./api",
+    "/srv\\api",
+    "/srv/\u0000api",
+    "relative/api",
+  ])
+    expect(
+      ExecutorSchema.safeParse({ ...executor, bindings: [{ ...executor.bindings[0], root }] })
+        .success,
+    ).toBe(false);
   for (const url of [
     "file:///D:/health",
     "http://name:password@host/health",

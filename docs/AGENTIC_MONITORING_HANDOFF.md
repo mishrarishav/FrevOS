@@ -141,6 +141,18 @@ and transport suites passed seven tests. Follow-up test files are
 `apps/control-plane/test/model-secrets-windows-boundary.test.ts`. Do not lower
 coverage thresholds or exclude modules to make this integration pass.
 
+The actual enabled Linux lifecycle in run `40276526605` subsequently exposed
+that executor binding roots still used the Windows-only validator. Reuse the
+already established `SourceCheckoutPathSchema` for enrolled executor roots;
+local enrollment, immutable binding/owner checks and filesystem link/containment
+checks remain mandatory. Contract regression accepts literal Windows/POSIX
+directories and denies root-only, relative, repeated separator, traversal,
+mixed-separator and control-character paths. Additional changed files are
+`packages/contracts/src/component-deployments.ts` and its corresponding contract
+test. Existing Windows-only service/native activation recipes remain restricted.
+This controller/artifact lifecycle test is not full Linux desktop/onboarding/UI
+or process-activation acceptance. The current runtime release remains unchanged.
+
 CPU/RAM graphs contain received whole-machine samples only, bounded to 180
 points/15 minutes. Missing samples and offline periods are gaps. They are not
 project productivity scores.

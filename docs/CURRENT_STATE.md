@@ -19,6 +19,11 @@ rollback/preservation test on Windows and Linux with the host's enrolled npm
 entry point. Add isolated Windows secret-helper transport failure tests runnable
 on either host; these simulate the child protocol, not native DPAPI. Coverage
 thresholds and the separate native Windows acceptance remain unchanged.
+The actual Linux lifecycle then exposed a Windows-only executor root contract.
+Reuse the existing strict Windows/POSIX literal-path validator for authenticated
+executor bindings, retaining traversal/relative/control-character/root denial.
+This does not broaden Windows-only service/native activation recipes or claim
+Linux desktop/onboarding/browser acceptance.
 
 ## Configurable agents and measured health (bounded live pilot PASS, 2026-10-26)
 
