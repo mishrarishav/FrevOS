@@ -4,6 +4,37 @@ Last updated: 2026-10-28
 
 ## Complete application release follow-up — resumed
 
+Current checkpoint, 2026-10-28 04:22 IST: platform source
+`15a038af278fb2388c296b3e0f089a88578edb9a` is active with manifest
+`7548a5b468e32e6da1e5eda9052ca44b654abd1359cd1ba023c1c023c9f6132c`.
+Actual configured CI passes all 77 retained test files and coverage gates;
+independent Apply verifies HTTP/UI 200, siblings preserved and no database write.
+Full Servix Development deploy `sd_8199dc23bf2974bb2692f449dc3b73c3`,
+rollback `sd_4010e745f5c57ede4d4820562760480a`, and same-artifact restore
+`sd_165f3a005513759a747408470e7a581f` all succeed. The current full release
+manifest is `4bccfd49407f3d898c5574e468b56da53b91d35864f92ffa98478b14d7df22bc`.
+All five configured customer suites, public frontend byte verification (20 files),
+health, 153 protected files and Production listener isolation pass. Three original
+Production attachments still match their prior bytes; no Production activation
+has occurred in this full-application follow-up.
+
+Production prepare `pm_4c8ea36ee3d920a7f00d4b6d3fcc4cfb` fails before backup
+or cutover because Windows task XML omits default RunLevel/Enabled fields.
+The bounded fix reads effective settings through an unregistered native task
+definition, cross-checks action/principal bindings, and retains ownership and
+least-privilege guards. Native lifecycle/recovery fixture passes (one test,
+28.86 seconds). Actual read-only shadow Observe on the Production target passes,
+verifying the existing successful managed promotion, owner, Node hash and 8,570
+protected files without task registration, permission changes or database writes.
+Its diagnostic summary's managedRuntimeVerified flag incorrectly checks a
+PowerShell hashtable through PSObject.Properties; the nonempty previous promotion
+ID and successful native ManagedRuntime verification are the authoritative proof.
+Do not treat that summary flag as activation evidence. Publish this fix through
+actual configured CI before fresh Production preparation. ADR 0069 remains a
+proposal until the owner's exact decision binds the audit-only source commit.
+
+Earlier paragraphs below are historical checkpoints.
+
 The Git-profile platform correction is live: source `c0471d2...`, manifest
 `2ed37f31f595270c12dc1dffc441ff6974fa79c1e1fe6e45106be63c0350bb31`.
 Its full CI and independent Apply pass, with HTTP/UI 200, preserved siblings

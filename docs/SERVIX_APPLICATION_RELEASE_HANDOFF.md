@@ -1,7 +1,65 @@
 # Complete application release follow-up
 
-Date: 2026-10-28 IST. Status: **IN PROGRESS — platform activation passes;
-the customer source step exposed a Git launcher issue, now corrected in configuration**.
+Date: 2026-10-28 IST. Status: **BLOCKED for Production activation pending
+the task-observer fix publication, fresh backup/restore and exact owner decision**.
+
+## Current verified checkpoint at 04:22 IST
+
+Platform source `15a038af278fb2388c296b3e0f089a88578edb9a`, manifest
+`7548a5b468e32e6da1e5eda9052ca44b654abd1359cd1ba023c1c023c9f6132c`,
+is active. Request `pr_c48260542da5287b07ebed87e7943118` passes the actual
+full CI (77 test files); independent Apply `cj_b2e97fc98ea1bd4cdfa5e960218cc8d3`
+verifies HTTP/UI 200, preserved siblings and databaseWritten false. Archive SHA
+`214da78c8187e9bd7221a17b68bc7ef64e8b9f4becd8745b922b1e4ca4577b1a`,
+131,638,009 bytes. Coverage: contracts 98.28% statements/92.77% branches,
+UI 100%, control-plane 95.25% statements/91.74% branches.
+
+Actual full Development request `sd_8199dc23bf2974bb2692f449dc3b73c3`
+passes. Source `20bba3ebbf606df6e6a3b919898443aa3e56fc20` has the same tree
+`5f91dc270c27337e52e07b8db2b7154e7afa219d` as the owner's observed e04137b.
+The publisher's audit commits change no application files. All five configured
+customer suites pass, then the optimized frontend build passes. Full manifest:
+`4bccfd49407f3d898c5574e468b56da53b91d35864f92ffa98478b14d7df22bc`;
+archive SHA `d030878d364f51f1da4ebde976afb315dec52713896c5d194f4b158a730feed7`.
+Frontend descriptor `7557eb2da721d07f23462c49558ff3a6d964ac6c7d437fcbc87856cc397bea26`;
+backend descriptor `8e525dab58dde2e560fbc2d7f18547a1d3c1e048204062e09c98c97b227eac96`.
+Backend bundle remains `5ff7622a9f316edbe0485c47f179f6c1bccac75241e6540f1d0079b11172fb0c`.
+Health/readiness, 153 protected files, retained unknown files, IIS configuration
+and Production listener preservation all verify. Rollback sd_4010e745f5c57ede4d4820562760480a
+and restore sd_165f3a005513759a747408470e7a581f succeed through actual UI.
+The restored full artifact is byte-identical, with no rebuild. Independent public
+verification confirms all 20 frontend files; three Production attachment samples
+retain their prior SHA/bytes and Production health remains ready.
+
+First full Production prepare `pm_4c8ea36ee3d920a7f00d4b6d3fcc4cfb` stops
+before backup/cutover on PropertyNotFoundStrict in Invoke-PromotionTarget.ps1.
+Windows exports omit default RunLevel and Enabled elements. The new bounded fix
+uses the native unregistered Schedule.Service.NewTask parser for effective values
+and cross-checks action/principal bindings. No registered task or permissions
+are changed by observation. The lifecycle fixture now models omitted defaults,
+rejects elevated/disabled-boot tasks without stopping their runtime, and retains
+all update/recovery checks. Focused command
+`pnpm.cmd --filter @frevos/control-plane exec vitest run test/promotion-lifecycle.test.ts`
+passes one file/one test, 28.86 seconds, exit 0.
+
+Actual shadow Observe via `.local/Run-PromotionCanonical.ps1` passes on the exact
+Production target: same existing promotion pm_9b481b3a94f1227d77373247b1d350db,
+PID 18504, same owner and canonical Node hash, 8,570 protected files, no database
+write, no Production change and temporary diagnostic task removed. The summary
+boolean managedRuntimeVerified is inaccurate because it checks a PowerShell
+hashtable through PSObject.Properties; successful Read-ManagedTask and its returned
+previous promotion ID prove the native verification. The raw receipt is retained.
+The observer fix still requires actual platform CI/publication. Next obtain a fresh
+prepared backup and matching isolated restore, then one exact owner decision.
+[ADR 0069](adr/0069-audit-commit-development-acceptance.md) is proposed only.
+No full-application Production activation, manual business UI acceptance, forced
+Production recovery/reboot, dependency upgrade or database restore is claimed.
+
+The publication inventory below is historical at c0471d2. At 15a038a it remains
+39 files, 2,927 additions/84 deletions against base a51e97c. Current uncommitted
+fix adds changes to Invoke-PromotionTarget.ps1, PromotionLifecycle.ps1 and
+promotion-lifecycle.test.ts, plus current evidence documents and proposed ADR 0069.
+Earlier paragraphs below are historical checkpoints.
 
 ## Verified platform and customer source follow-up
 
@@ -38,6 +96,17 @@ focused tests/typecheck pass; a fresh actual configured CI/package/activation is
 required before the next customer retry. The environment probes happened after
 the first long read warmed the process cache, so they do not establish that adding
 HOME, PATH or disabling global configuration fixes the cause; none is applied.
+
+The bounded deadline fix is now published through actual DevSetu request
+`pr_c48260542da5287b07ebed87e7943118`, source
+`15a038af278fb2388c296b3e0f089a88578edb9a`, native build
+`cj_0181fa49035adfeb7f0df9cf653273e6`. It is building, not activated. Final local
+validation is exit 0: two focused files / nine tests, typecheck, format check,
+lint (existing warnings retained), repository validation and secret exclusion.
+The Git profile test uses a different 45-second input to prove the runtime takes
+its deadline from configuration and rejects an out-of-range 120-second value.
+PowerShell recipe syntax and complete reviewed diff checks pass. Follow this same
+request to terminal CI/package/Apply receipts before retrying customer publication.
 
 The sixth configured pipeline `pr_569e11398745b52b96aa39217ad8e92d` succeeded.
 Its source is `53ea0214f4fb1e4e13369256d471122a94a0ad3d`, reference digest

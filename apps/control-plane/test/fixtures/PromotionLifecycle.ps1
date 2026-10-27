@@ -12,12 +12,12 @@ function global:Get-CimInstance {param($ClassName,$Filter) [pscustomobject]@{Pro
 function global:Invoke-CimMethod {param($InputObject,$MethodName) @{ReturnValue=0;Sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value}}
 function global:Invoke-RestMethod {param($Uri,$TimeoutSec) Trace-Fixture 'health';@{status='OK';authBootstrapReady=$true;fullBootstrapReady=$true}}
 function global:Get-ScheduledTask {
- param($TaskName,$ErrorAction)
+ param($TaskName,$TaskPath,$ErrorAction)
  if(-not $global:DevSetuFixtureState.taskXml){if($ErrorAction -eq 'Stop'){throw 'Fixture task missing'};return}
  $x=[xml]$global:DevSetuFixtureState.taskXml
  [pscustomobject]@{Principal=[pscustomobject]@{UserId=[Security.Principal.WindowsIdentity]::GetCurrent().Name};Actions=@([pscustomobject]@{Execute=[string]$x.Task.Actions.Exec.Command;Arguments=[string]$x.Task.Actions.Exec.Arguments;WorkingDirectory=[string]$x.Task.Actions.Exec.WorkingDirectory})}
 }
-function global:Export-ScheduledTask {param($TaskName) [string]$global:DevSetuFixtureState.taskXml}
+function global:Export-ScheduledTask {param($TaskName,$TaskPath) [string]$global:DevSetuFixtureState.taskXml}
 function global:Stop-ScheduledTask {param($TaskName) $global:DevSetuFixtureState.running=$false}
 function global:Stop-Process {param($Id,$ErrorAction) if($Id -ne $global:DevSetuFixtureState.pid){throw 'Fixture process mismatch'};$global:DevSetuFixtureState.running=$false}
 function global:Start-ScheduledTask {
@@ -35,7 +35,8 @@ $global:DevSetuFixtureFolder|Add-Member ScriptMethod RegisterTask {
  Trace-Fixture ('register-'+[string]$mode)
  if($name -eq $global:DevSetuFixtureContext.target.taskName){
   if(($mode -eq 2 -and $global:DevSetuFixtureState.taskXml) -or ($mode -eq 4 -and -not $global:DevSetuFixtureState.taskXml)){throw 'Fixture create/update mode differs'}
-  $global:DevSetuFixtureState.taskXml=$xml;$global:DevSetuFixtureState.registrationModes+=@([int]$mode)
+  # Model Windows export normalization: these defaults may be omitted.
+  $global:DevSetuFixtureState.taskXml=$xml.Replace('<RunLevel>LeastPrivilege</RunLevel>','').Replace('<Enabled>true</Enabled>','');$global:DevSetuFixtureState.registrationModes+=@([int]$mode)
   if($global:DevSetuFixtureState.PSObject.Properties['failAfterRegistration'] -and $global:DevSetuFixtureState.failAfterRegistration){$global:DevSetuFixtureState.failAfterRegistration=$false;throw 'Synthetic interruption after task registration'}
  }else{$global:DevSetuFixtureProbes[$name]=$xml}
 }
@@ -53,6 +54,30 @@ function global:New-Object {
  $scheduler=[pscustomobject]@{}
  $scheduler|Add-Member ScriptMethod Connect {}
  $scheduler|Add-Member ScriptMethod GetFolder {param($name) return $global:DevSetuFixtureFolder}
+ $scheduler|Add-Member ScriptMethod NewTask {
+  param($flags)
+  $definition=[pscustomobject]@{RawXml='';Principal=$null;Actions=$null;Triggers=$null;Settings=$null}
+  $definition|Add-Member ScriptProperty XmlText {return $this.RawXml} {
+   param($value)
+   $this.RawXml=$value;$x=[xml]$value
+   $get={param($xpath,$fallback) $node=$x.SelectSingleNode($xpath);if($node){$node.InnerText}else{$fallback}}
+   $principal="/*[local-name()='Task']/*[local-name()='Principals']/*[local-name()='Principal']"
+   $level=& $get ($principal+"/*[local-name()='RunLevel']") 'LeastPrivilege'
+   $logon=& $get ($principal+"/*[local-name()='LogonType']") ''
+   $this.Principal=[pscustomobject]@{UserId=(& $get ($principal+"/*[local-name()='UserId']") '');RunLevel=$(if($level -ceq 'LeastPrivilege'){0}else{1});LogonType=$(if($logon -ceq 'Password'){1}else{0})}
+   $exec=$x.SelectSingleNode("/*[local-name()='Task']/*[local-name()='Actions']/*[local-name()='Exec']")
+   $action=[pscustomobject]@{Type=0;Path=[string]$exec.Command;Arguments=[string]$exec.Arguments;WorkingDirectory=[string]$exec.WorkingDirectory}
+   $this.Actions=[pscustomobject]@{Count=$x.SelectNodes("/*[local-name()='Task']/*[local-name()='Actions']/*").Count;Value=$action}
+   $this.Actions|Add-Member ScriptMethod Item {param($index) if($index -ne 1){throw 'Fixture action index'};return $this.Value}
+   $triggerPath="/*[local-name()='Task']/*[local-name()='Triggers']/*[local-name()='BootTrigger']"
+   $enabled=& $get ($triggerPath+"/*[local-name()='Enabled']") 'true'
+   $trigger=[pscustomobject]@{Type=8;Enabled=($enabled -ceq 'true');Delay=(& $get ($triggerPath+"/*[local-name()='Delay']") '')}
+   $this.Triggers=[pscustomobject]@{Count=$x.SelectNodes("/*[local-name()='Task']/*[local-name()='Triggers']/*").Count;Value=$trigger}
+   $this.Triggers|Add-Member ScriptMethod Item {param($index) if($index -ne 1){throw 'Fixture trigger index'};return $this.Value}
+   $this.Settings=[pscustomobject]@{Enabled=((& $get "/*[local-name()='Task']/*[local-name()='Settings']/*[local-name()='Enabled']" 'true') -ceq 'true')}
+  }
+  return $definition
+ }
  return $scheduler
 }
 try{

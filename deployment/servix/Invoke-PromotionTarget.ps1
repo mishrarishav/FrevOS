@@ -29,11 +29,22 @@ function Task-OwnerSid([string]$Value){
  if([string]::Equals($Value,$identity.Name,[StringComparison]::OrdinalIgnoreCase)){return $identity.User.Value}
  return ([Security.Principal.NTAccount]::new($Value)).Translate([Security.Principal.SecurityIdentifier]).Value
 }
+function Read-TaskSettings($Task,[string]$Xml){
+ # Windows can omit default XML fields. Ask its native parser for effective
+ # values, then cross-check the same task's action and principal binding.
+ $service=New-Object -ComObject 'Schedule.Service';$service.Connect()
+ $definition=$service.NewTask(0);$definition.XmlText=$Xml
+ if($definition.Actions.Count -ne 1 -or @($Task.Actions).Count -ne 1){throw 'Managed task action scope changed'}
+ $action=$definition.Actions.Item(1);$sid=Task-OwnerSid ([string]$definition.Principal.UserId)
+ if($action.Type -ne 0 -or $action.Path -ine [string]$Task.Actions[0].Execute -or $action.Arguments -cne [string]$Task.Actions[0].Arguments -or $action.WorkingDirectory -ine [string]$Task.Actions[0].WorkingDirectory -or $sid -cne (Task-OwnerSid ([string]$Task.Principal.UserId))){throw 'Managed task binding changed during observation'}
+ $boot=$false
+ if($definition.Triggers.Count -eq 1){$trigger=$definition.Triggers.Item(1);$boot=([bool]$definition.Settings.Enabled -and $trigger.Type -eq 8 -and [bool]$trigger.Enabled -and [string]$trigger.Delay -ceq 'PT30S')}
+ return @{ownerSid=$sid;leastPrivilege=($definition.Principal.RunLevel -eq 0);passwordLogon=($definition.Principal.LogonType -eq 1);bootStart=$boot}
+}
 function Task-Owned {
- $t=Get-ScheduledTask -TaskName $target.taskName -ErrorAction Stop
- $sid=Task-OwnerSid ([string]$t.Principal.UserId)
- $taskXml=[xml](Export-ScheduledTask -TaskName $target.taskName);$taskXml.XmlResolver=$null
- if($sid -cne $context.ownerSid -or $t.Actions.Count -ne 1 -or $t.Actions[0].Execute -ine $powershell -or $t.Actions[0].Arguments -cne $taskArguments -or $t.Actions[0].WorkingDirectory -ine (Join-Path $target.root 'backend') -or [string]$taskXml.Task.Principals.Principal.RunLevel -cne 'LeastPrivilege' -or [string]$taskXml.Task.Principals.Principal.LogonType -cne 'Password' -or [string]$taskXml.Task.Triggers.BootTrigger.Enabled -cne 'true' -or [string]$taskXml.Task.Triggers.BootTrigger.Delay -cne 'PT30S'){throw 'Managed task ownership changed'}
+ $t=Get-ScheduledTask -TaskName $target.taskName -TaskPath '\' -ErrorAction Stop
+ $settings=Read-TaskSettings $t ([string](Export-ScheduledTask -TaskName $target.taskName -TaskPath '\'))
+ if($settings.ownerSid -cne $context.ownerSid -or -not $settings.leastPrivilege -or -not $settings.passwordLogon -or -not $settings.bootStart -or $t.Actions[0].Execute -ine $powershell -or $t.Actions[0].Arguments -cne $taskArguments -or $t.Actions[0].WorkingDirectory -ine (Join-Path $target.root 'backend')){throw 'Managed task ownership changed'}
  return $t
 }
 function Wait-Ready {
@@ -52,11 +63,10 @@ function Assert-ManagedListener($Expected=$runtime) {
  return @{pid=$running.pid;createdAt=$running.created;ownerSid=$running.ownerSid;commandSha256=$running.commandSha256}
 }
 function Read-ManagedTask($Process,[string]$Phase){
- $t=Get-ScheduledTask -TaskName $target.taskName -ErrorAction Stop
- $xml=Export-ScheduledTask -TaskName $target.taskName
- $document=[xml]$xml;$document.XmlResolver=$null
- $sid=Task-OwnerSid ([string]$t.Principal.UserId)
- $candidate=@{arguments=[string]$t.Actions[0].Arguments;execute=[string]$t.Actions[0].Execute;expectedPowerShell=$powershell;actions=@($t.Actions).Count;workingDirectory=[string]$t.Actions[0].WorkingDirectory;ownerSid=$sid;process=$Process;taskXml=[string]$xml;leastPrivilege=([string]$document.Task.Principals.Principal.RunLevel -ceq 'LeastPrivilege');passwordLogon=([string]$document.Task.Principals.Principal.LogonType -ceq 'Password');bootStart=([bool]$document.Task.Triggers.BootTrigger -and [string]$document.Task.Triggers.BootTrigger.Enabled -ceq 'true' -and [string]$document.Task.Triggers.BootTrigger.Delay -ceq 'PT30S')}
+ $t=Get-ScheduledTask -TaskName $target.taskName -TaskPath '\' -ErrorAction Stop
+ $xml=Export-ScheduledTask -TaskName $target.taskName -TaskPath '\'
+ $settings=Read-TaskSettings $t ([string]$xml)
+ $candidate=@{arguments=[string]$t.Actions[0].Arguments;execute=[string]$t.Actions[0].Execute;expectedPowerShell=$powershell;actions=@($t.Actions).Count;workingDirectory=[string]$t.Actions[0].WorkingDirectory;ownerSid=$settings.ownerSid;process=$Process;taskXml=[string]$xml;leastPrivilege=$settings.leastPrivilege;passwordLogon=$settings.passwordLogon;bootStart=$settings.bootStart}
  $file=Join-Path $PSScriptRoot ('managed-'+$Phase+'.json');Save-New $file $candidate
  $out=& $target.node (Join-Path $PSScriptRoot 'ManagedRuntime.cjs') $ContextFile $file 2>$null
  if($LASTEXITCODE -ne 0){throw 'Existing task does not match successful controller evidence'}
@@ -82,7 +92,7 @@ $identity=[Security.Principal.WindowsIdentity]::GetCurrent()
 if($Action -ceq 'Observe'){
  $process=Port-Process
  if($identity.User.Value -cne $process.ownerSid){throw 'Same runtime owner required'}
- $managed=$null;$existingTask=Get-ScheduledTask -TaskName $target.taskName -ErrorAction SilentlyContinue
+ $managed=$null;$existingTask=Get-ScheduledTask -TaskName $target.taskName -TaskPath '\' -ErrorAction SilentlyContinue
  if($existingTask){$managed=Read-ManagedTask $process 'prepare'}
  else{
   if($process.command -notmatch '(?:^|\s|\")src[\\/]index\.js(?:\s|$|\")'){throw 'Same-owner manual source runtime required for initial adoption'}

@@ -232,6 +232,29 @@ it.skipIf(process.platform !== "win32")(
       const a = await cycle("first");
       expect(a.result.status).toBe("succeeded");
       expect(a.observation.taskAlreadyExists).toBe(false);
+      const normalized = JSON.parse(fs.readFileSync(stateFile, "utf8"));
+      expect(normalized.taskXml).not.toContain("<RunLevel>LeastPrivilege</RunLevel>");
+      expect(normalized.taskXml).not.toContain("<Enabled>true</Enabled>");
+      for (const [name, xml] of [
+        [
+          "elevated",
+          normalized.taskXml.replace(
+            "</Principal>",
+            "<RunLevel>HighestAvailable</RunLevel></Principal>",
+          ),
+        ],
+        [
+          "disabled-boot",
+          normalized.taskXml.replace("<BootTrigger>", "<BootTrigger><Enabled>false</Enabled>"),
+        ],
+      ]) {
+        put(stateFile, JSON.stringify({ ...normalized, taskXml: xml }));
+        await expect(invoke(build(`reject-${name}`), "Observe")).rejects.toThrow();
+        const rejected = JSON.parse(fs.readFileSync(stateFile, "utf8"));
+        expect(rejected.running).toBe(true);
+        expect(rejected.registrationModes).toEqual(normalized.registrationModes);
+      }
+      put(stateFile, JSON.stringify(normalized));
       const b = await cycle("second");
       expect(b.result.status).toBe("succeeded");
       expect(b.observation.managed.id).toBe(a.activation.id);
