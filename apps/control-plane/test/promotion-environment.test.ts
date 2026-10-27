@@ -9,6 +9,61 @@ import { expect, it } from "vitest";
 const run = promisify(execFile),
   helper = resolve("../../deployment/servix/Read-PromotionEnvironment.cjs"),
   sha = (value: string) => createHash("sha256").update(value).digest("hex");
+it.skipIf(process.platform !== "win32")(
+  "retains managed identity through native dictionary, CLIXML and JSON observation shapes",
+  async () => {
+    const base = await mkdtemp(join(tmpdir(), "promotion-observation-"));
+    try {
+      const script = join(base, "observation.ps1");
+      await writeFile(
+        script,
+        `param([string]$Worker)
+$ErrorActionPreference='Stop';Set-StrictMode -Version Latest
+$module=Import-Module $Worker -Force -PassThru
+$expected='pm_'+('a'*32)
+$managed=@{taskAlreadyExists=$true;managed=@{id=$expected;taskXmlSha256=('b'*64)}}
+$roundTrip=[Management.Automation.PSSerializer]::Deserialize([Management.Automation.PSSerializer]::Serialize($managed))
+$json=$managed|ConvertTo-Json -Depth 5|ConvertFrom-Json
+foreach($observation in @($managed,$roundTrip,$json)){
+ $value=& $module {param($v) Get-PromotionObservedManaged $v} $observation
+ if($value.id -cne $expected -or $value.taskXmlSha256 -cne ('b'*64)){throw 'Managed binding lost'}
+}
+foreach($observation in @(@{taskAlreadyExists=$false},[pscustomobject]@{taskAlreadyExists=$false})){
+ if($null -ne (& $module {param($v) Get-PromotionObservedManaged $v} $observation)){throw 'Unexpected adoption binding'}
+}
+$rejected=0
+foreach($observation in @(@{taskAlreadyExists=$true},[pscustomobject]@{taskAlreadyExists=$true},@{taskAlreadyExists=$false;managed=@{id=$expected}},@{taskAlreadyExists=$true;managed=@{id='invalid'}})){
+ try{[void](& $module {param($v) Get-PromotionObservedManaged $v} $observation)}catch{$rejected++;continue}
+ throw 'Inconsistent managed evidence accepted'
+}
+[Console]::Out.Write((@{status='PASS';verifiedShapes=3;rejected=$rejected}|ConvertTo-Json -Compress))
+`,
+      );
+      // biome-ignore lint/complexity/useLiteralKeys: TypeScript requires bracket access for environment index signatures.
+      const windowsRoot = process.env["WINDIR"];
+      if (!windowsRoot) throw Error("Native PowerShell directory unavailable");
+      const result = await run(
+        join(windowsRoot, "System32/WindowsPowerShell/v1.0/powershell.exe"),
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-ExecutionPolicy",
+          "RemoteSigned",
+          "-File",
+          script,
+          "-Worker",
+          resolve("../../deployment/servix/PromotionWorker.psm1"),
+        ],
+        { windowsHide: true, maxBuffer: 4096 },
+      );
+      expect(JSON.parse(result.stdout)).toEqual({ status: "PASS", verifiedShapes: 3, rejected: 4 });
+    } finally {
+      expect(dirname(resolve(base))).toBe(resolve(tmpdir()));
+      expect(base).toContain("promotion-observation-");
+      await rm(base, { recursive: true, force: true });
+    }
+  },
+);
 it("preserves private values through the real PowerShell 5.1 file boundary without logging them", async () => {
   const base = await mkdtemp(join(tmpdir(), "promotion-environment-"));
   const root = join(base, "project with spaces"),

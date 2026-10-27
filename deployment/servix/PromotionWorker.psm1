@@ -45,6 +45,16 @@ function Invoke-PromotionNode([string]$Node,[string]$File,[string[]]$Arguments,[
  }finally{if(-not $p.HasExited){$p.Kill()};$p.Dispose();$InputText=$null}
 }
 function Get-PromotionHash([string]$File){Assert-BackendPlainPath $File;return (Get-FileHash -LiteralPath $File -Algorithm SHA256).Hash.ToLowerInvariant()}
+function Get-PromotionObservedManaged($Observation){
+ # Remoting preserves hashtables as dictionaries, whose keys are not exposed
+ # through PSObject.Properties. Keep the verified managed binding in the review.
+ $hasManaged=if($Observation -is [Collections.IDictionary]){$Observation.Contains('managed')}else{[bool]$Observation.PSObject.Properties['managed']}
+ if([bool]$Observation.taskAlreadyExists -ne [bool]$hasManaged){throw 'Observed managed task evidence missing or inconsistent'}
+ if(-not $hasManaged){return $null}
+ $managed=$Observation.managed
+ if(-not $managed -or $managed.id -cnotmatch '^pm_[a-f0-9]{32}$'){throw 'Observed managed task identity rejected'}
+ return $managed
+}
 function ConvertTo-PromotionBackupInput([string]$Directory,[string]$ScopeSha256,$Client,$Database){
  Add-Type -AssemblyName System.Web.Extensions
  if(-not ('DevSetuPromotionBackupInputV1' -as [type])){
@@ -206,6 +216,7 @@ function Invoke-PromotionWork([string]$Root,[string]$PublicRoot,[string]$Private
    Copy-Item -LiteralPath (Join-Path $PrivateJob 'context.json') -Destination (Join-Path $staging 'context.json') -ToSession $session
    Set-PromotionProgress $PublicRoot $Job.id 'reading-runtime-and-protected-inventory' $Job.workspaceId
    $observation=Invoke-Command -Session $session -ArgumentList $staging,$hashes['Invoke-PromotionTarget.ps1'] -ScriptBlock {param($dir,$hash);$script=Join-Path $dir 'Invoke-PromotionTarget.ps1';if((Get-FileHash -LiteralPath $script).Hash.ToLowerInvariant() -cne $hash){throw 'Observer changed'};& $script -Action Observe -ContextFile (Join-Path $dir 'context.json')}
+   $observedManaged=Get-PromotionObservedManaged $observation
    Write-PromotionJson (Join-Path $PrivateJob 'observation.json') $observation -New
    $context.snapshotSha256=$observation.files.snapshotSha256;$context.ownerSid=$observation.process.ownerSid;$context.observation=$observation
    Set-PromotionProgress $PublicRoot $Job.id 'preparing-pinned-backup-client' $Job.workspaceId
@@ -242,7 +253,7 @@ function Invoke-PromotionWork([string]$Root,[string]$PublicRoot,[string]$Private
    Write-PromotionJson (Join-Path $PrivateJob 'prepared-context.json') $context -New
    $runtimeFile=Join-Path $PrivateJob 'operator-hashes.json';Write-PromotionJson $runtimeFile $hashes -New
    $review=@{version=1;id=$Job.id;workspaceId=$Job.workspaceId;requestedBy=$Job.requestedBy;profileId=$target.profileId;profileRevision=$Job.profileRevision;targetSha256=$Job.targetSha256;createdAt=[DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ');expiresAt=[DateTime]::UtcNow.AddMinutes(15).ToString('yyyy-MM-ddTHH:mm:ss.fffZ');developmentRequestId=$Job.developmentRequestId;artifact=$saved.artifact;process=@{pid=$observation.process.pid;createdAt=$observation.process.created;owner=$observation.owner;nodeVersion=$observation.nodeVersion;batchLogonReady=$observation.batchLogonReady;taskAlreadyExists=$observation.taskAlreadyExists};protection=$observation.files.protection;backup=$backupSummary;runtimeSha256=(Get-PromotionHash $runtimeFile);privateSnapshotSha256=(Get-PromotionHash (Join-Path $PrivateJob 'prepared-context.json'))}
-   if($observation.PSObject.Properties['managed']){$review.process.managedRuntimeVerified=$true;$review.process.previousPromotionId=$observation.managed.id}
+   if($observedManaged){$review.process.managedRuntimeVerified=$true;$review.process.previousPromotionId=$observedManaged.id}
    $reviewInput=Join-Path $PrivateJob 'review-input.json';Write-PromotionJson $reviewInput $review -New
    $envelope=(Invoke-PromotionNode $Node (Join-Path $PSScriptRoot 'PromotionProtocol.mjs') @('seal-review',$reviewInput,(Join-Path $PrivateJob 'review.json')))|ConvertFrom-Json
    return @{version=1;id=$Job.id;status='prepared';stage='ready-for-exact-production-review';updatedAt=[DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ');review=$envelope.review;reviewSha256=$envelope.sha256}

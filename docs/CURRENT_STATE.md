@@ -4,6 +4,33 @@ Last updated: 2026-10-28
 
 ## Complete application release follow-up — resumed
 
+At 04:51 IST, prepare pm_318cc4094cd89d00b95f0022e2e10ac5 completes runtime,
+protected inventory and encrypted full-stream backup verification. Its immutable
+review is NOT usable for activation: the worker checked the remoted hashtable
+through PSObject.Properties, dropping managedRuntimeVerified/previousPromotionId.
+The UI labels it first adoption and the existing protocol correctly rejects an
+existing-task promotion without that verification. No approval was submitted.
+The same backup's isolated restore is still running; retain its result as recovery
+evidence, not approval for this incomplete review. A bounded worker correction
+reads dictionary keys or object properties, rejects inconsistent task/evidence
+before backup, and preserves the verified previous identity in the review.
+Native tests cover dictionary, real CLIXML round-trip and JSON shapes plus four
+denials (one file/two tests, 2.65 seconds, exit 0). This correction requires actual
+platform CI/activation and a new immutable Production preparation. Never edit or
+reuse the incomplete review.
+
+Latest checkpoint, 04:43 IST: the task-observer correction is now live through
+actual request `pr_1b1e23ac5292ec9abdd711a9419c89cc`, source
+`e6115eccc9d6df09e61025dabddf701460bc6d0a`, manifest
+`9ed0dbb212d52c16549e95653aebf2bab7772a116b866266e4db92d1760bda61`.
+Full configured CI and coverage pass. Independent Apply
+`cj_5e0adf90a69db5234bb1dc143cd48661` verifies HTTP/UI 200, preserved siblings
+and no database write. Fresh actual UI Production prepare
+`pm_318cc4094cd89d00b95f0022e2e10ac5` is reading the existing runtime and
+protected inventory for saved Development restore sd_165f3a005513759a747408470e7a581f.
+No Production cutover or new approval has occurred. The checkpoint below predates
+this successful publication.
+
 Current checkpoint, 2026-10-28 04:22 IST: platform source
 `15a038af278fb2388c296b3e0f089a88578edb9a` is active with manifest
 `7548a5b468e32e6da1e5eda9052ca44b654abd1359cd1ba023c1c023c9f6132c`.

@@ -5,6 +5,59 @@ the task-observer fix publication, fresh backup/restore and exact owner decision
 
 ## Current verified checkpoint at 04:22 IST
 
+Latest update at 04:51 IST: pm_318cc4094cd89d00b95f0022e2e10ac5 is prepared
+with encrypted backup SHA 9368ef076964e2ed48125e75151ae4f270a48ff9925f3eb509911b0ca19841a6,
+443,472,370 bytes, 8,570 protected files. The review SHA is
+6875b4d65a0983d2c4358ab88b06f8312db93907dd9bd660db9a25186717c422;
+it expires 05:02:20 IST and MUST NOT be approved: the remoted observation is a
+hashtable, so the worker's PSObject.Properties membership check omits the verified
+managed update fields. The existing verify-review guard rejects that scope before
+activation; the browser correctly exposes the missing classification as first
+adoption. No approval was submitted. An isolated restore of this backup is already
+running and will be retained as separate recovery evidence. Live Production health
+and all three original attachment samples still pass at 04:47:28 IST.
+
+The worker correction introduces Get-PromotionObservedManaged: dictionary-key
+membership or normal object properties, exact promotion-ID shape, and rejection
+when task presence and managed evidence disagree. Run this immediately after
+observation, before backup; use its result in the review. Actual native PowerShell
+test covers a dictionary, real PSSerializer CLIXML round-trip, JSON object, initial
+adoption, missing/inconsistent evidence and invalid identity. Command
+`pnpm.cmd --filter @frevos/control-plane exec vitest run test/promotion-environment.test.ts`
+passes one file/two tests, 2.65 seconds, exit 0. No protocol or ownership guard is
+relaxed. Require fresh configured platform publication and a NEW immutable review.
+
+Update at 04:43 IST: the task-observer fix is published and active. Actual
+DevSetu request `pr_1b1e23ac5292ec9abdd711a9419c89cc` publishes source
+`e6115eccc9d6df09e61025dabddf701460bc6d0a`; native build
+`cj_b55f0027c396bcb84756f9a980bd7a9b` passes full configured CI/package.
+Manifest `9ed0dbb212d52c16549e95653aebf2bab7772a116b866266e4db92d1760bda61`,
+archive SHA `6d2e1e70cec957de3fbea74c231341fb7fd9d570923677bdca476ea2e9f6eb7a`,
+131,638,292 bytes; reference digest
+`b31ffb96a0edcc5b52e87fbbf53086cb972e40812ff579597b0e4206e4191518`.
+Independent Apply `cj_5e0adf90a69db5234bb1dc143cd48661` passes HTTP/UI 200,
+siblingsPreserved=true and databaseWritten=false. All 77 retained test files and
+the same coverage gates pass; no assertions or acceptance tests were removed.
+Before publication: focused native lifecycle test, control-plane typecheck,
+Biome format/lint (existing warnings), repository validation (106 Markdown files),
+private secret exclusion (40 changed files), PowerShell syntax and diff checks
+all exit 0. Source diff at publication: 40 files, 3,123 insertions/85 deletions.
+Complete inventory is the historical list below plus ADR 0069; no PR exists and
+there is no GitHub/default-branch push or merge.
+
+The actual UI now queues fresh Production prepare
+`pm_318cc4094cd89d00b95f0022e2e10ac5` for current saved Development restore
+sd_165f3a005513759a747408470e7a581f / full manifest 4bccfd49407f. Follow this
+same request; do not repeat preparation because of a transient browser response.
+No Production activation or owner acknowledgment of proposed ADR 0069 exists yet.
+
+Native task semantics are documented by Microsoft in the
+[Task Scheduler schema](https://learn.microsoft.com/en-us/windows/desktop/taskschd/task-scheduler-schema),
+[run-level enum](https://learn.microsoft.com/en-us/windows/win32/api/taskschd/ne-taskschd-task_runlevel_type)
+and [logon-type enum](https://learn.microsoft.com/en-us/windows/win32/api/taskschd/ne-taskschd-task_logon_type).
+The implementation asks Windows for effective values instead of treating missing
+XML elements as authority to relax the guards.
+
 Platform source `15a038af278fb2388c296b3e0f089a88578edb9a`, manifest
 `7548a5b468e32e6da1e5eda9052ca44b654abd1359cd1ba023c1c023c9f6132c`,
 is active. Request `pr_c48260542da5287b07ebed87e7943118` passes the actual
