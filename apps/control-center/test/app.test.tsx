@@ -60,7 +60,10 @@ describe("Control Center route contract", () => {
   it("keeps route paths and identifiers unique", () => {
     expect(new Set(routes.map((route) => route.path)).size).toBe(routes.length);
     expect(new Set(routes.map((route) => route.id)).size).toBe(routes.length);
-    expect(routes).toHaveLength(19);
+    expect(routes).toHaveLength(20);
+    expect(routes).toContainEqual(
+      expect.objectContaining({ id: "artifact-promotions", path: "/projects/promotions" }),
+    );
     expect(routes).toContainEqual(
       expect.objectContaining({ id: "discovery", path: "/systems/discovery" }),
     );

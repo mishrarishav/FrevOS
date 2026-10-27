@@ -53,12 +53,13 @@ import {
   useState,
 } from "react";
 import { AccountControls } from "./AccountControls.js";
+import { AgentsPage } from "./AgentsPage.js";
+import { ArtifactPromotionsPage } from "./ArtifactPromotionsPage.js";
 import { type ControlCenterApi, createControlCenterApi } from "./api.js";
 import { ComponentConfiguration } from "./ComponentDeployments.js";
 import { DeploymentSettingsPage } from "./DeploymentSettingsPage.js";
 import { DeploymentsPage } from "./DeploymentsPage.js";
 import { DiscoveryPage } from "./DiscoveryPage.js";
-import { AgentsPage } from "./AgentsPage.js";
 import {
   activity,
   approvals,
@@ -107,6 +108,7 @@ const routeIcons: Record<Exclude<RouteId, "not-found">, LucideIcon> = {
   onboarding: Plus,
   projects: Boxes,
   "project-operations": GitBranch,
+  "artifact-promotions": GitBranch,
   intelligence: Sparkles,
   tasks: Activity,
   qa: FlaskConical,
@@ -402,6 +404,10 @@ export function App({
               projects={experience.projects}
             />
           ) : null}
+          {route?.id === "artifact-promotions" &&
+          experience.workspace.workspaceId === "ws_server20" ? (
+            <ArtifactPromotionsPage api={api} workspaceId={experience.workspace.workspaceId} />
+          ) : null}
           {(route?.id === "deployment-setup" || route?.id === "projects") &&
           experience.workspace.workspaceId === "ws_server20" ? (
             <DeploymentSettingsPage
@@ -419,6 +425,7 @@ export function App({
             route.id === "project-operations" ? null : (route.id === "deployments" ||
                 route.id === "deployment-setup" ||
                 route.id === "component-setup" ||
+                route.id === "artifact-promotions" ||
                 route.id === "local-development" ||
                 route.id === "discovery") &&
               experience.workspace.workspaceId === "ws_server20" ? null : (

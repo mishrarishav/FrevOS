@@ -37,11 +37,21 @@ function Assert-ServixDelta($Previous,$Candidate) {
         if($path -match '^apps/control-plane/(dist|node_modules/@frevos/contracts/dist)/system-discovery\.(js|js\.map|d\.ts|d\.ts\.map)$' -or $path -match '^apps/control-plane/node_modules/zod/'){continue}
         if($path -cin @('apps/control-plane/package.json','apps/control-plane/node_modules/@frevos/contracts/package.json')){continue}
         if($path -match '^apps/control-plane/dist/(agent-workspace|agent-notifications|model-secrets|model-gateway|project-folder-search)\.(js|js\.map|d\.ts|d\.ts\.map)$' -or $path -match '^apps/control-plane/node_modules/@frevos/contracts/dist/agent-workspace\.(js|js\.map|d\.ts|d\.ts\.map)$'){continue}
-        if($path -match '^apps/control-plane/dist/(config|server|main|repositories|local-accounts|self-updates|developer-connectors|servix-deployment|deployment-settings|component-deployments|component-git|atomic-record|local-development)\.(js|js\.map|d\.ts|d\.ts\.map)$' -or $path -match '^apps/control-plane/node_modules/@frevos/contracts/dist/(deployment-change|servix-deployment|developer-connectors|deployment-settings|local-accounts|component-deployments|local-development|index)\.(js|js\.map|d\.ts|d\.ts\.map)$' -or $path -match '^apps/control-center/dist/' -or $path -match '^deployment/servix/[A-Za-z0-9.-]+$' -or $path -cin @('deployment/server20/Start-Server20.ps1','deployment/server20/HttpCommon.ps1','deployment/server20/Apply-ServixDashboard.ps1','deployment/server20/Verify-HttpManifest.mjs','deployment/server20/source-inventory.json','deployment/server20/Install-SelfUpdate.ps1','deployment/server20/Run-SelfUpdate.ps1')){continue}
+        if($path -match '^apps/control-plane/dist/(config|server|main|repositories|local-accounts|self-updates|developer-connectors|servix-deployment|deployment-settings|component-deployments|component-git|atomic-record|local-development|artifact-promotions)\.(js|js\.map|d\.ts|d\.ts\.map)$' -or $path -match '^apps/control-plane/node_modules/@frevos/contracts/dist/(deployment-change|servix-deployment|developer-connectors|deployment-settings|local-accounts|component-deployments|local-development|artifact-promotions|index)\.(js|js\.map|d\.ts|d\.ts\.map)$' -or $path -match '^apps/control-center/dist/' -or $path -match '^deployment/servix/[A-Za-z0-9.-]+$' -or $path -cin @('deployment/server20/Start-Server20.ps1','deployment/server20/HttpCommon.ps1','deployment/server20/Apply-ServixDashboard.ps1','deployment/server20/Verify-HttpManifest.mjs','deployment/server20/source-inventory.json','deployment/server20/Install-SelfUpdate.ps1','deployment/server20/Run-SelfUpdate.ps1')){continue}
         throw ('Unexpected Servix dashboard delta: '+$path)
     }
 }
 function Assert-ServixDeploymentIdle([string]$Root){
+ $promotionJobs=Join-Path $Root 'jobs\promotions\jobs'
+ if(Test-Path -LiteralPath $promotionJobs){
+  foreach($file in Get-ChildItem -LiteralPath $promotionJobs -File -Filter 'pm_*.json'){
+   if($file.Name -cnotmatch '^pm_[a-f0-9]{32}\.json$'){throw 'Unknown promotion identity'}
+   $result=Join-Path $Root ('jobs\promotions\results\'+$file.Name)
+   if(-not(Test-Path -LiteralPath $result)){throw 'Production preparation or activation is queued'}
+   $record=Get-Content -LiteralPath $result -Raw|ConvertFrom-Json
+   if($record.id -cne $file.BaseName -or $record.status -cnotin @('prepared','succeeded','failed','recovered')){throw 'Production promotion is active or unresolved'}
+  }
+ }
  if(@(Get-ChildItem -LiteralPath (Join-Path $Root 'requests') -File -Filter 'sd_*.json').Count){throw 'A deployment activation is pending'}
  foreach($file in Get-ChildItem -LiteralPath (Join-Path $Root 'jobs') -File -Filter 'sd_*.json'){
   $job=Get-Content -LiteralPath $file.FullName -Raw|ConvertFrom-Json

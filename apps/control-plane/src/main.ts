@@ -1,5 +1,9 @@
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { ProjectFolderSearchJob } from "@frevos/contracts";
+import { AgentNotifications } from "./agent-notifications.js";
+import { AgentWorkspace } from "./agent-workspace.js";
+import { ArtifactPromotions } from "./artifact-promotions.js";
 import { ComponentDeployments } from "./component-deployments.js";
 import { loadConfig } from "./config.js";
 import { registerControlCenter } from "./control-center.js";
@@ -10,6 +14,7 @@ import { DeveloperConnectorStore } from "./developer-connectors.js";
 import { GithubOnboardingRepository } from "./github-onboarding.js";
 import { LocalAccounts } from "./local-accounts.js";
 import { LocalDevelopment } from "./local-development.js";
+import { ProtectedModelSecrets } from "./model-secrets.js";
 import { OpenIdClientProvider } from "./oidc.js";
 import { ProjectAutomationRepository } from "./project-automation.js";
 import { IdentitySessionRepository, WorkspaceRepository } from "./repositories.js";
@@ -21,10 +26,6 @@ import {
   servixExecution,
 } from "./servix-deployment.js";
 import { SystemDiscovery } from "./system-discovery.js";
-import { AgentWorkspace } from "./agent-workspace.js";
-import { ProtectedModelSecrets } from "./model-secrets.js";
-import { AgentNotifications } from "./agent-notifications.js";
-import type { ProjectFolderSearchJob } from "@frevos/contracts";
 
 const config = loadConfig(process.env);
 const pool = createDatabasePool(config.databaseUrl);
@@ -37,6 +38,7 @@ try {
   let componentDeployments: ComponentDeployments | undefined;
   let localDevelopment: LocalDevelopment | undefined;
   let systemDiscovery: SystemDiscovery | undefined;
+  let artifactPromotions: ArtifactPromotions | undefined;
   const agentWorkspaces = new Map<string, AgentWorkspace>();
   const notifications = new Map<string, AgentNotifications>();
   const agentNotifications = (workspaceId: string) => {
@@ -193,6 +195,14 @@ try {
       join(config.servixRoot, "jobs", "configuration"),
       allowed,
     );
+    const approvedSettings = deploymentSettings;
+    artifactPromotions = new ArtifactPromotions(
+      join(config.servixRoot, "jobs", "promotions"),
+      "ws_server20",
+      fileURLToPath(new URL("../../../deployment/servix/PromotionRegistry.json", import.meta.url)),
+      async (actor) => await allowed(actor),
+      (id) => approvedSettings.profile(id),
+    );
     componentDeployments = new ComponentDeployments(
       join(config.servixRoot, "jobs", "components"),
       "ws_server20",
@@ -278,6 +288,7 @@ try {
     automation: new ProjectAutomationRepository(pool),
     githubOnboarding: new GithubOnboardingRepository(pool),
     ...(servixDeployment === undefined ? {} : { servixDeployment }),
+    ...(artifactPromotions === undefined ? {} : { artifactPromotions }),
     ...(developerConnectors === undefined ? {} : { developerConnectors }),
     ...(deploymentSettings === undefined ? {} : { deploymentSettings }),
     ...(componentDeployments === undefined ? {} : { componentDeployments }),

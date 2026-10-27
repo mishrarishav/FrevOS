@@ -5,6 +5,7 @@ $root='E:\FrevOS\servix'
 if($env:COMPUTERNAME -cne 'DCAPP7' -or [Security.Principal.WindowsIdentity]::GetCurrent().User.Value -cne 'S-1-5-18'){throw 'Wrong runner identity'}
 $lock=[IO.File]::Open((Join-Path $root 'private\runner.lock'),[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
 Import-Module (Join-Path $PSScriptRoot 'ActivationFiles.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'PromotionWorker.psm1') -Force
 function Assert-PlainPath([string]$Path){
  $cursor=[IO.Path]::GetFullPath($Path)
  while($cursor){if((Test-Path -LiteralPath $cursor) -and ((Get-Item -LiteralPath $cursor -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)){throw 'Linked activation path rejected'};$parent=Split-Path -Parent $cursor;if($parent -eq $cursor){break};$cursor=$parent}
@@ -129,6 +130,7 @@ try{
    }
    Write-ServixResult (Join-Path $root ('results\'+$id+'.json')) $result
   }
+  Invoke-PromotionQueue $root {param($savedId) Read-SuccessfulRelease $savedId}
   Start-Sleep -Seconds 2
  }
 }finally{$lock.Dispose()}

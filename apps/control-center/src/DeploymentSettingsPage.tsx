@@ -436,6 +436,11 @@ export function DeploymentSettingsPage({
               Deployments
             </a>
             {owner ? (
+              <a className="button secondary" href={addBasePath("/projects/promotions")}>
+                Production promotion
+              </a>
+            ) : null}
+            {owner ? (
               <button
                 type="button"
                 className="button primary"

@@ -10,6 +10,7 @@ import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testconta
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { ComponentDeployments } from "../src/component-deployments.js";
+import { ArtifactPromotions } from "../src/artifact-promotions.js";
 import { registerControlCenter } from "../src/control-center.js";
 import { type OidcTransaction, OidcTransactionCodec, sha256 } from "../src/crypto.js";
 import {
@@ -2026,6 +2027,40 @@ it("onboards an invited developer through authenticated workspace APIs without r
     components,
   );
   components.connect(connectors);
+  const promotionRoot = join(root, "promotions");
+  const promotionRegistryFile = new URL(
+    "../../../deployment/servix/PromotionRegistry.json",
+    import.meta.url,
+  );
+  const promotionTarget = JSON.parse(await readFile(promotionRegistryFile, "utf8")).targets[0];
+  await deploymentSettings.save(owner.userId, {
+    version: 1,
+    profileId: promotionTarget.profileId,
+    expectedRevision: 0,
+    displayName: "Synthetic Production proposal",
+    repositoryOrigin: defaultDeploymentSettings.repositoryOrigin,
+    sourceFolder: "D:\\source",
+    destination: {
+      host: promotionTarget.host,
+      root: promotionTarget.root,
+      siteUrl: "https://support.eesl.co.in/",
+      credentialProfile: "not-connected",
+    },
+    preservedPaths: promotionTarget.preservedPaths,
+  });
+  await mkdir(join(promotionRoot, "results"), { recursive: true });
+  await writeFile(
+    join(promotionRoot, "results/heartbeat.json"),
+    JSON.stringify({ version: 1, workspaceId: "ws_server20", at: NOW.toISOString() }),
+  );
+  const artifactPromotions = new ArtifactPromotions(
+    promotionRoot,
+    "ws_server20",
+    promotionRegistryFile.pathname.replace(/^\/([A-Za-z]:)/, "$1"),
+    async (actor) => actor === owner.userId,
+    (id) => deploymentSettings.profile(id),
+    () => NOW,
+  );
   const server = await buildServer({
     publicOrigin: PUBLIC_ORIGIN,
     authMode: "local",
@@ -2035,6 +2070,7 @@ it("onboards an invited developer through authenticated workspace APIs without r
     deploymentSettings,
     servixDeployment: deployment,
     componentDeployments: components,
+    artifactPromotions,
     localDevelopment: new LocalDevelopment(join(root, "local-development"), connectors, () => NOW),
     systemDiscovery: new SystemDiscovery(
       join(root, "discovery"),
@@ -2064,6 +2100,57 @@ it("onboards an invited developer through authenticated workspace APIs without r
   try {
     expect((await server.inject({ method: "GET", url })).statusCode).toBe(401);
     const headers = await login("connector.owner", "owner-test-password");
+    const promotionUrl = "/v1/workspaces/ws_server20/artifact-promotions";
+    expect((await server.inject({ method: "GET", url: promotionUrl })).statusCode).toBe(401);
+    expect(
+      (await server.inject({ method: "GET", url: promotionUrl, headers })).json().targets,
+    ).toHaveLength(1);
+    expect(
+      (
+        await server.inject({
+          method: "GET",
+          url: promotionUrl.replace("ws_server20", "ws_other"),
+          headers,
+        })
+      ).statusCode,
+    ).toBe(404);
+    const promotionInput = {
+      version: 1,
+      requestId: `pm_${"b".repeat(32)}`,
+      profileId: promotionTarget.profileId,
+      expectedRevision: 1,
+      developmentRequestId: `sd_${"a".repeat(32)}`,
+    };
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: `${promotionUrl}/prepare`,
+          headers: { cookie: headers.cookie, origin: PUBLIC_ORIGIN },
+          payload: promotionInput,
+        })
+      ).statusCode,
+    ).toBe(403);
+    const preparedPromotion = await server.inject({
+      method: "POST",
+      url: `${promotionUrl}/prepare`,
+      headers,
+      payload: promotionInput,
+    });
+    expect(preparedPromotion.statusCode).toBe(202);
+    expect(preparedPromotion.json()).toMatchObject({
+      id: promotionInput.requestId,
+      requestedBy: owner.userId,
+      workspaceId: "ws_server20",
+      action: "prepare",
+    });
+    const invalidPromotionApproval = await server.inject({
+      method: "POST",
+      url: `${promotionUrl}/approve`,
+      headers,
+      payload: {},
+    });
+    expect(invalidPromotionApproval.statusCode).toBe(400);
     const componentUrl = "/v1/workspaces/ws_server20/component-deployments";
     expect((await server.inject({ method: "GET", url: componentUrl })).statusCode).toBe(401);
     expect(
@@ -2188,6 +2275,7 @@ it("onboards an invited developer through authenticated workspace APIs without r
     expect(loadedSettings.json().map((p: { profileId: string }) => p.profileId)).toEqual([
       "devsetu-platform",
       "servix-development",
+      "servix-production",
       "http-project",
     ]);
     const {

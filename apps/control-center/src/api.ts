@@ -1,33 +1,17 @@
 import {
-  type NotificationState,
-  NotificationStateSchema,
-  type NotificationDraftInput,
-  type AgentNotification,
-  NotificationSchema,
-  type NotificationApprovalInput,
-  type AgentWorkspaceState,
-  AgentWorkspaceStateSchema,
-  type ModelConnectionInput,
-  type ModelProposal,
-  ModelProposalSchema,
-  type ModelCommitInput,
-  type ModelConnection,
-  ModelConnectionSchema,
-  type ModelTestResult,
-  ModelTestResultSchema,
-  type AgentInput,
-  type Agent,
-  AgentSchema,
-  type AgentRunInput,
-  type AgentRun,
-  AgentRunSchema,
-  type ActivitySettingsInput,
-  ActivitySettingsRecordSchema,
-  type ContentPreviewInput,
-  type ContentPreviewJob,
-  ContentPreviewJobSchema,
   type AccountProfile,
   AccountProfileSchema,
+  type ActivitySettingsInput,
+  ActivitySettingsRecordSchema,
+  type Agent,
+  type AgentInput,
+  type AgentNotification,
+  type AgentRun,
+  type AgentRunInput,
+  AgentRunSchema,
+  AgentSchema,
+  type AgentWorkspaceState,
+  AgentWorkspaceStateSchema,
   authCookiePolicy,
   type BuildResolutionInput,
   type Client,
@@ -35,8 +19,9 @@ import {
   type ConnectGithubRepositoryRequest,
   ConnectorListSchema,
   ConnectorRevocationSchema,
-  SystemEnrollmentPreviewSchema,
-  type SystemEnrollmentPreview,
+  type ContentPreviewInput,
+  type ContentPreviewJob,
+  ContentPreviewJobSchema,
   type DeliveryPlanInput,
   DeliveryPlanSchema,
   type DeploymentChange,
@@ -66,6 +51,19 @@ import {
   LocalDevJobSchema,
   type LocalDevState,
   LocalDevStateSchema,
+  type ModelCommitInput,
+  type ModelConnection,
+  type ModelConnectionInput,
+  ModelConnectionSchema,
+  type ModelProposal,
+  ModelProposalSchema,
+  type ModelTestResult,
+  ModelTestResultSchema,
+  type NotificationApprovalInput,
+  type NotificationDraftInput,
+  NotificationSchema,
+  type NotificationState,
+  NotificationStateSchema,
   PasswordChangedSchema,
   type Pipeline,
   type PipelineInput,
@@ -84,12 +82,18 @@ import {
   type ProjectRepositoryConnection,
   ProjectRepositoryConnectionSchema,
   ProjectSchema,
+  type PromotionJob,
+  PromotionJobSchema,
+  type PromotionState,
+  PromotionStateSchema,
   type ServixDeployment,
   ServixDeploymentSchema,
   type ServixDeploymentState,
   ServixDeploymentStateSchema,
   type SessionSummary,
   SessionSummarySchema,
+  type SystemEnrollmentPreview,
+  SystemEnrollmentPreviewSchema,
   type Workspace,
   WorkspaceSchema,
 } from "@frevos/contracts";
@@ -122,6 +126,9 @@ export interface WorkspaceSnapshot {
 }
 
 export interface ControlCenterApi {
+  promotionState?(workspaceId: string, signal?: AbortSignal): Promise<PromotionState>;
+  preparePromotion?(workspaceId: string, input: unknown): Promise<PromotionJob>;
+  approvePromotion?(workspaceId: string, input: unknown): Promise<PromotionJob>;
   agentState?(workspaceId: string, signal?: AbortSignal): Promise<AgentWorkspaceState>;
   agentNotifications?(workspaceId: string, signal?: AbortSignal): Promise<NotificationState>;
   draftNotification?(
@@ -378,6 +385,12 @@ export function createControlCenterApi(
   };
 
   return {
+    promotionState: (ws, signal) =>
+      get(`${workspacePath(ws)}/artifact-promotions`, PromotionStateSchema, signal),
+    preparePromotion: (ws, input) =>
+      post(`${workspacePath(ws)}/artifact-promotions/prepare`, input, PromotionJobSchema),
+    approvePromotion: (ws, input) =>
+      post(`${workspacePath(ws)}/artifact-promotions/approve`, input, PromotionJobSchema),
     agentNotifications: (ws, signal) =>
       get(`${workspacePath(ws)}/agents/notifications`, NotificationStateSchema, signal),
     draftNotification: (ws, input) =>

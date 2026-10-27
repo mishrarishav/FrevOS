@@ -109,6 +109,7 @@ export {
 } from "./project-automation.js";
 export * from "./servix-deployment.js";
 export * from "./system-discovery.js";
+export * from "./artifact-promotions.js";
 export {
   type ContractIssue,
   type ContractValidationResult,

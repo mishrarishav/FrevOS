@@ -1,4 +1,5 @@
 import { createReadStream } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import cookie from "@fastify/cookie";
 import {
@@ -30,13 +31,13 @@ import {
 } from "@frevos/contracts";
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import { z } from "zod";
-import type { AgentWorkspace } from "./agent-workspace.js";
 import type { AgentNotifications } from "./agent-notifications.js";
+import type { AgentWorkspace } from "./agent-workspace.js";
+import type { ArtifactPromotions } from "./artifact-promotions.js";
 import type { ComponentDeployments } from "./component-deployments.js";
 import { hashesMatch, type OidcTransaction, type OidcTransactionCodec } from "./crypto.js";
 import type { DeploymentSettingsStore } from "./deployment-settings.js";
 import { type DeveloperConnectorStore, SystemPairings } from "./developer-connectors.js";
-import { join } from "node:path";
 import {
   type GithubOnboardingStore,
   PERSONAL_AGENT_WORKSPACE_ID,
@@ -160,6 +161,7 @@ interface BuildServerOptions {
   readonly readiness?: () => Promise<void>;
   readonly now?: () => Date;
   readonly servixDeployment?: ServixDeploymentStore;
+  readonly artifactPromotions?: ArtifactPromotions;
   readonly developerConnectors?: DeveloperConnectorStore;
   readonly localDevelopment?: LocalDevelopment;
   readonly systemDiscovery?: SystemDiscovery;
@@ -1393,6 +1395,37 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
   }));
   server.post(route("/v1/connector/folder/complete"), async (request) =>
     connectors().finishFolder(connectorCredential(request), request.body),
+  );
+  const promotions = (workspaceId: string) => {
+    if (!options.artifactPromotions) throw new HttpError(503, "promotion-unavailable");
+    if (options.artifactPromotions.workspaceId !== workspaceId)
+      throw new HttpError(404, "promotion-unavailable");
+    return options.artifactPromotions;
+  };
+  server.get<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/artifact-promotions"),
+    async (request) => {
+      const actor = await connectorActor(request);
+      return promotions(request.params.workspaceId).state(actor);
+    },
+  );
+  server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/artifact-promotions/prepare"),
+    async (request, reply) => {
+      const actor = await connectorActor(request, true);
+      return reply
+        .status(202)
+        .send(await promotions(request.params.workspaceId).prepare(actor, request.body));
+    },
+  );
+  server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/artifact-promotions/approve"),
+    async (request, reply) => {
+      const actor = await connectorActor(request, true);
+      return reply
+        .status(202)
+        .send(await promotions(request.params.workspaceId).approve(actor, request.body));
+    },
   );
   const settings = () => {
     if (!options.deploymentSettings) throw new HttpError(503, "deployment-settings-unavailable");

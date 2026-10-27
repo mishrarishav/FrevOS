@@ -12,6 +12,7 @@ export type RouteId =
   | "deployments"
   | "deployment-setup"
   | "component-setup"
+  | "artifact-promotions"
   | "local-development"
   | "discovery"
   | "approvals"
@@ -49,6 +50,14 @@ export function removeBasePath(pathname: string, basePath = applicationBasePath)
 }
 
 export const routes: readonly RouteDefinition[] = [
+  {
+    id: "artifact-promotions",
+    path: "/projects/promotions",
+    label: "Production promotion",
+    shortLabel: "Promote",
+    phase: "Bounded Production pilot",
+    description: "Review and promote saved tested backend artifacts to an enrolled target.",
+  },
   {
     id: "discovery",
     path: "/systems/discovery",

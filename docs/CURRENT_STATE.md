@@ -1,6 +1,73 @@
 # DevSetu Current State
 
-Last updated: 2026-10-26
+Last updated: 2026-10-27
+
+## Saved backend Production promotion (local validation PASS, live pending, 2026-10-27)
+
+The owner explicitly requests completing the missing runner and deploying through
+DevSetu. [ADR 0065](adr/0065-configured-saved-backend-production-promotion.md)
+authorizes this bounded follow-up. Implement a separate configured, reviewed
+saved-artifact promotion worker, fresh encrypted backup, same-owner runtime
+adoption and preservation/recovery. Keep the legacy Development exclusions,
+customer dependency versions and frontend/IIS intact. Full `pnpm.cmd run ci`
+passes with 357 tests and unchanged coverage gates. The actual Windows matching
+MySQL 8.0.28 dump/DPAPI/full-stream verification/isolated restore fixture passes;
+all 48 native operator scripts parse. A SID-only application of the unchanged
+private ACL also fixes the observed offline-domain native secret test failure.
+Standalone native-protocol execution exposed a Windows ESM path error; using
+file URLs fixes it. Actual native validation/sealing/tamper/expiry tests and the
+final packaged executor authorization against isolated PostgreSQL pass. The exact
+worker's four-file matching MySQL client extraction/load check also passes.
+VPN was restored and visible source/builder/destination presence has recovered.
+The visible platform Deploy all submission returned “Request not confirmed” when
+VPN dropped again. Preserve the original request and inspect history before
+retrying. The local ancestry-only merge `2ca0759aa75f23b453fef72f25d8f30923728c2d`
+reconciles main's owner squash with central Git without changing accepted code
+or the 42 working files. The new platform release and actual Production
+preparation/activation are still pending; no Production runtime, task or
+permission change is claimed. See the
+[promotion handoff](SERVIX_PRODUCTION_PROMOTION_HANDOFF.md).
+
+## Servix Production configuration (destination pending, 2026-10-26)
+
+The owner subsequently logged into the adjacent DevSetu browser and delegated
+the current configuration/review work. Through that visible authenticated UI,
+`servix-production` revision 1 was saved in DevSetu Internal: server21,
+`D:\Servix`, `https://support.eesl.co.in/`, the existing central Servix repository,
+and the five backend preservation paths. Test connection at 23:17:45 IST reports
+preservation passed and destination pending. No Production adapter is enrolled;
+no Production approval, activation, task, credential binding or permission change
+was created. The existing Development configuration remains revision 3.
+See [ADR 0064](adr/0064-visible-production-configuration.md) and the
+[guided Production plan](SERVIX_PRODUCTION_DEPLOYMENT_PLAN.md).
+
+## Earlier Servix Production readiness (2026-10-26)
+
+Owner direction: defer library/application changes and plan the retained artifact
+with existing dependencies. All future configuration and deployment must be
+through DevSetu, visibly with the owner. That earlier step authorized planning;
+the subsequent visible configuration result above supersedes its plan-only limit.
+The dependency findings remain recorded for final
+risk/approval review. See the [guided Production plan](SERVIX_PRODUCTION_DEPLOYMENT_PLAN.md).
+
+Branch `codex/servix-production-readiness` starts at merged main
+`5730940fe6c40cc3eb5002ef6beaa564c9571e5f`. Read-only checks preserve the original
+Production PID/owner, 8,542 original protected files, eleven environments and
+IIS; all 85 recovery-source files match the retained unapproved backend candidate.
+Public TLS health is HTTP 200. Production is not a connected DevSetu target.
+
+An encrypted CurrentUser-DPAPI backup of MySQL 8.0.28 passes full-stream integrity
+and isolated restore: 114 tables, one view, 212,077 rows and matching schema.
+Production application/database/permissions were not changed. Same-owner task
+XML parses on target, but batch-logon readiness is unproven; no task was registered.
+
+Fresh runtime lock audits: Development backend 6 moderate/19 high/3 critical,
+Production backend 6 moderate/26 high/3 critical, and QuerySafe on both targets
+3 moderate/3 high/1 critical. QuerySafe locks/root versions match; 22/25 backend
+root versions match. Functional Development success was not a clean customer
+security audit. The owner has deferred upgrades for this plan; runtime adoption,
+final risk acknowledgement and fresh Production approval remain separate gates.
+See [Production readiness](SERVIX_PRODUCTION_READINESS.md).
 
 ## GitHub main integration (owner-authorized PR preparation, 2026-10-26)
 
@@ -24,6 +91,13 @@ Reuse the existing strict Windows/POSIX literal-path validator for authenticated
 executor bindings, retaining traversal/relative/control-character/root denial.
 This does not broaden Windows-only service/native activation recipes or claim
 Linux desktop/onboarding/browser acceptance.
+
+The human owner subsequently squash-merged PR #38 at
+`5730940fe6c40cc3eb5002ef6beaa564c9571e5f` after exact-head GitHub CI run
+`40277221413` passed (340 applicable Linux tests and unchanged coverage/image/
+audit gates). Native Windows CI had passed all 346 tests; targeted Windows
+contract/component checks passed after the final root correction. This merge
+did not activate those integration fixes on server20 or change Servix Production.
 
 ## Configurable agents and measured health (bounded live pilot PASS, 2026-10-26)
 

@@ -120,3 +120,11 @@ records system-only enrollment, Git-independent monitoring and recoverable setup
 
 [0059: Approve a computer without sharing the administrator password](0059-passwordless-system-pairing.md)
 records target-bound, expiring browser approval and passwordless system setup.
+
+[0064: Visible Production configuration with a separate execution gate](0064-visible-production-configuration.md)
+records the owner's delegated visible configuration, the saved Production
+proposal and its unconnected execution boundary.
+
+[0065: Configured saved-backend Production promotion](0065-configured-saved-backend-production-promotion.md)
+records the explicit follow-up to implement and verify the missing Production
+execution path while preserving the legacy Development exclusion.
