@@ -112,6 +112,18 @@ The unchanged lifecycle test then passes with that restricted environment
 and independent acceptance tests are unchanged; the builder whitelist remains
 restricted. No customer source or runtime recipe changed for this correction.
 
+The corrected-source attempt `pr_501ce21992e7f1ea57424ba3cc4cae9a`, source
+`9785dc8442a1db67e0540a7d6bdf32a8dce4ed68`, native build
+`cj_4d9468e43b4a4e15e0ade06cd2e69b31`, stopped before activation on another
+existing native integration test. Its retained Vitest result identifies only
+`test/environment-seal.test.ts` as failed, at 5,026.84 ms: the default five-second
+deadline is too short for its real PowerShell ACL/encrypted-save operations
+under concurrent CI load. The one native test now has a bounded 30-second
+allowance, and each ACL subprocess a 15-second deadline. All assertions, pure
+test deadlines and coverage gates remain unchanged. The full UI coverage suite
+then passes in the installed native Node/pnpm/restricted environment: 93 tests,
+100% scoped coverage, exit 0. Independent acceptance tests are unchanged.
+
 No new Production application mutation has occurred. Customer runtime/library
 versions and accepted dependency findings remain unchanged. No database
 migration/restore, permission expansion, reboot test, notice or GitHub merge is
