@@ -19,9 +19,12 @@ resizing and contextual filter UI; its built-in Development URL prevents direct
 safe promotion. New builds use same-origin routing and component digests.
 Implementation and validation are underway; do not claim complete-flow live
 acceptance until the actual receipts and public file checks are recorded.
-The owner reserves dashboard/filter/resize manual acceptance for themselves;
-their Development login is ready. Deployment checks continue, while a new
-exact Production decision must wait for their acceptance. See the
+The owner reserves dashboard/filter/resize manual checks for themselves and
+subsequently confirmed these changes already appear on Development. Under
+[ADR 0068](adr/0068-existing-development-source-acceptance.md), verify the same
+customer source and new technical release gates without waiting for another
+duplicate visual check. A fresh exact Production decision remains required;
+the owner will perform their functional check after Production activation. See the
 [application-release handoff](SERVIX_APPLICATION_RELEASE_HANDOFF.md).
 
 ## Servix Production deployment completed — PASS

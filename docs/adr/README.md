@@ -136,3 +136,7 @@ and unchanged customer-data link denials.
 [0067: Complete application releases and managed Production updates](0067-complete-application-release-promotion.md)
 records portable frontend artifacts, full saved Development release promotion,
 verified existing-task updates and exact previous-release recovery.
+
+[0068: Existing Development source acceptance during full-release rollout](0068-existing-development-source-acceptance.md)
+records the owner's existing visual confirmation, new same-source technical
+release gates and separate exact Production decision/post-deployment checking.
