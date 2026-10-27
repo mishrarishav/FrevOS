@@ -132,3 +132,7 @@ execution path while preserving the legacy Development exclusion.
 [0066: Canonical executable identity for initial runtime adoption](0066-canonical-promotion-runtime-identity.md)
 records the actual NVM junction preflight failure, canonical toolchain identity
 and unchanged customer-data link denials.
+
+[0067: Complete application releases and managed Production updates](0067-complete-application-release-promotion.md)
+records portable frontend artifacts, full saved Development release promotion,
+verified existing-task updates and exact previous-release recovery.

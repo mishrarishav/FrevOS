@@ -98,6 +98,28 @@ function Get-PromotionMysql([string]$PrivateRoot){
  }finally{$zip.Dispose()}
  return @{root=$destination;version=$pin.version;clientSha256=(Get-PromotionHash (Join-Path $destination 'bin\mysql.exe'));dumpSha256=(Get-PromotionHash (Join-Path $destination 'bin\mysqldump.exe'))}
 }
+function Get-PromotionManagedEvidence([string]$PrivateRoot,[string]$PublicRoot,$Job){
+ $known=@()
+ foreach($claim in @(Get-ChildItem -LiteralPath (Join-Path $PrivateRoot 'claims') -Directory | Sort-Object Name)){
+  if($claim.Name -cnotmatch '^pm_[a-f0-9]{32}$'){throw 'Managed receipt identity rejected'}
+  $receiptFile=Join-Path $claim.FullName 'target-receipt.json';$jobFile=Join-Path $PublicRoot ('jobs\'+$claim.Name+'.json')
+  if(-not(Test-Path -LiteralPath $receiptFile) -or -not(Test-Path -LiteralPath $jobFile)){continue}
+  $old=Get-Content -LiteralPath $jobFile -Raw|ConvertFrom-Json
+  if($old.action -cne 'promote' -or $old.requestedBy -cne $Job.requestedBy -or $old.workspaceId -cne $Job.workspaceId -or $old.target.profileId -cne $Job.target.profileId -or $old.target.host -cne $Job.target.host -or $old.target.root -cne $Job.target.root -or $old.target.repositoryId -cne $Job.target.repositoryId){continue}
+  $receipt=Get-Content -LiteralPath $receiptFile -Raw|ConvertFrom-Json
+  if($receipt.status -cne 'succeeded' -or -not $receipt.runtimeTaskRegistered){continue}
+  $prepared=Join-Path $PrivateRoot ('claims\'+$old.reviewId)
+  $sealed=Get-Content -LiteralPath (Join-Path $prepared 'review.json') -Raw|ConvertFrom-Json
+  $contextFile=Join-Path $prepared 'prepared-context.json';$hashesFile=Join-Path $prepared 'operator-hashes.json'
+  if((Get-PromotionHash $contextFile) -cne $sealed.review.privateSnapshotSha256 -or (Get-PromotionHash $hashesFile) -cne $sealed.review.runtimeSha256){throw 'Previous managed evidence changed'}
+  $context=Get-Content -LiteralPath $contextFile -Raw|ConvertFrom-Json
+  $entry=@{id=$old.id;runtime=$receipt.runtime;configurationSha256=$receipt.configurationSha256;launcherArguments=$receipt.launcherArguments;ownerSid=$context.ownerSid;descriptor=$context.descriptor;descriptorSha256=$context.descriptorSha256;launcherSha256=$context.operatorHashes.'Run-SavedBackend.ps1'}
+  if($receipt.PSObject.Properties['frontendDigest']){$entry.frontendDigest=$receipt.frontendDigest}
+  $known+=$entry
+ }
+ if($known.Count -gt 1000){throw 'Managed evidence budget exceeded'}
+ return @($known | Select-Object -Last 30)
+}
 function Get-PromotionSavedBackend($Job,[scriptblock]$ReadRelease,[string]$Root){
  $bindings=Get-Content -LiteralPath (Join-Path $PSScriptRoot 'PromotionConnections.json') -Raw|ConvertFrom-Json
  $repository=$bindings.repositories.PSObject.Properties[$Job.target.repositoryId].Value
@@ -121,7 +143,35 @@ function Get-PromotionSavedBackend($Job,[scriptblock]$ReadRelease,[string]$Root)
   if($records.Count -ne 1 -or (Get-PromotionHash $source) -cne $records[0].sha256 -or (Get-Item -LiteralPath $source).Length -ne $records[0].bytes){throw 'Saved backend file changed'}
   $files+=@{relative=$relative;file=$source;sha256=$records[0].sha256;bytes=$records[0].bytes}
  }
- return @{descriptor=$descriptor;descriptorSha256=$digest;entry=$definition.entry;bundleSha256=$definition.sha256;files=$files;artifact=@{sourceHead=$proof.sourceHead;releaseManifestSha256=$proof.artifactDigest;descriptorSha256=$digest;bundleSha256=$definition.sha256}}
+ $artifact=@{sourceHead=$proof.sourceHead;releaseManifestSha256=$proof.artifactDigest;descriptorSha256=$digest;bundleSha256=$definition.sha256}
+ $front=$null
+ if($Job.target.PSObject.Properties['releaseMode'] -and $Job.target.releaseMode -ceq 'application'){
+  if(-not $manifest.PSObject.Properties['frontendArtifact'] -or -not $Job.target.PSObject.Properties['frontend'] -or -not $receipt.release.PSObject.Properties['frontendArtifact'] -or -not $receipt.release.frontendArtifact -or $receipt.release.frontendArtifact.sha256 -cne $manifest.frontendArtifact.sha256){throw 'Successful complete Development release required'}
+  if(-not $manifest.PSObject.Properties['validation'] -or $manifest.validation.version -ne 1 -or $manifest.validation.status -cne 'passed' -or $manifest.validation.sourceHead -cne $proof.sourceHead -or -not $receipt.release.validationVerified){throw 'Source-bound frontend/backend test evidence required'}
+  $front=$manifest.frontendArtifact;$frontRoot=[string]$Job.target.frontend.root
+  if($front.sha256 -cnotmatch '^[a-f0-9]{64}$' -or $front.descriptor -cne ($frontRoot+'/.releases/'+$front.sha256+'/artifact.json')){throw 'Frontend descriptor scope differs'}
+  $frontFile=Join-Path $saved.build ('release\payload\'+$front.descriptor.Replace('/','\'))
+  if((Get-PromotionHash $frontFile) -cne $front.sha256){throw 'Frontend descriptor changed'}
+  $static=Get-Content -LiteralPath $frontFile -Raw|ConvertFrom-Json
+  if($static.version -ne 1 -or $static.kind -cne 'static-application' -or $static.routing -cne 'same-origin' -or $static.root -cne $frontRoot -or $static.files.Count -lt 1 -or $static.files.Count -gt 10000){throw 'Portable frontend artifact required'}
+  $relativeFiles=@([pscustomobject]@{path=$front.descriptor;sha256=$front.sha256;bytes=(Get-Item -LiteralPath $frontFile).Length})
+  $frontBytes=0L;$seen=@{}
+  foreach($record in $static.files){
+   $name=[string]$record.path
+   if($name -cnotmatch '^[A-Za-z0-9_./@()+ ,\[\]-]+$' -or $name.Contains('//') -or @($name.Split('/')|Where-Object {$_ -in @('.','..','web.config','uploads','attachment','attachments','database','node_modules','.runtime','logs','backups') -or $_.StartsWith('.',[StringComparison]::OrdinalIgnoreCase)}).Count -or $seen.ContainsKey($name.ToLowerInvariant()) -or $record.sha256 -cnotmatch '^[a-f0-9]{64}$' -or $record.bytes -lt 0){throw 'Frontend file scope rejected'}
+   foreach($protected in $Job.target.frontend.preservedFiles){if($name -ieq $protected -or $name.StartsWith($protected+'/',[StringComparison]::OrdinalIgnoreCase)){throw 'Frontend routing/data is protected'}}
+   $seen[$name.ToLowerInvariant()]=$true;$frontBytes+=[long]$record.bytes
+   $relativeFiles+=[pscustomobject]@{path=($frontRoot+'/'+$name);sha256=$record.sha256;bytes=$record.bytes}
+  }
+  if($frontBytes -gt 512MB -or @($static.files|Where-Object path -CEQ $static.entry).Count -ne 1){throw 'Frontend resource budget or entry invalid'}
+  foreach($record in $relativeFiles){
+   $relative=[string]$record.path;$records=@($manifest.files|Where-Object path -CEQ $relative);$source=Join-Path $saved.build ('release\payload\'+$relative.Replace('/','\'))
+   if($records.Count -ne 1 -or $records[0].sha256 -cne $record.sha256 -or (Get-PromotionHash $source) -cne $record.sha256 -or (Get-Item -LiteralPath $source).Length -ne $record.bytes){throw 'Saved frontend file changed'}
+   $files+=@{relative=$relative;file=$source;sha256=$record.sha256;bytes=$record.bytes}
+  }
+  $artifact.frontend=@{descriptor=$front.descriptor;sha256=$front.sha256;indexSha256=@($static.files|Where-Object path -CEQ $static.entry)[0].sha256;files=$static.files.Count;bytes=$frontBytes}
+ }
+ return @{descriptor=$descriptor;descriptorSha256=$digest;entry=$definition.entry;bundleSha256=$definition.sha256;files=$files;artifact=$artifact;frontendArtifact=$front}
 }
 function Invoke-PromotionWork([string]$Root,[string]$PublicRoot,[string]$PrivateRoot,$Job,[string]$PrivateJob,[string]$Node,[scriptblock]$ReadRelease){
  $session=$null;$credential=$null;$backupInput=$null
@@ -145,11 +195,13 @@ function Invoke-PromotionWork([string]$Root,[string]$PublicRoot,[string]$Private
     foreach($sid in @('S-1-5-18',[Security.Principal.WindowsIdentity]::GetCurrent().User.Value)){$acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($sid),'FullControl','ContainerInherit,ObjectInherit','None','Allow'))};[IO.DirectoryInfo]::new($staging).SetAccessControl($acl)
    }
    $hashes=[ordered]@{}
-   foreach($name in @('BackendArtifact.cjs','BackendArtifactSelection.psm1','PromotionFiles.cjs','ProductionBackendRuntime.cjs','Run-SavedBackend.ps1','BatchLogon.psm1','Invoke-PromotionTarget.ps1','Read-PromotionEnvironment.cjs')){
+   foreach($name in @('BackendArtifact.cjs','BackendArtifactSelection.psm1','PromotionFiles.cjs','FrontendArtifact.cjs','PublishedRelease.cjs','ManagedRuntime.cjs','ProductionBackendRuntime.cjs','Run-SavedBackend.ps1','BatchLogon.psm1','Invoke-PromotionTarget.ps1','Read-PromotionEnvironment.cjs')){
     $source=Join-Path $PSScriptRoot $name;$hashes[$name]=Get-PromotionHash $source;Copy-Item -LiteralPath $source -Destination (Join-Path $staging $name) -ToSession $session
    }
    foreach($file in $saved.files){$destination=Join-Path $staging ('payload\'+$file.relative.Replace('/','\'));Invoke-Command -Session $session -ArgumentList (Split-Path $destination) -ScriptBlock {param($dir);[void][IO.Directory]::CreateDirectory($dir)};Copy-Item -LiteralPath $file.file -Destination $destination -ToSession $session}
    $context=@{version=1;id=$Job.id;target=$target;staging=$staging;descriptor=$saved.descriptor;descriptorSha256=$saved.descriptorSha256;operatorHashes=$hashes}
+   $context.knownManaged=@(Get-PromotionManagedEvidence $PrivateRoot $PublicRoot $Job)
+   if($saved.frontendArtifact){$context.frontendArtifact=$saved.frontendArtifact}
    Write-PromotionJson (Join-Path $PrivateJob 'context.json') $context -New
    Copy-Item -LiteralPath (Join-Path $PrivateJob 'context.json') -Destination (Join-Path $staging 'context.json') -ToSession $session
    Set-PromotionProgress $PublicRoot $Job.id 'reading-runtime-and-protected-inventory' $Job.workspaceId
@@ -190,6 +242,7 @@ function Invoke-PromotionWork([string]$Root,[string]$PublicRoot,[string]$Private
    Write-PromotionJson (Join-Path $PrivateJob 'prepared-context.json') $context -New
    $runtimeFile=Join-Path $PrivateJob 'operator-hashes.json';Write-PromotionJson $runtimeFile $hashes -New
    $review=@{version=1;id=$Job.id;workspaceId=$Job.workspaceId;requestedBy=$Job.requestedBy;profileId=$target.profileId;profileRevision=$Job.profileRevision;targetSha256=$Job.targetSha256;createdAt=[DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ');expiresAt=[DateTime]::UtcNow.AddMinutes(15).ToString('yyyy-MM-ddTHH:mm:ss.fffZ');developmentRequestId=$Job.developmentRequestId;artifact=$saved.artifact;process=@{pid=$observation.process.pid;createdAt=$observation.process.created;owner=$observation.owner;nodeVersion=$observation.nodeVersion;batchLogonReady=$observation.batchLogonReady;taskAlreadyExists=$observation.taskAlreadyExists};protection=$observation.files.protection;backup=$backupSummary;runtimeSha256=(Get-PromotionHash $runtimeFile);privateSnapshotSha256=(Get-PromotionHash (Join-Path $PrivateJob 'prepared-context.json'))}
+   if($observation.PSObject.Properties['managed']){$review.process.managedRuntimeVerified=$true;$review.process.previousPromotionId=$observation.managed.id}
    $reviewInput=Join-Path $PrivateJob 'review-input.json';Write-PromotionJson $reviewInput $review -New
    $envelope=(Invoke-PromotionNode $Node (Join-Path $PSScriptRoot 'PromotionProtocol.mjs') @('seal-review',$reviewInput,(Join-Path $PrivateJob 'review.json')))|ConvertFrom-Json
    return @{version=1;id=$Job.id;status='prepared';stage='ready-for-exact-production-review';updatedAt=[DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ');review=$envelope.review;reviewSha256=$envelope.sha256}
@@ -220,7 +273,9 @@ function Invoke-PromotionWork([string]$Root,[string]$PublicRoot,[string]$Private
    $health=Invoke-RestMethod -Uri $target.publicHealthUrl -TimeoutSec 15
    if($health.status -cne 'OK' -or -not $health.authBootstrapReady -or -not $health.fullBootstrapReady){$status='recovery-required'}
   }
-  return @{version=1;id=$Job.id;status=$status;stage=('production-'+$status);updatedAt=[DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ');healthVerified=([bool]$remote.healthVerified -and $status -in @('succeeded','recovered'));protectedFilesVerified=[int]$remote.protectedFilesVerified;artifactDigest=$review.artifact.bundleSha256;batchLogonAssigned=[bool]$remote.batchLogonAssigned;runtimeTaskRegistered=[bool]$remote.runtimeTaskRegistered}
+  $out=@{version=1;id=$Job.id;status=$status;stage=('production-'+$status);updatedAt=[DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ');healthVerified=([bool]$remote.healthVerified -and $status -in @('succeeded','recovered'));protectedFilesVerified=[int]$remote.protectedFilesVerified;artifactDigest=$review.artifact.bundleSha256;batchLogonAssigned=[bool]$remote.batchLogonAssigned;runtimeTaskRegistered=[bool]$remote.runtimeTaskRegistered;sourceHead=$review.artifact.sourceHead}
+  if($remote.PSObject.Properties['frontendDigest']){$out.frontendDigest=$remote.frontendDigest;$out.frontendVerified=[bool]$remote.frontendVerified}
+  return $out
  }finally{if($session){Remove-PSSession $session};$credential=$null;$backupInput=$null;$database=$null;$databaseBinding=$null}
 }
 function Invoke-PromotionQueue([string]$Root,[scriptblock]$ReadRelease){

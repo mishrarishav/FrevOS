@@ -42,8 +42,22 @@ export const PromotionTargetSchema = z
     protectedConfigurationFiles: z.array(SourceCheckoutPathSchema).max(16),
     databaseVersion: z.string().regex(/^8\.0\.[0-9]{1,3}$/),
     dependencyRisk: z.string().min(1).max(500),
+    releaseMode: z.literal("application").optional(),
+    managedUpdates: z.literal(true).optional(),
+    frontend: z
+      .object({
+        root: PreservedPathSchema,
+        applicationUrl: url,
+        preservedFiles: z.array(PreservedPathSchema).min(1).max(32),
+      })
+      .strict()
+      .optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (t) => t.releaseMode !== "application" || !!t.frontend,
+    "Application targets require frontend configuration",
+  );
 export type PromotionTarget = z.infer<typeof PromotionTargetSchema>;
 
 export const PromotionRegistrySchema = z
@@ -71,6 +85,16 @@ export const PromotionReviewSchema = z
         releaseManifestSha256: ServixDigestSchema,
         descriptorSha256: ServixDigestSchema,
         bundleSha256: ServixDigestSchema,
+        frontend: z
+          .object({
+            descriptor: PreservedPathSchema,
+            sha256: ServixDigestSchema,
+            indexSha256: ServixDigestSchema,
+            files: z.number().int().positive().max(10000),
+            bytes: z.number().int().nonnegative().max(536870912),
+          })
+          .strict()
+          .optional(),
       })
       .strict(),
     process: z
@@ -81,6 +105,8 @@ export const PromotionReviewSchema = z
         nodeVersion: z.string().regex(/^v[0-9]{1,3}\.[0-9]+\.[0-9]+$/),
         batchLogonReady: z.boolean(),
         taskAlreadyExists: z.boolean(),
+        managedRuntimeVerified: z.boolean().optional(),
+        previousPromotionId: PromotionIdSchema.optional(),
       })
       .strict(),
     protection: z
@@ -122,7 +148,10 @@ export const PromotionApproveInputSchema = z
     requestId: PromotionIdSchema,
     reviewId: PromotionIdSchema,
     reviewSha256: ServixDigestSchema,
-    confirmation: z.literal("promote-reviewed-backend-to-production"),
+    confirmation: z.enum([
+      "promote-reviewed-backend-to-production",
+      "promote-reviewed-application-to-production",
+    ]),
     changeDetails: DeploymentChangeSchema,
     acknowledgements: z
       .object({
@@ -132,6 +161,7 @@ export const PromotionApproveInputSchema = z
         sameOwnerCredentialBinding: z.literal(true),
         codeRecoveryDoesNotRestoreDatabase: z.literal(true),
         assignBatchLogonIfMissing: z.boolean(),
+        developmentAccepted: z.literal(true).optional(),
       })
       .strict(),
   })
@@ -180,6 +210,9 @@ export const PromotionResultSchema = z
     artifactDigest: ServixDigestSchema.optional(),
     batchLogonAssigned: z.boolean().optional(),
     runtimeTaskRegistered: z.boolean().optional(),
+    frontendVerified: z.boolean().optional(),
+    frontendDigest: ServixDigestSchema.optional(),
+    sourceHead: ServixHeadSchema.optional(),
   })
   .strict();
 export type PromotionResult = z.infer<typeof PromotionResultSchema>;

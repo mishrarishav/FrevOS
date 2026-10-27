@@ -14,6 +14,8 @@ function Invoke-DevelopmentRelease {
     $preservedPaths=@()
     if($operation.PSObject.Properties['preservedPaths']){$preservedPaths+=@($operation.preservedPaths)}
     if($manifest.PSObject.Properties['preservedPaths']){$preservedPaths+=@($manifest.preservedPaths)}
+    $buildProfile=Get-Content -LiteralPath (Join-Path $job 'ReleaseBuildProfile.json') -Raw|ConvertFrom-Json
+    foreach($routing in $buildProfile.frontend.preservedFiles){$preservedPaths+=([string]$buildProfile.frontend.root+'/'+[string]$routing)}
     Assert-PreservedPaths $preservedPaths
     if($manifest.schemaVersion -ne 1 -or $manifest.target -cne '10.9.69.21' -or $manifest.computer -cne 'DCAPP9' -or $manifest.root -cne $root -or $manifest.database -cne 'servix_db_dev' -or $manifest.mode -cnotin @('source-only-existing-dependencies','bundled-existing-dependencies')) {throw 'Wrong release target or deployment mode'}
     $builtBackend=$manifest.mode -ceq 'bundled-existing-dependencies'
@@ -127,11 +129,20 @@ for(const project of ['backend','querysafe']) {
         $selectionReceipt=Set-BackendArtifactSelection $root $nextSelection $selectionBefore (Join-Path $job 'selection-backup')
         Start-ScheduledTask -TaskName $taskName
         $health=Wait-DevelopmentHealth
+        $frontendVerified=$null
+        if($manifest.PSObject.Properties['frontendArtifact']){
+          if(-not $manifest.PSObject.Properties['validation'] -or $manifest.validation.version -ne 1 -or $manifest.validation.status -cne 'passed' -or $manifest.validation.sourceHead -cne $operation.sourceHead){throw 'Both components require source-bound validation'}
+          $verifiedStatic=& (Get-Command node.exe -ErrorAction Stop).Source (Join-Path $job 'FrontendArtifact.cjs') $root $manifestPath (Join-Path $job 'ReleaseBuildProfile.json') 2>$null
+          if($LASTEXITCODE -ne 0){throw 'Installed frontend does not match its portable artifact'}
+          $frontendVerified=($verifiedStatic -join '')|ConvertFrom-Json
+          $publicStatic=& (Get-Command node.exe -ErrorAction Stop).Source (Join-Path $job 'PublishedRelease.cjs') --development $root $manifestPath (Join-Path $job 'ReleaseBuildProfile.json') 2>$null
+          if($LASTEXITCODE -ne 0){throw 'Published Development frontend does not match the artifact'}
+        }
         Assert-PersistentFiles $persistent
         $prodAfter=Get-NetTCPConnection -State Listen -LocalPort 5000 | Select-Object -First 1
         $prodProcessAfter=Get-CimInstance Win32_Process -Filter ('ProcessId='+$prodAfter.OwningProcess)
         if($prodAfter.OwningProcess -ne $prod.OwningProcess -or $prodProcessAfter.CreationDate -ne $prodCreated -or (Get-FileHash -LiteralPath 'C:\Windows\System32\inetsrv\config\applicationHost.config' -Algorithm SHA256).Hash -cne $iisHash) {throw 'Production listener/IIS changed independently; inspect before further work'}
-        return @{id=$manifest.id;manifestSha256=$operation.manifestSha256;files=$manifest.files.Count;existingPersistentFilesPreserved=$true;persistentFileCount=$persistent.Count;productionListenerPreserved=$true;iisConfigurationPreserved=$true;health=$health;dependencyMode='existing-no-install';obsoleteFilesRemoved=($previousFiles.Count -gt 0 -and -not $keepFiles);backendArtifact=$backendVerified;retainedExistingFiles=$keepFiles}
+        return @{id=$manifest.id;manifestSha256=$operation.manifestSha256;files=$manifest.files.Count;existingPersistentFilesPreserved=$true;persistentFileCount=$persistent.Count;productionListenerPreserved=$true;iisConfigurationPreserved=$true;health=$health;dependencyMode='existing-no-install';obsoleteFilesRemoved=($previousFiles.Count -gt 0 -and -not $keepFiles);backendArtifact=$backendVerified;frontendArtifact=$frontendVerified;validationVerified=[bool]$frontendVerified;retainedExistingFiles=$keepFiles}
     } catch {
         $originalError=$_
         $script:report.rollback=@{attempted=$stopped;filesRestored=$false;healthRestored=$false;databaseRollback=$false}

@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "development": {
+    "host": "10.9.69.21",
+    "computer": "DCAPP9",
+    "root": "D:\\servixDev",
+    "database": "servix_db_dev",
+    "siteUrl": "http://10.9.69.21:82/"
+  },
+  "tests": [
+    {
+      "component": "backend",
+      "project": "backend",
+      "script": "test:register-behavior",
+      "recipe": "npm-test"
+    },
+    {
+      "component": "backend",
+      "project": "backend",
+      "script": "test:mail-compaction",
+      "recipe": "npm-test"
+    },
+    {
+      "component": "backend",
+      "project": "backend",
+      "script": "test:mail-reply-trail",
+      "recipe": "npm-test"
+    },
+    {
+      "component": "backend",
+      "project": "backend",
+      "script": "test:build-release",
+      "recipe": "npm-test"
+    },
+    { "component": "frontend", "project": "frontend", "script": "test", "recipe": "react-tests" }
+  ],
+  "frontend": {
+    "root": "frontend",
+    "entry": "index.html",
+    "publicPath": "/",
+    "routing": "same-origin",
+    "preservedFiles": ["web.config"]
+  }
+}

@@ -3,7 +3,14 @@
   "targets": [
     {
       "profileId": "servix-production",
-      "displayName": "Servix Production backend",
+      "displayName": "Servix Production application",
+      "releaseMode": "application",
+      "managedUpdates": true,
+      "frontend": {
+        "root": "frontend",
+        "applicationUrl": "https://support.eesl.co.in/",
+        "preservedFiles": ["web.config"]
+      },
       "workspaceId": "ws_server20",
       "ownerId": "usr_windows_admin",
       "repositoryId": "gitrepo_6cb7e163f807493fa37963196c49fbac",

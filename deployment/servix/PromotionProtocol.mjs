@@ -95,7 +95,13 @@ try {
       review.profileId !== job.target.profileId ||
       Date.parse(review.expiresAt) <= Date.now() ||
       Date.parse(review.backup.createdAt) < Date.now() - 30 * 60000 ||
-      review.process.taskAlreadyExists
+      (review.process.taskAlreadyExists &&
+        !(job.target.managedUpdates && review.process.managedRuntimeVerified)) ||
+      (job.target.releaseMode === "application" &&
+        (!job.target.frontend ||
+          !review.artifact.frontend ||
+          !job.approval.acknowledgements.developmentAccepted ||
+          job.approval.confirmation !== "promote-reviewed-application-to-production"))
     )
       throw Error();
     process.stdout.write(JSON.stringify(review));

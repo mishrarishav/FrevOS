@@ -169,7 +169,20 @@ function inspect(context) {
     ...target.additionalProtectedRoots,
     ...target.protectedConfigurationFiles,
   ];
-  for (const project of [...verified.runtimeProjects, "frontend"]) {
+  const frontend =
+    context.target.releaseMode === "application"
+      ? require("./FrontendArtifact.cjs").inspect(context)
+      : null;
+  const frontendRoot = target.frontend?.root ?? "frontend";
+  if (
+    frontend &&
+    verified.runtimeProjects.some(
+      (p) =>
+        p === frontendRoot || p.startsWith(frontendRoot + "/") || frontendRoot.startsWith(p + "/"),
+    )
+  )
+    fail("component-overlap");
+  for (const project of [...verified.runtimeProjects, frontendRoot]) {
     const directory = beneath(target.root, project);
     if (!fs.existsSync(directory)) continue;
     for (const filename of fs.readdirSync(directory))
@@ -178,8 +191,11 @@ function inspect(context) {
     for (const folder of ["src", "uploads", "attachment", "attachments", "database", "assets-data"])
       roots.push(beneath(target.root, `${project}/${folder}`));
   }
-  roots.push(beneath(target.root, "frontend"));
-  const state = inventory(roots);
+  roots.push(beneath(target.root, frontendRoot));
+  const state = inventory(
+    roots,
+    frontend ? frontend.files.map((f) => beneath(target.root, `${frontend.root}/${f.path}`)) : [],
+  );
   const source = [];
   for (const project of verified.runtimeProjects) {
     const records = inventory([beneath(target.root, `${project}/src`)]);
@@ -199,6 +215,7 @@ function inspect(context) {
     profile: profile(target),
     nodeSha256: hash(target.node),
     artifact: verified,
+    ...(frontend ? { frontend } : {}),
   };
   const bytes = Buffer.from(JSON.stringify(snapshot));
   writeNew(path.join(context.staging, "snapshot.json"), bytes);
@@ -208,6 +225,16 @@ function inspect(context) {
     profile: snapshot.profile,
     nodeSha256: snapshot.nodeSha256,
     artifact: verified,
+    ...(frontend
+      ? {
+          frontend: {
+            sha256: frontend.binding.sha256,
+            files: frontend.files.length,
+            bytes: frontend.files.reduce((n, f) => n + f.bytes, 0),
+            indexSha256: frontend.files.find((f) => f.path === frontend.entry).sha256,
+          },
+        }
+      : {}),
   };
 }
 function readSnapshot(context) {
@@ -274,10 +301,14 @@ function stage(context) {
     path.join(runtime, "node-binding.json"),
     Buffer.from(JSON.stringify({ configurationSha256, executable: target.node })),
   );
+  const frontendPlanSha256 = snapshot.frontend
+    ? require("./FrontendArtifact.cjs").stage(context, runtime, snapshot.frontend)
+    : undefined;
   return {
     runtime,
     configurationSha256,
     launcherSha256: hash(path.join(runtime, "Run-SavedBackend.ps1")),
+    ...(frontendPlanSha256 ? { frontendPlanSha256 } : {}),
   };
 }
 module.exports = {
@@ -298,12 +329,27 @@ if (require.main === module) {
   try {
     const action = process.argv[2],
       context = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
-    if (!["inspect", "check", "stage", "resolve-node"].includes(action)) fail("action");
+    if (
+      ![
+        "inspect",
+        "check",
+        "stage",
+        "resolve-node",
+        "frontend-apply",
+        "frontend-check",
+        "frontend-recover",
+      ].includes(action)
+    )
+      fail("action");
     process.stdout.write(
       JSON.stringify(
         action === "resolve-node"
           ? resolveNode(context, process.argv[4])
-          : module.exports[action](context),
+          : action.startsWith("frontend-")
+            ? require("./FrontendArtifact.cjs")[
+                action === "frontend-check" ? "verify" : action.slice(9)
+              ](context, process.argv[4])
+            : module.exports[action](context),
       ),
     );
   } catch {

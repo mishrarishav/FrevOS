@@ -393,10 +393,25 @@ export class ServixDeploymentStore {
       const completed = successful(runs),
         current = completed[0];
       const restorableRequestIds: string[] = [];
+      const applicationReleaseIds: string[] = [];
       for (const run of completed.slice(0, 30)) {
         try {
-          await this.savedRelease(run, runs);
+          const saved = await this.savedRelease(run, runs);
           restorableRequestIds.push(run.requestId);
+          const bytes = await readFile(
+            join(this.root, "builds", saved.origin.requestId, "release/manifest.json"),
+          );
+          if (createHash("sha256").update(bytes).digest("hex") === saved.origin.artifactDigest) {
+            const manifest = JSON.parse(bytes.toString("utf8"));
+            if (
+              manifest.mode === "bundled-existing-dependencies" &&
+              ServixDigestSchema.safeParse(manifest.backendArtifact?.manifestSha256).success &&
+              ServixDigestSchema.safeParse(manifest.frontendArtifact?.sha256).success &&
+              manifest.validation?.status === "passed" &&
+              manifest.validation?.sourceHead === saved.origin.sourceHead
+            )
+              applicationReleaseIds.push(run.requestId);
+          }
         } catch {}
       }
       const rollback = completed.find(
@@ -427,6 +442,7 @@ export class ServixDeploymentStore {
         ...(current ? { currentRequestId: current.requestId } : {}),
         ...(rollback ? { rollbackRequestId: rollback.requestId } : {}),
         restorableRequestIds,
+        ...(applicationReleaseIds.length ? { applicationReleaseIds } : {}),
       };
     });
   }

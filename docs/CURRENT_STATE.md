@@ -2,6 +2,126 @@
 
 Last updated: 2026-10-27
 
+## Complete application release follow-up — in progress
+
+The owner now requests the complete source → frontend/backend Development →
+Production flow and subsequent updates. Branch `codex/servix-full-release`,
+base `a51e97c20dc27ce047cb54ef54a4ef343a5a5b22`, continues the same bounded
+Phase 4 deployment capability. [ADR 0067](adr/0067-complete-application-release-promotion.md)
+supersedes the initial backend-only/first-adoption boundaries while retaining
+all approvals, preservation and runtime ownership checks. Earlier final handoff
+changes are retained. No new Production application activation has occurred.
+
+Read-only diagnosis confirms server20 Git and local configured source at
+`e04137b4a862e8760a59b95da7e0de9a32bc6d38`, the exact latest backend bundle in
+Production, and an older public frontend. Development includes the newer chip,
+resizing and contextual filter UI; its built-in Development URL prevents direct
+safe promotion. New builds use same-origin routing and component digests.
+Implementation and validation are underway; do not claim complete-flow live
+acceptance until the actual receipts and public file checks are recorded.
+The owner reserves dashboard/filter/resize manual acceptance for themselves;
+their Development login is ready. Deployment checks continue, while a new
+exact Production decision must wait for their acceptance. See the
+[application-release handoff](SERVIX_APPLICATION_RELEASE_HANDOFF.md).
+
+## Servix Production deployment completed — PASS
+
+The actual visible DevSetu activation
+`pm_9b481b3a94f1227d77373247b1d350db` succeeded at 19:13:42 IST on
+2026-10-27. It consumed the owner-confirmed fresh review
+`pm_6ef8e1c91fe2ba73759fe0ff248dfab6` and selected the same tested compiled
+backend bundle `5ff7622a9f316edbe0485c47f179f6c1bccac75241e6540f1d0079b11172fb0c`.
+No customer rebuild, dependency/runtime upgrade, frontend/IIS replacement or
+Production database restore occurred. Normal app startup effects were approved.
+
+The receipt verifies health and all 8,587 protected files. Independent public
+TLS health/full readiness and three original attachment byte/hash checks pass.
+The public Servix login page renders. Independent target files confirm bundle
+selection, the exact descriptor and runtime configuration hash. The new managed
+listener is PID 18504, the same existing owner SID; the task
+`DevSetu-ServixProduction-Backend` resolves to EESL\APPC0024, least privilege,
+password logon and a boot trigger with 30-second delay. No batch-logon right was
+added. Boot configuration is verified; an actual reboot was not performed.
+
+The matching fresh encrypted backup and its complete isolated restore passed
+before cutover: MySQL 8.0.28, 114 tables, one view, 213,131 rows, full SQL digest
+verified and temporary data/task removed. The immutable preparation marker
+predates the separate restore; its later proof is explicitly in the approval
+change record. Code recovery retains the verified original source; a destructive
+Production rollback/DB restore was not run as a test. Retained customer dependency
+findings remain accepted and unresolved. Authenticated customer workflows were
+not exercised; public rendering, readiness, original attachments and the complete
+protected inventory were verified. Broader Phase 4 exit and later managed
+Production upgrades/rollback remain separate work. See the final
+[handoff](SERVIX_PRODUCTION_PROMOTION_HANDOFF.md) for exact receipts and limits.
+
+## Production execution accepted (2026-10-27, 19:10 IST)
+
+Fresh preparation `pm_6ef8e1c91fe2ba73759fe0ff248dfab6` matches the approved
+target/configuration, owner, original PID 10760, artifact and all 8,587 protected
+files exactly. Its review SHA is
+`893b8daffcaf68b8a273212b93b75adf30f1de6133500e3805fe0b875cef0d70`.
+Fresh backup SHA `bcaf96bcd603d95e8ec1498ef81269999f0ba568060240dc07a2ce25713b40c7`
+passes full integrity and a separate matching native restore: 114 tables, one
+view, 213,131 rows. Proof SHA is
+`660501e4a98be10dec6082b5e189440a60ab9ff801f9d35d6aafb9d890e59d2f`;
+temporary restore data/task removed. No Production database restore was run.
+
+With the owner's explicit same-scope confirmation, the actual visible UI's five
+acknowledgments were recorded and exact activation
+`pm_9b481b3a94f1227d77373247b1d350db` was accepted. It is working at
+`adopting-reviewed-owner-and-promoting-backend`; this is not yet proof of success.
+Follow this same job to its terminal receipt; do not submit a duplicate after
+an observation timeout. Final public health/attachments, managed-task identity
+and preserved-file verification remain required.
+
+## Owner-confirmed execution resumed (2026-10-27, 18:55 IST)
+
+The owner explicitly answered the task-binding review confirmation with approval
+for the same exact target/account/artifact scope. The earlier review expired;
+it was closed without approval or mutation. Visible DevSetu preparation
+`pm_6ef8e1c91fe2ba73759fe0ff248dfab6` is queued for a fresh observation and
+backup. Verify that its target, runtime owner, bundle and configuration remain
+the same before recording this human confirmation against the new exact review.
+Repeat the matching-backup recovery check. Public readiness and original served
+attachment bytes pass at 18:56 IST. No Production process stop has occurred yet.
+
+## Current Production review ready (2026-10-27, 18:45 IST)
+
+Actual DevSetu publication `pr_7a6a6e4b7a8b7dc75cf37a6d3260a9b2` succeeded from
+source `a51e97c20dc27ce047cb54ef54a4ef343a5a5b22`; active manifest is
+`a4c5e8ab2a0f7c97f1762455e5e6c67c68d21ac652754e19300d3d5ef48bd461`.
+Full configured CI passed. Independent native Apply is PASS, UI HTTP 200,
+databaseWritten=false. The private-backup DTO and safe builder diagnostics are
+now live.
+
+Visible preparation `pm_3cac9475b29bbc1974578dc68ccec70e` succeeded. It observes
+the original PID 10760, existing owner/Node and already-ready batch logon, with
+8,587 protected files. Fresh backup SHA is
+`b26b2eb70ab24a7d7032bdb343f27520071b73353d21c17e1b50cbd2650abc22`,
+443,471,538 encrypted bytes, captured at 18:34:04 IST. Full-stream integrity
+passes. A separate scoped native diagnostic restored this exact backup on
+isolated MySQL 8.0.28: 114 tables, one view, 213,131 rows, matching whole-SQL
+digest and table/view counts. Its temporary data and task were removed; no
+Production database or application file was written. The immutable preparation
+snapshot predates this external diagnostic; its isolatedRestoreTested=false
+marker was not rewritten. The exact UI change record includes the later proof
+SHA `3db01e6bc90bce4d9cd905f4e04bf507bda0c9d3121d5918e56f0398ef9a463f`.
+
+Exact review SHA `a61ff61beab0709b65a6da8deae7acbb950f51dca684d94092173ad9828bfd1d`
+expires at 18:49:04 IST. The owner was asked for action-time confirmation of the
+new same-owner startup-task credential binding. No approval acknowledgments,
+task binding, process stop or Production cutover have been performed. Public
+health/full readiness and three original served attachment hashes pass again.
+Continue only with valid exact review and confirmation; expired review requires
+fresh preparation. See the detailed handoff below.
+
+At 18:51 IST, authenticated read-only observation confirms the worker online,
+the same prepared result, no approval/cutover job, and an expired exact review.
+The required task-binding confirmation is still unanswered. Do not regenerate
+backups repeatedly while waiting; resume fresh preparation when the owner is
+available for the final confirmation. Production activation remains unperformed.
+
 ## Saved backend Production promotion (platform live, cutover pending, 2026-10-27)
 
 The visible configured platform pipeline `pr_75dfac707e77900bd3b61db2e2b5ea01`

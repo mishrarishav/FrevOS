@@ -1,7 +1,90 @@
 # Servix saved-backend Production promotion
 
-Date: 2026-10-27 IST. Status: Production activation pending; platform live PASS.
-Live Production deployment is not yet verified. Phase 4 remains open.
+Date: 2026-10-27 IST. Status: **PASS — live Production deployment verified**.
+The bounded initial backend promotion is complete. Broader Phase 4 remains open.
+
+## Final verified outcome
+
+The owner-authorized backend deployment was executed through the actual visible
+DevSetu Production promotion UI. Activation
+`pm_9b481b3a94f1227d77373247b1d350db` succeeded at 19:13:42 IST, using fresh
+review `pm_6ef8e1c91fe2ba73759fe0ff248dfab6` and the explicit same-scope human
+confirmation. Source repository/worktree/branch and the complete 48-file inventory
+are recorded below. Base is `5730940fe6c40cc3eb5002ef6beaa564c9571e5f`;
+configured source publication produced commit
+`a51e97c20dc27ce047cb54ef54a4ef343a5a5b22`. Two final handoff documents remain
+uncommitted. No GitHub PR was created or merged for this task.
+
+Final cumulative diff: 48 files changed, 5246 insertions(+), 48 deletions(-).
+
+- Exact saved backend bundle:
+  `5ff7622a9f316edbe0485c47f179f6c1bccac75241e6540f1d0079b11172fb0c`.
+  Descriptor: `8e525dab58dde2e560fbc2d7f18547a1d3c1e048204062e09c98c97b227eac96`.
+  Source: `e04137b4a862e8760a59b95da7e0de9a32bc6d38`; saved Development receipt
+  `sd_4fa6678413b3b23b2ba677ad4b09f6e3`. Production did not rebuild the customer
+  backend or install/update dependencies. Existing Node 20.11.1 is retained.
+- Native result is `production-succeeded`, healthVerified=true,
+  protectedFilesVerified=8587, runtimeTaskRegistered=true and
+  batchLogonAssigned=false. The complete protected inventory is 2,015,258,428
+  bytes, digest `a4779714032ec37a086d5162c92b5d21a96dd3a2a1518fee2667bc085b0999c5`.
+  Environments, uploads, attachments, original/unknown files, external blobs,
+  frontend and IIS configuration are preserved. Only new runtime/artifact data
+  and the approved code-selection pointer were added.
+- Independent target activation receipt confirms `mode=bundle`, new PID 18504,
+  owner SID `S-1-5-21-3574902082-3763586531-1277087089-9176`, configuration
+  `e621ae3b710745bedc8c87fa3a91434fe64d167983d207c8c86de216f723a831`, and
+  databaseRestored=false. The current selection file SHA is
+  `bd114fd468bc4b54734f8d875435ff7baec8e4466a9b7157551a69a437ae361d`,
+  matching the receipt and exact descriptor above.
+- Independent scheduled-task XML resolves the owner name EESL\APPC0024 to that
+  same SID. The task is least privilege, password logon, working directory
+  `D:\Servix\backend`, correct configuration hash and boot start after 30 seconds.
+  The first independent check expected the XML to store a SID directly; Windows
+  normalizes it to the account name. Resolving that name verifies the same SID;
+  no runtime change was needed. An actual reboot was not performed.
+- `node .local/Verify-ProductionAssets.cjs after`: exit 0, public TLS health OK,
+  auth/full bootstrap ready and three original attachment samples match their
+  original lengths/SHA256. The live public frontend redirects to its login page
+  and renders correctly. No customer sign-in or authenticated business workflow
+  was attempted.
+- Matching backup
+  `promotion-backup/pm_6ef8e1c91fe2ba73759fe0ff248dfab6`, SHA
+  `bcaf96bcd603d95e8ec1498ef81269999f0ba568060240dc07a2ce25713b40c7`,
+  is retained privately on server20. Full decrypt/decompress integrity and actual
+  isolated MySQL 8.0.28 restore pass: 114 tables, one view, 213,131 rows. Full
+  restored SQL SHA is
+  `459c37cb4c2b147a53e0d2fc73e735d71448105d77917f04654f0f88a0011273`.
+  Proof SHA `660501e4a98be10dec6082b5e189440a60ab9ff801f9d35d6aafb9d890e59d2f`
+  is in the visible approval record. Owned temporary restore data/task were
+  removed. The immutable preparation snapshot's earlier marker remains unchanged.
+
+Validation: local complete CI exits 0 (361 tests, required coverage, build and
+platform audit gate); actual configured CI also passed before native packaging.
+Platform audit findings are 5 low/6 moderate, no high/critical. Customer backend
+and QuerySafe findings remain unresolved by the owner's explicit direction;
+their versions were not changed. Native parsing, approved-secret exclusion and
+repository/diff checks pass. Exact commands/results and earlier bounded repairs
+are retained in the chronological evidence below.
+
+Important limits: no forced live rollback or Production database restore was
+performed; the matching backup was restored only in isolation. Source-only code
+recovery cannot undo normal startup/database changes. This is the configured
+initial-adoption pilot, not general support for later managed Production
+upgrades or rollback and not a Phase 4 exit claim. The original manual npm
+process is replaced by the managed task; do not start another manual backend on
+port 5000 alongside it. Use DevSetu `/projects/promotions` for this receipt;
+the legacy generic Production destination card remains a separate capability.
+
+Final evidence: `.local/production-promotion-live-pm_9b481b3a94f1227d77373247b1d350db.json`,
+`.local/production-activation-receipt.json`,
+`.local/production-managed-task-verification.json`,
+`.local/production-selected-artifact-verification.json`,
+`.local/production-assets-after.json`, the matching recovery proof, and screenshots
+`servix-production-succeeded-20261027.png`,
+`servix-production-health-preservation-20261027.png`,
+`servix-production-public-login-20261027.png` under `.local/evidence/`.
+
+## Chronological implementation and earlier observations
 
 Repository: `https://github.com/mishrarishav/FrevOS`.
 Worktree: `D:\FREVOS\.local\worktrees\servix-dashboard`.
@@ -269,6 +352,122 @@ Evidence includes `.local/production-canonical-platform-{run,native-receipt,appl
 `.local/production-builder-restart.json`, `.local/production-assets-before.json`,
 and the scoped cache/private-binding diagnostic receipts. Production cutover,
 its fresh backup and final preservation/health are still pending.
+
+## Live preparation and exact review, 2026-10-27
+
+**Actual execution accepted at 19:10 IST.** Fresh review
+`pm_6ef8e1c91fe2ba73759fe0ff248dfab6`, SHA
+`893b8daffcaf68b8a273212b93b75adf30f1de6133500e3805fe0b875cef0d70`,
+was compared to the prior approved business scope: workspace, actor, profile and
+revision, target digest, saved Development receipt, complete artifact identity,
+original process/owner/Node and batch-logon readiness all match; the complete
+protected inventory also remains the same 8,587 files/digest. It expires at
+19:15:19 IST and was approved through the actual UI before that deadline.
+
+Its 443,471,394-byte fresh encrypted backup SHA is
+`bcaf96bcd603d95e8ec1498ef81269999f0ba568060240dc07a2ce25713b40c7`.
+The same bounded native restore diagnostic passes at 19:09:25 IST: MySQL 8.0.28,
+114 tables, one view, 213,131 restored rows, full raw SQL digest
+`459c37cb4c2b147a53e0d2fc73e735d71448105d77917f04654f0f88a0011273`,
+and complete owned data/task cleanup. Recovery proof SHA is
+`660501e4a98be10dec6082b5e189440a60ab9ff801f9d35d6aafb9d890e59d2f`.
+The fresh backup and later diagnostic proof are explicitly in the visible change
+record; the immutable preparation snapshot's older marker is not edited.
+
+The owner's explicit answer to `call_633a92f4a6184a489444f240c2817e39` was recorded
+as the approval reference; five acknowledgments were checked through the UI.
+Batch-logon assignment remains false because it is already ready. Accepted
+activation ID is `pm_9b481b3a94f1227d77373247b1d350db`, bound to that fresh review.
+At the latest observation it is working in the owner-adoption/promotion stage;
+no success claim is made yet. Monitor that exact request rather than resubmitting.
+Final health, managed listener/task identity and protected-file proof remain
+required. Supporting local records use the same promotion ID suffixes; public
+health/full readiness and three original attachments pass just before activation
+at 19:09:58 IST.
+
+Execution resumed at 18:55 IST after the owner's explicit answer, "हाँ, इसी
+exact scope में deploy करो", to confirmation
+`call_633a92f4a6184a489444f240c2817e39`. This authorizes the described same-owner
+least-privilege boot task credential binding, target, saved artifact, brief API
+interruption and normal startup/background effects with retained risks. The old
+review is expired and is not reused. Fresh visible preparation
+`pm_6ef8e1c91fe2ba73759fe0ff248dfab6` is running. Verify the same business scope
+and fresh exact review before activation; repeat recovery verification for the
+new backup. Original public attachment bytes and full health pass again at
+18:56 IST. No Production cutover has yet occurred.
+
+Status: **BLOCKED on required action-time task-binding confirmation; preparation
+and recovery validation PASS**. The owner reconnected VPN; both servers are
+reachable on HTTP/SMB. The actual visible DevSetu pipeline
+`pr_7a6a6e4b7a8b7dc75cf37a6d3260a9b2` published source
+`a51e97c20dc27ce047cb54ef54a4ef343a5a5b22` and succeeded. Full configured CI
+resolved successfully before packaging. The 3,966-file platform package has
+manifest `a4c5e8ab2a0f7c97f1762455e5e6c67c68d21ac652754e19300d3d5ef48bd461`,
+ZIP `987d98de8353fa23b90e1ee7fd185cc46cd57c8b733bcd1fadf4614fb15c6467`,
+component reference `3bf4f41b371364df4a6991915c21aa53f2f1a5bf2e09a41e61e4812b1ecec772`.
+Native Apply `cj_450c0d18aa59db3ad74a79d049ac3c86` reports PASS, UI HTTP 200,
+databaseWritten=false; active manifest independently matches. This resolves the
+earlier DTO publication and native diagnostic blockers.
+
+Through the live visible Production page, preparation
+`pm_3cac9475b29bbc1974578dc68ccec70e` reached `prepared`. Its original process
+is still PID 10760 / EESL\APPC0024 / Node 20.11.1; batch logon is already ready
+and the proposed task does not yet exist. Protection records 8,587 files,
+2,015,258,428 bytes, digest
+`a4779714032ec37a086d5162c92b5d21a96dd3a2a1518fee2667bc085b0999c5`.
+The saved backend bundle/descriptor/source remain exactly the earlier approved
+Development bytes; no customer rebuild or dependency install was performed.
+
+Fresh backup `promotion-backup/pm_3cac9475b29bbc1974578dc68ccec70e` was captured
+at 18:34:04 IST, 443,471,538 encrypted bytes, SHA
+`b26b2eb70ab24a7d7032bdb343f27520071b73353d21c17e1b50cbd2650abc22`.
+Full-stream decrypt/decompress integrity passes. A separate bounded native
+operator diagnostic then restores this exact SYSTEM-DPAPI backup into an
+isolated loopback-only MySQL 8.0.28 instance on server20. It pins the official
+cached archive and active sealed helper, enforces a 1 GiB/16-process job limit,
+disables events, external file operations, binary logs and query logging, and
+uses only an ephemeral private local database credential. No Production database
+connection is used by this restore diagnostic. Whole restored SQL SHA is
+`b4023f124b560a2f38a8e075f9c6f5c4abd1d74efe89a5a5c704c4e9d0024255`;
+114 tables and one view match source backup metadata, and 213,131 restored rows
+are counted. Owned temporary database data and the scoped temporary task are
+removed. Application startup against this restored DB is not tested.
+
+Recovery proof SHA is
+`3db01e6bc90bce4d9cd905f4e04bf507bda0c9d3121d5918e56f0398ef9a463f`.
+The immutable preparation snapshot still says isolatedRestoreTested=false because
+it was created before this separate diagnostic; it is not rewritten or presented
+as worker-recorded evidence. The later proof and exact same backup SHA are
+explicitly included in the visible change description.
+
+Exact review SHA is
+`a61ff61beab0709b65a6da8deae7acbb950f51dca684d94092173ad9828bfd1d`,
+expiring at 18:49:04 IST. At the concrete final step, the owner was asked for
+action-time confirmation of the new same-owner least-privilege boot task's
+persistent credential binding, brief API interruption, normal startup/bootstrap
+database effects, retained risk and source-only code recovery. No approval
+checkbox, Production task registration or process stop has yet occurred.
+The public TLS health/full readiness and three original attachment bytes pass
+again at 18:44:41 IST. If the review expires, prepare and verify a fresh review
+before any approval; never edit the sealed review or consume an expired one.
+
+Evidence: `.local/production-dto-platform-{native-receipt,apply}.json`,
+`.local/production-promotion-live-pm_3cac9475b29bbc1974578dc68ccec70e.json`,
+`.local/production-prepared-recovery-pm_3cac9475b29bbc1974578dc68ccec70e.json`,
+`.local/production-prepared-recovery-proof-pm_3cac9475b29bbc1974578dc68ccec70e.json`,
+`.local/production-assets-before.json`, and the two exact-review screenshots.
+All actual pipeline/observation/recovery commands exit 0. Operator source parser
+and approved-secret exclusion checks pass. The customer application, persistent
+files, dependencies, environments, frontend/IIS and Production database have not
+been changed by this preparation/restore testing.
+
+At 18:51 IST, a fresh authenticated GET confirms this review expired at
+18:49:04 IST, the worker remains online, and all five history jobs still have no
+approval; there is no activation job. The required task-binding confirmation
+remains unanswered. Keep the same goal pending and preserve this backup/recovery
+evidence. When the owner is available, create a fresh review rather than editing
+or approving the expired one. Avoid repeatedly creating unused backups while
+waiting for human confirmation.
 
 ## Complete changed-file inventory
 

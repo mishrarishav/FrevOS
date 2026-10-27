@@ -42,6 +42,10 @@ beforeEach(async () => {
       ),
     ),
   ).targets[0]!;
+  // Historical backend-only receipts remain readable and retain their denials.
+  delete target.releaseMode;
+  delete target.frontend;
+  delete target.managedUpdates;
   clock = new Date("2026-10-27T00:00:00.000Z");
   allowed = true;
   profile = {
@@ -325,7 +329,90 @@ it("rejects duplicate registry entries, symlinks, oversized records and mismatch
   await symlink(elsewhere, join(root, "jobs"), process.platform === "win32" ? "junction" : "dir");
   await expect(service.state(actor)).rejects.toThrow("storage-unavailable");
 });
+
 import { execFile } from "node:child_process";
+
+it("requires both component identities and explicit application approval for a verified managed update", async () => {
+  const application = PromotionRegistrySchema.parse(
+    JSON.parse(
+      await readFile(
+        new URL("../../../deployment/servix/PromotionRegistry.json", import.meta.url),
+        "utf8",
+      ),
+    ),
+  ).targets[0]!;
+  target = application;
+  await writeFile(registryFile, JSON.stringify({ version: 1, targets: [target] }));
+  const service = store();
+  await service.prepare(actor, preparation());
+  const value = review();
+  value.process.taskAlreadyExists = true;
+  value.process.managedRuntimeVerified = true;
+  value.process.previousPromotionId = id(99);
+  await prepared(value);
+  await expect(
+    service.approve(actor, { ...approval(), reviewSha256: promotionDigest(value) }),
+  ).rejects.toThrow("expired-or-unready");
+  value.artifact.frontend = {
+    descriptor: `frontend/.releases/${"9".repeat(64)}/artifact.json`,
+    sha256: "9".repeat(64),
+    indexSha256: "8".repeat(64),
+    files: 3,
+    bytes: 128,
+  };
+  await prepared(value);
+  await expect(
+    service.approve(actor, { ...approval(), reviewSha256: promotionDigest(value) }),
+  ).rejects.toThrow("expired-or-unready");
+  const wrong = { ...value, process: { ...value.process, managedRuntimeVerified: false } };
+  await prepared(wrong);
+  await expect(
+    service.approve(actor, {
+      ...approval(),
+      confirmation: "promote-reviewed-application-to-production",
+      reviewSha256: promotionDigest(wrong),
+    }),
+  ).rejects.toThrow("expired-or-unready");
+  await prepared(value);
+  const job = await service.approve(actor, {
+    ...approval(),
+    confirmation: "promote-reviewed-application-to-production",
+    acknowledgements: { ...approval().acknowledgements, developmentAccepted: true },
+    reviewSha256: promotionDigest(value),
+  });
+  expect(job.target.frontend?.root).toBe("frontend");
+  expect(job.approval?.confirmation).toBe("promote-reviewed-application-to-production");
+  const result = {
+    version: 1,
+    id: job.id,
+    status: "succeeded",
+    updatedAt: clock.toISOString(),
+    stage: "production-succeeded",
+    healthVerified: true,
+    runtimeTaskRegistered: true,
+    artifactDigest: value.artifact.bundleSha256,
+    sourceHead: value.artifact.sourceHead,
+  };
+  const resultFile = join(root, `results/${job.id}.json`);
+  await writeFile(resultFile, JSON.stringify(result));
+  await expect(service.state(actor)).rejects.toThrow("incomplete-application-result");
+  await writeFile(
+    resultFile,
+    JSON.stringify({ ...result, frontendVerified: true, frontendDigest: "0".repeat(64) }),
+  );
+  await expect(service.state(actor)).rejects.toThrow("incomplete-application-result");
+  await writeFile(
+    resultFile,
+    JSON.stringify({
+      ...result,
+      frontendVerified: true,
+      frontendDigest: value.artifact.frontend.sha256,
+    }),
+  );
+  expect((await service.state(actor)).jobs.find((x) => x.job.id === job.id)?.result?.status).toBe(
+    "succeeded",
+  );
+});
 
 it("revalidates a real queued job through the standalone native protocol and rejects changed scope or expiry", async () => {
   clock = new Date();

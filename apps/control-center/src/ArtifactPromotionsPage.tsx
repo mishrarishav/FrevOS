@@ -21,7 +21,9 @@ export function ArtifactPromotionsPage({
   const [state, setState] = useState<PromotionState | null>(null);
   const [profiles, setProfiles] = useState<DeploymentSettings[]>([]);
   const [development, setDevelopment] = useState<ServixDeploymentState | null>(null);
-  const [selected, setSelected] = useState("");
+  const [selected, setSelected] = useState(
+    typeof location === "undefined" ? "" : new URLSearchParams(location.search).get("target") || "",
+  );
   const [release, setRelease] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
@@ -61,11 +63,32 @@ export function ArtifactPromotionsPage({
   }, [api, workspaceId]);
   const target = state?.targets.find((t) => t.profileId === selected) ?? state?.targets[0];
   const profile = profiles.find((p) => p.profileId === target?.profileId);
-  const runs = development?.runs.filter((r) => r.status === "succeeded" && r.artifactDigest) ?? [];
-  const sourceId = release || development?.currentRequestId || "";
+  const runs =
+    development?.runs.filter(
+      (r) =>
+        r.status === "succeeded" &&
+        r.artifactDigest &&
+        (target?.releaseMode !== "application" ||
+          development.applicationReleaseIds?.includes(r.requestId)),
+    ) ?? [];
+  const sourceId =
+    (runs.some((r) => r.requestId === release) ? release : "") ||
+    runs.find((r) => r.requestId === development?.currentRequestId)?.requestId ||
+    runs[0]?.requestId ||
+    "";
   const proposal = state?.jobs.find((j) => j.job.id === reviewId);
   const review = proposal?.result?.review;
+  const application = target?.releaseMode === "application";
+  const lastVerified = state?.jobs.find(
+    (j) =>
+      j.job.target.profileId === target?.profileId &&
+      j.job.action === "promote" &&
+      j.result?.status === "succeeded",
+  );
   const required = [
+    ...(proposal?.job.target.releaseMode === "application"
+      ? ["I have completed the required Development acceptance for this exact saved release"]
+      : []),
     "Retain the recorded dependency risks",
     "Allow normal Production startup/bootstrap database effects and existing background workers",
     "Allow a brief API interruption",
@@ -105,7 +128,10 @@ export function ArtifactPromotionsPage({
       requestId: freshId(),
       reviewId: proposal.job.id,
       reviewSha256: proposal.result?.reviewSha256,
-      confirmation: "promote-reviewed-backend-to-production",
+      confirmation:
+        proposal.job.target.releaseMode === "application"
+          ? "promote-reviewed-application-to-production"
+          : "promote-reviewed-backend-to-production",
       changeDetails: { message: message.trim(), approvedBy: approvalReference.trim() },
       acknowledgements: {
         retainedDependencyRisk: true,
@@ -114,6 +140,7 @@ export function ArtifactPromotionsPage({
         sameOwnerCredentialBinding: true,
         codeRecoveryDoesNotRestoreDatabase: true,
         assignBatchLogonIfMissing: grantBatch,
+        ...(proposal.job.target.releaseMode === "application" ? { developmentAccepted: true } : {}),
       },
     };
     setBusy(true);
@@ -152,8 +179,9 @@ export function ArtifactPromotionsPage({
         </a>
       </header>
       <p>
-        Promote the exact tested backend bundle. Existing source, dependencies, environments,
-        uploads and attachments are retained. Frontend and IIS are outside this action.
+        Publish source and test the complete release on Development first. Promote its saved
+        frontend and backend together, or restore an earlier tested release. Existing source,
+        dependencies, environments, uploads, attachments and IIS routing are retained.
       </p>
       {notice ? <p role="status">{notice}</p> : null}
       <div className="record-card">
@@ -171,12 +199,38 @@ export function ArtifactPromotionsPage({
             ))}
           </select>
         </label>
+        {application && !runs.length ? (
+          <p>
+            Build and deploy a complete frontend + backend release on Development first. Historical
+            backend-only releases are retained in history.
+          </p>
+        ) : null}
         {target ? (
           <TargetSummary target={target} />
         ) : (
           <p>No approved Production targets configured.</p>
         )}
         <p>Worker: {state?.online ? "Online" : "Offline / not enrolled"}</p>
+        <p>
+          {application
+            ? "Required components: Frontend + Backend. A backend-only saved release is rejected."
+            : "Configured scope: Backend only."}
+          {target?.managedUpdates
+            ? " Updates reuse the verified existing runtime task."
+            : " Initial runtime adoption only."}
+        </p>
+        {lastVerified ? (
+          <p>
+            Last verified Production release: {lastVerified.job.id}
+            <br />
+            Backend: {lastVerified.result?.artifactDigest?.slice(0, 12)}
+            <br />
+            Frontend:{" "}
+            {lastVerified.result?.frontendVerified
+              ? lastVerified.result.frontendDigest?.slice(0, 12)
+              : "Historical deployment did not manage the frontend"}
+          </p>
+        ) : null}
         <label>
           Saved successful Development release
           <select
@@ -186,7 +240,8 @@ export function ArtifactPromotionsPage({
           >
             {runs.map((r) => (
               <option key={r.requestId} value={r.requestId}>
-                {r.requestId} · {r.artifactDigest?.slice(0, 12)}
+                {r.requestId} · source {r.sourceHead?.slice(0, 10)} ·{" "}
+                {r.artifactDigest?.slice(0, 12)}
               </option>
             ))}
           </select>
@@ -211,6 +266,11 @@ export function ArtifactPromotionsPage({
             <strong>
               {job.action} · {result?.status ?? "queued"}
             </strong>
+            <p>
+              {job.target.releaseMode === "application"
+                ? "Frontend + Backend"
+                : "Historical backend-only scope"}
+            </p>
             <p>
               {job.id}
               <br />
@@ -243,6 +303,19 @@ export function ArtifactPromotionsPage({
             ) : null}
             {result?.healthVerified ? (
               <p>Health verified · {result.protectedFilesVerified} existing files verified</p>
+            ) : null}
+            {result?.sourceHead ? (
+              <p>
+                {result.status === "recovered"
+                  ? "Requested source; previous release recovered"
+                  : "Source"}
+                : <code>{result.sourceHead}</code>
+              </p>
+            ) : null}
+            {result?.frontendVerified ? (
+              <p>
+                Frontend public files verified · <code>{result.frontendDigest}</code>
+              </p>
             ) : null}
             {result?.batchLogonAssigned ? (
               <p>Approved batch-logon right assigned to the reviewed owner.</p>
@@ -284,15 +357,28 @@ export function ArtifactPromotionsPage({
               Development receipt: {review.developmentRequestId}
             </p>
             <p>
+              Source commit: <code>{review.artifact.sourceHead}</code>
+              <br />
               Bundle SHA256: <code>{review.artifact.bundleSha256}</code>
               <br />
               Descriptor SHA256: <code>{review.artifact.descriptorSha256}</code>
             </p>
+            {review.artifact.frontend ? (
+              <p>
+                Frontend SHA256: <code>{review.artifact.frontend.sha256}</code>
+                <br />
+                {review.artifact.frontend.files} static files · same-origin API routing ·
+                destination web.config retained
+              </p>
+            ) : null}
             <p>
               Current PID {review.process.pid} · {review.process.owner} ·{" "}
               {review.process.nodeVersion}
               <br />
               Managed task: {proposal.job.target.taskName}, same owner, least privilege, boot start.
+              {review.process.managedRuntimeVerified
+                ? ` Verified update of ${review.process.previousPromotionId}.`
+                : " First runtime adoption."}
             </p>
             <p>
               {review.protection.files} files inventoried. Fresh encrypted backup:{" "}
@@ -353,8 +439,8 @@ export function ArtifactPromotionsPage({
             </label>
             <p>
               Only this target, artifact and review are approved for one use. Automatic code
-              recovery uses the retained verified source; database restoration requires a separate
-              approval.
+              recovery restores the reviewed previous runtime and frontend; database restoration
+              requires a separate approval.
             </p>
           </div>
           <footer className="promotion-review-footer">
@@ -372,7 +458,9 @@ export function ArtifactPromotionsPage({
               }
               onClick={() => void approve()}
             >
-              Approve and deploy exact backend
+              {proposal.job.target.releaseMode === "application"
+                ? "Approve and deploy exact application"
+                : "Approve and deploy exact backend"}
             </button>
           </footer>
         </WorkspaceDialog>
@@ -388,6 +476,13 @@ function TargetSummary({ target }: { target: PromotionTarget }) {
       <code>{target.root}</code> · API {target.port}
       <br />
       {target.publicHealthUrl}
+      {target.frontend ? (
+        <>
+          <br />
+          Frontend: {target.frontend.root} · {target.frontend.applicationUrl} · preserved routing:{" "}
+          {target.frontend.preservedFiles.join(", ")}
+        </>
+      ) : null}
       <br />
       Preserved: {target.preservedPaths.join(", ")}
       <br />

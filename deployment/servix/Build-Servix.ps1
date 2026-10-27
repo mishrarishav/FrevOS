@@ -35,8 +35,8 @@ $git='C:\Program Files\Git\cmd\git.exe';$repo='E:\FrevOS\git\servix.git'
 $archive=Join-Path $job 'source.zip'
 $stage='git-export'
 $optionalLog=Join-Path $job 'backend-build-inputs.log'
-if((Invoke-ServixBuildProcess $git ('-c "safe.directory='+$repo+'" "--git-dir='+$repo+'" ls-tree --name-only '+$SourceHead+' -- backend/package-lock.json backend/scripts/buildRelease.js') $job $optionalLog 30) -ne 0){throw 'Backend build input lookup failed'}
-$optional=@(Get-Content -LiteralPath $optionalLog|Where-Object {$_ -cin @('backend/package-lock.json','backend/scripts/buildRelease.js')})
+if((Invoke-ServixBuildProcess $git ('-c "safe.directory='+$repo+'" "--git-dir='+$repo+'" ls-tree --name-only '+$SourceHead+' -- backend/package-lock.json backend/scripts backend/tests') $job $optionalLog 30) -ne 0){throw 'Backend build input lookup failed'}
+$optional=@(Get-Content -LiteralPath $optionalLog|Where-Object {$_ -cin @('backend/package-lock.json','backend/scripts','backend/tests')})
 $gitArguments='-c "safe.directory='+$repo+'" "--git-dir='+$repo+'" archive --format=zip "--output='+$archive+'" '+$SourceHead+' backend/src backend/package.json querysafe/src querysafe/package.json frontend '+($optional -join ' ')
 if((Invoke-ServixBuildProcess $git $gitArguments $job (Join-Path $job 'git.log') 60) -ne 0){throw 'Git source export failed'}
 Add-Type -AssemblyName System.IO.Compression
@@ -66,6 +66,22 @@ if($backendPackage.PSObject.Properties.Name -contains 'devDependencies' -and $ba
  if((Invoke-ServixBuildProcess $node ('"'+$npm+'" run build:release') (Join-Path $source 'backend') (Join-Path $job 'backend-build.log') 120) -ne 0){throw 'Backend artifact compilation failed'}
  if(-not(Test-Path -LiteralPath (Join-Path $source 'dist\servix-server\backend-artifact.json') -PathType Leaf)){throw 'Backend build did not produce its descriptor'}
 }
+$stage='application-tests'
+$buildProfile=Get-Content -LiteralPath (Join-Path $PSScriptRoot 'ReleaseBuildProfile.json') -Raw|ConvertFrom-Json
+$suites=@();$testIndex=0;$oldCi=$env:CI;$env:CI='true'
+try{
+ foreach($test in $buildProfile.tests){
+  if($test.component -cnotin @('backend','frontend') -or $test.project -cnotmatch '^[a-z][a-z0-9-]{1,47}$' -or $test.script -cnotmatch '^test(?::[A-Za-z0-9_-]+)*$' -or $test.recipe -cnotin @('npm-test','react-tests')){throw 'Validation recipe rejected'}
+  $directory=Join-Path $source $test.project;$package=Get-Content -LiteralPath (Join-Path $directory 'package.json') -Raw|ConvertFrom-Json
+  if(-not $package.scripts.PSObject.Properties[$test.script]){throw 'Required validation script missing'}
+  $testArguments='"'+$npm+'" --ignore-scripts run '+$test.script
+  if($test.recipe -ceq 'react-tests'){$testArguments+=' -- --watchAll=false --runInBand'}
+  if((Invoke-ServixBuildProcess $node $testArguments $directory (Join-Path $job ('validation-'+$testIndex+'.log')) 300) -ne 0){throw 'Application validation failed; no deployment was queued'}
+  $suites+=@{component=$test.component;project=$test.project;script=$test.script;recipe=$test.recipe;exitCode=0};$testIndex++
+ }
+ if(@($suites|Where-Object component -CEQ 'frontend').Count -eq 0 -or @($suites|Where-Object component -CEQ 'backend').Count -eq 0){throw 'Both components require validation'}
+ [IO.File]::WriteAllText((Join-Path $job 'validation.json'),(@{version=1;status='passed';sourceHead=$SourceHead;suites=$suites}|ConvertTo-Json -Depth 10 -Compress),[Text.UTF8Encoding]::new($false))
+}finally{$env:CI=$oldCi}
 $stage='frontend-build'
 $buildArguments='"'+(Join-Path $PSScriptRoot 'Build-DevRelease.cjs')+'" "'+$source+'" "'+$job+'"'
 if((Invoke-ServixBuildProcess $node $buildArguments $job (Join-Path $job 'build.log') 660) -ne 0){throw 'Frontend artifact build failed'}

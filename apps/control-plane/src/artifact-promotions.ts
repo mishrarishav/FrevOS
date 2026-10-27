@@ -122,6 +122,32 @@ export class ArtifactPromotions {
           promotionDigest(result.review) !== result.reviewSha256)
       )
         fail("promotion-review-integrity", 503);
+      if (
+        job.action === "promote" &&
+        job.target.releaseMode === "application" &&
+        result.status === "succeeded"
+      ) {
+        if (
+          !job.reviewId ||
+          !result.healthVerified ||
+          !result.frontendVerified ||
+          !result.runtimeTaskRegistered
+        )
+          fail("promotion-incomplete-application-result", 503);
+        const prepared = PromotionResultSchema.parse(
+          await this.read(join(this.root, "results", `${job.reviewId}.json`)),
+        );
+        const artifact = prepared.review?.artifact;
+        if (
+          !prepared.review ||
+          promotionDigest(prepared.review) !== job.reviewSha256 ||
+          prepared.reviewSha256 !== job.reviewSha256 ||
+          result.artifactDigest !== artifact?.bundleSha256 ||
+          result.frontendDigest !== artifact?.frontend?.sha256 ||
+          result.sourceHead !== artifact?.sourceHead
+        )
+          fail("promotion-incomplete-application-result", 503);
+      }
       return result;
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code === "ENOENT") return null;
@@ -251,7 +277,13 @@ export class ArtifactPromotions {
         Date.parse(result.review.backup.createdAt) < this.now().getTime() - 30 * 60000 ||
         (!result.review.process.batchLogonReady &&
           !request.acknowledgements.assignBatchLogonIfMissing) ||
-        result.review.process.taskAlreadyExists
+        (result.review.process.taskAlreadyExists &&
+          !(target.managedUpdates && result.review.process.managedRuntimeVerified)) ||
+        (target.releaseMode === "application" &&
+          (!target.frontend ||
+            !result.review.artifact.frontend ||
+            !request.acknowledgements.developmentAccepted ||
+            request.confirmation !== "promote-reviewed-application-to-production"))
       )
         fail("promotion-review-expired-or-unready");
       if (jobs.some((j) => j.action === "promote" && j.reviewId === request.reviewId))
