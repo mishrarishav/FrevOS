@@ -1,6 +1,6 @@
 # Servix saved-backend Production promotion
 
-Date: 2026-10-27 IST. Status: BLOCKED for live deployment; local validation PASS.
+Date: 2026-10-27 IST. Status: Production activation pending; platform live PASS.
 Live Production deployment is not yet verified. Phase 4 remains open.
 
 Repository: `https://github.com/mishrarishav/FrevOS`.
@@ -106,33 +106,67 @@ not a Phase 4 exit or a claim of completed Production deployment.
 
 ## Latest live checkpoint
 
-The actual DevSetu Deploy all popup was submitted with the owner's bounded ADR
-0065 change record. It returned “Request not confirmed”; retain its original
-request rather than creating a duplicate. The open browser tab is kept for
-continuation. No implementation source publication or Production activation is
-confirmed. The local ancestry repair above retains every working-file byte.
+VPN recovered on 2026-10-27. Inspecting history showed the overnight unconfirmed
+popup had submitted no run. The actual owner browser signed in again and
+published source `e58a2f68290884c57a7223e568535390d450ae3a` in request
+`pr_7d2372322b21de619bd0ccdcc35a6447`. CI passed, but the installed packager's
+old module list omitted the new promotion modules; packaging failed safely.
 
-VPN recovered briefly, then the server20 TCP/HTTP probe timed out again. The
-Fortinet interfaces were disabled/disconnected and route selection for server20
-used the ordinary Wi-Fi default gateway. A fresh VPN reconnect is requested.
-No Production process stop, task registration, environment/attachment write or
-batch-logon grant was performed in this implementation run.
+The bounded operator update `94eaf10d123f4877a70756bf6418a049` imported only
+`HttpCommon.ps1` and `New-ServixDashboardRelease.ps1` from that frozen source.
+Both previous files remain backed up; builder task configuration and DPAPI
+credential bytes were verified unchanged. The visible retry
+`pr_1c92360166fda9d4001954131282064b` published
+`e6ca25a3098737fdc67c518b9a189a08bb508398` (identical source tree), passed CI
+and built the actual 3,965-file package. Its manifest is
+`dfcc4da6e2dcaaa7647493780cf58d41130466877ecb8966f6f8cf5c374cc439`, ZIP
+`b86c98dce6acc657772a985ab6d4ef8035fd6c49a9996d483e3d21d38c55e612`, and
+component reference digest
+`78412259cb45a4d06cef117db12acfac0f28c54b2946ec3c3325e73aaef8ed92`.
+Independent Plan and Apply `ed392743444845a59add51913aead8ce` both report
+PASS; Apply reports HTTP/UI 200, no operator database write and sibling IIS
+preservation. The configured pipeline reports succeeded.
 
-The later PSRP credential-transport refinement parses successfully and uses the
-same backup child contract; its actual remote execution remains part of the
-pending native preflight. The final local smoke package includes the corrected
-standalone executor protocol and verifies its real database authorization. It
-remains a test artifact, not the eventual configured source-pipeline release.
+The actual new `/projects/promotions` page reports the registered worker online.
+Its selected saved Development restore remains `sd_4fa6678413b3b23b2ba677ad4b09f6e3`.
+Preparation `pm_8bcdd4bee32b23e623f8bf26b141e3e6` verified the saved artifact,
+then failed safely during target file observation, before backup or cutover.
+Bounded read-only diagnostics report `promotion-linked-path`: the installed
+Node 20.11.1 alias `C:\Program Files\nodejs` points to `C:\nvm\v20.11.1`.
+The customer-data scan found no links. The diagnostic tasks were removed after
+their exact command identity was verified; no Production permissions changed.
 
-Next: recover VPN, inspect the original request/history, retry that exact request
-if appropriate, and resolve any definite failed source request before starting
-a fresh one. Finish the configured platform release, then fresh Production
-preflight, concrete adoption/permission approval and verified cutover. Do not
-bypass the UI flow or the existing Development exclusion.
+[ADR 0066](adr/0066-canonical-promotion-runtime-identity.md) configures that
+existing canonical executable and requires the observed process to resolve to
+the exact same plain file. Different files, missing/relative paths and links in
+the configured executable or protected inventory remain denied. No customer
+runtime upgrade, environment edit or junction change is included. Validate and
+publish this correction through DevSetu, prepare again, then obtain the concrete
+task/permission approval before verified cutover.
+
+Evidence: `.local/production-platform-live-{run,native-receipt,apply}.json`,
+`.local/agentic-native-operator-promotion-update.json`,
+`.local/production-promotion-live-pm_8bcdd4bee32b23e623f8bf26b141e3e6.json`,
+`.local/production-promotion-diagnostic-pm_8bcdd4bee32b23e623f8bf26b141e3e6.json`.
+The last separately checked public Production health was OK with both bootstrap
+flags ready. Live Production activation is not claimed.
+
+ADR 0066 local follow-up validation: native syntax, Biome format/lint,
+repository validation (102 Markdown files), complete diff/secret review and
+`git diff --check` exit 0. The initial filtered test invocation actually ran
+44 backend files: 177 tests passed and the existing inventory test failed
+because its Windows PowerShell child inherited the PowerShell 7 module path
+(`Get-FileHash` unavailable). With the native module path,
+`pnpm.cmd exec vitest run test/promotion-files.test.ts test/persistent-file-inventory.test.ts`
+exits 0, both files/four tests pass, including the actual junction/resolver CLI
+and original full-file inventory regression. No test or threshold was weakened.
+The configured source pipeline must pass its full CI gate before activation.
 
 ## Complete changed-file inventory
 
-Prepublication diff stat: 42 files, +4254/-41.
+Initial publication diff stat: 42 files, +4254/-41. The ADR 0066 follow-up adds
+one decision document and updates the existing helper, registry, test and handoff
+files below; final statistics must be recorded after validation.
 
 - `apps/control-center/src/App.tsx`
 - `apps/control-center/src/ArtifactPromotionsPage.tsx`
@@ -173,6 +207,7 @@ Prepublication diff stat: 42 files, +4254/-41.
 - `docs/SERVIX_PRODUCTION_READINESS.md`
 - `docs/adr/0064-visible-production-configuration.md`
 - `docs/adr/0065-configured-saved-backend-production-promotion.md`
+- `docs/adr/0066-canonical-promotion-runtime-identity.md`
 - `docs/adr/README.md`
 - `packages/contracts/src/artifact-promotions.ts`
 - `packages/contracts/src/index.ts`

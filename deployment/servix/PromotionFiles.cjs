@@ -56,6 +56,15 @@ function hash(file) {
     fs.closeSync(fd);
   }
 }
+function resolveNode(context, observed) {
+  const expected = path.resolve(context.target.node);
+  plain(expected);
+  if (typeof observed !== "string" || !path.isAbsolute(observed)) fail("runtime-executable");
+  const actual = fs.realpathSync.native(observed),
+    compare = (value) => (process.platform === "win32" ? value.toLowerCase() : value);
+  if (compare(actual) !== compare(expected)) fail("runtime-executable");
+  return { executable: expected, sha256: hash(expected) };
+}
 function writeNew(file, bytes) {
   plain(file);
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -276,6 +285,7 @@ module.exports = {
   plain,
   beneath,
   hash,
+  resolveNode,
   writeNew,
   inventory,
   verify,
@@ -288,8 +298,14 @@ if (require.main === module) {
   try {
     const action = process.argv[2],
       context = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
-    if (!["inspect", "check", "stage"].includes(action)) fail("action");
-    process.stdout.write(JSON.stringify(module.exports[action](context)));
+    if (!["inspect", "check", "stage", "resolve-node"].includes(action)) fail("action");
+    process.stdout.write(
+      JSON.stringify(
+        action === "resolve-node"
+          ? resolveNode(context, process.argv[4])
+          : module.exports[action](context),
+      ),
+    );
   } catch {
     process.stderr.write("Promotion file verification failed\n");
     process.exitCode = 1;

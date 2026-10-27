@@ -2,7 +2,25 @@
 
 Last updated: 2026-10-27
 
-## Saved backend Production promotion (local validation PASS, live pending, 2026-10-27)
+## Saved backend Production promotion (platform live, cutover pending, 2026-10-27)
+
+The visible configured platform pipeline `pr_1c92360166fda9d4001954131282064b`
+published source `e6ca25a3098737fdc67c518b9a189a08bb508398` and activated manifest
+`dfcc4da6e2dcaaa7647493780cf58d41130466877ecb8966f6f8cf5c374cc439`.
+Independent native Apply reports PASS, HTTP/UI 200, no operator database write
+and sibling IIS preservation. The first build failed because its enrolled
+packager omitted the new modules; a reviewed two-file operator update preserved
+the builder task and credential bytes, and the actual retry succeeded.
+
+The actual new Production page reports its worker online. Preparation
+`pm_8bcdd4bee32b23e623f8bf26b141e3e6` stopped safely before backup/cutover:
+the existing Node executable uses the version manager junction
+`C:\Program Files\nodejs` to `C:\nvm\v20.11.1`. Read-only diagnostics found no
+links in the inspected customer data. [ADR 0066](adr/0066-canonical-promotion-runtime-identity.md)
+pins the same canonical executable and verifies the observed process resolves
+to it, retaining customer/staging link denials. The correction requires normal
+CI, visible platform publication and a new Production preparation. No Production
+runtime stop, task credential binding or permission change has occurred.
 
 The owner explicitly requests completing the missing runner and deploying through
 DevSetu. [ADR 0065](adr/0065-configured-saved-backend-production-promotion.md)
@@ -18,14 +36,11 @@ Standalone native-protocol execution exposed a Windows ESM path error; using
 file URLs fixes it. Actual native validation/sealing/tamper/expiry tests and the
 final packaged executor authorization against isolated PostgreSQL pass. The exact
 worker's four-file matching MySQL client extraction/load check also passes.
-VPN was restored and visible source/builder/destination presence has recovered.
-The visible platform Deploy all submission returned “Request not confirmed” when
-VPN dropped again. Preserve the original request and inspect history before
-retrying. The local ancestry-only merge `2ca0759aa75f23b453fef72f25d8f30923728c2d`
+Earlier VPN interruptions were resolved and actual history was inspected before
+the successful publication above. The local ancestry-only merge
+`2ca0759aa75f23b453fef72f25d8f30923728c2d`
 reconciles main's owner squash with central Git without changing accepted code
-or the 42 working files. The new platform release and actual Production
-preparation/activation are still pending; no Production runtime, task or
-permission change is claimed. See the
+or the 42 working files. Production activation remains pending; see the
 [promotion handoff](SERVIX_PRODUCTION_PROMOTION_HANDOFF.md).
 
 ## Servix Production configuration (destination pending, 2026-10-26)

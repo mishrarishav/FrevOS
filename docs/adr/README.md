@@ -128,3 +128,7 @@ proposal and its unconnected execution boundary.
 [0065: Configured saved-backend Production promotion](0065-configured-saved-backend-production-promotion.md)
 records the explicit follow-up to implement and verify the missing Production
 execution path while preserving the legacy Development exclusion.
+
+[0066: Canonical executable identity for initial runtime adoption](0066-canonical-promotion-runtime-identity.md)
+records the actual NVM junction preflight failure, canonical toolchain identity
+and unchanged customer-data link denials.

@@ -7,15 +7,19 @@ function Port-Process {
  $listeners=@(Get-NetTCPConnection -State Listen -LocalPort $target.port -ErrorAction SilentlyContinue|Select-Object -ExpandProperty OwningProcess -Unique)
  if($listeners.Count -ne 1){throw 'Exactly one reviewed listener required'}
  $p=Get-CimInstance Win32_Process -Filter ('ProcessId='+$listeners[0]);$owner=Invoke-CimMethod -InputObject $p -MethodName GetOwnerSid
- if($p.ExecutablePath -ine $target.node -or $owner.ReturnValue -ne 0){throw 'Runtime executable/owner unavailable'}
+ if($owner.ReturnValue -ne 0){throw 'Runtime executable/owner unavailable'}
+ $executable=Run-Files 'resolve-node' ([string]$p.ExecutablePath)
+ if($executable.executable -ine $target.node){throw 'Runtime executable differs from the configured canonical toolchain'}
  return @{pid=[int]$p.ProcessId;created=$p.CreationDate.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ');ownerSid=[string]$owner.Sid;commandSha256=(Hash-Text ([string]$p.CommandLine));command=[string]$p.CommandLine}
 }
 function Healthy {
  $v=Invoke-RestMethod -Uri $target.healthUrl -TimeoutSec 5
  if($v.status -cne 'OK' -or -not $v.authBootstrapReady -or -not $v.fullBootstrapReady){throw 'Application readiness unavailable'}
 }
-function Run-Files([string]$Operation){
- $out=& $target.node (Join-Path $PSScriptRoot 'PromotionFiles.cjs') $Operation $ContextFile 2>$null
+function Run-Files([string]$Operation,[string]$ObservedNode=''){
+ $arguments=@((Join-Path $PSScriptRoot 'PromotionFiles.cjs'),$Operation,$ContextFile)
+ if($Operation -ceq 'resolve-node'){$arguments+=$ObservedNode}
+ $out=& $target.node @arguments 2>$null
  if($LASTEXITCODE -ne 0){throw 'Target files did not verify'}
  return (($out -join '')|ConvertFrom-Json)
 }

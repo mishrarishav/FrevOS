@@ -192,3 +192,27 @@ it("denies modified or missing non-first protected files, environment drift, col
   await symlink(outside, join(f.root, "linked"), process.platform === "win32" ? "junction" : "dir");
   expect(() => files.inventory([join(f.root, "linked")])).toThrow("linked-path");
 });
+it("matches an observed version-manager alias only to the configured plain executable", async () => {
+  const f = await fixture(),
+    executable = await f.put("toolchain/v20/node.exe", "pinned synthetic executable", f.base),
+    alias = join(f.base, "node-alias"),
+    observed = join(alias, "node.exe");
+  f.context.target.node = executable;
+  await symlink(dirname(executable), alias, process.platform === "win32" ? "junction" : "dir");
+  const expected = { executable, sha256: hash(Buffer.from("pinned synthetic executable")) };
+  expect(files.resolveNode(f.context, observed)).toEqual(expected);
+  const contextFile = await f.put("context.json", JSON.stringify(f.context), f.base);
+  const cli = await run(
+    process.execPath,
+    [resolve("../../deployment/servix/PromotionFiles.cjs"), "resolve-node", contextFile, observed],
+    { windowsHide: true, maxBuffer: 4096 },
+  );
+  expect(JSON.parse(cli.stdout)).toEqual(expected);
+  const other = await f.put("other/node.exe", "pinned synthetic executable", f.base);
+  expect(() => files.resolveNode(f.context, other)).toThrow("runtime-executable");
+  expect(() => files.resolveNode(f.context, "relative/node.exe")).toThrow("runtime-executable");
+  expect(() => files.resolveNode(f.context, join(f.base, "missing.exe"))).toThrow();
+  f.context.target.node = observed;
+  expect(() => files.resolveNode(f.context, executable)).toThrow("linked-path");
+  expect(() => files.inventory([alias])).toThrow("linked-path");
+});

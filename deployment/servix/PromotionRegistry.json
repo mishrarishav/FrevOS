@@ -13,7 +13,7 @@
       "computer": "DCAPP9",
       "root": "D:\\Servix",
       "scratchRoot": "D:\\servixDev\\.runtime\\frevos-promotions",
-      "node": "C:\\Program Files\\nodejs\\node.exe",
+      "node": "C:\\nvm\\v20.11.1\\node.exe",
       "nodeVersion": "v20.11.1",
       "port": 5000,
       "healthUrl": "http://127.0.0.1:5000/api/health",
