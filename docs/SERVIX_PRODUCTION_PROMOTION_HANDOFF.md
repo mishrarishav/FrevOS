@@ -162,6 +162,70 @@ exits 0, both files/four tests pass, including the actual junction/resolver CLI
 and original full-file inventory regression. No test or threshold was weakened.
 The configured source pipeline must pass its full CI gate before activation.
 
+## Canonical runtime activation and private binding follow-up
+
+The canonical correction's configured request
+`pr_917aba694fc020c735c9cbecd6c6fc94` succeeded from source
+`3bca2f97afe22274120e41fbf89aea7bc2929dd4`. Its actual package manifest is
+`2417b37cd93b6b2eade79061842d86049695e4ffc08b09d3a1fe6bcc34e0ede8`, ZIP
+`e6c7f430cc2fb0138fa08908f6579597bf19211bac88a2363e8114a4f9066436`, reference
+`e42be3741de261f12a1127837f6d10a72dafec5e1f83e97dd319998409543566`.
+Independent Plan/Apply `cc5669acf9eb292754f5f9f5c66e9944` report PASS,
+HTTP/UI 200, no operator database write and sibling IIS preservation. Native
+coverage remains 95.23/91.59/96.60/96.71; all 358 tests and the unchanged audit
+gate passed before packaging.
+
+Earlier configured runs `pr_0b0016b68deff372970d01376b40911c` and
+`pr_43873bad103fd5b95c913753689ebcb4` failed before activation. The first cached
+test result identifies a timeout in the unchanged interactive Windows enrollment
+fixture. Its exact synthetic loopback identity was verified and cleaned up.
+Full frozen-source CI and a separate exact enrolled Node/minimal-environment CI
+both passed (exit 0), then a scoped idle builder restart preserved its task,
+adapter and DPAPI bytes. The fresh configured run above passed. Do not claim a
+fully established cause for the earlier intermittent worker failures.
+
+The actual isolated read-only canonical observation reports PID 10760,
+`EESL\APPC0024`, Node 20.11.1, 8,572 protected files and existing batch-logon
+readiness. Three original Production upload samples served over verified TLS
+match their old baseline hashes. The customer checkout remains clean at
+`e04137b4a862e8760a59b95da7e0de9a32bc6d38`.
+
+Preparation `pm_430c1fb0df00a6a011c9a03e7ea67b9a` passed observation but the
+official archive download raised a WebException. Its HTTP status was not
+observed. A bounded cache action imported the previously verified official
+222,021,254-byte archive with configured SHA
+`cb207afb33e2bbfe9535ba78fa9a1a3cccd11156f73864a5db0be8dcc2dbb1bc`.
+The active worker verified all four required files and actual MySQL 8.0.28
+loading; application dependencies were unchanged. Interrupted download bytes
+were retained. The temporary maintenance task was removed after identity check.
+
+Preparation `pm_f99f5c7b32585b2e951752bcc114a89b` passed those prerequisites,
+then failed before backup/cutover with `Private database binding unavailable`.
+Replace inline JavaScript with `Read-PromotionEnvironment.cjs`, pin its hash
+before remote invocation, and recheck the observed environment hash inside it.
+Its private output is ASCII JSON, preserving Unicode through PowerShell 5.1's
+console code page. The controller also escapes private JSON input before the
+existing bounded backup wrapper. Private JSON uses the .NET serializer directly
+so plaintext values are not passed as JSON cmdlet parameter bindings. Values remain within the authenticated private
+PSRP/stdin execution boundary and are never included in reports.
+
+`pnpm.cmd exec vitest run test/promotion-environment.test.ts test/promotion-files.test.ts`
+exits 0: four tests pass, including the real PowerShell 5.1 file invocation,
+private Unicode/quote/space preservation through the actual backup wrapper,
+drift denial with empty failed stdout, and canonical junction/retention checks.
+The initial regression correctly caught OEM decoding drift before ASCII JSON
+escaping was added. Actual server21 read-only execution of the new helper also
+passes: environment hash unchanged, required fields available, PSCredential
+transport rehydrated, no credential values reported or database writes.
+The file-helper correction still requires the configured full CI and platform
+publication before another actual Production preparation.
+
+Evidence includes `.local/production-canonical-platform-{run,native-receipt,apply}.json`,
+`.local/production-canonical-ci.log`, `.local/production-exact-native-ci-result.json`,
+`.local/production-builder-restart.json`, `.local/production-assets-before.json`,
+and the scoped cache/private-binding diagnostic receipts. Production cutover,
+its fresh backup and final preservation/health are still pending.
+
 ## Complete changed-file inventory
 
 Initial publication diff stat: 42 files, +4254/-41. The ADR 0066 follow-up adds
@@ -182,6 +246,7 @@ files below; final statistics must be recorded after validation.
 - `apps/control-plane/test/artifact-promotions.test.ts`
 - `apps/control-plane/test/postgres-service.integration.test.ts`
 - `apps/control-plane/test/promotion-files.test.ts`
+- `apps/control-plane/test/promotion-environment.test.ts`
 - `deployment/server20/HttpCommon.ps1`
 - `deployment/server20/New-ServixDashboardRelease.ps1`
 - `deployment/servix/BatchLogon.psm1`
@@ -196,6 +261,7 @@ files below; final statistics must be recorded after validation.
 - `deployment/servix/PromotionTools.json`
 - `deployment/servix/PromotionWorker.psm1`
 - `deployment/servix/Protect-PromotionBackup.ps1`
+- `deployment/servix/Read-PromotionEnvironment.cjs`
 - `deployment/servix/Run-Activation.ps1`
 - `deployment/servix/Run-PromotionHelper.ps1`
 - `deployment/servix/Run-SavedBackend.ps1`

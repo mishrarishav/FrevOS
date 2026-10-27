@@ -34,7 +34,10 @@ function Invoke-PromotionNode([string]$Node,[string]$File,[string[]]$Arguments,[
  try{
   if(-not $p.Start()){throw 'Promotion helper unavailable'}
   $stdout=$p.StandardOutput.ReadToEndAsync();$stderr=$p.StandardError.ReadToEndAsync()
-  $p.StandardInput.Write($InputText);$p.StandardInput.Close();$InputText=$null
+  # PowerShell 5.1 console pipes may use an OEM code page. Preserve JSON values
+  # as ASCII escapes until the private Node child parses the input.
+  $asciiInput=[regex]::Replace($InputText,'[^\x00-\x7f]',{param($m) '\u'+([int][char]$m.Value).ToString('x4')})
+  $p.StandardInput.Write($asciiInput);$p.StandardInput.Close();$InputText=$null;$asciiInput=$null
   if(-not $p.WaitForExit(1500000)){$p.Kill();throw 'Promotion helper timed out'}
   $out=$stdout.GetAwaiter().GetResult();[void]$stderr.GetAwaiter().GetResult()
   if($p.ExitCode -ne 0 -or [Text.Encoding]::UTF8.GetByteCount($out) -gt 2097152){throw 'Promotion helper did not verify'}
@@ -120,7 +123,7 @@ function Invoke-PromotionWork([string]$Root,[string]$PublicRoot,[string]$Private
     foreach($sid in @('S-1-5-18',[Security.Principal.WindowsIdentity]::GetCurrent().User.Value)){$acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($sid),'FullControl','ContainerInherit,ObjectInherit','None','Allow'))};[IO.DirectoryInfo]::new($staging).SetAccessControl($acl)
    }
    $hashes=[ordered]@{}
-   foreach($name in @('BackendArtifact.cjs','BackendArtifactSelection.psm1','PromotionFiles.cjs','ProductionBackendRuntime.cjs','Run-SavedBackend.ps1','BatchLogon.psm1','Invoke-PromotionTarget.ps1')){
+   foreach($name in @('BackendArtifact.cjs','BackendArtifactSelection.psm1','PromotionFiles.cjs','ProductionBackendRuntime.cjs','Run-SavedBackend.ps1','BatchLogon.psm1','Invoke-PromotionTarget.ps1','Read-PromotionEnvironment.cjs')){
     $source=Join-Path $PSScriptRoot $name;$hashes[$name]=Get-PromotionHash $source;Copy-Item -LiteralPath $source -Destination (Join-Path $staging $name) -ToSession $session
    }
    foreach($file in $saved.files){$destination=Join-Path $staging ('payload\'+$file.relative.Replace('/','\'));Invoke-Command -Session $session -ArgumentList (Split-Path $destination) -ScriptBlock {param($dir);[void][IO.Directory]::CreateDirectory($dir)};Copy-Item -LiteralPath $file.file -Destination $destination -ToSession $session}
@@ -138,12 +141,15 @@ function Invoke-PromotionWork([string]$Root,[string]$PublicRoot,[string]$Private
    & (Join-Path $PSScriptRoot 'Protect-PromotionBackup.ps1') -Action Prepare -Directory $backupDir | Out-Null
    if($LASTEXITCODE -and $LASTEXITCODE -ne 0){throw 'Backup protection unavailable'}
    $scopeFile=Join-Path $backupDir 'scope.json';Write-PromotionJson $scopeFile @{version=1;workspaceId=$Job.workspaceId;actor=$Job.requestedBy;requestId=$Job.id;targetSha256=$Job.targetSha256;artifact=$saved.artifact;databaseTargetSha256=$observation.files.profile.databaseTargetSha256} -New
-   $databaseBinding=Invoke-Command -Session $session -ArgumentList $target,$observation.files.profile.environmentSha256 -ScriptBlock {
-    param($target,$expected)
+   $databaseBinding=Invoke-Command -Session $session -ArgumentList $target,$observation.files.profile.environmentSha256,$staging,$hashes['Read-PromotionEnvironment.cjs'] -ScriptBlock {
+    param($target,$expected,$staging,$helperHash)
     $envfile=Join-Path $target.root 'backend\.env';if((Get-FileHash -LiteralPath $envfile).Hash.ToLowerInvariant() -cne $expected){throw 'Environment changed before backup'}
-    $code='const fs=require("node:fs"),path=require("node:path"),r=require("node:module").createRequire(path.join(process.argv[1],"backend/package.json")),v=r("dotenv").parse(fs.readFileSync(path.join(process.argv[1],"backend/.env")));process.stdout.write(JSON.stringify({host:v.DB_HOST,port:Number(v.DB_PORT||3306),database:v.DB_NAME,user:v.DB_USER,password:v.DB_PASSWORD||""}));'
-    $text=& $target.node -e $code $target.root 2>$null;if($LASTEXITCODE -ne 0){throw 'Private database binding unavailable'}
-    $value=($text -join '')|ConvertFrom-Json;$text=$null
+    $helper=Join-Path $staging 'Read-PromotionEnvironment.cjs'
+    if((Get-FileHash -LiteralPath $helper).Hash.ToLowerInvariant() -cne $helperHash){throw 'Private binding helper changed'}
+    $text=& $target.node $helper $target.root $expected 2>$null;if($LASTEXITCODE -ne 0){throw 'Private database binding unavailable'}
+    Add-Type -AssemblyName System.Web.Extensions
+    $privateJson=[System.Web.Script.Serialization.JavaScriptSerializer]::new()
+    $value=$privateJson.DeserializeObject(($text -join ''));$text=$null
     $secret=[Security.SecureString]::new();foreach($character in ([string]$value.password).ToCharArray()){$secret.AppendChar($character)};$secret.MakeReadOnly()
     $credential=[pscredential]::new([string]$value.user,$secret);$value.password=$null
     return @{host=$value.host;port=$value.port;database=$value.database;credential=$credential}
@@ -151,7 +157,9 @@ function Invoke-PromotionWork([string]$Root,[string]$PublicRoot,[string]$Private
    if($databaseBinding.credential -isnot [pscredential]){throw 'Encrypted credential transport required'}
    $database=@{host=$databaseBinding.host;port=[int]$databaseBinding.port;database=$databaseBinding.database;user=$databaseBinding.credential.UserName;password=$databaseBinding.credential.GetNetworkCredential().Password};$databaseBinding=$null
    if($database.host -in @('localhost','127.0.0.1','::1')){$database.host=$target.host}
-   $backupInput=@{directory=$backupDir;scopeSha256=(Get-PromotionHash $scopeFile);clientRoot=$client.root;clientSha256=$client.clientSha256;dumpSha256=$client.dumpSha256;version=$client.version;environment=$database}|ConvertTo-Json -Depth 10 -Compress
+   Add-Type -AssemblyName System.Web.Extensions
+   $privateJson=[System.Web.Script.Serialization.JavaScriptSerializer]::new()
+   $backupInput=$privateJson.Serialize(@{directory=$backupDir;scopeSha256=(Get-PromotionHash $scopeFile);clientRoot=$client.root;clientSha256=$client.clientSha256;dumpSha256=$client.dumpSha256;version=$client.version;environment=$database})
    Set-PromotionProgress $PublicRoot $Job.id 'capturing-and-verifying-encrypted-backup' $Job.workspaceId
    $backupText=Invoke-PromotionNode $Node (Join-Path $PSScriptRoot 'PromotionBackup.cjs') @() $backupInput;$backupInput=$null;$database=$null
    $backup=$backupText|ConvertFrom-Json

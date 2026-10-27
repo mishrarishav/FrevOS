@@ -4,9 +4,9 @@ Last updated: 2026-10-27
 
 ## Saved backend Production promotion (platform live, cutover pending, 2026-10-27)
 
-The visible configured platform pipeline `pr_1c92360166fda9d4001954131282064b`
-published source `e6ca25a3098737fdc67c518b9a189a08bb508398` and activated manifest
-`dfcc4da6e2dcaaa7647493780cf58d41130466877ecb8966f6f8cf5c374cc439`.
+The visible configured platform pipeline `pr_917aba694fc020c735c9cbecd6c6fc94`
+published source `3bca2f97afe22274120e41fbf89aea7bc2929dd4` and activated manifest
+`2417b37cd93b6b2eade79061842d86049695e4ffc08b09d3a1fe6bcc34e0ede8`.
 Independent native Apply reports PASS, HTTP/UI 200, no operator database write
 and sibling IIS preservation. The first build failed because its enrolled
 packager omitted the new modules; a reviewed two-file operator update preserved
@@ -18,9 +18,26 @@ the existing Node executable uses the version manager junction
 `C:\Program Files\nodejs` to `C:\nvm\v20.11.1`. Read-only diagnostics found no
 links in the inspected customer data. [ADR 0066](adr/0066-canonical-promotion-runtime-identity.md)
 pins the same canonical executable and verifies the observed process resolves
-to it, retaining customer/staging link denials. The correction requires normal
-CI, visible platform publication and a new Production preparation. No Production
-runtime stop, task credential binding or permission change has occurred.
+to it, retaining customer/staging link denials. That correction passed the full
+358-test configured CI gate and is live. Actual read-only observation verified
+PID 10760, owner `EESL\APPC0024`, Node 20.11.1, existing batch-logon readiness and
+8,572 protected files. Earlier configured CI attempts failed; normal and exact
+minimal-environment CI passed, then an identity-verified idle builder restart
+and fresh configured run succeeded. The failure cause is not fully established;
+no test/gate was bypassed.
+
+Preparation `pm_430c1fb0df00a6a011c9a03e7ea67b9a` passed the runtime inventory,
+then its official MySQL archive download failed. The already verified official
+8.0.28 archive was imported into the worker cache with its exact configured
+checksum; four required files and actual client loading passed. Preparation
+`pm_f99f5c7b32585b2e951752bcc114a89b` then reached private DB binding but its
+inline JavaScript invocation failed. Replace it with a hash-pinned file helper.
+ASCII JSON escaping preserves private Unicode values across PowerShell 5.1
+console code pages in both directions. Actual server21 read-only binding and
+encrypted PSCredential transport pass; a real native helper/backup-wrapper
+regression passes without reporting credential values. Publish this bounded
+correction through DevSetu before repeating preparation. No Production runtime
+stop, task credential binding, environment write or permission grant occurred.
 
 The owner explicitly requests completing the missing runner and deploying through
 DevSetu. [ADR 0065](adr/0065-configured-saved-backend-production-promotion.md)
