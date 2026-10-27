@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { lstat, mkdir, open, readdir, readFile, rename } from "node:fs/promises";
-import { basename, join, resolve } from "node:path";
+import { basename, isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import {
   type DeploymentChange,
@@ -56,11 +56,30 @@ export interface ServixPublisher {
     changeDetails?: DeploymentChange,
   ): Promise<string>;
 }
+export async function loadServixExecutionProfile(operator: string) {
+  const profile = z
+    .object({
+      version: z.literal(1),
+      git: z
+        .object({
+          executable: z.string().min(1).max(500).refine(isAbsolute),
+          repository: z.string().min(1).max(500).refine(isAbsolute),
+          repositoryId: z.string().regex(/^gitrepo_[a-f0-9]{32}$/),
+        })
+        .strict(),
+    })
+    .parse(JSON.parse(await readFile(join(operator, "ReleaseBuildProfile.json"), "utf8")));
+  return {
+    git: profile.git.executable,
+    repository: profile.git.repository,
+    repositoryId: profile.git.repositoryId,
+  };
+}
 // All paths, commands and targets belong to this fixed server-owned profile.
 export function servixExecution(
   root: string,
   operator: string,
-  profile = {
+  profile: { git: string; repository: string; repositoryId?: string } = {
     git: "C:\\Program Files\\Git\\cmd\\git.exe",
     repository: "E:\\FrevOS\\git\\servix.git",
   },
@@ -69,6 +88,7 @@ export function servixExecution(
   exportBundle(file: string, heads: string[]): Promise<void>;
 } {
   const { git, repository: repo } = profile;
+  const repositoryId = profile.repositoryId ?? "gitrepo_6cb7e163f807493fa37963196c49fbac";
   const env: NodeJS.ProcessEnv = {};
   for (const name of [
     "SystemRoot",
@@ -102,7 +122,7 @@ export function servixExecution(
       ],
       { env, windowsHide: true, timeout: 5000, maxBuffer: 4096 },
     );
-    if (identity.stdout.trim() !== "gitrepo_6cb7e163f807493fa37963196c49fbac")
+    if (identity.stdout.trim() !== repositoryId)
       throw new ServixDeploymentError("deployment-repository-identity-mismatch", 503);
   };
   return {

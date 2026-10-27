@@ -4,6 +4,22 @@ Last updated: 2026-10-28
 
 ## Complete application release follow-up — resumed
 
+The sixth actual DevSetu pipeline succeeded at 02:17 IST on 2026-10-28, source
+`53ea0214f4fb1e4e13369256d471122a94a0ad3d`, active manifest
+`accdf66214a481a477334f6c33fc254f8813002c8d4f5ecaeeb884a57337d50f`.
+All 77 cached test files and coverage gates pass. The independent native Apply
+receipt verifies HTTP/UI 200, preserved siblings and no database write.
+
+The subsequent full Servix Development request failed before source publication.
+Read-only server20 SYSTEM diagnostics identify the compatibility adapter's fixed
+Git launcher timing out, including `--version`; the installed direct executable
+reads version, configured repository identity and source head in under 100 ms.
+The compatibility controller and builder now consume that executable/repository
+identity from the versioned build profile. This correction needs a new actual
+configured platform build/activation before retrying customer deployment. No
+customer build or new Production mutation occurred. Earlier observations below
+are historical checkpoints, not the current live outcome.
+
 On 2026-10-28 the owner restored VPN/desktop access. Server20 HTTP/SMB and
 server21 API probes now pass. The previous request and native job both reconcile
 as failed; active platform manifest remains `a4c5e8ab...`. All six previously
@@ -16,6 +32,17 @@ coverage thresholds or independent acceptance tests are removed. The next
 configured publication/build must pass before platform activation or a new
 customer release. The historical interruption below remains as evidence.
 
+The fifth configured build of `1a7a31ff...` completed all native files except
+the two PostgreSQL integration suites. Exact restricted-environment reproduction
+identified Docker OCI `resource temporarily unavailable`, before test databases
+could start. The repository-owned local Caddy test proxy had 16,068 processes.
+Its scoped restart reduced that to 18 without restarting Docker or touching
+server20/server21; the same two suites then pass all 22 tests. The sixth actual
+UI-created request `pr_569e11398745b52b96aa39217ad8e92d` is building source
+`53ea0214f4fb1e4e13369256d471122a94a0ad3d`. Its tree is identical to `1a7a31ff...`;
+the configured publisher records a new change-message commit. Require that
+request's full CI, package and independent activation receipts before proceeding.
+
 The owner now requests the complete source → frontend/backend Development →
 Production flow and subsequent updates. Branch `codex/servix-full-release`,
 base `a51e97c20dc27ce047cb54ef54a4ef343a5a5b22`, continues the same bounded
@@ -23,12 +50,13 @@ Phase 4 deployment capability. [ADR 0067](adr/0067-complete-application-release-
 supersedes the initial backend-only/first-adoption boundaries while retaining
 all approvals, preservation and runtime ownership checks. Earlier final handoff
 changes are retained. No new Production application activation has occurred.
-Latest configured source is `b91f8423771a3f546445faa1b2c7b631270deaf9` on
+At the historical 2026-10-27 interruption, configured source was
+`b91f8423771a3f546445faa1b2c7b631270deaf9` on
 `codex/servix-full-release`; publication is not live activation. Four UI-created
 attempts have stopped in native CI. Two identified harness defects are corrected,
 but the latest run still has six failing native test files. VPN/server20/server21
-access is now unavailable, the desktop is locked, and a local observation shows
-335 MB free RAM of 16 GB with CPU 81%. Unlock/VPN input is pending. Reconcile the
+access was unavailable, the desktop was locked, and a local observation showed
+335 MB free RAM of 16 GB with CPU 81%. Unlock/VPN input was pending. Reconcile the
 same failed request after reconnecting, reproduce the remaining failures on a
 stable host, and require a successful configured build before proceeding. No
 new customer Development release or fresh full-application Production review

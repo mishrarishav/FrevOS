@@ -1,5 +1,10 @@
 {
   "version": 1,
+  "git": {
+    "executable": "C:\\Program Files\\Git\\ucrt64\\bin\\git.exe",
+    "repository": "E:\\FrevOS\\git\\servix.git",
+    "repositoryId": "gitrepo_6cb7e163f807493fa37963196c49fbac"
+  },
   "development": {
     "host": "10.9.69.21",
     "computer": "DCAPP9",

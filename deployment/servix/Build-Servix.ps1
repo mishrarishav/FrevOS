@@ -31,9 +31,13 @@ for($cursor=$scratch;;){if((Test-Path -LiteralPath $cursor) -and ((Get-Item -Lit
 $drive=[IO.DriveInfo]::new([IO.Path]::GetPathRoot($scratchBase));if($drive.AvailableFreeSpace -lt 2GB){throw 'Private build scratch requires at least 2 GB free'}
 $source=Join-Path $scratch 'source';[void][IO.Directory]::CreateDirectory($source)
 [IO.File]::WriteAllText((Join-Path $job 'workspace.json'),(@{version=1;identity='LOCAL SERVICE';source=$source;artifacts=$job;privateScratch=$true}|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
-$git='C:\Program Files\Git\cmd\git.exe';$repo='E:\FrevOS\git\servix.git'
+$buildProfile=Get-Content -LiteralPath (Join-Path $PSScriptRoot 'ReleaseBuildProfile.json') -Raw|ConvertFrom-Json
+$git=[string]$buildProfile.git.executable;$repo=[string]$buildProfile.git.repository
+if($buildProfile.version -ne 1 -or -not [IO.Path]::IsPathRooted($git) -or -not [IO.Path]::IsPathRooted($repo) -or $buildProfile.git.repositoryId -cnotmatch '^gitrepo_[a-f0-9]{32}$'){throw 'Git build tool profile is unavailable'}
 $archive=Join-Path $job 'source.zip'
 $stage='git-export'
+$identityLog=Join-Path $job 'repository-identity.log'
+if((Invoke-ServixBuildProcess $git ('-c "safe.directory='+$repo+'" "--git-dir='+$repo+'" config --get frevos.repositoryId') $job $identityLog 30) -ne 0 -or (Get-Content -LiteralPath $identityLog -Raw).Trim() -cne $buildProfile.git.repositoryId){throw 'Build repository identity differs'}
 $optionalLog=Join-Path $job 'backend-build-inputs.log'
 if((Invoke-ServixBuildProcess $git ('-c "safe.directory='+$repo+'" "--git-dir='+$repo+'" ls-tree --name-only '+$SourceHead+' -- backend/package-lock.json backend/scripts backend/tests') $job $optionalLog 30) -ne 0){throw 'Backend build input lookup failed'}
 $optional=@(Get-Content -LiteralPath $optionalLog|Where-Object {$_ -cin @('backend/package-lock.json','backend/scripts','backend/tests')})
@@ -67,7 +71,6 @@ if($backendPackage.PSObject.Properties.Name -contains 'devDependencies' -and $ba
  if(-not(Test-Path -LiteralPath (Join-Path $source 'dist\servix-server\backend-artifact.json') -PathType Leaf)){throw 'Backend build did not produce its descriptor'}
 }
 $stage='application-tests'
-$buildProfile=Get-Content -LiteralPath (Join-Path $PSScriptRoot 'ReleaseBuildProfile.json') -Raw|ConvertFrom-Json
 $suites=@();$testIndex=0;$oldCi=$env:CI;$env:CI='true'
 try{
  foreach($test in $buildProfile.tests){

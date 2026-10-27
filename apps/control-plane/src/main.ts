@@ -23,6 +23,7 @@ import { buildServer } from "./server.js";
 import {
   ServixDeploymentError,
   ServixDeploymentStore,
+  loadServixExecutionProfile,
   servixExecution,
 } from "./servix-deployment.js";
 import { SystemDiscovery } from "./system-discovery.js";
@@ -179,9 +180,11 @@ try {
     return service;
   };
   if (config.servixRoot) {
+    const operator = fileURLToPath(new URL("../../../deployment/servix/", import.meta.url));
     const execution = servixExecution(
       config.servixRoot,
-      fileURLToPath(new URL("../../../deployment/servix/", import.meta.url)),
+      operator,
+      await loadServixExecutionProfile(operator),
     );
     const allowed = async (actor: string) => {
       const evidence = await new WorkspaceRepository(pool).getEvidence("ws_server20", actor);

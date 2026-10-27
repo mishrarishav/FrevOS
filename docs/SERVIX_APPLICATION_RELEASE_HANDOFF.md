@@ -1,7 +1,44 @@
 # Complete application release follow-up
 
-Date: 2026-10-28 IST. Status: **IN PROGRESS — access restored and the six native
-files pass on recheck; a successful configured full build remains required**.
+Date: 2026-10-28 IST. Status: **IN PROGRESS — platform activation passes;
+the customer source step exposed a Git launcher issue, now corrected in configuration**.
+
+## Verified platform and customer source follow-up
+
+The sixth configured pipeline `pr_569e11398745b52b96aa39217ad8e92d` succeeded.
+Its source is `53ea0214f4fb1e4e13369256d471122a94a0ad3d`, reference digest
+`e164f15aa2b693995c364300f5888e2b6678b6f20cce2939523ab1f3903c4e3e`, archive
+SHA `d1ad6d15ed714788de44f99239dc5c1fb72c3c5d852ef5ba8a17e137c14ee4ab`
+(131,636,730 bytes, 3,970 packaged files), manifest
+`accdf66214a481a477334f6c33fc254f8813002c8d4f5ecaeeb884a57337d50f`.
+Independent Apply job `cj_ade3a227131e7859e2b5e527fef47967` reports PASS,
+HTTP/UI 200, siblings preserved and databaseWritten false. Server20 active.json
+matches. This is actual source publication, full CI, packaging and activation.
+
+The subsequent UI-created Development request
+`sd_f27841bcf5ca00cd6e608dbdf6ab9e18` failed before source publication with the
+generic build-or-authorization error; no build scratch or target activation was
+created. Read-only SYSTEM diagnostics verify the source repository still contains
+`e04137b4a862e8760a59b95da7e0de9a32bc6d38`. Its fixed Git cmd launcher times out
+on identity/head (20 seconds each) and version (7 seconds). The installed
+`ucrt64/bin/git.exe` reads version in 82 ms, repository identity in 66 ms and head
+in 75 ms. It is the same installed Git 2.56.0.windows.2; no version upgrade or
+binary replacement is involved. Temporary diagnostic tasks were removed.
+
+The bounded correction moves the compatibility Git executable, repository and
+verified provider identity into ReleaseBuildProfile.json. Controller startup
+validates the versioned profile and supplies it to the existing Git executor;
+the builder consumes the same data and verifies repository identity before export.
+Absolute executable/repository paths are required, ambient service secrets remain
+excluded and the exact source/target protections are unchanged. Focused tests
+cover configured execution, mismatched identity and rejection of a relative tool
+path. A fresh actual configured CI/package/activation is still required for this
+correction before retrying Servix Development. No new Production application
+deployment or approval is claimed.
+
+Browser screenshot/mouse dispatch timed out after activation. The actual visible
+DevSetu dialog remained operable through its normal keyboard controls; no direct
+deployment API mutation or automatic retry was used.
 
 ## 2026-10-28 resume
 
@@ -27,19 +64,53 @@ Direct validation of the bounded runners passes: Windows UI 93 tests with 100%
 scoped coverage (18.58 seconds), and contracts 88 tests with existing coverage
 gates unchanged; both exit 0. Repository validation, formatting, lint and private
 changed-file secret comparison also pass before configured publication.
-The previous status/evidence below is historical. A new actual DevSetu request
-will publish and build the reviewed correction; only a successful exact source
-build may proceed to platform activation and the customer release flow.
+The fifth actual DevSetu request `pr_b63ae3d73f826b5f5d3b07920799e684`, source
+`1a7a31ff958941143e3df7797d67f21788b97222`, native build
+`cj_59fdf51e6c7e451c33bb37914f7389bf`, failed CI before activation. Contracts and
+UI coverage passed; 46 of 48 native files passed, with only the two database
+integration files failing. Exact restricted-environment reproduction failed before
+PostgreSQL startup with Docker OCI `fork/exec /usr/bin/runc: resource temporarily
+unavailable`. The repository's local Caddy preview container had 16,068 processes,
+verified by Docker stats and Compose ownership labels for `D:\FREVOS`.
+
+At 01:44 IST the scoped `docker restart --time 10 9b5d079c3875` exited 0. This
+restarted only that local proxy, retaining its configuration/volumes; no Docker
+daemon restart, unrelated application stop or remote mutation occurred. Its
+process count reduced to 18. The same installed restricted Node/pnpm then ran
+`vitest run test/accounts.integration.test.ts test/postgres-service.integration.test.ts
+--reporter=json`: exit 0, 22/22 tests pass. The isolated synthetic databases were
+removed by their normal test lifecycle. This focused pass does not qualify a
+failed configured request for activation.
+
+The sixth request was submitted through the actual DevSetu dialog:
+`pr_569e11398745b52b96aa39217ad8e92d`, native build
+`cj_21edd083f3bb17b5d57411eb6b508c37`, source
+`53ea0214f4fb1e4e13369256d471122a94a0ad3d`. Git tree comparison with `1a7a31ff...`
+is empty; the publisher records another approved change-message commit. Browser
+submission initially reported uncertain confirmation, but the controller's scoped
+request file proves acceptance; no Retry was submitted. Follow this same request
+to terminal full CI/package/independent activation evidence. Only then may the
+customer Development release and fresh full-application Production review proceed.
+
+At 02:07:29 IST the sixth native builder reached the enrolled release packager,
+which is invoked only after successful `pnpm run ci`. Its frozen-source retained
+Vitest results contain 13 contracts, 16 UI and 48 control-plane files, none marked
+failed. Coverage gates pass: contracts 98.28% statements / 92.77% branches, UI
+100%, control-plane 95.25% statements / 91.69% branches / 96.6% functions /
+96.72% lines. Compilation and the configured high-severity dependency audit gate
+completed before packaging. No final package/activation result is claimed by
+this intermediate observation.
 
 Repository: `https://github.com/mishrarishav/FrevOS`.
 Branch: `codex/servix-full-release`.
 Base: `a51e97c20dc27ce047cb54ef54a4ef343a5a5b22`.
 Latest configured DevSetu publication produced
-`b91f8423771a3f546445faa1b2c7b631270deaf9`; its cumulative diff from the base
-is 34 files, 2,517 additions and 74 removals. This includes the preceding
-deployment's retained handoff documents and the owner clarification. The final
-status/evidence additions to this document and CURRENT_STATE.md remain
-uncommitted. No PR, merge, default-branch push or new live activation.
+`53ea0214f4fb1e4e13369256d471122a94a0ad3d`; its cumulative diff from the base
+is 37 files, 2,662 additions and 76 removals. This includes the preceding
+deployment's retained handoff documents, owner clarification and bounded CI
+worker configuration. Later evidence additions to this document and
+CURRENT_STATE.md remain uncommitted. No PR, merge, default-branch push or new
+live activation is claimed.
 Phase 4 exit remains open. See [ADR 0067](adr/0067-complete-application-release-promotion.md).
 
 ## Scope and implementation
@@ -211,12 +282,14 @@ still separate and must not be claimed by this implementation session.
 
 ## Complete publication file inventory
 
-At b91f8423771a3f546445faa1b2c7b631270deaf9: 34 files changed, 2517 insertions(+), 74 deletions(-).
+At `53ea0214f4fb1e4e13369256d471122a94a0ad3d`: 37 files changed,
+2,662 insertions(+), 76 deletions(-), relative to the documented base.
 
 - apps/control-center/src/ArtifactPromotionsPage.tsx
 - apps/control-center/src/DeploymentSettingsPage.tsx
 - apps/control-center/test/deployment-settings.test.tsx
 - apps/control-center/test/environment-seal.test.ts
+- apps/control-center/vite.config.ts
 - apps/control-plane/src/artifact-promotions.ts
 - apps/control-plane/src/servix-deployment.ts
 - apps/control-plane/test/artifact-promotions.test.ts
@@ -245,8 +318,10 @@ At b91f8423771a3f546445faa1b2c7b631270deaf9: 34 files changed, 2517 insertions(+
 - docs/adr/0067-complete-application-release-promotion.md
 - docs/adr/0068-existing-development-source-acceptance.md
 - docs/adr/README.md
+- package.json
 - packages/contracts/src/artifact-promotions.ts
 - packages/contracts/src/servix-deployment.ts
+- packages/contracts/vitest.config.ts
 
 ## Resume boundary
 
