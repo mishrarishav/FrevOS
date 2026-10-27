@@ -19,6 +19,10 @@ resizing and contextual filter UI; its built-in Development URL prevents direct
 safe promotion. New builds use same-origin routing and component digests.
 Implementation and validation are underway; do not claim complete-flow live
 acceptance until the actual receipts and public file checks are recorded.
+Two configured platform attempts stopped in CI before activation. Reproduction
+isolated a new unit fixture's missing computer-name input under the restricted
+builder environment. Its measured-OS-identity correction passes in that same
+environment; production checks and independent acceptance tests are unchanged.
 The owner reserves dashboard/filter/resize manual checks for themselves and
 subsequently confirmed these changes already appear on Development. Under
 [ADR 0068](adr/0068-existing-development-source-acceptance.md), verify the same

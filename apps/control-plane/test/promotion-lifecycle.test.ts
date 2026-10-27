@@ -3,7 +3,7 @@ import fs from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
-import { tmpdir } from "node:os";
+import { hostname, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { expect, it } from "vitest";
@@ -17,7 +17,8 @@ it.skipIf(process.platform !== "win32")(
   async () => {
     const base = await mkdtemp(join(tmpdir(), "promotion-lifecycle-"));
     const root = join(base, "application"),
-      stateFile = join(base, "simulated-os.json");
+      stateFile = join(base, "simulated-os.json"),
+      computer = hostname();
     const put = (file: string, value: string | Buffer) => {
       fs.mkdirSync(dirname(file), { recursive: true });
       fs.writeFileSync(file, value);
@@ -143,7 +144,7 @@ it.skipIf(process.platform !== "win32")(
             node: process.execPath,
             nodeVersion: process.version,
             port,
-            computer: Reflect.get(process.env, "COMPUTERNAME"),
+            computer,
             workspaceId: "ws_fixture",
             profileId: "fixture-production",
             taskName: "DevSetu-Fixture-Never-Registered",
@@ -189,6 +190,10 @@ it.skipIf(process.platform !== "win32")(
             maxBuffer: 4 * 1024 * 1024,
             env: {
               ...process.env,
+              // The credential-free builder intentionally strips ambient host
+              // variables. Supply this fixture's measured local identity to
+              // both the target context and its simulated Windows boundary.
+              COMPUTERNAME: computer,
               PSModulePath: join(
                 String(Reflect.get(process.env, "WINDIR")),
                 "System32/WindowsPowerShell/v1.0/Modules",

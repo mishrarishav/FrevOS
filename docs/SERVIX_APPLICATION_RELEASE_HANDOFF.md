@@ -1,7 +1,7 @@
 # Complete application release follow-up
 
-Date: 2026-10-27 IST. Status: **IN PROGRESS — implementation validated locally;
-configured platform CI failure is under diagnosis before activation**.
+Date: 2026-10-27 IST. Status: **IN PROGRESS — native fixture environment defect
+corrected and verified; configured rollout remains pending**.
 
 Repository: `https://github.com/mishrarishav/FrevOS`.
 Branch: `codex/servix-full-release`.
@@ -83,8 +83,9 @@ the prior backend-only approval is consumed and is not reused.
   Control-plane branches are 91.69%; platform audit remains 5 low/6 moderate.
   A separate UI coverage run with the installed native Node/pnpm and native
   environment whitelist also exits 0 (93 tests, 100% scoped coverage). The first
-  configured CI failure's precise cause remains unresolved; retain it and require
-  a fresh successful configured attempt rather than reuse its failed receipt.
+  configured CI failure's precise cause was unresolved at that stage. The later
+  diagnosis below reproduces and corrects the fixture defect. Retain both failed
+  attempts and require a fresh successful configured attempt.
 
 ## Pending live evidence and limits
 
@@ -96,6 +97,20 @@ same isolated frozen source and obtain a passing configured build before any
 new platform activation. Build/deploy Servix through the actual Development UI,
 record both component/test/preservation receipts and same-source verification,
 then prepare the fresh exact Production review/backup and scoped decision.
+
+The UI-created retry `pr_272d49cc8f8666c222ef25fef2c60239`, source
+`e2db864d77aeda6b934957f3a89349d079582dc6`, native build
+`cj_016e5a6322f8a04721aad7c3ee4fdf1c`, also failed CI without activation.
+Direct reproduction with the installed native Node/pnpm and credential-free
+environment isolated a test-fixture defect: the new lifecycle fixture derived
+its target computer from `COMPUTERNAME`, which the builder intentionally strips.
+The target JSON therefore lacked `computer` and strict native verification
+rejected it. The fixture now obtains the real local hostname from the OS and
+supplies that same identity explicitly to its simulated Windows boundary.
+The unchanged lifecycle test then passes with that restricted environment
+(49.69 seconds, exit 0). Production identity checks, assertions, coverage gates
+and independent acceptance tests are unchanged; the builder whitelist remains
+restricted. No customer source or runtime recipe changed for this correction.
 
 No new Production application mutation has occurred. Customer runtime/library
 versions and accepted dependency findings remain unchanged. No database
