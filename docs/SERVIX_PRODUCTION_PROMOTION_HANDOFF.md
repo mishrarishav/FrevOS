@@ -272,6 +272,68 @@ its fresh backup and final preservation/health are still pending.
 
 ## Complete changed-file inventory
 
+Additional local follow-up on 2026-10-27: the configured DTO build
+`pr_7346423a9ed268e889ae2012ab0814b4` failed before activation. Its frozen cache
+reports `apps/control-center/test/environment-seal.test.ts` failed. Isolated
+execution exits 1 because Windows PowerShell cannot load its Security module;
+pinning its own module directory makes the identical two tests pass (exit 0).
+The exact original configured failure output was discarded, so this does not
+establish its complete cause. Pin Windows 5.1 modules for the enrolled native
+build environment and retain bounded safe failure metadata for further evidence.
+The record contains only fixed phase, numeric exit code, killed flag, byte count,
+allowlisted error classes and bounded source locations. It excludes raw output,
+messages and command lines; write failure leaves the original denial unchanged.
+The five executor tests pass, including a synthetic private-value exclusion test.
+
+Latest follow-up status: **BLOCKED on network; local validation PASS**. Repository
+`D:\FREVOS\.local\worktrees\servix-dashboard`, branch
+`codex/servix-production-readiness`, base
+`5730940fe6c40cc3eb5002ef6beaa564c9571e5f`, current published HEAD
+`51eb92751058383186dfc4800c46bff98aa37135`, four local changed files. No PR was
+created and no default-branch push or merge was performed for this follow-up.
+
+- `pnpm.cmd run ci` with Windows 5.1 module path: exit 0, repository validation,
+  format/lint/typecheck, 361 tests (88 contracts, 92 UI, 181 control-plane), build
+  and audit gate pass. Control-plane coverage is 95.23/91.56/96.60/96.71; required
+  UI coverage is 100%. Platform audit has 5 low/6 moderate findings, no high or
+  critical. Existing customer advisories/dependency versions remain unchanged.
+- The first local CI found a new test's TypeScript index-signature error;
+  bracket access fixes it and the complete rerun above passes. No assertion,
+  timeout, coverage or security gate was bypassed.
+- `node .local/Review-PromotionDiff.cjs`: exit 0, approved private values absent
+  from all four changed files. `git diff --check`: exit 0. Repository validation
+  passes with 102 Markdown files. Complete 48-file base-to-worktree inventory
+  follows; exact final stat is recorded in the local validation receipt.
+- Identity-verified idle builder maintenance: exit 0, correlation
+  `98b1e173d0254e79b3c210044a66da21`, executor
+  `ex_e7fa8000834184a9deae261525c62f5f`, adapter SHA
+  `5767fc7f0299c24217f1a5fdea3737e958c1902f06e0c4e357db9639fc624e3a`.
+  Only its adapter and corresponding encrypted enrollment hash changed. Exact
+  task definition, existing credential value/scope and permissions are unchanged.
+  Before-files and a flushed, scoped intent are retained. An initial conservative
+  idle check rejected the owned Windows console host without stopping the task;
+  replacement attempts then failed safely and restored the prior enrollment.
+  Using explicit retained backup paths for Windows atomic replacement succeeds.
+- At 17:52 IST on 2026-10-27, concurrent TCP checks of ports 80/445/5985 on both
+  server20 and server21 all time out. The visible UI reports connection unavailable
+  and source system offline. Screenshot and local CI log are retained under
+  `.local/evidence/devsetu-production-network-blocked-20261027.png` and
+  `.local/production-builder-diagnostics-ci.log`.
+
+Actual configured publication, fresh Production backup/review, task credential
+binding, cutover and final live health/preservation are still pending. The active
+server20 manifest remains `bb0a2d8e09a55f3f45819d627da4d2f5f3eec9de3cc5b80ea5b851c01f8e0d57`;
+the DTO correction has not reached it. No Production process stop or environment,
+upload, attachment, frontend/IIS or application database write was performed.
+Resume this same bounded promotion after connectivity returns; this is not
+readiness for a later roadmap phase.
+
+Resume at 18:05 IST on 2026-10-27: the owner reconnected VPN; HTTP/SMB checks on
+both servers now pass and authenticated platform builder/destination observations
+are fresh. Continue the actual configured publication of the tested DTO and
+builder diagnostics corrections before a new Production preparation. No new
+Production approval, task binding or cutover is implied by reconnecting VPN.
+
 Initial publication diff stat: 42 files, +4254/-41. The ADR 0066 follow-up adds
 one decision document and updates the existing helper, registry, test and handoff
 files below; final statistics must be recorded after validation.
@@ -288,6 +350,7 @@ files below; final statistics must be recorded after validation.
 - `apps/control-plane/src/main.ts`
 - `apps/control-plane/src/server.ts`
 - `apps/control-plane/test/artifact-promotions.test.ts`
+- `apps/control-plane/test/component-executor.test.ts`
 - `apps/control-plane/test/postgres-service.integration.test.ts`
 - `apps/control-plane/test/promotion-files.test.ts`
 - `apps/control-plane/test/promotion-environment.test.ts`
@@ -297,6 +360,7 @@ files below; final statistics must be recorded after validation.
 - `deployment/servix/BatchLogon.psm1`
 - `deployment/servix/Invoke-PromotionTarget.ps1`
 - `deployment/servix/ModelSecret.ps1`
+- `deployment/servix/NativePlatform.cjs`
 - `deployment/servix/ProductionBackendRuntime.cjs`
 - `deployment/servix/PromotionBackup.cjs`
 - `deployment/servix/PromotionConnections.json`

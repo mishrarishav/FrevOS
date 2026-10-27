@@ -1,14 +1,66 @@
-import { createRequire } from "node:module";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
-import { mkdir, mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { gzip } from "node:zlib";
 import { promisify } from "node:util";
+import { gzip } from "node:zlib";
 import { expect, it } from "vitest";
+
 const executor = createRequire(import.meta.url)("../../../deployment/servix/ComponentExecutor.cjs");
 const native = createRequire(import.meta.url)("../../../deployment/servix/NativePlatform.cjs");
 const zip = promisify(gzip);
+it("pins the enrolled Windows native security modules in the minimal build environment", () => {
+  const env = native.buildEnvironment();
+  if (process.platform === "win32")
+    expect(env.PSModulePath).toBe(
+      join(process.env["WINDIR"] || "", "System32/WindowsPowerShell/v1.0/Modules"),
+    );
+  expect(
+    Object.keys(env).every((name) =>
+      [
+        "SystemRoot",
+        "WINDIR",
+        "PATH",
+        "PATHEXT",
+        "TEMP",
+        "TMP",
+        "USERPROFILE",
+        "HOME",
+        "LOCALAPPDATA",
+        "APPDATA",
+        "PSModulePath",
+      ].includes(name),
+    ),
+  ).toBe(true);
+});
+it("retains safe native failure metadata without raw output, arguments or private values", () => {
+  const sentinel = "private-value-must-never-be-recorded";
+  const result = native.operationFailure(
+    {
+      code: 1,
+      killed: false,
+      stdout: `AssertionError: ${sentinel}\n at test/device-enrollment.test.ts:151:39`,
+      stderr: `src/main.ts(12,7): ${sentinel}`,
+      message: sentinel,
+    },
+    "ci",
+  );
+  expect(result).toMatchObject({
+    version: 1,
+    phase: "ci",
+    exitCode: 1,
+    killed: false,
+    classifications: ["AssertionError"],
+    locations: ["test/device-enrollment.test.ts:151:39", "src/main.ts(12,7)"],
+  });
+  expect(JSON.stringify(result)).not.toContain(sentinel);
+  expect(native.operationFailure({ code: "ENOENT", stderr: "" }, "install")).toMatchObject({
+    exitCode: null,
+    classifications: ["ENOENT"],
+    locations: [],
+  });
+});
 const file = (path: string, text: string) => ({
   path,
   sha256: executor.sha(Buffer.from(text)),

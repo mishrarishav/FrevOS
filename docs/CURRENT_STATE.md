@@ -78,6 +78,28 @@ reconciles main's owner squash with central Git without changing accepted code
 or the 42 working files. Production activation remains pending; see the
 [promotion handoff](SERVIX_PRODUCTION_PROMOTION_HANDOFF.md).
 
+The DTO publication attempt `pr_7346423a9ed268e889ae2012ab0814b4` failed before
+activation from source `51eb92751058383186dfc4800c46bff98aa37135`. Its frozen
+Vitest cache identifies `environment-seal.test.ts`. An isolated reproduction
+fails to load the Windows PowerShell security module when inheriting the parent
+PowerShell module path; the same two tests pass with the Windows 5.1 module path.
+Pin that path in the minimal native builder environment. Add bounded failure
+metadata (fixed phase/codes and source locations only), never raw child output
+or command lines. Five focused executor tests pass. Full local `pnpm.cmd run ci`
+exits 0: 361 tests, build and audit gate pass (5 low/6 moderate platform findings).
+The identity-verified existing builder now has the reviewed adapter, with its
+credential value/scope, task and permissions unchanged; encrypted before-files
+and a flushed maintenance intent are retained. The actual configured publication
+is still required. The final live connection check on 2026-10-27 at 17:52 IST
+times out for HTTP/SMB/WinRM on both servers; the visible UI reports systems
+offline. Production remains untouched.
+
+At 18:05 IST the owner reconnected VPN. Fresh TCP checks pass for HTTP/SMB on
+both servers and authenticated observations report the enrolled platform builder
+and destination online. Resume the same configured publication, then fresh
+Production preparation and exact review. Earlier blocked observations remain
+historical evidence; no Production activation has occurred.
+
 ## Servix Production configuration (destination pending, 2026-10-26)
 
 The owner subsequently logged into the adjacent DevSetu browser and delegated
