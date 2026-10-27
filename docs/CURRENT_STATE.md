@@ -4,6 +4,29 @@ Last updated: 2026-10-28
 
 ## Complete application release follow-up — resumed
 
+At 05:10 IST correction request pr_9b4d03e06eb6538d614d119dd380317f fails
+native CI before package/activation: cached Vitest results identify only
+device-enrollment.test.ts as failed; all other 47 control-plane files, including
+the new observation test, pass. Its isolated exact installed-Node/restricted-env
+reruns pass, including test assertions under coverage (the partial-file coverage
+gate is intentionally incomplete and not a full CI pass). Raw failure output
+was not retained; do not claim the precise original assertion was recovered.
+The fixture contains three fixed 100-by-10ms state polling windows and a one-second
+heartbeat budget. Replace those with bounded five-second vi.waitFor assertions
+and a matching fixture heartbeat budget, retaining every assertion and all
+production/independent acceptance code. This addresses the observed load-sensitive
+test without claiming its exact failure cause is proven. Pairing/observation
+focused run passes two files/three tests, 5.91 seconds. A new actual full CI is
+required. Active platform remains 9ed0dbb2; no Production activation occurred.
+
+At 04:58 IST the isolated restore of backup 9368ef076964e2ed48125e75151ae4f270a48ff9925f3eb509911b0ca19841a6
+passes: 114 tables, one view, 213,139 rows and full-stream integrity; private
+temporary data/task removed, no Production write. It does not fix the incomplete
+review below. Worker correction source d762b661184ece8950fda70e6468b3c2b32d9b90
+is building through actual DevSetu request pr_9b4d03e06eb6538d614d119dd380317f;
+contracts/UI coverage pass. Follow the same request to full CI and activation,
+then prepare a fresh immutable Production review and matching backup evidence.
+
 At 04:51 IST, prepare pm_318cc4094cd89d00b95f0022e2e10ac5 completes runtime,
 protected inventory and encrypted full-stream backup verification. Its immutable
 review is NOT usable for activation: the worker checked the remoted hashtable

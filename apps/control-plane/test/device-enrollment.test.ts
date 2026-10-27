@@ -1,10 +1,11 @@
-import { mkdtemp, readFile, rm, realpath } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { join, dirname, basename } from "node:path";
 import { tmpdir } from "node:os";
+import { basename, dirname, join } from "node:path";
 import { expect, it, vi } from "vitest";
 import { DeveloperConnectorStore, SystemPairings } from "../src/developer-connectors.js";
 import { SystemDiscovery } from "../src/system-discovery.js";
+
 const client = createRequire(import.meta.url)("../../../deployment/servix/DeviceEnrollment.cjs");
 async function page(wizard: { pageUrl: string; origin: string }) {
   const html = await readFile(new URL(wizard.pageUrl), "utf8"),
@@ -59,7 +60,9 @@ it("pairs with an approved target code, never requests an account password, surv
     noOpen: true,
     preferences: join(root, "preferences"),
     pollDelay: 10,
-    heartbeatWait: 1000,
+    // Native CI can delay filesystem/poll continuations under coverage. Wait for
+    // the actual states within a bounded fixture window, not 100 timer ticks.
+    heartbeatWait: 5000,
     prepare: async (p: Record<string, unknown>) => {
       proposal = p;
     },
@@ -105,9 +108,10 @@ it("pairs with an approved target code, never requests an account password, surv
       403,
     );
     expect((await p.call("/connect", body)).status).toBe(202);
-    for (let i = 0; i < 100 && wizard.state.phase !== "approval"; i++)
-      await new Promise((r) => setTimeout(r, 10));
-    expect(wizard.state.phase).toBe("approval");
+    await vi.waitFor(() => expect(wizard.state.phase).toBe("approval"), {
+      timeout: 5000,
+      interval: 10,
+    });
     expect(installs).toBe(0);
     expect(await connectors.list("usr_owner")).toEqual([]);
     const refresh = await p.call("/status", {}),
@@ -123,16 +127,18 @@ it("pairs with an approved target code, never requests an account password, surv
     await vi.waitFor(() => expect(installs).toBe(1), { timeout: 5000, interval: 10 });
     expect(wizard.state.online).toBe(false);
     health = true;
-    for (let i = 0; i < 100 && wizard.state.phase !== "connected"; i++)
-      await new Promise((r) => setTimeout(r, 10));
-    expect(wizard.state.phase).toBe("connected");
+    await vi.waitFor(() => expect(wizard.state.phase).toBe("connected"), {
+      timeout: 5000,
+      interval: 10,
+    });
     await wizard.close();
     wizard = await client.serve(options);
     const again = await page(wizard);
     await again.call("/connect", body);
-    for (let i = 0; i < 100 && wizard.state.phase !== "connected"; i++)
-      await new Promise((r) => setTimeout(r, 10));
-    expect(wizard.state.phase).toBe("connected");
+    await vi.waitFor(() => expect(wizard.state.phase).toBe("connected"), {
+      timeout: 5000,
+      interval: 10,
+    });
     expect(starts).toBe(1);
     expect(resumes).toBe(1);
     expect(installs).toBe(1);

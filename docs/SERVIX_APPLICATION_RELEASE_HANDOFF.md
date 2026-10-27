@@ -5,6 +5,46 @@ the task-observer fix publication, fresh backup/restore and exact owner decision
 
 ## Current verified checkpoint at 04:22 IST
 
+Update at 05:10 IST: request pr_9b4d03e06eb6538d614d119dd380317f stops safely
+in CI, exit 1/AssertionError, no package or activation. The original Vitest cache
+identifies only device-enrollment.test.ts as failed (7,084.70 ms); the other 47
+control-plane files, including promotion-environment and promotion-lifecycle,
+pass. Contracts/UI coverage pass. Raw original error output was intentionally
+discarded by the native adapter; its location regex did not match Windows paths,
+so the exact original assertion is unavailable. Do not invent it. Two isolated
+installed-Node/restricted-environment reruns pass; a coverage rerun also passes
+the device assertions while failing the expected incomplete single-file coverage
+gate. That is diagnostic evidence, not full CI acceptance.
+
+The existing fixture has three one-second fixed-tick state waits and a one-second
+health budget. It now uses bounded five-second vi.waitFor state assertions and
+the same five-second fixture heartbeat budget. No assertions, production timing,
+coverage thresholds or independent acceptance tests change. This is a timing
+robustness correction supported by isolated-versus-full-run behavior, not proof
+of the exact discarded failure. Focused command
+`pnpm.cmd --filter @frevos/control-plane exec vitest run test/device-enrollment.test.ts test/promotion-environment.test.ts`
+passes two files/three tests, 5.91 seconds, exit 0. Require a NEW actual complete
+CI/package/activation; active platform remains e6115ec / 9ed0dbb2.
+
+Update at 04:58 IST: the incomplete review's matching isolated backup restore
+PASSES, 114 tables, one view, 213,139 rows, full SQL-stream digest and schema
+counts verified. Proof SHA
+`196b387c61fbb99850a4cd22c5e4f7bb6d516f02ce8d1d6bbfc7b8feb57adbf4`;
+raw SQL SHA `846ad8e7527e8d6ca83fa27885bec3cf27c6152ca8ea41e812decb09db683a6c`.
+MySQL source/restore 8.0.28, isolated loopback only, Production database/files
+unchanged, owned temporary data/task removed. This does NOT repair the immutable
+review's missing managed identity or authorize activation. A new review/backup
+will be required after the worker correction.
+
+The actual UI submits correction request `pr_9b4d03e06eb6538d614d119dd380317f`,
+source `d762b661184ece8950fda70e6468b3c2b32d9b90`, native build
+`cj_ed028c84f6e9d0fb8e6231df589ff102`. Contracts/UI coverage pass; control-plane
+CI is in progress. Local native observation tests, typecheck, format/lint,
+PowerShell parse, repository validation, private secret exclusion (41 changed
+files) and diff check exit 0. The first dialog rejected an approval-reference
+string over its existing 160-character limit before submission; the shortened
+same-scope reference was accepted once. No duplicate request or Prod approval.
+
 Latest update at 04:51 IST: pm_318cc4094cd89d00b95f0022e2e10ac5 is prepared
 with encrypted backup SHA 9368ef076964e2ed48125e75151ae4f270a48ff9925f3eb509911b0ca19841a6,
 443,472,370 bytes, 8,570 protected files. The review SHA is
