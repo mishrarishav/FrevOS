@@ -39,6 +39,13 @@ regression passes without reporting credential values. Publish this bounded
 correction through DevSetu before repeating preparation. No Production runtime
 stop, task credential binding, environment write or permission grant occurred.
 
+The first configured file-helper run passed its new native regression but failed
+the unchanged device-enrollment test. That test passes alone. Serialize backend
+test files on Windows to reduce shared Task Scheduler/CIM contention; every test,
+assertion, timeout, coverage threshold and audit gate remains enabled. Require a
+fresh full configured CI before activation; the underlying intermittent failure
+is not claimed fully diagnosed.
+
 The owner explicitly requests completing the missing runner and deploying through
 DevSetu. [ADR 0065](adr/0065-configured-saved-backend-production-promotion.md)
 authorizes this bounded follow-up. Implement a separate configured, reviewed

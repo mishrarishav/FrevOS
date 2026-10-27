@@ -220,6 +220,17 @@ transport rehydrated, no credential values reported or database writes.
 The file-helper correction still requires the configured full CI and platform
 publication before another actual Production preparation.
 
+Configured request `pr_57b713e09f45a197a95fc7f32bb3bc0e` published
+`d206a90691d4794ad777542411a44fef043fc140` but failed before activation. The
+cached failed file is the unchanged `device-enrollment.test.ts` (6.59 seconds);
+the new private-environment test passes. Running that same failed file alone in
+its frozen checkout exits 0 (one test). Native worker output does not establish
+the exact assertion failure. Change only Windows backend file concurrency from
+two to one to reduce shared Task Scheduler/CIM pressure; retain every test,
+assertion, per-test timeout, coverage threshold and security gate. This is a
+runner-resource mitigation, not a claim that the underlying intermittency has
+been fully diagnosed. A fresh full configured run is still required.
+
 Evidence includes `.local/production-canonical-platform-{run,native-receipt,apply}.json`,
 `.local/production-canonical-ci.log`, `.local/production-exact-native-ci-result.json`,
 `.local/production-builder-restart.json`, `.local/production-assets-before.json`,
@@ -247,6 +258,7 @@ files below; final statistics must be recorded after validation.
 - `apps/control-plane/test/postgres-service.integration.test.ts`
 - `apps/control-plane/test/promotion-files.test.ts`
 - `apps/control-plane/test/promotion-environment.test.ts`
+- `apps/control-plane/vitest.config.ts`
 - `deployment/server20/HttpCommon.ps1`
 - `deployment/server20/New-ServixDashboardRelease.ps1`
 - `deployment/servix/BatchLogon.psm1`
