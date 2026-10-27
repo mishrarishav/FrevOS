@@ -32,7 +32,7 @@ it("preserves private values through the real PowerShell 5.1 file boundary witho
         backup = join(base, "PromotionBackup.cjs");
       await writeFile(
         backup,
-        "let text='';process.stdin.setEncoding('utf8');process.stdin.on('data',v=>text+=v);process.stdin.on('end',()=>{const p=JSON.parse(text).password;process.stdout.write(JSON.stringify({status:'PASS',passwordSha256:require('node:crypto').createHash('sha256').update(p).digest('hex')}));});",
+        "let text='';process.stdin.setEncoding('utf8');process.stdin.on('data',v=>text+=v);process.stdin.on('end',()=>{const v=JSON.parse(text),keys=['directory','scopeSha256','clientRoot','clientSha256','dumpSha256','version','environment'];if(Object.keys(v).sort().join()!=keys.sort().join()||typeof v.clientRoot!=='string'||v.environment.port!==3306)process.exit(2);process.stdout.write(JSON.stringify({status:'PASS',passwordSha256:require('node:crypto').createHash('sha256').update(v.environment.password).digest('hex')}));});",
       );
       await writeFile(
         script,
@@ -44,7 +44,12 @@ $privateSerializer=[System.Web.Script.Serialization.JavaScriptSerializer]::new()
 $value=$privateSerializer.DeserializeObject(($raw -join ''));$raw=$null
 $hash=[Security.Cryptography.SHA256]::Create()
 try{$digest=([BitConverter]::ToString($hash.ComputeHash([Text.Encoding]::UTF8.GetBytes($value.password)))).Replace('-','').ToLowerInvariant()}finally{$hash.Dispose()}
-$privateJson=$privateSerializer.Serialize($value);$value=$null;$module=Import-Module $Worker -Force -PassThru
+$database=@{host=$value.host;port=[int]$value.port;database=$value.database;user=$value.user;password=$value.password};$value=$null;$module=Import-Module $Worker -Force -PassThru
+$client=@{root=(Join-Path $Root 'client with spaces');clientSha256=('a'*64);dumpSha256=('b'*64);version='8.0.28'}
+$scopeFile=Join-Path $Root 'backend/.env'
+$scopeHash=(Get-FileHash -LiteralPath $scopeFile).Hash.ToLowerInvariant()
+$privateJson=& $module {param($directory,$scope,$client,$database) ConvertTo-PromotionBackupInput $directory $scope $client $database} (Join-Path $Root 'private backup') $scopeHash $client $database
+$database.password=$null;$database=$null
 $roundTrip=(& $module {param($node,$script,$json) Invoke-PromotionNode $node $script @() $json} $Node $Backup $privateJson)|ConvertFrom-Json;$privateJson=$null
 if($roundTrip.status -cne 'PASS' -or $roundTrip.passwordSha256 -cne $digest){throw 'Private wrapper values differ'}
 [Console]::Out.Write((@{status='PASS';passwordSha256=$digest;backupWrapperVerified=$true}|ConvertTo-Json -Compress))

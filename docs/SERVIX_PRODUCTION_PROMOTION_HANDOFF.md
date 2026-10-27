@@ -231,6 +231,39 @@ assertion, per-test timeout, coverage threshold and security gate. This is a
 runner-resource mitigation, not a claim that the underlying intermittency has
 been fully diagnosed. A fresh full configured run is still required.
 
+## Fixed private wire schema
+
+The serial configured request `pr_75dfac707e77900bd3b61db2e2b5ea01` succeeded
+from source `6e4478604805a196556c70f81e281f873b2fcb70`. The 3,966-file package
+manifest is `bb0a2d8e09a55f3f45819d627da4d2f5f3eec9de3cc5b80ea5b851c01f8e0d57`,
+ZIP `cc449df76e8976efd906c7971ad916f7de640469a121db14d34b8ea097450aba`, reference
+`896b051395c7f0e54a40b477620575dffcb509b2f39593459a9442c5171efe68`.
+Independent Apply `9a3e4ffd01a63c365e3ead0b8c6626c8` reports PASS, HTTP/UI 200,
+no operator database write and sibling IIS preservation. Full configured CI
+passed; observed native coverage is 95.23/91.63/96.60/96.71.
+
+Preparation `pm_0f3777dd9d4ad2996a3aaf1f2e5ab056` passed observation and private
+binding, then failed before backup in the private serializer (worker line 162,
+MethodInvocationException/InvalidOperationException). The earlier regression
+covered private values but omitted the complete path/hash/client payload. A
+fixed native DTO now accepts only the existing known string/integer wire fields;
+PowerShell provider/PSObject metadata is not reflected. The expanded actual
+PowerShell regression uses the complete metadata and real bounded wrapper,
+preserving private quote/Unicode values and all integrity denials.
+
+A bounded read-only server20/server21 diagnostic used the actual PSRP credential,
+cached client metadata, backup directory and scope hash with the pending DTO.
+It reports PASS, full private payload shape verified, unchanged environment and
+no credential values reported, database writes or application changes. Its
+temporary task was removed. This fixes an implementation defect; the accepted
+private transport/approval policy is unchanged. Publish the correction before
+repeating the actual Production preparation.
+
+Worker progress now names private binding and payload encoding separately.
+Failure results retain only an allowlisted last stage (bounded read of the
+worker-owned progress record); raw diagnostics and private values stay out of
+the public result. Scope/approval/claim/recovery behavior is unchanged.
+
 Evidence includes `.local/production-canonical-platform-{run,native-receipt,apply}.json`,
 `.local/production-canonical-ci.log`, `.local/production-exact-native-ci-result.json`,
 `.local/production-builder-restart.json`, `.local/production-assets-before.json`,

@@ -45,6 +45,28 @@ function Invoke-PromotionNode([string]$Node,[string]$File,[string[]]$Arguments,[
  }finally{if(-not $p.HasExited){$p.Kill()};$p.Dispose();$InputText=$null}
 }
 function Get-PromotionHash([string]$File){Assert-BackendPlainPath $File;return (Get-FileHash -LiteralPath $File -Algorithm SHA256).Hash.ToLowerInvariant()}
+function ConvertTo-PromotionBackupInput([string]$Directory,[string]$ScopeSha256,$Client,$Database){
+ Add-Type -AssemblyName System.Web.Extensions
+ if(-not ('DevSetuPromotionBackupInputV1' -as [type])){
+  Add-Type -TypeDefinition @'
+public sealed class DevSetuPromotionDatabaseV1 {
+ public string host, database, user, password;
+ public int port;
+}
+public sealed class DevSetuPromotionBackupInputV1 {
+ public string directory, scopeSha256, clientRoot, clientSha256, dumpSha256, version;
+ public DevSetuPromotionDatabaseV1 environment;
+}
+'@
+ }
+ # Strongly typed fields unwrap PowerShell path/hash output objects. Reflection
+ # must see only this fixed private wire schema, never provider/PSObject metadata.
+ $value=[DevSetuPromotionBackupInputV1]::new();$value.directory=$Directory;$value.scopeSha256=$ScopeSha256
+ $value.clientRoot=[string]$Client.root;$value.clientSha256=[string]$Client.clientSha256;$value.dumpSha256=[string]$Client.dumpSha256;$value.version=[string]$Client.version
+ $value.environment=[DevSetuPromotionDatabaseV1]::new();$value.environment.host=[string]$Database.host;$value.environment.port=[int]$Database.port
+ $value.environment.database=[string]$Database.database;$value.environment.user=[string]$Database.user;$value.environment.password=[string]$Database.password
+ try{return [System.Web.Script.Serialization.JavaScriptSerializer]::new().Serialize($value)}finally{$value.environment.password=$null;$value=$null}
+}
 function Set-PromotionProgress([string]$PublicRoot,[string]$Id,[string]$Stage,[string]$Workspace){
  Write-PromotionJson (Join-Path $PublicRoot 'results\heartbeat.json') @{version=1;workspaceId=$Workspace;at=[DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')}
  Write-PromotionJson (Join-Path $PublicRoot ('results\'+$Id+'.json')) @{version=1;id=$Id;status='working';stage=$Stage;updatedAt=[DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')}
@@ -141,6 +163,7 @@ function Invoke-PromotionWork([string]$Root,[string]$PublicRoot,[string]$Private
    & (Join-Path $PSScriptRoot 'Protect-PromotionBackup.ps1') -Action Prepare -Directory $backupDir | Out-Null
    if($LASTEXITCODE -and $LASTEXITCODE -ne 0){throw 'Backup protection unavailable'}
    $scopeFile=Join-Path $backupDir 'scope.json';Write-PromotionJson $scopeFile @{version=1;workspaceId=$Job.workspaceId;actor=$Job.requestedBy;requestId=$Job.id;targetSha256=$Job.targetSha256;artifact=$saved.artifact;databaseTargetSha256=$observation.files.profile.databaseTargetSha256} -New
+   Set-PromotionProgress $PublicRoot $Job.id 'reading-private-database-binding' $Job.workspaceId
    $databaseBinding=Invoke-Command -Session $session -ArgumentList $target,$observation.files.profile.environmentSha256,$staging,$hashes['Read-PromotionEnvironment.cjs'] -ScriptBlock {
     param($target,$expected,$staging,$helperHash)
     $envfile=Join-Path $target.root 'backend\.env';if((Get-FileHash -LiteralPath $envfile).Hash.ToLowerInvariant() -cne $expected){throw 'Environment changed before backup'}
@@ -157,9 +180,8 @@ function Invoke-PromotionWork([string]$Root,[string]$PublicRoot,[string]$Private
    if($databaseBinding.credential -isnot [pscredential]){throw 'Encrypted credential transport required'}
    $database=@{host=$databaseBinding.host;port=[int]$databaseBinding.port;database=$databaseBinding.database;user=$databaseBinding.credential.UserName;password=$databaseBinding.credential.GetNetworkCredential().Password};$databaseBinding=$null
    if($database.host -in @('localhost','127.0.0.1','::1')){$database.host=$target.host}
-   Add-Type -AssemblyName System.Web.Extensions
-   $privateJson=[System.Web.Script.Serialization.JavaScriptSerializer]::new()
-   $backupInput=$privateJson.Serialize(@{directory=$backupDir;scopeSha256=(Get-PromotionHash $scopeFile);clientRoot=$client.root;clientSha256=$client.clientSha256;dumpSha256=$client.dumpSha256;version=$client.version;environment=$database})
+   Set-PromotionProgress $PublicRoot $Job.id 'encoding-private-backup-input' $Job.workspaceId
+   $backupInput=ConvertTo-PromotionBackupInput $backupDir (Get-PromotionHash $scopeFile) $client $database
    Set-PromotionProgress $PublicRoot $Job.id 'capturing-and-verifying-encrypted-backup' $Job.workspaceId
    $backupText=Invoke-PromotionNode $Node (Join-Path $PSScriptRoot 'PromotionBackup.cjs') @() $backupInput;$backupInput=$null;$database=$null
    $backup=$backupText|ConvertFrom-Json
@@ -253,7 +275,16 @@ function Invoke-PromotionQueue([string]$Root,[scriptblock]$ReadRelease){
    $result=Invoke-PromotionWork $Root $public $private $job $claim $node $ReadRelease
   }catch{
    $status=if($began -and $raw.action -ceq 'promote' -and (Test-Path -LiteralPath (Join-Path $claim 'approval-consumed.json'))){'recovery-required'}else{'failed'}
-   $result=@{version=1;id=$id;status=$status;stage='worker-stopped-safely';updatedAt=[DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ');errorCode='promotion-verification-failed'}
+   $failedStage='worker-stopped-safely'
+   try{
+    $progressFile=Join-Path $public ('results\'+$id+'.json');Assert-BackendPlainPath $progressFile
+    if((Get-Item $progressFile).Length -le 4096){
+     $progress=Get-Content $progressFile -Raw|ConvertFrom-Json
+     $knownStages=@('verifying-saved-development-artifact','reading-runtime-and-protected-inventory','preparing-pinned-backup-client','reading-private-database-binding','encoding-private-backup-input','capturing-and-verifying-encrypted-backup','rechecking-reviewed-production-scope','adopting-reviewed-owner-and-promoting-backend')
+     if($progress.id -ceq $id -and $progress.status -ceq 'working' -and $progress.stage -cin $knownStages){$failedStage=$progress.stage+'-failed'}
+    }
+   }catch{}
+   $result=@{version=1;id=$id;status=$status;stage=$failedStage;updatedAt=[DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ');errorCode='promotion-verification-failed'}
    Write-PromotionJson (Join-Path $claim 'safe-error.json') @{type=$_.Exception.GetType().Name;line=$_.InvocationInfo.ScriptLineNumber;id=$_.FullyQualifiedErrorId} -New
   }
   Write-PromotionJson (Join-Path $claim 'result.json') $result -New

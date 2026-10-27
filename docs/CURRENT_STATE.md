@@ -4,9 +4,9 @@ Last updated: 2026-10-27
 
 ## Saved backend Production promotion (platform live, cutover pending, 2026-10-27)
 
-The visible configured platform pipeline `pr_917aba694fc020c735c9cbecd6c6fc94`
-published source `3bca2f97afe22274120e41fbf89aea7bc2929dd4` and activated manifest
-`2417b37cd93b6b2eade79061842d86049695e4ffc08b09d3a1fe6bcc34e0ede8`.
+The visible configured platform pipeline `pr_75dfac707e77900bd3b61db2e2b5ea01`
+published source `6e4478604805a196556c70f81e281f873b2fcb70` and activated manifest
+`bb0a2d8e09a55f3f45819d627da4d2f5f3eec9de3cc5b80ea5b851c01f8e0d57`.
 Independent native Apply reports PASS, HTTP/UI 200, no operator database write
 and sibling IIS preservation. The first build failed because its enrolled
 packager omitted the new modules; a reviewed two-file operator update preserved
@@ -45,6 +45,17 @@ test files on Windows to reduce shared Task Scheduler/CIM contention; every test
 assertion, timeout, coverage threshold and audit gate remains enabled. Require a
 fresh full configured CI before activation; the underlying intermittent failure
 is not claimed fully diagnosed.
+
+The serial configured run above passed full CI and activated the file-helper
+correction. Preparation `pm_0f3777dd9d4ad2996a3aaf1f2e5ab056` then stopped
+before backup at private payload serialization: PowerShell path/hash output
+objects introduced reflection metadata. Use a fixed native DTO with typed string
+and integer fields; retain private JSON escaping and the same wire schema. The
+expanded real PowerShell regression includes path/hash/client metadata, and an
+actual server20/server21 private binding plus full payload-shape check passes.
+Add explicit private-binding/encoding stages and retain only known safe failure
+stage names. Publish this correction through the configured gate, then prepare
+again. Production cutover and its task credential binding remain pending.
 
 The owner explicitly requests completing the missing runner and deploying through
 DevSetu. [ADR 0065](adr/0065-configured-saved-backend-production-promotion.md)
