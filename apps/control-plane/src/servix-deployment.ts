@@ -65,6 +65,7 @@ export async function loadServixExecutionProfile(operator: string) {
           executable: z.string().min(1).max(500).refine(isAbsolute),
           repository: z.string().min(1).max(500).refine(isAbsolute),
           repositoryId: z.string().regex(/^gitrepo_[a-f0-9]{32}$/),
+          readTimeoutMs: z.number().int().min(5000).max(60_000),
         })
         .strict(),
     })
@@ -73,13 +74,14 @@ export async function loadServixExecutionProfile(operator: string) {
     git: profile.git.executable,
     repository: profile.git.repository,
     repositoryId: profile.git.repositoryId,
+    readTimeoutMs: profile.git.readTimeoutMs,
   };
 }
 // All paths, commands and targets belong to this fixed server-owned profile.
 export function servixExecution(
   root: string,
   operator: string,
-  profile: { git: string; repository: string; repositoryId?: string } = {
+  profile: { git: string; repository: string; repositoryId?: string; readTimeoutMs?: number } = {
     git: "C:\\Program Files\\Git\\cmd\\git.exe",
     repository: "E:\\FrevOS\\git\\servix.git",
   },
@@ -89,6 +91,14 @@ export function servixExecution(
 } {
   const { git, repository: repo } = profile;
   const repositoryId = profile.repositoryId ?? "gitrepo_6cb7e163f807493fa37963196c49fbac";
+  // Native service-account Git startup can exceed an interactive process's
+  // latency. Keep its read deadline bounded in the enrolled tool profile.
+  const readTimeoutMs = z
+    .number()
+    .int()
+    .min(5000)
+    .max(60_000)
+    .parse(profile.readTimeoutMs ?? 30_000);
   const env: NodeJS.ProcessEnv = {};
   for (const name of [
     "SystemRoot",
@@ -120,7 +130,7 @@ export function servixExecution(
         "--get",
         "frevos.repositoryId",
       ],
-      { env, windowsHide: true, timeout: 5000, maxBuffer: 4096 },
+      { env, windowsHide: true, timeout: readTimeoutMs, maxBuffer: 4096 },
     );
     if (identity.stdout.trim() !== repositoryId)
       throw new ServixDeploymentError("deployment-repository-identity-mismatch", 503);
@@ -197,7 +207,7 @@ export function servixExecution(
           "--verify",
           "refs/heads/frevos-dev^{commit}",
         ],
-        { env, windowsHide: true, timeout: 5000, maxBuffer: 4096 },
+        { env, windowsHide: true, timeout: readTimeoutMs, maxBuffer: 4096 },
       );
       return ServixHeadSchema.parse(stdout.trim());
     },

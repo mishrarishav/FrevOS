@@ -3,7 +3,8 @@
   "git": {
     "executable": "C:\\Program Files\\Git\\ucrt64\\bin\\git.exe",
     "repository": "E:\\FrevOS\\git\\servix.git",
-    "repositoryId": "gitrepo_6cb7e163f807493fa37963196c49fbac"
+    "repositoryId": "gitrepo_6cb7e163f807493fa37963196c49fbac",
+    "readTimeoutMs": 30000
   },
   "development": {
     "host": "10.9.69.21",

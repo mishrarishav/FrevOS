@@ -33,11 +33,12 @@ $source=Join-Path $scratch 'source';[void][IO.Directory]::CreateDirectory($sourc
 [IO.File]::WriteAllText((Join-Path $job 'workspace.json'),(@{version=1;identity='LOCAL SERVICE';source=$source;artifacts=$job;privateScratch=$true}|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
 $buildProfile=Get-Content -LiteralPath (Join-Path $PSScriptRoot 'ReleaseBuildProfile.json') -Raw|ConvertFrom-Json
 $git=[string]$buildProfile.git.executable;$repo=[string]$buildProfile.git.repository
-if($buildProfile.version -ne 1 -or -not [IO.Path]::IsPathRooted($git) -or -not [IO.Path]::IsPathRooted($repo) -or $buildProfile.git.repositoryId -cnotmatch '^gitrepo_[a-f0-9]{32}$'){throw 'Git build tool profile is unavailable'}
+if($buildProfile.version -ne 1 -or -not [IO.Path]::IsPathRooted($git) -or -not [IO.Path]::IsPathRooted($repo) -or $buildProfile.git.repositoryId -cnotmatch '^gitrepo_[a-f0-9]{32}$' -or $buildProfile.git.readTimeoutMs -lt 5000 -or $buildProfile.git.readTimeoutMs -gt 60000){throw 'Git build tool profile is unavailable'}
+$gitReadSeconds=[int][Math]::Ceiling($buildProfile.git.readTimeoutMs/1000)
 $archive=Join-Path $job 'source.zip'
 $stage='git-export'
 $identityLog=Join-Path $job 'repository-identity.log'
-if((Invoke-ServixBuildProcess $git ('-c "safe.directory='+$repo+'" "--git-dir='+$repo+'" config --get frevos.repositoryId') $job $identityLog 30) -ne 0 -or (Get-Content -LiteralPath $identityLog -Raw).Trim() -cne $buildProfile.git.repositoryId){throw 'Build repository identity differs'}
+if((Invoke-ServixBuildProcess $git ('-c "safe.directory='+$repo+'" "--git-dir='+$repo+'" config --get frevos.repositoryId') $job $identityLog $gitReadSeconds) -ne 0 -or (Get-Content -LiteralPath $identityLog -Raw).Trim() -cne $buildProfile.git.repositoryId){throw 'Build repository identity differs'}
 $optionalLog=Join-Path $job 'backend-build-inputs.log'
 if((Invoke-ServixBuildProcess $git ('-c "safe.directory='+$repo+'" "--git-dir='+$repo+'" ls-tree --name-only '+$SourceHead+' -- backend/package-lock.json backend/scripts backend/tests') $job $optionalLog 30) -ne 0){throw 'Backend build input lookup failed'}
 $optional=@(Get-Content -LiteralPath $optionalLog|Where-Object {$_ -cin @('backend/package-lock.json','backend/scripts','backend/tests')})

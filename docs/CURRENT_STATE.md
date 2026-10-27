@@ -4,6 +4,19 @@ Last updated: 2026-10-28
 
 ## Complete application release follow-up — resumed
 
+The Git-profile platform correction is live: source `c0471d2...`, manifest
+`2ed37f31f595270c12dc1dffc441ff6974fa79c1e1fe6e45106be63c0350bb31`.
+Its full CI and independent Apply pass, with HTTP/UI 200, preserved siblings
+and no database write. A new customer source upload then exposed the service
+account's five-second Git read deadline. Exact LOCAL SERVICE reproduction kills
+the initial identity read at 5,041 ms; with the same restricted environment and
+a bounded longer observation it succeeds at 19,998 ms. Warm reads and complete
+isolated import then pass in roughly one second. Central repository and Production
+remain unchanged. The follow-up makes this read deadline explicit in the Git
+profile (30 seconds, validated range 5–60 seconds), shared by controller and
+builder identity checks. Require its actual configured CI/activation before the
+next customer retry. No test assertions or test deadlines are changed by this fix.
+
 The sixth actual DevSetu pipeline succeeded at 02:17 IST on 2026-10-28, source
 `53ea0214f4fb1e4e13369256d471122a94a0ad3d`, active manifest
 `accdf66214a481a477334f6c33fc254f8813002c8d4f5ecaeeb884a57337d50f`.

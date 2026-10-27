@@ -5,6 +5,40 @@ the customer source step exposed a Git launcher issue, now corrected in configur
 
 ## Verified platform and customer source follow-up
 
+The Git-profile request `pr_fbb3c9aabdf9d01af32754adb1a10d3d` also succeeded,
+source `c0471d297c398473d8dbf2f2fd10be5c754f2ea2`, manifest
+`2ed37f31f595270c12dc1dffc441ff6974fa79c1e1fe6e45106be63c0350bb31`.
+Archive SHA `f76c8fa751bc3d66160fa3d140299096f887c10a55b9a4dbaf2e0269a250b266`,
+131,637,496 bytes; reference digest
+`22ec17e5d43d0d9213f09921524faa6d598126a988ec61f692787ec12dd5c2a7`.
+Independent Apply `cj_6ebb20a520181975425e00227759af22` verifies HTTP/UI 200,
+siblings preserved, databaseWritten false and the previous `accdf662...` manifest.
+All 77 retained test files pass; control-plane branch coverage is 91.73%.
+
+Read-only authenticated state now reads customer head `e04137b...` correctly.
+The next actual Development request `sd_7c3eb4e752850ba1d995f9f95289f1eb`
+reached bundle upload but failed before build with bundle-upload-failed. Local
+publication created audit commit `614133925dd3bb6213241c9072b8d471c79bfc75`;
+its tree diff against `e04137b...` is empty. The 946-byte saved bundle imports
+successfully into a private isolated repository under SYSTEM. Under the real
+controller identity LOCAL SERVICE (`S-1-5-19`), the same deployed SDK reproduces
+SIGTERM/killed at 5,041 ms in its first config/identity command. A longer bounded
+read with the identical restricted environment succeeds at 19,998 ms; after that,
+warm reads complete in 68–132 ms and the entire original SDK import succeeds in
+1,082 ms. Repository identity, refs/heads and incoming-ref write permissions are
+already correct. No central Git ref, Production application or database changed;
+the isolated diagnostic tasks were removed. Only owned diagnostic folders receive
+temporary LOCAL SERVICE access; no central repository permission was broadened.
+
+The follow-up adds a validated Git-profile readTimeoutMs (30,000; allowed range
+5,000–60,000) to the controller and builder identity-read boundary. This addresses
+the observed native cold-start latency without changing test deadlines, assertions,
+Git verification, dependency/runtime versions or environment restrictions. Local
+focused tests/typecheck pass; a fresh actual configured CI/package/activation is
+required before the next customer retry. The environment probes happened after
+the first long read warmed the process cache, so they do not establish that adding
+HOME, PATH or disabling global configuration fixes the cause; none is applied.
+
 The sixth configured pipeline `pr_569e11398745b52b96aa39217ad8e92d` succeeded.
 Its source is `53ea0214f4fb1e4e13369256d471122a94a0ad3d`, reference digest
 `e164f15aa2b693995c364300f5888e2b6678b6f20cce2939523ab1f3903c4e3e`, archive
@@ -39,6 +73,26 @@ deployment or approval is claimed.
 Browser screenshot/mouse dispatch timed out after activation. The actual visible
 DevSetu dialog remained operable through its normal keyboard controls; no direct
 deployment API mutation or automatic retry was used.
+
+The Git-profile correction is published by actual DevSetu request
+`pr_fbb3c9aabdf9d01af32754adb1a10d3d`, source
+`c0471d297c398473d8dbf2f2fd10be5c754f2ea2`, native build
+`cj_719b8635255295dada6eda2281b25128`. Full CI started at 02:37:26 IST;
+contracts and UI coverage pass, native tests remain in progress. Source publication
+is not activation. Before that publication, two focused files / nine tests pass,
+format check, lint and typecheck exit 0, build recipe syntax and repository
+validation pass, and the private secret comparison excludes both approved owner
+secrets across all 39 changed files. Existing lint warnings remain; no unrelated
+lint changes were made.
+
+The connector publisher records a change-message commit even for a clean source.
+After the next customer publication, verify the actual new head and compare its
+Git tree with `e04137b...`; do not silently call a different commit the exact source
+accepted by ADR 0068. If only audit metadata changed, include the tree-equivalence
+proof and acceptance of that exact tested release in the single fresh Production
+decision. Do not ask for duplicate Development visual testing or set the release's
+manual acceptance acknowledgment before the owner confirms that exact decision.
+Record any resulting superseding acceptance decision without rewriting ADR 0068.
 
 ## 2026-10-28 resume
 
@@ -282,8 +336,8 @@ still separate and must not be claimed by this implementation session.
 
 ## Complete publication file inventory
 
-At `53ea0214f4fb1e4e13369256d471122a94a0ad3d`: 37 files changed,
-2,662 insertions(+), 76 deletions(-), relative to the documented base.
+At `c0471d297c398473d8dbf2f2fd10be5c754f2ea2`: 39 files changed,
+2,834 insertions(+), 82 deletions(-), relative to the documented base.
 
 - apps/control-center/src/ArtifactPromotionsPage.tsx
 - apps/control-center/src/DeploymentSettingsPage.tsx
@@ -291,6 +345,7 @@ At `53ea0214f4fb1e4e13369256d471122a94a0ad3d`: 37 files changed,
 - apps/control-center/test/environment-seal.test.ts
 - apps/control-center/vite.config.ts
 - apps/control-plane/src/artifact-promotions.ts
+- apps/control-plane/src/main.ts
 - apps/control-plane/src/servix-deployment.ts
 - apps/control-plane/test/artifact-promotions.test.ts
 - apps/control-plane/test/fixtures/PromotionLifecycle.ps1
@@ -298,6 +353,7 @@ At `53ea0214f4fb1e4e13369256d471122a94a0ad3d`: 37 files changed,
 - apps/control-plane/test/managed-runtime.test.ts
 - apps/control-plane/test/promotion-lifecycle.test.ts
 - apps/control-plane/test/servix-deployment.test.ts
+- apps/control-plane/test/servix-execution.test.ts
 - deployment/servix/Build-DevRelease.cjs
 - deployment/servix/Build-Servix.ps1
 - deployment/servix/FrontendArtifact.cjs
