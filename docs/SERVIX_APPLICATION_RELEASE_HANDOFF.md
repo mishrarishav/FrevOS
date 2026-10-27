@@ -1,16 +1,45 @@
 # Complete application release follow-up
 
-Date: 2026-10-27 IST. Status: **IN PROGRESS — native fixture environment defect
-corrected and verified; configured rollout remains pending**.
+Date: 2026-10-28 IST. Status: **IN PROGRESS — access restored and the six native
+files pass on recheck; a successful configured full build remains required**.
+
+## 2026-10-28 resume
+
+The owner confirmed desktop unlock and VPN reconnect. Bounded probes to server20
+HTTP/SMB and server21 API pass. Request `pr_cb04963e4944410690fbbccb6234531c`
+and native build `cj_cb5fd978d75ed933cc34baae585f163b` both reconcile as failed;
+no activation was left pending. Active platform manifest is still
+`a4c5e8ab2a0f7c97f1762455e5e6c67c68d21ac652754e19300d3d5ef48bd461`.
+
+The installed native Node/pnpm, with the existing restricted environment, runs
+the six failing files together: `vitest run test/local-development-runtime.test.ts
+test/connector-local-git.test.ts test/system-discovery-runtime.test.ts
+test/promotion-lifecycle.test.ts test/system-enrollment-windows.test.ts
+test/promotion-environment.test.ts --reporter=verbose`, exit 0, six files /
+15 tests pass in 224.95 seconds. This is not a full configured CI pass.
+
+The host still has only 464 MB free physical RAM of 16,025 MB (CPU 64% observed).
+To bound peak CI contention, root coverage runs workspace projects sequentially
+and the Windows UI/contracts runners use one worker, as the control-plane runner
+already does. All test cases, real native boundaries, assertions and coverage
+thresholds remain enabled. No customer runtime or library changes are involved.
+Direct validation of the bounded runners passes: Windows UI 93 tests with 100%
+scoped coverage (18.58 seconds), and contracts 88 tests with existing coverage
+gates unchanged; both exit 0. Repository validation, formatting, lint and private
+changed-file secret comparison also pass before configured publication.
+The previous status/evidence below is historical. A new actual DevSetu request
+will publish and build the reviewed correction; only a successful exact source
+build may proceed to platform activation and the customer release flow.
 
 Repository: `https://github.com/mishrarishav/FrevOS`.
 Branch: `codex/servix-full-release`.
 Base: `a51e97c20dc27ce047cb54ef54a4ef343a5a5b22`.
-Configured DevSetu publication produced
-`3b1b3096fe45d2dbc6e977862a54ecaf68a5fdf1`; its 32-file diff is 2,403 additions
-and 72 removals, including the preceding deployment's two retained handoff
-documents. No PR, merge or default-branch push. Later owner-clarification
-documents are not part of that frozen publication.
+Latest configured DevSetu publication produced
+`b91f8423771a3f546445faa1b2c7b631270deaf9`; its cumulative diff from the base
+is 34 files, 2,517 additions and 74 removals. This includes the preceding
+deployment's retained handoff documents and the owner clarification. The final
+status/evidence additions to this document and CURRENT_STATE.md remain
+uncommitted. No PR, merge, default-branch push or new live activation.
 Phase 4 exit remains open. See [ADR 0067](adr/0067-complete-application-release-promotion.md).
 
 ## Scope and implementation
@@ -124,6 +153,42 @@ test deadlines and coverage gates remain unchanged. The full UI coverage suite
 then passes in the installed native Node/pnpm/restricted environment: 93 tests,
 100% scoped coverage, exit 0. Independent acceptance tests are unchanged.
 
+The fourth UI request `pr_cb04963e4944410690fbbccb6234531c`, source
+`b91f8423771a3f546445faa1b2c7b631270deaf9`, native build
+`cj_cb5fd978d75ed933cc34baae585f163b`, failed local CI (exit 1, not killed,
+AssertionError classification). Contracts coverage is 98.28% statements /
+92.77% branches; UI coverage is 100%. Control-plane CI has not passed. Retained
+Vitest metadata identifies six failing files: local-development-runtime,
+connector-local-git, system-discovery-runtime, promotion-lifecycle,
+system-enrollment-windows and promotion-environment. Several durations approach
+native test deadlines; exact assertions must be reproduced before declaring a
+fix. A separate restricted-environment recheck of promotion-environment exits 0
+in 8.72 seconds. Do not weaken assertions or claim the six failures fixed.
+
+At 23:26 IST, bounded probes to server20 HTTP/SMB and server21 API all timed out.
+FortiClient was present but desktop interaction returned GetCursorPos access
+denied, consistent with a locked desktop. The owner has a pending unlock/VPN
+request. Local observation at 23:33 reports only 335 MB free physical memory
+of 16,025 MB and CPU 81%; this can affect timing, but is not proof of the cause
+of every assertion. No running Node process in these four failed frozen build
+source folders was found. No unrelated application was stopped.
+
+The first API observer could not establish its read-only session on the fourth
+attempt; the accepted request/source were independently verified from the
+controller's scoped component job files. The file observer's 30-minute deadline
+expired and was resumed against the SAME request, without a new deployment.
+While disconnected, the server's last recorded request may still say building;
+reconcile the local failed receipt with that same request after reconnecting
+before submitting another attempt. Do not replay a claimed activation.
+
+Customer source remains clean at
+`e04137b4a862e8760a59b95da7e0de9a32bc6d38` (23:34 observation). No new Servix
+Development deployment, full-release manifest, fresh full-application Production
+review/backup or Production activation exists for this follow-up. The preceding
+backend-only Production success remains valid historical evidence. The latest
+verified active platform is still the prior `a51e97c...` release; new source
+publication alone is not activation.
+
 No new Production application mutation has occurred. Customer runtime/library
 versions and accepted dependency findings remain unchanged. No database
 migration/restore, permission expansion, reboot test, notice or GitHub merge is
@@ -143,3 +208,54 @@ duplicate visual check of the same customer source. Verify the exact existing
 source and all new build/artifact/health/preservation gates, then prepare the
 fresh exact Production decision. The owner's Production functional check is
 still separate and must not be claimed by this implementation session.
+
+## Complete publication file inventory
+
+At b91f8423771a3f546445faa1b2c7b631270deaf9: 34 files changed, 2517 insertions(+), 74 deletions(-).
+
+- apps/control-center/src/ArtifactPromotionsPage.tsx
+- apps/control-center/src/DeploymentSettingsPage.tsx
+- apps/control-center/test/deployment-settings.test.tsx
+- apps/control-center/test/environment-seal.test.ts
+- apps/control-plane/src/artifact-promotions.ts
+- apps/control-plane/src/servix-deployment.ts
+- apps/control-plane/test/artifact-promotions.test.ts
+- apps/control-plane/test/fixtures/PromotionLifecycle.ps1
+- apps/control-plane/test/frontend-artifact.test.ts
+- apps/control-plane/test/managed-runtime.test.ts
+- apps/control-plane/test/promotion-lifecycle.test.ts
+- apps/control-plane/test/servix-deployment.test.ts
+- deployment/servix/Build-DevRelease.cjs
+- deployment/servix/Build-Servix.ps1
+- deployment/servix/FrontendArtifact.cjs
+- deployment/servix/Invoke-DevRelease.ps1
+- deployment/servix/Invoke-PromotionTarget.ps1
+- deployment/servix/ManagedRuntime.cjs
+- deployment/servix/PromotionFiles.cjs
+- deployment/servix/PromotionProtocol.mjs
+- deployment/servix/PromotionRegistry.json
+- deployment/servix/PromotionWorker.psm1
+- deployment/servix/PublishedRelease.cjs
+- deployment/servix/ReleaseBuildProfile.json
+- deployment/servix/Run-Activation.ps1
+- deployment/servix/Test-BundledRelease.cjs
+- docs/CURRENT_STATE.md
+- docs/SERVIX_APPLICATION_RELEASE_HANDOFF.md
+- docs/SERVIX_PRODUCTION_PROMOTION_HANDOFF.md
+- docs/adr/0067-complete-application-release-promotion.md
+- docs/adr/0068-existing-development-source-acceptance.md
+- docs/adr/README.md
+- packages/contracts/src/artifact-promotions.ts
+- packages/contracts/src/servix-deployment.ts
+
+## Resume boundary
+
+Restore VPN/desktop access and usable build capacity; reconcile the same request,
+reproduce the six native failures, and obtain a passing configured source build.
+Then activate the platform, build/deploy the complete Servix Development release,
+verify source, component hashes, health and protected files, and prepare the
+fresh exact Production decision. The owner performs the business UI check after
+Production; do not ask for a duplicate same-source Development visual check.
+Phase 4 exit remains open; this is not readiness for a later roadmap phase.
+
+Final uncommitted evidence diff from b91f842: 2 documentation files, 107 additions and 9 removals (CURRENT_STATE.md and this handoff).

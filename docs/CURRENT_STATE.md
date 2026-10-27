@@ -1,8 +1,20 @@
 # DevSetu Current State
 
-Last updated: 2026-10-27
+Last updated: 2026-10-28
 
-## Complete application release follow-up — in progress
+## Complete application release follow-up — resumed
+
+On 2026-10-28 the owner restored VPN/desktop access. Server20 HTTP/SMB and
+server21 API probes now pass. The previous request and native job both reconcile
+as failed; active platform manifest remains `a4c5e8ab...`. All six previously
+failing native files pass together in the restricted installed Node/pnpm
+environment (15 tests, 224.95 seconds). This does not replace the required
+configured full CI result. Free RAM remains low (464 MB of 16 GB observed), so
+coverage projects now execute sequentially and Windows UI/contracts tests use
+one worker, matching the existing control-plane Windows worker bound. No assertions,
+coverage thresholds or independent acceptance tests are removed. The next
+configured publication/build must pass before platform activation or a new
+customer release. The historical interruption below remains as evidence.
 
 The owner now requests the complete source → frontend/backend Development →
 Production flow and subsequent updates. Branch `codex/servix-full-release`,
@@ -11,6 +23,16 @@ Phase 4 deployment capability. [ADR 0067](adr/0067-complete-application-release-
 supersedes the initial backend-only/first-adoption boundaries while retaining
 all approvals, preservation and runtime ownership checks. Earlier final handoff
 changes are retained. No new Production application activation has occurred.
+Latest configured source is `b91f8423771a3f546445faa1b2c7b631270deaf9` on
+`codex/servix-full-release`; publication is not live activation. Four UI-created
+attempts have stopped in native CI. Two identified harness defects are corrected,
+but the latest run still has six failing native test files. VPN/server20/server21
+access is now unavailable, the desktop is locked, and a local observation shows
+335 MB free RAM of 16 GB with CPU 81%. Unlock/VPN input is pending. Reconcile the
+same failed request after reconnecting, reproduce the remaining failures on a
+stable host, and require a successful configured build before proceeding. No
+new customer Development release or fresh full-application Production review
+has yet been prepared. See the handoff for exact request IDs, validation and limits.
 
 Read-only diagnosis confirms server20 Git and local configured source at
 `e04137b4a862e8760a59b95da7e0de9a32bc6d38`, the exact latest backend bundle in
@@ -19,7 +41,7 @@ resizing and contextual filter UI; its built-in Development URL prevents direct
 safe promotion. New builds use same-origin routing and component digests.
 Implementation and validation are underway; do not claim complete-flow live
 acceptance until the actual receipts and public file checks are recorded.
-Three configured platform attempts stopped in CI before activation. Reproduction
+The earlier three configured platform attempts stopped in CI before activation. Reproduction
 isolated a new unit fixture's missing computer-name input under the restricted
 builder environment. Its measured-OS-identity correction passes in that same
 environment. A separate existing UI native-encryption integration test exceeded
