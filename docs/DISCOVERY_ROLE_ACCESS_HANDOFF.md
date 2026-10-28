@@ -1,7 +1,8 @@
 # Discovery ownership and approved device onboarding
 
 Date: 2026-10-28. Status: **PASS for local implementation and validation**;
-configured publication and live activation remain pending separate authorization. No live deployment, user creation, role grant,
+configured publication is observed and the fully authorized native rollout is in
+progress. No live activation, user creation, role grant,
 ownership reassignment, certificate change or customer application action occurred.
 
 Continuation authorization, 2026-10-28: the owner's direct “approval h bhai”
@@ -28,8 +29,10 @@ still run through the actual DevSetu UI/worker flow, not a manual Git/deploy com
 Repository: `mishrarishav/FrevOS`, checkout
 `D:\FREVOS\.local\worktrees\servix-dashboard`, branch
 `codex/discovery-role-access`. Base and current HEAD:
-`8aaf286dad968f1618b0284afe9522e6597c4cbf`. Changes are uncommitted; no resulting
-commit or new pull request exists. Current roadmap boundary remains Phase 4.
+`8aaf286dad968f1618b0284afe9522e6597c4cbf` at initial implementation review.
+Configured publication now produces `6b82769f66572a55a34808527a41d00e5f356aa3`,
+then documentation-only correction `6770c803ddf9b406c1d8d870f1fce48e5156745f`.
+No new GitHub pull request or merge exists. Current roadmap boundary remains Phase 4.
 ADRs [0070](adr/0070-discovery-role-and-owner-visibility.md) and
 [0071](adr/0071-device-bound-login-and-approved-join.md) record the owner's scope;
 [0072](adr/0072-http-connector-confirmed-login.md) records the retained HTTP method.
@@ -238,7 +241,32 @@ system setup verifies the same-origin protected connection before updating it.
   uncommitted-source test artifact, not a published/approved live release. The
   configured workflow must freeze and rebuild the authorized published source.
 
-## Limits and next bounded step
+## Configured execution checkpoints
+
+- Actual UI request `pr_7f5fff2f4d234a6d9074a45130e9e947` publishes 6b82769f6657;
+  native job `cj_71314d9db82e1660631c37fa1f700d5b` fails CI before tests because
+  three Markdown references point to ignored operator screenshots. Their paths
+  remain intact locally and are now described as local evidence, not portable links.
+  A clean exported source tree passes all 110 Markdown checks without `.local`.
+- Actual UI retry `pr_a34afc3b5e2f023373dd93f7de110fda` publishes 6770c803ddf9;
+  native job `cj_c40e271571bc67f52609d0cc76fdefe0` passes repository/format/types,
+  contracts and UI coverage, and 49/52 backend files. Three database fixture files
+  fail immediately because the local Docker engine is absent. No artifact or
+  destination action is produced; active Server20 remains bb5e5ed03785.
+- Docker startup reports a stale zero-byte inference runtime endpoint. With the
+  daemon stopped, verify the exact plain parent directories and their complete
+  zero-byte endpoint inventories, then retain those parents under unique sibling
+  names. No recursive deletion, image/volume reset, secret value or security setting
+  change occurs. `docker desktop start` exits 0 and engine 29.7.2 responds; all four
+  existing local preview containers are still present. Receipt:
+  `.local/discovery-docker-startup-recovery.json`.
+- Run the three failed database files against the SAME frozen source 6770c803 and
+  the enrolled native builder's exact filtered environment: 23/23 tests PASS,
+  exit 0. Safe report `.local/discovery-frozen-database-recheck.json` retains only
+  counts/statuses, not raw child output or credentials. A new complete configured
+  CI/package/activation attempt is still required; no failure record is replayed.
+
+## Remaining limits and next step
 
 Join storage fails closed at 500 retained requests; no audit/history purge or
 automatic role escalation is introduced. Pending requests expire after 24 hours.
@@ -248,10 +276,10 @@ Raw passwords and connector credentials are absent from API views/audit evidence
 The proof protects the enrolled credential boundary; hardware attestation is not
 implemented. Existing ordinary scopes are preserved rather than redesigned.
 
-The unchanged coverage gates, final build and local package verification pass.
-Review and authorize configured publication of this exact patch; platform build
-must produce its own immutable reviewed artifact before separate live activation.
-No staging, commit, push, pull request or live approval is implied by this handoff.
+The local unchanged coverage gates, final build and package verification pass.
+Complete the owner's authorized configured rollout after the Docker recovery,
+then verify the new source/artifact-bound native approval, receipt and live health.
+Do not substitute the earlier local uncommitted artifact for this published source.
 Keep Servix frontend/backend, uploads, attachments, environment files and databases
 untouched. The prior dirty Servix handoff and Current State evidence are preserved.
 

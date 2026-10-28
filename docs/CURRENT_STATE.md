@@ -20,6 +20,14 @@ links; no screenshots, application data or validation rule is changed. The old
 live manifest bb5e5ed03785 remains active. Validate a clean exported source tree
 before a new actual DevSetu retry; do not replay the failed run.
 
+Retry pr_a34afc3b5e2f023373dd93f7de110fda publishes 6770c803ddf9. Its native
+CI passes contracts/UI and 49/52 backend files; the three database files fail
+because Docker Desktop is down. Retain only verified zero-byte stale runtime
+endpoint directories while stopped, then start Docker without any data reset.
+Engine 29.7.2 and all four local preview containers return. Recheck the same
+frozen source in the exact native builder environment: all 23 database tests pass.
+Start a new full configured retry; the original active platform is unchanged.
+
 Local code now supports own-data Discovery, server-derived admin capabilities,
 paired ordinary login, admin bootstrap on unpaired computers, and Request to join
 for BOTH new users and existing users' additional computers. Every request needs
