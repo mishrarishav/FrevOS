@@ -5,6 +5,35 @@ verified; DevSetu completion metadata needs the audited projection correction**.
 
 ## Current verification and historical checkpoints
 
+At 11:54 IST completion-proof request pr_19c91d349789793cb6152fe90b75c65f
+fails CI before package/activation. Retained Vitest metadata identifies only
+postgres-service.integration.test.ts and accounts.integration.test.ts as failed;
+all other 46 control-plane files, including artifact-promotions and native
+promotion-environment tests, pass. Native failure receipt: phase ci, exit 1,
+killed=false. Docker CLI independently reports the Linux engine pipe absent.
+
+The installed Docker restart reveals stale AF_UNIX temporary inference and
+secrets-engine sockets. Direct socket rename fails (the original is retained);
+after stopping Docker, inspected temporary containing directories are renamed
+aside within their original parent. The secrets-engine directory contains only
+zero-byte engine.sock; no credential, image, volume or database is reset.
+Docker starts at 12:00 IST and CLI reports engine 29.7.2. Recheck the same frozen
+source's two integration suites, then require a NEW successful full configured
+CI/package/activation request. No customer redeploy or approval replay occurs.
+This observed startup symptom is also reported in the
+[Docker Windows issue](https://github.com/docker/for-win/issues/15044);
+the local runtime diagnosis above, rather than that report, establishes this
+attempt's engine unavailability. Do not infer the cause of the original engine
+shutdown from the external report. Owned socket backups remain available.
+
+The completion-proof correction is published through actual DevSetu UI at
+11:40 IST: source `bdd3a56d4cb2dc8caa0444522b4256acfc4f5927`, request
+`pr_19c91d349789793cb6152fe90b75c65f`, native build
+`cj_dc0ee339fda31e7f6194f99a94a60c92`. Native full CI/package/activation is in
+progress; do not duplicate the request. The source checkout is clean following
+publication. Changes after this source are evidence documentation only.
+Earlier checkpoints are historical and do not request another customer deploy.
+
 At 11:10 IST the actual DevSetu UI accepts full application activation
 `pm_ddcdeda2c90cdc2888010328ec7a05d8` for fresh review
 `pm_aed46f6b560aa3df3e78e8884960edbd`. Current direct owner confirmation is
@@ -535,6 +564,32 @@ Phase 4 exit remains open. See [ADR 0067](adr/0067-complete-application-release-
 
 The owner explicitly reserves dashboard, filter and resize manual testing for
 themselves. Do not perform those UI actions or claim their functional acceptance.
+
+## Subsequent owner updates
+
+1. Edit the configured customer checkout (`D:\servixDev` on the selected source
+   connector). Keep environment credentials and persistent data outside the
+   immutable artifact. No manual Git command is needed in the configured flow.
+2. In DevSetu Deployments, select **Servix development → Deploy**, enter the
+   change message and declared reference, and follow that request to completion.
+   Source publication goes to configured server20 Git; configured frontend and
+   backend tests/builds precede deployment and preservation/health verification.
+3. Perform the owner's business checks on Development when application code
+   actually changes. Choose that successful saved complete release from the
+   Production promotion page opened through project configuration.
+4. Prepare a fresh Production review. Examine target, both artifact identities,
+   running owner/task, protected inventory and matching backup/recovery evidence.
+   Confirm that exact unexpired scope once. Promotion reuses the saved digests;
+   it does not rebuild from a changing source checkout.
+5. Check the completed Production result and public application. A later code
+   recovery selects a saved tested release through a new scoped review; database
+   restore, arbitrary shell and automatic replay are not part of this workflow.
+
+The historical unbound Production card's disabled Deploy control is not the
+application promotion entry point. Use the configured tested-release promotion
+link. Reusing the connector is sufficient; no reinstall is required for each
+customer code update. Changed connection/runtime configuration needs its own
+review and cannot silently reuse a preceding deployment approval.
 Their Development browser login is available. The later clarification below
 supersedes waiting for another same-source visual check. Continue deployment
 health and artifact/preservation checks. A new exact artifact-bound Production
@@ -723,18 +778,20 @@ At `c0471d297c398473d8dbf2f2fd10be5c754f2ea2`: 39 files changed,
 
 ## Resume boundary
 
-Platform source 2977bbf / manifest df48db02 is already active after all 77 test
-files, full CI/package and independent Apply pass. Full Development deployment,
-rollback and same-artifact restore are complete at release 4bccfd49407f / source
-20bba3e. Do not rebuild or repeat publication because of older checkpoint text.
-Fresh review pm_54e8481b41d67628f9f8c87e200784b4 correctly verifies the existing
-managed runtime; its matching isolated backup restore PASSES. Obtain the exact owner decision
-before checking acknowledgments or submitting approval. Its deadline is
-05:54:03 IST; expired reviews require new preparation. ADR 0069 is proposed until
-that decision explicitly binds the audit-only source commit/tree equivalence.
-The owner performs the business UI check after Production; do not ask for a
-duplicate same-source Development visual check or claim their acceptance.
-Phase 4 exit remains open; this is not readiness for a later roadmap phase.
+Servix Production full application action pm_ddcdeda2c90cdc2888010328ec7a05d8
+already succeeds natively under timely consumed owner approval. Independent
+public static, API readiness and original attachment checks pass. Do NOT replay,
+rollback, rebuild or ask for another approval for this completed action because
+of historical checkpoint text. ADR 0069 is accepted for the owner's same-tree
+Development observation; business UI checking after Production stays with them.
+
+Follow ONLY current DevSetu completion-proof request
+pr_19c91d349789793cb6152fe90b75c65f / source bdd3a56d through CI/package/Apply.
+Then verify audited metadata reconciliation restores the existing Production
+history and last-verified full-release identity. Retain original receipt,
+consumed approval, result preimage and matching audit; no customer or database
+mutation is part of that repair. Phase 4 exit remains open; this is not readiness
+for a later roadmap phase.
 
 Historical uncommitted checkpoint from b91f842: 2 documentation files, 107 additions and 9 removals (CURRENT_STATE.md and this handoff).
 

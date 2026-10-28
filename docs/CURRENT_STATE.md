@@ -4,6 +4,29 @@ Last updated: 2026-10-28
 
 ## Complete application release follow-up — resumed
 
+At 11:54 IST request pr_19c91d349789793cb6152fe90b75c65f fails CI before
+package/activation: 46 control-plane files pass (including both completion-proof
+tests), while postgres-service/accounts integration fixtures fail at setup.
+Docker CLI confirms its engine is absent. Startup then exposes stale AF_UNIX
+inference/secrets transport sockets. Direct socket rename fails and original
+is retained. With Docker stopped, only its inspected temporary socket
+directories are renamed aside; the secrets-engine directory contains solely a
+zero-byte engine.sock. No image, volume, credential or database reset occurs.
+Docker starts at 12:00 IST, engine 29.7.2 responds, and the same frozen-source
+database suites are being rechecked before a fresh full configured attempt.
+Servix Production is already live; this failure does not change it.
+
+Authoritative current continuation (11:40 IST): completion-proof correction is
+published by the actual DevSetu UI as source
+`bdd3a56d4cb2dc8caa0444522b4256acfc4f5927`, request
+`pr_19c91d349789793cb6152fe90b75c65f`, native build
+`cj_dc0ee339fda31e7f6194f99a94a60c92`. Follow this SAME request through full CI,
+package and independent activation. This updates DevSetu only: the completed
+Servix Production action below must not be replayed. Manual customer business
+acceptance stays with the owner. This remains a bounded Phase 4 follow-up;
+later roadmap phases, customer dependency changes and database restore are out
+of scope. Subsequent paragraphs are historical checkpoints until superseded.
+
 Production application activation `pm_ddcdeda2c90cdc2888010328ec7a05d8`
 executes through the actual DevSetu UI with current owner confirmation, using fresh
 review pm_aed46f6b560aa3df3e78e8884960edbd. Approval consumption at 11:10:33 IST
