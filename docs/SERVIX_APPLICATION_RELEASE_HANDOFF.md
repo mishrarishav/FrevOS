@@ -1,9 +1,189 @@
 # Complete application release follow-up
 
-Date: 2026-10-28 IST. Status: **BLOCKED for Production activation pending
-the task-observer fix publication, fresh backup/restore and exact owner decision**.
+Date: 2026-10-28 IST. Status: **IN PROGRESS — Production application is live and
+verified; DevSetu completion metadata needs the audited projection correction**.
 
-## Current verified checkpoint at 04:22 IST
+## Current verification and historical checkpoints
+
+At 11:10 IST the actual DevSetu UI accepts full application activation
+`pm_ddcdeda2c90cdc2888010328ec7a05d8` for fresh review
+`pm_aed46f6b560aa3df3e78e8884960edbd`. Current direct owner confirmation is
+bound to this new valid unchanged action; no expired record is reused. Original
+approval consumption is **11:10:33 IST**, before review expiry **11:13:17 IST**.
+The fresh matching backup's isolated restore passes at 11:08:50 IST: 114 tables,
+one view, 213,358 rows, full SQL stream/schema verification and owned data/task
+cleanup, no Production write. Recovery proof SHA
+`321ba11ab52990b6d8cc4fe6675da26d4363b76b5fbd2dc5f35b0250e6c76afa`;
+backup SHA `f92e89113c036252ebc1f8f6cab58d75cfc2c9ec1a2bfbb170651cfdcfb272ff`.
+
+Native activation receipt is succeeded: new PID **14248**, owner SID
+S-1-5-21-3574902082-3763586531-1277087089-9176, same bundle selection hash
+bd114fd468bc4b54734f8d875435ff7baec8e4466a9b7157551a69a437ae361d,
+configuration SHA e621ae3b710745bedc8c87fa3a91434fe64d167983d207c8c86de216f723a831,
+8,576 protected files, frontend 7557eb2da721d07f23462c49558ff3a6d964ac6c7d437fcbc87856cc397bea26,
+entry 3677ab3d4070bd5b3516da39e19427f68a24513f630602dba7113c83c3855ced,
+20 static files, databaseRestored=false. No versions or permissions expanded.
+Independent `node .local/Verify-ProductionFullRelease.cjs pm_aed46f6b560aa3df3e78e8884960edbd`
+passes all 20 public files/root entry at 11:13:50 IST, matching full release
+4bccfd49407f / customer source 20bba3e. `node .local/Verify-October28Assets.cjs after`
+passes TLS/API readiness and all three original attachment byte/hash samples at
+11:13:51 IST. Business dashboard/filter/resize checking remains with the owner.
+
+The public DevSetu result omits frontend metadata because the remoted native
+receipt is a dictionary, making PSObject.Properties membership false. Its status
+is already succeeded, but the existing reader correctly rejects incomplete full-
+application proof with 503. Keep that guard. Do not replay/rollback the healthy
+Production application. Correct the worker's frontend projection for dictionary,
+CLIXML and JSON shapes, requiring the expected digest on application success.
+
+The bounded startup reconciliation applies only to already-succeeded application
+results missing BOTH frontend fields. Standalone contract validation binds job,
+actor/workspace/target, sealed review, consumed approval, source/artifacts, native
+runtime path, health/task/protected-file proof and exact frontend digest. It
+checks approval validity at its recorded original consumption, never authorizes
+an expired deployment and never creates an approval. Wrong/failed/incomplete or
+already-populated evidence is rejected. An immutable before-image and matching
+private/public audit persist before compare-and-swap metadata replacement;
+original private result/approval/receipt stay immutable. New public audit files
+inherit public directory ACL instead of copying private-file security.
+
+Focused tests pass two files/12 tests (11.79 seconds, exit 0), covering eight
+projection denials, all native transport shapes, failure before result write on
+audit collision, retry and idempotence through actual PowerShell 5.1. Initial
+native test setup omitted existing RemoteSigned/module-path compatibility;
+those fixture launch parameters were corrected without changing OS settings or
+assertions. Typecheck, formatting, native syntax and diff checks pass.
+
+Actual scoped read-only projection on the completed controller evidence passes,
+resultChanged=false, application/database unchanged, temporary task removed:
+before-result file SHA 892eedf14b2eff38cba61b24c7fa5c5b02af43f1f0e14378de273e92b830f1fa,
+native receipt SHA 352c00a631071dfd97ebaa984cfe7722010a997916ae14cf3bcf51dc8283c6d2,
+projected result SHA cdc9a22b8b89987fc52d90b635126c6c4a9126015269a259cd6f0a12fbc38b4f.
+This diagnostic changes only its isolated import path to the verified active
+contracts package, not projection guards. Full configured platform CI/activation
+is still required; it will reconcile metadata without another customer deploy.
+The local culture-dependent PowerShell expiry probe errored before submission;
+independent Node Date.parse validation then exits 0 at 11:09:56 IST, and actual
+server consumption above independently verifies timely authorization.
+
+Current 10:53–11:01 IST continuation: the owner directly says "approval hai bhai"
+for the displayed full-release scope. The earlier technical review expired at
+05:54:03 IST and is not submitted, extended or reused. Actual DevSetu preparation
+`pm_aed46f6b560aa3df3e78e8884960edbd` produces fresh review SHA
+`67b7e2acad04ccee49e6b511fb38b34f61027eb58867f5c3373bd2ae545737a2`,
+expires **11:13:17 IST**, backup SHA
+`f92e89113c036252ebc1f8f6cab58d75cfc2c9ec1a2bfbb170651cfdcfb272ff`,
+443,989,676 bytes, captured 10:58:17 IST. Matching isolated restore is running.
+
+Comparison verifies unchanged workspace/actor/profile/revision/target digest,
+saved Development release, complete frontend/backend artifact identities,
+existing process/owner/Node/batch rights/managed task and operator hashes.
+The only snapshot change is six new files under application uploads. Both target
+snapshot integrity hashes verify. All 8,570 original protected records retain
+their SHA/size; none removed or changed. Source, environment/database binding
+and Node hashes are unchanged. New protected inventory: 8,576 files,
+2,016,367,916 bytes, SHA 6492f168ed055c71f7cf057ecb49c50938afcdb7b706e6ada998d7af60f7c247.
+Only protected user-data additions are present; planned mutations, artifact,
+destination, identity and permissions are unchanged.
+
+The owner's current explicit confirmation authorizes that unchanged deployment
+scope, including the previously presented startup/recovery/dependency terms.
+Bind it once through the actual UI to the NEW valid review after matching restore
+passes; do not treat the old expired review as an approval record. If action,
+artifact, destination, identity, permissions or risk changes, obtain a new owner
+decision instead. ADR 0069 records accepted same-tree Development observation.
+No approval has yet been submitted or consumed for the full application and
+Production still runs the earlier backend release. No code/build/library upgrade
+or manual dashboard/filter/resize check is added in this continuation.
+
+Final prepared boundary at 05:50 IST: matching isolated restore for review
+`pm_54e8481b41d67628f9f8c87e200784b4` PASSES at 05:49:27 IST.
+Proof SHA `f1b554df1861be04a717b7085d1fd5962c74715d0ba3951c3010b376ac397e74`;
+raw SQL SHA `cd9e4f8d0d9b12c0f6e0c580b28952f707bbf671f06f93139c36ac46d90cd07c`.
+Exact fresh backup SHA 6edfebfa6c4b08c2b98256992a46b338ea688fb512fbfa5ef7feb4831b6d8f19
+matches that proof: MySQL 8.0.28, 114 tables, one view, 213,139 rows, full SQL
+stream and schema counts verified, isolated loopback only. Production database
+and files are unchanged; owned temporary data/task removed. Native restore
+operator exits 0. The immutable earlier preparation marker is retained unchanged.
+
+The exact actual browser review is open, its Changes field contains both
+artifacts/source/tree equivalence and the fresh matching recovery proof. All six
+acknowledgments are unchecked, Approval reference is empty, and Approve is disabled.
+The owner was asked for this one exact decision, including retention of their
+same-tree Development observation under proposed ADR 0069. NO response or approval
+is yet recorded. Review expiry remains **05:54:03 IST**; do not activate an expired
+scope or infer approval from elapsed time. Snapshot capture is unavailable; the
+actual accessibility review is retained at
+.local/evidence/production-review-pm_54e8481b41d67628f9f8c87e200784b4.txt.
+The tab is marked for handoff. This is not a Production deployment success.
+
+Repository: FrevOS, D:\FREVOS\.local\worktrees\servix-dashboard;
+branch codex/servix-full-release. Base a51e97c20dc27ce047cb54ef54a4ef343a5a5b22;
+published result 2977bbf736cb71b90bc32c3b3a8dd3d90740a225 through configured
+server20 Git, with the 42-file inventory/stat below. No PR exists. Two subsequent
+evidence documents are uncommitted; no implementation changes remain unpublished.
+
+At 05:40 IST, fresh review `pm_54e8481b41d67628f9f8c87e200784b4` is
+prepared and the actual browser correctly shows a verified update of managed
+promotion `pm_9b481b3a94f1227d77373247b1d350db`, not first adoption.
+Review SHA `8e8ed6d733b832c44c81cb29083a6dbf78b39010eb53e37806f30f29f68ebd68`;
+expires **2026-10-28 05:54:03 IST**. It is actor usr_windows_admin/workspace
+ws_server20/profile servix-production revision 1, target SHA
+`a219e79b7fd83ee425bf162c9b3b8ca277b436a2ba1723c9ce54235639e143d4`.
+Artifacts/source remain the exact full release 4bccfd49407f / source 20bba3e /
+frontend 7557eb2da721 / backend 5ff7622a9f31, saved restore sd_165f3a.
+Existing owner EESL\APPC0024, PID 18504, Node 20.11.1, batch logon already ready;
+8,570 protected files / 2,013,703,406 bytes, inventory SHA
+`14ffec5c3707b1d06e395af8984530c7c424eeccc5dc51594d9cfc135cffa8c3`.
+
+Fresh encrypted full-stream-verified MySQL 8.0.28 backup:
+`promotion-backup/pm_54e8481b41d67628f9f8c87e200784b4`, SHA
+`6edfebfa6c4b08c2b98256992a46b338ea688fb512fbfa5ef7feb4831b6d8f19`,
+443,472,386 bytes, captured 05:39:03 IST. Its separately scoped matching isolated
+restore is running via Run-PreparedPromotionRecovery.ps1. The immutable preparation
+marker predates this later test and must not be rewritten. Production health and
+three original attachment samples pass again at 05:41:58 IST; the separate
+pre-cutover proof is .local/full-release-production-precutover-assets.json.
+All review acknowledgments remain unchecked and no approval was submitted.
+ADR 0069 remains proposed. If this review expires, prepare a new scope/backup;
+never reuse the expired review or fabricate the owner's decision.
+
+Current live update at 05:36 IST: correction source
+`2977bbf736cb71b90bc32c3b3a8dd3d90740a225` is active, manifest
+`df48db020b1a231da6bf38aac0c4b20ac738f9a93deb35253ed9e7b87fc1d6f7`.
+Request pr_14b5aa503c55b4ea4ffbc3440ee1000a succeeds. Archive SHA
+`ecce384b0920aef265e65de45b6c506d58972acccbd542d467f3d5af1219e00f`,
+131,638,568 bytes; reference digest
+`6631b4ca71abe8503af9bf769a2445e2c629736295241e68647fe1f3a4fb19fe`.
+Independent Apply cj_b212d8365a338d1ac4e0e692a1b216f5 verifies HTTP/UI 200,
+siblingsPreserved=true and databaseWritten=false, previous manifest 9ed0dbb2.
+All 77 test files pass and coverage gates remain unchanged. Repo/branch/base and
+complete 42-file publication inventory/stat are recorded below; no GitHub PR,
+default push or merge occurred.
+
+Fresh actual UI preparation pm_54e8481b41d67628f9f8c87e200784b4 now captures
+its encrypted backup for saved restore sd_165f3a005513759a747408470e7a581f and
+full release 4bccfd49407f. New same-scope source observation confirms a clean
+D:\servixDev checkout, HEAD 20bba3ebbf606df6e6a3b919898443aa3e56fc20;
+its tree and e04137b's tree both equal 5f91dc270c27337e52e07b8db2b7154e7afa219d.
+No approval/Production cutover has occurred. Do not reuse the incomplete expired
+pm_318cc4094cd89d00b95f0022e2e10ac5 review or its old backup for this new review.
+
+Latest at 05:26 IST: actual configured correction request
+`pr_14b5aa503c55b4ea4ffbc3440ee1000a` publishes
+`2977bbf736cb71b90bc32c3b3a8dd3d90740a225`, native build
+`cj_1af61b623abb3742373166c034f4e586`. All 77 cached files pass (13 contracts,
+16 UI, 48 control-plane; zero failures); all existing coverage gates pass.
+Native package builder starts at 05:24:54 after the full CI command succeeds.
+No new manifest is active yet. Source diff against a51e97c: 42 files,
+3,350 insertions/97 deletions. Complete inventory: the historical 39-file list
+plus docs/adr/0069-audit-commit-development-acceptance.md,
+apps/control-plane/test/promotion-environment.test.ts and
+apps/control-plane/test/device-enrollment.test.ts. The only post-publication
+changes are evidence documents. No PR or default-branch/GitHub push/merge.
+Require the same request's package and independent Apply receipts, then fresh
+Prod preparation/backup/restore and exact owner decision. Earlier checkpoints
+below are retained historical evidence, not the latest outcome.
 
 Update at 05:10 IST: request pr_9b4d03e06eb6538d614d119dd380317f stops safely
 in CI, exit 1/AssertionError, no package or activation. The original Vitest cache
@@ -543,12 +723,21 @@ At `c0471d297c398473d8dbf2f2fd10be5c754f2ea2`: 39 files changed,
 
 ## Resume boundary
 
-Restore VPN/desktop access and usable build capacity; reconcile the same request,
-reproduce the six native failures, and obtain a passing configured source build.
-Then activate the platform, build/deploy the complete Servix Development release,
-verify source, component hashes, health and protected files, and prepare the
-fresh exact Production decision. The owner performs the business UI check after
-Production; do not ask for a duplicate same-source Development visual check.
+Platform source 2977bbf / manifest df48db02 is already active after all 77 test
+files, full CI/package and independent Apply pass. Full Development deployment,
+rollback and same-artifact restore are complete at release 4bccfd49407f / source
+20bba3e. Do not rebuild or repeat publication because of older checkpoint text.
+Fresh review pm_54e8481b41d67628f9f8c87e200784b4 correctly verifies the existing
+managed runtime; its matching isolated backup restore PASSES. Obtain the exact owner decision
+before checking acknowledgments or submitting approval. Its deadline is
+05:54:03 IST; expired reviews require new preparation. ADR 0069 is proposed until
+that decision explicitly binds the audit-only source commit/tree equivalence.
+The owner performs the business UI check after Production; do not ask for a
+duplicate same-source Development visual check or claim their acceptance.
 Phase 4 exit remains open; this is not readiness for a later roadmap phase.
 
-Final uncommitted evidence diff from b91f842: 2 documentation files, 107 additions and 9 removals (CURRENT_STATE.md and this handoff).
+Historical uncommitted checkpoint from b91f842: 2 documentation files, 107 additions and 9 removals (CURRENT_STATE.md and this handoff).
+
+Post-publication evidence diff against 2977bbf: 2 documents, 151 additions/11 deletions.
+Closing validation exits 0. All remaining changes are this handoff
+and CURRENT_STATE.md; implementation source is already published and live.

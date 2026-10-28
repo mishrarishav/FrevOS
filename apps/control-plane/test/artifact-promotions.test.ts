@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import {
@@ -477,4 +477,205 @@ it("seals and verifies the exact native review, rejecting tampered bytes, actor 
     }),
   );
   await expect(native("verify-review", jobFile, reviewFile)).rejects.toThrow();
+});
+
+it("repairs only missing completed frontend metadata from timely consumed native evidence, with an audited atomic native write", async () => {
+  clock = new Date(Date.now() - 60 * 60000);
+  await beat();
+  target = PromotionRegistrySchema.parse(
+    JSON.parse(
+      await readFile(
+        new URL("../../../deployment/servix/PromotionRegistry.json", import.meta.url),
+        "utf8",
+      ),
+    ),
+  ).targets[0]!;
+  await writeFile(registryFile, JSON.stringify({ version: 1, targets: [target] }));
+  const service = store();
+  await service.prepare(actor, preparation());
+  const value = review();
+  value.createdAt = clock.toISOString();
+  value.expiresAt = new Date(clock.getTime() + 15 * 60000).toISOString();
+  value.backup.createdAt = clock.toISOString();
+  value.process.taskAlreadyExists = true;
+  value.process.managedRuntimeVerified = true;
+  value.process.previousPromotionId = id(99);
+  value.artifact.frontend = {
+    descriptor: `frontend/.releases/${"9".repeat(64)}/artifact.json`,
+    sha256: "9".repeat(64),
+    indexSha256: "8".repeat(64),
+    files: 3,
+    bytes: 128,
+  };
+  value.privateSnapshotSha256 = promotionDigest({});
+  value.runtimeSha256 = promotionDigest({});
+  await prepared(value);
+  const job = await service.approve(actor, {
+    ...approval(),
+    reviewSha256: promotionDigest(value),
+    confirmation: "promote-reviewed-application-to-production",
+    acknowledgements: { ...approval().acknowledgements, developmentAccepted: true },
+  });
+  const privateRoot = join(root, "private"),
+    claim = join(privateRoot, "claims", job.id),
+    prep = join(privateRoot, "claims", value.id);
+  await mkdir(claim, { recursive: true });
+  await mkdir(prep, { recursive: true });
+  await writeFile(join(prep, "prepared-context.json"), "{}");
+  await writeFile(join(prep, "operator-hashes.json"), "{}");
+  const jobFile = join(claim, `${job.id}.json`),
+    reviewFile = join(prep, "review.json"),
+    consumedFile = join(claim, "approval-consumed.json"),
+    receiptFile = join(claim, "target-receipt.json"),
+    resultFile = join(root, "results", `${job.id}.json`);
+  const sealed = { review: value, sha256: promotionDigest(value) };
+  const consumed = {
+    version: 1,
+    id: job.id,
+    reviewSha256: sealed.sha256,
+    targetSha256: job.targetSha256,
+    workspaceId: workspace,
+    actor,
+    artifact: value.artifact,
+    consumedAt: new Date(clock.getTime() + 100).toISOString(),
+  };
+  const receipt = {
+    status: "succeeded",
+    healthVerified: true,
+    runtimeTaskRegistered: true,
+    protectedFilesVerified: value.protection.files,
+    batchLogonAssigned: false,
+    frontendDigest: value.artifact.frontend.sha256,
+    frontendVerified: true,
+    runtime: win32.join(target.root, ".runtime", "devsetu-promotions", job.id),
+    configurationSha256: "3".repeat(64),
+  };
+  const previous = {
+    version: 1,
+    id: job.id,
+    status: "succeeded",
+    stage: "production-succeeded",
+    updatedAt: new Date(clock.getTime() + 1000).toISOString(),
+    healthVerified: true,
+    runtimeTaskRegistered: true,
+    protectedFilesVerified: value.protection.files,
+    batchLogonAssigned: false,
+    artifactDigest: value.artifact.bundleSha256,
+    sourceHead: value.artifact.sourceHead,
+  };
+  const put = async (file: string, body: unknown) => writeFile(file, JSON.stringify(body));
+  await put(jobFile, job);
+  await put(reviewFile, sealed);
+  await put(consumedFile, consumed);
+  await put(receiptFile, receipt);
+  await put(resultFile, previous);
+  const project = () =>
+    native("project-completed-result", jobFile, reviewFile, consumedFile, receiptFile, resultFile);
+  await expect(service.state(actor)).rejects.toThrow("incomplete-application-result");
+  const projected = await project();
+  expect(projected.result).toEqual({
+    ...previous,
+    frontendDigest: receipt.frontendDigest,
+    frontendVerified: true,
+  });
+  expect(projected.audit).toMatchObject({
+    action: "promotion.result-projection-repair.v1",
+    id: job.id,
+    workspaceId: workspace,
+    actor: "system-promotion-worker",
+    owner: actor,
+    beforeFileSha256: promotionDigest(previous),
+    applicationChanged: false,
+    approvalCreated: false,
+    consumedAt: consumed.consumedAt,
+  });
+  for (const [file, invalid, original] of [
+    [consumedFile, { ...consumed, consumedAt: value.expiresAt }, consumed],
+    [consumedFile, { ...consumed, actor: "usr_other" }, consumed],
+    [receiptFile, { ...receipt, frontendVerified: false }, receipt],
+    [receiptFile, { ...receipt, frontendDigest: "0".repeat(64) }, receipt],
+    [receiptFile, { ...receipt, runtime: win32.join(target.root, ".runtime", "other") }, receipt],
+    [resultFile, { ...previous, status: "failed" }, previous],
+    [resultFile, { ...previous, frontendVerified: true }, previous],
+    [reviewFile, { ...sealed, review: { ...value, workspaceId: "ws_other" } }, sealed],
+  ] as const) {
+    await put(file, invalid);
+    await expect(project()).rejects.toThrow();
+    await put(file, original);
+  }
+  if (process.platform === "win32") {
+    const script = join(root, "repair.ps1"),
+      publicAudit = join(root, "audit", `${job.id}.result-projection-v1.json`);
+    await mkdir(publicAudit); // Audit persistence collision must prevent the result write.
+    await writeFile(
+      script,
+      `param([string]$Worker,[string]$Node,[string]$Private,[string]$Public,[string]$Claim)
+$ErrorActionPreference='Stop';Set-StrictMode -Version Latest
+$module=Import-Module $Worker -Force -PassThru
+$id=Split-Path $Claim -Leaf;$file=Join-Path $Public ('results/'+$id+'.json')
+$before=(Get-FileHash $file).Hash
+try{& $module {param($p,$u,$c,$n,$r) Repair-PromotionResultProjection $p $u $c $n $r} $Private $Public $Claim $Node (Get-Content $file -Raw|ConvertFrom-Json)}catch{
+ if((Get-FileHash $file).Hash -cne $before){throw 'Result changed despite audit collision'}
+ [Console]::Out.Write('audit-denied');exit 0
+}
+throw 'Audit collision did not deny repair'
+`,
+    );
+    // biome-ignore lint/complexity/useLiteralKeys: native environment uses index signatures.
+    const ps = join(process.env["WINDIR"]!, "System32/WindowsPowerShell/v1.0/powershell.exe");
+    const worker = fileURLToPath(
+      new URL("../../../deployment/servix/PromotionWorker.psm1", import.meta.url),
+    );
+    const args = [
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "RemoteSigned",
+      "-File",
+      script,
+      "-Worker",
+      worker,
+      "-Node",
+      process.execPath,
+      "-Private",
+      privateRoot,
+      "-Public",
+      root,
+      "-Claim",
+      claim,
+    ];
+    const nativeOptions = {
+      windowsHide: true,
+      env: Object.fromEntries(
+        Object.entries(process.env).filter(([key]) => key.toLowerCase() !== "psmodulepath"),
+      ),
+    };
+    expect((await execute(ps, args, nativeOptions)).stdout).toBe("audit-denied");
+    await rm(publicAudit, { recursive: true });
+    await writeFile(
+      script,
+      `param([string]$Worker,[string]$Node,[string]$Private,[string]$Public,[string]$Claim)
+$ErrorActionPreference='Stop';Set-StrictMode -Version Latest
+$module=Import-Module $Worker -Force -PassThru;$id=Split-Path $Claim -Leaf;$file=Join-Path $Public ('results/'+$id+'.json')
+1..2|ForEach-Object {& $module {param($p,$u,$c,$n,$r) Repair-PromotionResultProjection $p $u $c $n $r} $Private $Public $Claim $Node (Get-Content $file -Raw|ConvertFrom-Json)}
+`,
+    );
+    await execute(ps, args, nativeOptions);
+    expect(JSON.parse(await readFile(resultFile, "utf8"))).toEqual(projected.result);
+    expect(
+      JSON.parse(await readFile(join(claim, "result-projection-v1.before.json"), "utf8")),
+    ).toEqual(previous);
+    expect(await readFile(publicAudit, "utf8")).toBe(
+      await readFile(join(claim, "result-projection-v1.audit.json"), "utf8"),
+    );
+    const applied = JSON.parse(
+      await readFile(join(claim, "result-projection-v1.applied.json"), "utf8"),
+    );
+    expect(applied.applicationChanged).toBe(false);
+  } else {
+    await put(resultFile, projected.result);
+  }
+  expect((await service.state(actor)).jobs.find((x) => x.job.id === job.id)?.result).toEqual(
+    projected.result,
+  );
 });

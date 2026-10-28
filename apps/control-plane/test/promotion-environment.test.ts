@@ -10,7 +10,7 @@ const run = promisify(execFile),
   helper = resolve("../../deployment/servix/Read-PromotionEnvironment.cjs"),
   sha = (value: string) => createHash("sha256").update(value).digest("hex");
 it.skipIf(process.platform !== "win32")(
-  "retains managed identity through native dictionary, CLIXML and JSON observation shapes",
+  "retains managed and frontend identity through native dictionary, CLIXML and JSON shapes",
   async () => {
     const base = await mkdtemp(join(tmpdir(), "promotion-observation-"));
     try {
@@ -36,7 +36,18 @@ foreach($observation in @(@{taskAlreadyExists=$true},[pscustomobject]@{taskAlrea
  try{[void](& $module {param($v) Get-PromotionObservedManaged $v} $observation)}catch{$rejected++;continue}
  throw 'Inconsistent managed evidence accepted'
 }
-[Console]::Out.Write((@{status='PASS';verifiedShapes=3;rejected=$rejected}|ConvertTo-Json -Compress))
+$front=@{frontendDigest=('c'*64);frontendVerified=$true}
+foreach($receipt in @($front,[Management.Automation.PSSerializer]::Deserialize([Management.Automation.PSSerializer]::Serialize($front)),($front|ConvertTo-Json|ConvertFrom-Json))){
+ $value=& $module {param($v) Get-PromotionObservedFrontend $v ('c'*64) $true} $receipt
+ if($value.frontendDigest -cne ('c'*64) -or -not $value.frontendVerified){throw 'Frontend binding lost'}
+}
+if($null -ne (& $module {Get-PromotionObservedFrontend @{} '' $false})){throw 'Backend-only result changed'}
+$frontendRejected=0
+foreach($receipt in @(@{},@{frontendDigest=('c'*64)},@{frontendDigest=('c'*64);frontendVerified=$false},@{frontendDigest=('d'*64);frontendVerified=$true},@{frontendDigest=('c'*64);frontendVerified='true'})){
+ try{[void](& $module {param($v) Get-PromotionObservedFrontend $v ('c'*64) $true} $receipt)}catch{$frontendRejected++;continue}
+ throw 'Incomplete frontend proof accepted'
+}
+[Console]::Out.Write((@{status='PASS';verifiedShapes=3;rejected=$rejected;frontendShapes=3;frontendRejected=$frontendRejected}|ConvertTo-Json -Compress))
 `,
       );
       // biome-ignore lint/complexity/useLiteralKeys: TypeScript requires bracket access for environment index signatures.
@@ -56,7 +67,13 @@ foreach($observation in @(@{taskAlreadyExists=$true},[pscustomobject]@{taskAlrea
         ],
         { windowsHide: true, maxBuffer: 4096 },
       );
-      expect(JSON.parse(result.stdout)).toEqual({ status: "PASS", verifiedShapes: 3, rejected: 4 });
+      expect(JSON.parse(result.stdout)).toEqual({
+        status: "PASS",
+        verifiedShapes: 3,
+        rejected: 4,
+        frontendShapes: 3,
+        frontendRejected: 5,
+      });
     } finally {
       expect(dirname(resolve(base))).toBe(resolve(tmpdir()));
       expect(base).toContain("promotion-observation-");

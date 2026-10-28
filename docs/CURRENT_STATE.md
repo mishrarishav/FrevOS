@@ -4,6 +4,90 @@ Last updated: 2026-10-28
 
 ## Complete application release follow-up — resumed
 
+Production application activation `pm_ddcdeda2c90cdc2888010328ec7a05d8`
+executes through the actual DevSetu UI with current owner confirmation, using fresh
+review pm_aed46f6b560aa3df3e78e8884960edbd. Approval consumption at 11:10:33 IST
+precedes its 11:13:17 expiry. Native target succeeds: PID 14248, same owner,
+8,576 protected files, same backend bundle and frontend 7557eb2d / 20 files.
+Independent public verification passes all 20 static files/root entry and TLS API
+readiness plus all three original attachment samples at 11:13:50–51 IST.
+No Production database restore or dependency/runtime upgrade occurred.
+
+Completion reporting still needs repair: another remoting dictionary membership
+check omits native frontendDigest/frontendVerified from the public result, and the
+existing strict full-application reader correctly returns 503. Native deployment
+and public application are healthy; do NOT redeploy or replay the consumed action.
+Fix dictionary/object frontend projection and reconcile ONLY missing metadata on
+already-succeeded results, from immutable native receipt/review/consumption proof.
+Audit and exact old-result preimage precede the atomic metadata update; no approval,
+app or database mutation. Native tests (2 files/12 tests) and actual read-only
+projection on this completed job pass. Full configured platform CI/update remains
+required to activate that correction and restore history/future promotion reads.
+Earlier checkpoints below are historical.
+
+At 10:53 IST the owner replied "approval hai bhai". The identified Production
+review had expired at 05:54:03 IST, so it is not submitted or renewed. ADR 0069
+now records the owner's acceptance of the exact same-tree Development release;
+this does not authorize an expired Production scope. The same platform source
+2977bbf / active df48db02 and clean customer source 20bba3e remain unchanged.
+Fresh actual UI preparation pm_aed46f6b560aa3df3e78e8884960edbd is queued at
+10:54 IST for the same saved full release. Public Prod health/readiness and three
+original attachments pass at 10:54:47 IST. Follow this new scope through matching
+backup/restore and a valid exact Production decision before activation.
+Earlier checkpoints below are historical.
+
+The refreshed review pm_aed46f6b560aa3df3e78e8884960edbd is prepared and
+expires 11:13:17 IST. Comparison proves all planned deployment/artifact/target/
+identity/permission fields unchanged. The only inventory difference is six new
+protected uploads; all 8,570 original records remain unchanged and none removed.
+Source/environment/database binding/Node hashes match. Preserve all 8,576 files.
+The current explicit owner confirmation can be bound once to this NEW valid
+unchanged action scope after matching fresh backup restore passes; the expired
+record is never reused. Any material execution-scope change needs a new decision.
+No Production approval has yet been submitted; the fresh isolated restore is running.
+
+Ready for the exact owner decision at 05:50 IST. Review
+pm_54e8481b41d67628f9f8c87e200784b4 has matching isolated restore PASS
+(05:49:27 IST), proof SHA f1b554df1861be04a717b7085d1fd5962c74715d0ba3951c3010b376ac397e74:
+114 tables, one view, 213,139 rows, full SQL-stream/schema verification, temporary
+data/task removed and no Production database/file write. The fresh exact owner
+decision was requested; no reply is recorded. All browser acknowledgments remain
+unchecked, Approval reference empty, ADR 0069 proposed, and Production activation
+unexecuted. Review expires 05:54:03 IST. If expired, prepare a new exact review;
+never reuse the old approval scope. Source 2977bbf / active df48db02 and all 77
+test files/coverage gates are PASS. See the application release handoff for full
+source/artifact/target/backup identities and remaining manual/Production limits.
+
+Fresh full-application review pm_54e8481b41d67628f9f8c87e200784b4 now passes
+preparation and correctly records managedRuntimeVerified=true / prior pm_9b481b3a.
+It expires 05:54:03 IST; SHA 8e8ed6d733b832c44c81cb29083a6dbf78b39010eb53e37806f30f29f68ebd68.
+Fresh encrypted backup 6edfebfa6c4b08c2b98256992a46b338ea688fb512fbfa5ef7feb4831b6d8f19
+has full-stream integrity, and its matching isolated restore is running. All
+8,570 protected files are inventoried. Public Prod readiness and three original
+attachment samples pass at 05:41:58 IST. Review acknowledgments are unchecked,
+ADR 0069 is still proposed, and there is no full-application Production activation.
+
+Latest live checkpoint at 05:36 IST: source
+`2977bbf736cb71b90bc32c3b3a8dd3d90740a225` is active, manifest
+`df48db020b1a231da6bf38aac0c4b20ac738f9a93deb35253ed9e7b87fc1d6f7`.
+Independent Apply cj_b212d8365a338d1ac4e0e692a1b216f5 verifies HTTP/UI 200,
+preserved siblings and databaseWritten=false. Full configured CI passes all
+77 files and coverage gates. Fresh actual Production preparation
+`pm_54e8481b41d67628f9f8c87e200784b4` is capturing/verifying its encrypted
+backup. The customer checkout remains clean at 20bba3e and its tree still equals
+the owner's observed e04137b tree. No approval or Production cutover occurred.
+Earlier checkpoints below remain historical.
+
+Latest at 05:26 IST: corrected source
+`2977bbf736cb71b90bc32c3b3a8dd3d90740a225`, actual DevSetu request
+`pr_14b5aa503c55b4ea4ffbc3440ee1000a`, native build
+`cj_1af61b623abb3742373166c034f4e586`, passes all 77 test files (13 contracts,
+16 UI, 48 control-plane), zero failed files and all coverage gates. The native
+package builder starts at 05:24:54, proving full configured CI completed. Track
+this SAME request to package/Apply; active platform remains 9ed0dbb2 until then.
+Require a NEW immutable full-application Production prepare and matching backup
+restore before the exact human decision. No full-application Prod activation.
+
 At 05:10 IST correction request pr_9b4d03e06eb6538d614d119dd380317f fails
 native CI before package/activation: cached Vitest results identify only
 device-enrollment.test.ts as failed; all other 47 control-plane files, including

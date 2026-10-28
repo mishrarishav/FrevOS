@@ -142,5 +142,5 @@ records the owner's existing visual confirmation, new same-source technical
 release gates and separate exact Production decision/post-deployment checking.
 
 [0069: Development acceptance across audit-only source commits](0069-audit-commit-development-acceptance.md)
-is proposed for the owner's exact Production decision; it records verified source
-tree equivalence without silently reusing ADR 0068 for a different commit.
+records the owner's accepted same-tree Development release and retains the
+separate valid Production review requirement after the earlier review expired.

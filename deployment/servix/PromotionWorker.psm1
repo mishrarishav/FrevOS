@@ -45,10 +45,21 @@ function Invoke-PromotionNode([string]$Node,[string]$File,[string[]]$Arguments,[
  }finally{if(-not $p.HasExited){$p.Kill()};$p.Dispose();$InputText=$null}
 }
 function Get-PromotionHash([string]$File){Assert-BackendPlainPath $File;return (Get-FileHash -LiteralPath $File -Algorithm SHA256).Hash.ToLowerInvariant()}
+function Test-PromotionMember($Value,[string]$Name){
+ if($Value -is [Collections.IDictionary]){return $Value.Contains($Name)}
+ return [bool]$Value.PSObject.Properties[$Name]
+}
+function Get-PromotionObservedFrontend($Receipt,[string]$ExpectedDigest,[bool]$Required){
+ $hasDigest=Test-PromotionMember $Receipt 'frontendDigest';$hasVerified=Test-PromotionMember $Receipt 'frontendVerified'
+ if(-not $hasDigest -and -not $hasVerified -and -not $Required){return $null}
+ if(-not $hasDigest -or -not $hasVerified -or $Receipt.frontendVerified -isnot [bool] -or $Receipt.frontendDigest -cnotmatch '^[a-f0-9]{64}$'){throw 'Native frontend evidence missing or invalid'}
+ if($Required -and (-not $Receipt.frontendVerified -or $Receipt.frontendDigest -cne $ExpectedDigest)){throw 'Native frontend evidence differs from approved artifact'}
+ return @{frontendDigest=[string]$Receipt.frontendDigest;frontendVerified=[bool]$Receipt.frontendVerified}
+}
 function Get-PromotionObservedManaged($Observation){
  # Remoting preserves hashtables as dictionaries, whose keys are not exposed
  # through PSObject.Properties. Keep the verified managed binding in the review.
- $hasManaged=if($Observation -is [Collections.IDictionary]){$Observation.Contains('managed')}else{[bool]$Observation.PSObject.Properties['managed']}
+ $hasManaged=Test-PromotionMember $Observation 'managed'
  if([bool]$Observation.taskAlreadyExists -ne [bool]$hasManaged){throw 'Observed managed task evidence missing or inconsistent'}
  if(-not $hasManaged){return $null}
  $managed=$Observation.managed
@@ -124,7 +135,7 @@ function Get-PromotionManagedEvidence([string]$PrivateRoot,[string]$PublicRoot,$
   if((Get-PromotionHash $contextFile) -cne $sealed.review.privateSnapshotSha256 -or (Get-PromotionHash $hashesFile) -cne $sealed.review.runtimeSha256){throw 'Previous managed evidence changed'}
   $context=Get-Content -LiteralPath $contextFile -Raw|ConvertFrom-Json
   $entry=@{id=$old.id;runtime=$receipt.runtime;configurationSha256=$receipt.configurationSha256;launcherArguments=$receipt.launcherArguments;ownerSid=$context.ownerSid;descriptor=$context.descriptor;descriptorSha256=$context.descriptorSha256;launcherSha256=$context.operatorHashes.'Run-SavedBackend.ps1'}
-  if($receipt.PSObject.Properties['frontendDigest']){$entry.frontendDigest=$receipt.frontendDigest}
+  if(Test-PromotionMember $receipt 'frontendDigest'){$entry.frontendDigest=$receipt.frontendDigest}
   $known+=$entry
  }
  if($known.Count -gt 1000){throw 'Managed evidence budget exceeded'}
@@ -285,9 +296,40 @@ function Invoke-PromotionWork([string]$Root,[string]$PublicRoot,[string]$Private
    if($health.status -cne 'OK' -or -not $health.authBootstrapReady -or -not $health.fullBootstrapReady){$status='recovery-required'}
   }
   $out=@{version=1;id=$Job.id;status=$status;stage=('production-'+$status);updatedAt=[DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ');healthVerified=([bool]$remote.healthVerified -and $status -in @('succeeded','recovered'));protectedFilesVerified=[int]$remote.protectedFilesVerified;artifactDigest=$review.artifact.bundleSha256;batchLogonAssigned=[bool]$remote.batchLogonAssigned;runtimeTaskRegistered=[bool]$remote.runtimeTaskRegistered;sourceHead=$review.artifact.sourceHead}
-  if($remote.PSObject.Properties['frontendDigest']){$out.frontendDigest=$remote.frontendDigest;$out.frontendVerified=[bool]$remote.frontendVerified}
+  $required=((Test-PromotionMember $target 'releaseMode') -and $target.releaseMode -ceq 'application' -and $status -ceq 'succeeded')
+  $expected=if($required){[string]$review.artifact.frontend.sha256}else{''}
+  $front=Get-PromotionObservedFrontend $remote $expected $required
+  if($front){$out.frontendDigest=$front.frontendDigest;$out.frontendVerified=$front.frontendVerified}
   return $out
  }finally{if($session){Remove-PSSession $session};$credential=$null;$backupInput=$null;$database=$null;$databaseBinding=$null}
+}
+function Repair-PromotionResultProjection([string]$PrivateRoot,[string]$PublicRoot,[string]$Claim,[string]$Node,$Previous){
+ if($Previous.status -cne 'succeeded' -or (Test-PromotionMember $Previous 'frontendDigest') -or (Test-PromotionMember $Previous 'frontendVerified')){return}
+ $id=Split-Path $Claim -Leaf;if($id -cnotmatch '^pm_[a-f0-9]{32}$'){throw 'Result projection scope rejected'}
+ $jobFile=Join-Path $Claim ($id+'.json');$job=Get-Content -LiteralPath $jobFile -Raw|ConvertFrom-Json
+ if($job.action -cne 'promote' -or -not(Test-PromotionMember $job.target 'releaseMode') -or $job.target.releaseMode -cne 'application'){return}
+ if($job.reviewId -cnotmatch '^pm_[a-f0-9]{32}$'){throw 'Result projection review scope rejected'}
+ $prepared=Join-Path $PrivateRoot ('claims\'+$job.reviewId);$reviewFile=Join-Path $prepared 'review.json'
+ $sealed=Get-Content -LiteralPath $reviewFile -Raw|ConvertFrom-Json
+ if((Get-PromotionHash (Join-Path $prepared 'prepared-context.json')) -cne $sealed.review.privateSnapshotSha256 -or (Get-PromotionHash (Join-Path $prepared 'operator-hashes.json')) -cne $sealed.review.runtimeSha256){throw 'Result projection private evidence changed'}
+ $receiptFile=Join-Path $Claim 'target-receipt.json';$consumedFile=Join-Path $Claim 'approval-consumed.json';$resultFile=Join-Path $PublicRoot ('results\'+$id+'.json')
+ foreach($file in @($jobFile,$reviewFile,$receiptFile,$consumedFile,$resultFile)){Assert-BackendPlainPath $file}
+ $projection=(Invoke-PromotionNode $Node (Join-Path $PSScriptRoot 'PromotionProtocol.mjs') @('project-completed-result',$jobFile,$reviewFile,$consumedFile,$receiptFile,$resultFile))|ConvertFrom-Json
+ $audit=$projection.audit;$planFile=Join-Path $Claim 'result-projection-v1.audit.json';$beforeFile=Join-Path $Claim 'result-projection-v1.before.json';$publicAudit=Join-Path $PublicRoot ('audit\'+$id+'.result-projection-v1.json')
+ if((Get-PromotionHash $resultFile) -cne $audit.beforeFileSha256 -or (Get-PromotionHash $receiptFile) -cne $audit.nativeFileSha256){throw 'Result projection changed before audit'}
+ if(Test-Path -LiteralPath $planFile){
+  $plan=Get-Content -LiteralPath $planFile -Raw|ConvertFrom-Json
+  foreach($key in @('action','id','workspaceId','actor','owner','reviewSha256','beforeFileSha256','nativeFileSha256','jobFileSha256','consumedFileSha256','reviewFileSha256','projectedResultSha256')){if($plan.$key -cne $audit.$key){throw 'Result projection audit collision'}}
+ }else{Write-PromotionJson $planFile $audit -New}
+ if(Test-Path -LiteralPath $beforeFile){if((Get-PromotionHash $beforeFile) -cne $audit.beforeFileSha256){throw 'Result projection preimage changed'}}else{Assert-BackendPlainPath $beforeFile;[IO.File]::Copy($resultFile,$beforeFile,$false)}
+ if(Test-Path -LiteralPath $publicAudit){if((Get-PromotionHash $publicAudit) -cne (Get-PromotionHash $planFile)){throw 'Result projection audit changed'}}else{
+  # Create under the public audit directory so its existing read ACL is inherited.
+  $plan=Get-Content -LiteralPath $planFile -Raw|ConvertFrom-Json;Write-PromotionJson $publicAudit $plan -New
+  if((Get-PromotionHash $publicAudit) -cne (Get-PromotionHash $planFile)){throw 'Result projection audit serialization changed'}
+ }
+ if((Get-PromotionHash $resultFile) -cne $audit.beforeFileSha256){throw 'Result projection compare-and-swap failed'}
+ Write-PromotionJson $resultFile $projection.result
+ Write-PromotionJson (Join-Path $Claim 'result-projection-v1.applied.json') @{version=1;id=$id;at=[DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ');auditSha256=(Get-PromotionHash $planFile);resultFileSha256=(Get-PromotionHash $resultFile);applicationChanged=$false} -New
 }
 function Invoke-PromotionQueue([string]$Root,[scriptblock]$ReadRelease){
  Import-Module (Join-Path $PSScriptRoot 'BackendArtifactSelection.psm1') -Force
@@ -304,6 +346,7 @@ function Invoke-PromotionQueue([string]$Root,[scriptblock]$ReadRelease){
    if($old.Name -cnotmatch '^pm_[a-f0-9]{32}$'){throw 'Promotion claim identity rejected'}
    $resultFile=Join-Path $public ('results\'+$old.Name+'.json')
    $r=if(Test-Path -LiteralPath $resultFile){Get-Content -LiteralPath $resultFile -Raw|ConvertFrom-Json}else{$null}
+   if($r -and $r.status -ceq 'succeeded'){Repair-PromotionResultProjection $private $public $old.FullName $node $r}
    if(-not $r -or $r.status -ceq 'working'){
     $original=Get-Content -LiteralPath (Join-Path $old.FullName ($old.Name+'.json')) -Raw|ConvertFrom-Json
     $interrupted=if($original.action -ceq 'prepare' -and -not(Test-Path -LiteralPath (Join-Path $old.FullName 'approval-consumed.json'))){'failed'}else{'recovery-required'}
