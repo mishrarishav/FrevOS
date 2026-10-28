@@ -51,7 +51,8 @@ metadata; its bounded authenticated read then succeeds and a fresh browser reloa
 shows the full successful record. Do not interpret the initial empty fallback as
 a missing target or replay any action.
 
-Final visible proof: [DevSetu successful promotion](../.local/servix-production-complete.png).
+Final visible proof is retained locally at `.local/servix-production-complete.png`.
+This ignored operator evidence is not part of the published source checkout.
 Runtime evidence is retained in this worktree's ignored `.local/` directory:
 components-native-application-release-completion-retry-verified.json,
 components-native-application-release-completion-retry-operator.json,

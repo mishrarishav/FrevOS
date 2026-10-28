@@ -12,6 +12,14 @@ The owner subsequently explicitly approved the full reviewed update deployment;
 the configured UI/native workflow will bind its exact generated artifact and
 single-use approval. No Servix application action is included.
 
+Actual DevSetu request pr_7f5fff2f4d234a6d9074a45130e9e947 publishes source
+6b82769f66572a55a34808527a41d00e5f356aa3. Its native CI fails repository validation
+before tests: three Markdown links point to intentionally ignored local screenshots.
+References now identify operator-only evidence paths instead of broken portable
+links; no screenshots, application data or validation rule is changed. The old
+live manifest bb5e5ed03785 remains active. Validate a clean exported source tree
+before a new actual DevSetu retry; do not replay the failed run.
+
 Local code now supports own-data Discovery, server-derived admin capabilities,
 paired ordinary login, admin bootstrap on unpaired computers, and Request to join
 for BOTH new users and existing users' additional computers. Every request needs

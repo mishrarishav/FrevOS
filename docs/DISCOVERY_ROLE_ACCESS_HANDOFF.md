@@ -170,13 +170,15 @@ system setup verifies the same-origin protected connection before updating it.
   Windows OS suggestion, an existing-user request staying pending, administrator
   login without a local connector, explicit admin review, requester code/download
   and admin visibility across owners. Admin UI approval is consumed by the actual
-  Debian connector. [Local admin evidence](../.local/discovery-role-admin.png).
+  Debian connector. Local operator-only image: `.local/discovery-role-admin.png`;
+  this ignored evidence is not part of the published source checkout.
 - Browser policy blocks navigation to the installer's private `file://` bootstrap.
   That block was not bypassed. Full installer-browser acceptance remains unverified.
   A different actual browser test on an HTTP private network origin passes the
   ordinary user's connector confirmation, return receipt, protected session and
   own-data Discovery. Its one Online system is visible; the admin's device and
-  admin approval controls are absent. [HTTP user evidence](../.local/discovery-http-user.png).
+  admin approval controls are absent. Local operator-only image:
+  `.local/discovery-http-user.png`, retained outside Git.
 - Real Debian 12 x64 guest: non-root UID 1000 / actual user systemd, approved-code
   redemption, authenticated Online health, protected credential mode/owner, runtime
   update, startup-failure recovery and unchanged credential/monitoring data PASS.
