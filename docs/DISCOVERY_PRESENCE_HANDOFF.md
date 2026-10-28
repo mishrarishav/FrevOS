@@ -54,6 +54,16 @@ this correction does not claim Android support.
 
 ## Limitations and readiness
 
+The first actual configured request pr_f1cd10646530ad2665bd30442c4d5513 publishes
+969b8f4344882cb5e3fff9966a75968a0902ffb5. CI passes 81/82 files; the unrelated
+unchanged Windows local-development process fixture fails an assertion. No
+candidate is activated. Recheck the exact frozen source using the enrolled
+adapter's native environment: all four native runtime cases pass, including real
+process-tree ownership, loopback binding, preservation and unrelated-listener
+protection. Evidence: .local/discovery-presence-native-recheck.json. No test,
+timeout or acceptance gate changes. Retry the full configured workflow, retaining
+this failed run and its exact-source diagnostic as history.
+
 Hostname association is explicitly provisional; a unique hostname is not proof
 of hardware identity. Different owners/lifecycles and distinct reported machine
 identities remain separate. No exact disconnect time can be reconstructed.
