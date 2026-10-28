@@ -499,6 +499,7 @@ export const DiscoveryStateSchema = z
             sourceFresh: z.boolean(),
             online: z.boolean(),
             observedAt: z.iso.datetime().nullable(),
+            lastSeenAt: z.iso.datetime().nullable().optional(),
             healthHistory: z.array(SystemHealthPointSchema).max(180).optional(),
             policy: DiscoveryPolicyRecordSchema.nullable(),
             observation: DiscoveryObservationSchema.nullable(),

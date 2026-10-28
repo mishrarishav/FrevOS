@@ -14,7 +14,7 @@ import {
 import { X } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { ControlCenterApi } from "./api.js";
-import { type DiscoverySystem, discoverySystems } from "./discovery-systems.js";
+import { type DiscoverySystem, discoverySystems, lastSeenLabel } from "./discovery-systems.js";
 import { FolderBrowser } from "./FolderBrowser.js";
 import { SystemPairingDialog } from "./SystemPairingDialog.js";
 import { RecordBadge, type RecordColumn, RecordWorkspace } from "./RecordWorkspace.js";
@@ -352,7 +352,22 @@ export function DiscoveryPage({
       label: "Tracking",
       value: (s) => s.observation?.coverage.status ?? "not-installed",
     },
-    { id: "status", label: "Presence", value: (s) => (s.online ? "online" : "offline") },
+    {
+      id: "status",
+      label: "Presence",
+      value: (s) => (s.online ? "online" : "offline"),
+      render: (s) => (
+        <RecordBadge tone={s.online ? "positive" : "warning"}>
+          {s.online ? "Online" : "Offline / stale"}
+        </RecordBadge>
+      ),
+    },
+    {
+      id: "lastSeen",
+      label: "Last seen",
+      value: (s) => s.lastSeenAt ?? "",
+      render: (s) => lastSeenLabel(s.lastSeenAt),
+    },
   ];
   const reportActions = (r: DeliveryReport) =>
     access?.canManagePlans ? (
@@ -552,9 +567,7 @@ export function DiscoveryPage({
                 Tracking: {s.observation?.coverage.status ?? "Not installed"} ·{" "}
                 {s.observation?.coverage.watchedDirectories ?? 0} watched folders
               </p>
-              <small>
-                Observed: {s.observedAt ? new Date(s.observedAt).toLocaleString() : "Not yet"}
-              </small>
+              <small>{lastSeenLabel(s.lastSeenAt)}</small>
               <small>
                 {s.profileId
                   ? s.sourceFresh
@@ -576,6 +589,13 @@ export function DiscoveryPage({
                       {binding.source?.repository ??
                         (binding.profileId ? "Source not verified" : "No project required")}
                     </small>
+                    <small>
+                      {binding.online ? "Online" : "Offline / stale"} ·{" "}
+                      {lastSeenLabel(binding.lastSeenAt ?? binding.observedAt)}
+                    </small>
+                    {s.unverifiedBindings.includes(binding.deviceId) && s.bindings.length > 1 ? (
+                      <small>Grouped by matching name and account; system identity pending.</small>
+                    ) : null}
                     <div className="record-row-actions">
                       {canManageSystem(binding) ? (
                         <a

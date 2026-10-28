@@ -15,6 +15,34 @@ import { DeveloperConnectorStore } from "../src/developer-connectors.js";
 import { SystemDiscovery } from "../src/system-discovery.js";
 
 const cleanups: (() => Promise<unknown>)[] = [];
+it("reports server heartbeat presence for legacy and stale connectors without inventing a last-online time", async () => {
+  const f = await fixture();
+  const neverSeen = await f.connectors.pair("usr_alice", { version: 1, name: "Never connected" });
+  let state = await f.store.state("usr_alice");
+  const legacy = state.systems.find((system) => system.deviceId === f.alice.deviceId)!;
+  expect(legacy.observedAt).toBeNull();
+  expect(legacy.lastSeenAt).toBe(f.clock().toISOString());
+  expect(
+    state.systems.find((system) => system.deviceId === neverSeen.deviceId)?.lastSeenAt,
+  ).toBeNull();
+  await f.store.observe(f.alice.credential, f.observation);
+  const receivedAt = f.clock().toISOString();
+  f.advance(60000);
+  await f.connectors.heartbeat(f.alice.credential);
+  const heartbeatAt = f.clock().toISOString();
+  f.advance(31000);
+  const restarted = new SystemDiscovery(f.store.root, f.connectors, f.catalog, f.clock);
+  state = await restarted.state("usr_alice");
+  const stale = state.systems.find((system) => system.deviceId === f.alice.deviceId)!;
+  expect(stale.online).toBe(false);
+  expect(stale.observedAt).toBe(receivedAt);
+  expect(stale.lastSeenAt).toBe(heartbeatAt);
+  expect(
+    (await restarted.state("usr_bob")).systems.some(
+      (system) => system.deviceId === f.alice.deviceId,
+    ),
+  ).toBe(false);
+});
 it("keeps deduplicated bounded real health samples and scopes requested project folder searches", async () => {
   const f = await fixture();
   await f.store.configure("usr_alice", f.policy);

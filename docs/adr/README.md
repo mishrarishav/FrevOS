@@ -156,3 +156,7 @@ approval for new users and existing users' additional Windows/Linux computers.
 [0072: HTTP connector-confirmed login](0072-http-connector-confirmed-login.md)
 records the owner's retained HTTP deployment, explicit connector-page confirmation
 and original-browser plus receiver-cookie binding without browser security overrides.
+
+[0073: Discovery legacy display grouping and last seen](0073-discovery-legacy-grouping-and-last-seen.md)
+records unambiguous owner-scoped legacy connection presentation, retained device
+authority, collision handling and server-derived last-seen timestamps.

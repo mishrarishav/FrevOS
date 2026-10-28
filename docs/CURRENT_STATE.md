@@ -1,6 +1,40 @@
 # DevSetu Current State
 
-Last updated: 2026-10-28
+Last updated: 2026-10-29 (Asia/Calcutta; deployment applied late 2026-10-28)
+
+## Discovery rollout — LIVE PASS
+
+2026-10-29 follow-up: the owner reports duplicate ESDS003228SS cards and missing
+offline last-seen wording. Live UI confirms a monitoring observation plus a
+legacy project connection with no observation. Bounded branch
+codex/discovery-system-presence starts at live 3e97455a43d1, retaining preceding
+handoff-only edits. ADR 0073 adds collision-safe, explicitly provisional display
+association and server heartbeat/observation last seen. Validation is in progress;
+the live rollout described below predates this correction.
+
+Actual DevSetu request pr_8615ebaba63e611c68f997505b229e70 succeeds with source
+3e97455a43d15edc46bf2f61e6fa5a6364177383 and manifest
+1b9ae1cbc550996a2e18399a00c68f61d5ceedbfed36813e098cd59686fc4e47. Full configured
+CI passes all 82 files and unchanged coverage/audit gates. Native exact-artifact
+acceptance and independent Plan/Apply pass; approval scope/expiry/one-use,
+source/artifact identity, runtime-value preservation and sibling sites verify.
+Health/UI and public installer integrity checks pass. No Servix app deployment,
+customer database write, certificate change, live user grant or ownership change.
+
+The admin Discovery view and Join requests inbox are verified live. The legacy
+private credential parent excludes Local Service, so initialize only the new empty
+join-requests child with a protected service ACL and a separate fresh scoped audit;
+parent permissions and existing secret values remain unchanged. The inbox then
+loads successfully. This state persists under protected servix; fresh control-server
+bootstrap needs the same narrow initialization, not access to the credential parent.
+Existing ordinary connectors need their explicit same-origin runtime update before
+paired login. Actual ordinary real-user login and full Windows browser bootstrap
+remain unclaimed; isolated same-source evidence is recorded separately.
+
+Complete source/digest/command evidence and retained limitations are in
+[the Discovery handoff](DISCOVERY_ROLE_ACCESS_HANDOFF.md). The owner raises Android
+as a possible separate connector; no Android client or later roadmap phase starts.
+All checkpoints below are historical and must not replay a failed run or approval.
 
 ## Discovery ownership and approved join — HTTP local implementation PASS
 

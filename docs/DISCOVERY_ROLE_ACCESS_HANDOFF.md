@@ -1,9 +1,12 @@
 # Discovery ownership and approved device onboarding
 
-Date: 2026-10-28. Status: **PASS for local implementation and validation**;
-configured publication is observed and the fully authorized native rollout is in
-progress. No live activation, user creation, role grant,
-ownership reassignment, certificate change or customer application action occurred.
+Implementation date: 2026-10-28. Status: **PASS — published and live on Server20**.
+Actual DevSetu request `pr_8615ebaba63e611c68f997505b229e70` succeeds, source
+`3e97455a43d15edc46bf2f61e6fa5a6364177383`, manifest
+`1b9ae1cbc550996a2e18399a00c68f61d5ceedbfed36813e098cd59686fc4e47`.
+No live user creation, role grant, ownership reassignment, certificate change or
+Servix application deployment occurred. Final runtime storage/bootstrap and UI
+verification are recorded below.
 
 Continuation authorization, 2026-10-28: the owner's direct “approval h bhai”
 authorizes the pending question's configured DevSetu publication and server build
@@ -32,6 +35,9 @@ Repository: `mishrarishav/FrevOS`, checkout
 `8aaf286dad968f1618b0284afe9522e6597c4cbf` at initial implementation review.
 Configured publication now produces `6b82769f66572a55a34808527a41d00e5f356aa3`,
 then documentation-only correction `6770c803ddf9b406c1d8d870f1fce48e5156745f`.
+The final configured result is `3e97455a43d15edc46bf2f61e6fa5a6364177383`;
+application source remains identical to the first publication (Git diff of
+apps/packages/deployment exits 0). Final handoff-only edits are not a new release.
 No new GitHub pull request or merge exists. Current roadmap boundary remains Phase 4.
 ADRs [0070](adr/0070-discovery-role-and-owner-visibility.md) and
 [0071](adr/0071-device-bound-login-and-approved-join.md) record the owner's scope;
@@ -266,6 +272,57 @@ system setup verifies the same-origin protected connection before updating it.
   counts/statuses, not raw child output or credentials. A new complete configured
   CI/package/activation attempt is still required; no failure record is replayed.
 
+### Final configured rollout — PASS
+
+- Actual UI request `pr_8615ebaba63e611c68f997505b229e70`, published source
+  `3e97455a43d15edc46bf2f61e6fa5a6364177383`, native builder job
+  `cj_a764b0d266eb285b3307f62a05f4cac3`: full configured CI passes before its
+  enrolled packager starts. Vitest caches show 13 contracts, 17 UI and 52 backend
+  files, zero failed files. Contracts coverage 98.31/92.77/93.54/98.71%; UI all
+  100%; backend 95.08/91.48/96.8/96.62% (statements/branches/functions/lines).
+  These are the unchanged required gates, not a partial-suite substitution.
+- The committed-source package has 3,994 files. Manifest
+  `1b9ae1cbc550996a2e18399a00c68f61d5ceedbfed36813e098cd59686fc4e47`, archive
+  `df954b58cbed81850d557d5304ac9fececfaee0ab9d5cb0a6675fc025d68e2a5`, native
+  descriptor artifact `a07cbfc03c82ecdab08716e164e3bc528d8946b84d27c8f059e4178e3129a99a`.
+  The unchanged exact-artifact acceptance script exits 0 against this package
+  and its actual baseline: manifest, delta, wrong-digest/migration denial and
+  native syntax/reserved-variable gates pass. Log:
+  `.local/discovery-native-exact-artifact-check.log`.
+- Destination job `cj_447e88612041447021e155813294b684` and independent native
+  Plan/Apply both PASS. Existing Native Windows actor, workspace, target,
+  correlation, source, manifest and archive bindings match; the fresh expiring
+  approval is consumed once. Health/UI return 200, siblings are preserved and
+  `databaseWritten=false`. All existing runtime configuration values compare
+  equal to their private before-image without reporting secret values.
+- Read-only `node .local/Verify-DiscoveryLive.cjs`: exit 0. Active manifest equals
+  the reviewed native package and its source. Public JavaScript (621,535 bytes),
+  Windows installer (39,012,247 bytes) and Linux archive (48,845,013 bytes) all
+  return 200 and match the released manifest hashes. Live Windows ZIP SHA256
+  `0ab6742c7bd3b5056e39065184d4c8cde3d5d30f371a78b71abeffe001205702`;
+  Linux SHA256 `75aae1579a5cb31f499ca8a53818dfc566118a77fe4f750ca18618d537ac138f`.
+  Safe report `.local/discovery-live-verification.json`.
+- Actual live browser shows DevSetu **succeeded**, new artifact a07cbfc03c82,
+  and source 3e97455a43d1. Fresh Discovery at `/systems/discovery` shows
+  **Admin · All workspace systems**, the new Join requests control and existing
+  system observations. Images remain operator-local:
+  `.local/discovery-release-live.png`, `.local/discovery-admin-live.png`.
+- Live Join requests initially reports unavailable because the legacy Windows
+  `servix/private` parent intentionally excludes Local Service. Provision ONLY
+  its new empty `join-requests` child with a protected ACL for the existing
+  service identity (Modify), existing operator/admins and SYSTEM. Parent ACL is
+  verified unchanged; no existing credential is read and no database write or
+  user grant occurs. This uses a separate fresh scoped one-use initialization
+  approval, not the consumed deployment approval. Versioned fixed-target tool:
+  `.local/Initialize-DiscoveryJoinStorage.v1.ps1`; receipt
+  `.local/discovery-join-storage-bootstrap.json`, with matching private audit
+  records beside the native operator job. The protected `servix` state persists
+  across later deployments; a fresh Windows control-server bootstrap must also
+  initialize this service-owned child. Do not grant service access to its parent.
+- The live admin inbox then loads successfully with zero requests and no error.
+  `.local/discovery-join-inbox-live.png` records that state. No real test user,
+  pending request, consent or role is created to manufacture acceptance.
+
 ## Remaining limits and next step
 
 Join storage fails closed at 500 retained requests; no audit/history purge or
@@ -276,34 +333,41 @@ Raw passwords and connector credentials are absent from API views/audit evidence
 The proof protects the enrolled credential boundary; hardware attestation is not
 implemented. Existing ordinary scopes are preserved rather than redesigned.
 
-The local unchanged coverage gates, final build and package verification pass.
-Complete the owner's authorized configured rollout after the Docker recovery,
-then verify the new source/artifact-bound native approval, receipt and live health.
-Do not substitute the earlier local uncommitted artifact for this published source.
+The authorized configured rollout, exact native approval/receipt checks, live
+health, downloads and admin UI checks pass. Existing ordinary system connectors
+must explicitly update from the live trusted download before paired-only login;
+their pairing/state are preserved. Admin bootstrap remains available. Real-user
+ordinary login and the full Windows installer browser bootstrap are not claimed
+from the admin-only live checks; same-source isolated browser/native evidence
+above remains distinct. Next bounded scope can address fresh-server bootstrap
+automation and the inbox's generic project-oriented empty-state hint.
+
+The owner also raises Android as a possible additional connector. It is not
+implemented or advertised by the current Windows/Linux contracts/downloads.
+An Android app, platform capability contract, consented storage access and
+Android-specific background scheduling need a separately bounded mobile scope.
 Keep Servix frontend/backend, uploads, attachments, environment files and databases
 untouched. The prior dirty Servix handoff and Current State evidence are preserved.
 
-## Complete working-tree inventory
+## Complete published change inventory
 
-This includes the two pre-existing Servix evidence edits; they are retained, not
-claimed as new application implementation. `U` means a new untracked file.
+Repository `mishrarishav/FrevOS`, branch `codex/discovery-role-access`. Base `8aaf286dad968f1618b0284afe9522e6597c4cbf`; resulting configured source `3e97455a43d15edc46bf2f61e6fa5a6364177383`. No GitHub PR or merge. This range includes the two retained pre-existing Servix evidence edits. All published application code is live; only final evidence documentation remains uncommitted after deployment.
 
-Implementation/source-and-test patch SHA256: `8206e2d1ccfc0438a5f5e730be9b865cb883c693a2f0a89717e8c16b50ed589d`. This identifies
-the local review patch; it is not a deployed release manifest or commit.
+Original implementation review patch SHA256: `8206e2d1ccfc0438a5f5e730be9b865cb883c693a2f0a89717e8c16b50ed589d`. This is a historical review identifier, not a deployed manifest. Application source equality between the first publication 6b82769f and final source 3e97455a is independently checked with Git (exit 0).
 
 - `M apps/control-center/src/App.tsx`
 - `M apps/control-center/src/DiscoveryPage.tsx`
-- `U apps/control-center/src/JoinRequestForm.tsx`
-- `U apps/control-center/src/JoinRequestsInbox.tsx`
+- `A apps/control-center/src/JoinRequestForm.tsx`
+- `A apps/control-center/src/JoinRequestsInbox.tsx`
 - `M apps/control-center/src/RecordWorkspace.tsx`
 - `M apps/control-center/src/SystemPairingDialog.tsx`
 - `M apps/control-center/src/api.ts`
-- `U apps/control-center/test/device-join-api.test.tsx`
+- `A apps/control-center/test/device-join-api.test.tsx`
 - `M apps/control-plane/src/control-center.ts`
 - `M apps/control-plane/src/developer-connectors.ts`
-- `U apps/control-plane/src/device-logins.ts`
-- `U apps/control-plane/src/discovery-access.ts`
-- `U apps/control-plane/src/join-requests.ts`
+- `A apps/control-plane/src/device-logins.ts`
+- `A apps/control-plane/src/discovery-access.ts`
+- `A apps/control-plane/src/join-requests.ts`
 - `M apps/control-plane/src/main.ts`
 - `M apps/control-plane/src/repositories.ts`
 - `M apps/control-plane/src/server.ts`
@@ -311,10 +375,10 @@ the local review patch; it is not a deployed release manifest or commit.
 - `M apps/control-plane/test/accounts.integration.test.ts`
 - `M apps/control-plane/test/control-center.test.ts`
 - `M apps/control-plane/test/device-enrollment.test.ts`
-- `U apps/control-plane/test/device-logins.test.ts`
-- `U apps/control-plane/test/discovery-access.test.ts`
-- `U apps/control-plane/test/join-login.integration.test.ts`
-- `U apps/control-plane/test/paired-login-clients.test.ts`
+- `A apps/control-plane/test/device-logins.test.ts`
+- `A apps/control-plane/test/discovery-access.test.ts`
+- `A apps/control-plane/test/join-login.integration.test.ts`
+- `A apps/control-plane/test/paired-login-clients.test.ts`
 - `M apps/control-plane/test/postgres-service.integration.test.ts`
 - `M apps/control-plane/test/system-discovery.test.ts`
 - `M deployment/server20/HttpCommon.ps1`
@@ -322,70 +386,92 @@ the local review patch; it is not a deployed release manifest or commit.
 - `M deployment/servix/Connector.cjs`
 - `M deployment/servix/DeviceEnrollment.cjs`
 - `M deployment/servix/DeviceEnrollmentClient.js`
-- `U deployment/servix/DiscoveryAccessPolicy.json`
+- `A deployment/servix/DiscoveryAccessPolicy.json`
 - `M deployment/servix/New-ConnectorDownload.ps1`
 - `M deployment/servix/New-LinuxDownload.mjs`
-- `U deployment/servix/PairedLogin.psm1`
+- `A deployment/servix/PairedLogin.psm1`
 - `M deployment/servix/Run-LocalDevService.ps1`
 - `M deployment/servix/START-HERE.txt`
 - `M deployment/servix/Setup-Connector.ps1`
 - `M deployment/servix/Setup-Executor.ps1`
 - `M deployment/servix/Setup-Linux.cjs`
-- `U deployment/servix/Setup-SystemLinux.cjs`
+- `A deployment/servix/Setup-SystemLinux.cjs`
 - `M deployment/servix/SystemEnrollment.cjs`
-- `U deployment/servix/SystemLinuxInstaller.cjs`
+- `A deployment/servix/SystemLinuxInstaller.cjs`
 - `M deployment/servix/install.sh`
 - `M docs/CURRENT_STATE.md`
-- `U docs/DISCOVERY_ROLE_ACCESS_HANDOFF.md`
+- `A docs/DISCOVERY_ROLE_ACCESS_HANDOFF.md`
 - `M docs/SERVIX_APPLICATION_RELEASE_HANDOFF.md`
-- `U docs/adr/0070-discovery-role-and-owner-visibility.md`
-- `U docs/adr/0071-device-bound-login-and-approved-join.md`
-- `U docs/adr/0072-http-connector-confirmed-login.md`
+- `A docs/adr/0070-discovery-role-and-owner-visibility.md`
+- `A docs/adr/0071-device-bound-login-and-approved-join.md`
+- `A docs/adr/0072-http-connector-confirmed-login.md`
 - `M docs/adr/README.md`
 - `M packages/contracts/src/developer-connectors.ts`
-- `U packages/contracts/src/device-login.ts`
+- `A packages/contracts/src/device-login.ts`
 - `M packages/contracts/src/index.ts`
-- `U packages/contracts/src/join-requests.ts`
+- `A packages/contracts/src/join-requests.ts`
 - `M packages/contracts/src/system-discovery.ts`
 
-Tracked diff stat (new files are listed above separately):
+Published diff stat:
 
 ```text
-apps/control-center/src/App.tsx                    |  94 ++++++++-
- apps/control-center/src/DiscoveryPage.tsx          | 233 +++++++++++++--------
+apps/control-center/src/App.tsx                    |  94 ++-
+ apps/control-center/src/DiscoveryPage.tsx          | 233 ++++---
+ apps/control-center/src/JoinRequestForm.tsx        | 301 ++++++++
+ apps/control-center/src/JoinRequestsInbox.tsx      | 245 +++++++
  apps/control-center/src/RecordWorkspace.tsx        |  14 +-
- apps/control-center/src/SystemPairingDialog.tsx    |  46 +++-
- apps/control-center/src/api.ts                     |  94 ++++++++-
+ apps/control-center/src/SystemPairingDialog.tsx    |  46 +-
+ apps/control-center/src/api.ts                     |  94 ++-
+ apps/control-center/test/device-join-api.test.tsx  | 228 ++++++
  apps/control-plane/src/control-center.ts           |  12 +-
- apps/control-plane/src/developer-connectors.ts     |  76 +++++--
- apps/control-plane/src/main.ts                     |  43 ++++
- apps/control-plane/src/repositories.ts             |  70 +++++--
- apps/control-plane/src/server.ts                   | 207 ++++++++++++++++++
- apps/control-plane/src/system-discovery.ts         |  47 ++++-
- .../test/accounts.integration.test.ts              |  94 +++++++++
- apps/control-plane/test/control-center.test.ts     |  16 ++
- apps/control-plane/test/device-enrollment.test.ts  |  84 ++++++++
+ apps/control-plane/src/developer-connectors.ts     |  76 +-
+ apps/control-plane/src/device-logins.ts            | 266 +++++++
+ apps/control-plane/src/discovery-access.ts         |  62 ++
+ apps/control-plane/src/join-requests.ts            | 494 +++++++++++++
+ apps/control-plane/src/main.ts                     |  43 ++
+ apps/control-plane/src/repositories.ts             |  70 +-
+ apps/control-plane/src/server.ts                   | 207 ++++++
+ apps/control-plane/src/system-discovery.ts         |  47 +-
+ .../test/accounts.integration.test.ts              |  94 +++
+ apps/control-plane/test/control-center.test.ts     |  16 +
+ apps/control-plane/test/device-enrollment.test.ts  |  84 +++
+ apps/control-plane/test/device-logins.test.ts      | 370 ++++++++++
+ apps/control-plane/test/discovery-access.test.ts   | 134 ++++
+ .../test/join-login.integration.test.ts            | 774 +++++++++++++++++++++
+ .../test/paired-login-clients.test.ts              | 103 +++
  .../test/postgres-service.integration.test.ts      |   1 +
- apps/control-plane/test/system-discovery.test.ts   | 102 ++++++++-
+ apps/control-plane/test/system-discovery.test.ts   | 102 ++-
  deployment/server20/HttpCommon.ps1                 |   1 +
  deployment/server20/New-ServixDashboardRelease.ps1 |   3 +
- deployment/servix/Connector.cjs                    | 166 ++++++++++++++-
- deployment/servix/DeviceEnrollment.cjs             |  83 ++++++--
+ deployment/servix/Connector.cjs                    | 166 ++++-
+ deployment/servix/DeviceEnrollment.cjs             |  83 ++-
  deployment/servix/DeviceEnrollmentClient.js        |   6 +
+ deployment/servix/DiscoveryAccessPolicy.json       |   6 +
  deployment/servix/New-ConnectorDownload.ps1        |   2 +-
  deployment/servix/New-LinuxDownload.mjs            |  10 +
+ deployment/servix/PairedLogin.psm1                 |  26 +
  deployment/servix/Run-LocalDevService.ps1          |   2 +-
- deployment/servix/START-HERE.txt                   |  24 ++-
+ deployment/servix/START-HERE.txt                   |  24 +-
  deployment/servix/Setup-Connector.ps1              |   7 +-
  deployment/servix/Setup-Executor.ps1               |   5 +-
  deployment/servix/Setup-Linux.cjs                  |   9 +-
+ deployment/servix/Setup-SystemLinux.cjs            |  30 +
  deployment/servix/SystemEnrollment.cjs             |   9 +-
+ deployment/servix/SystemLinuxInstaller.cjs         | 349 ++++++++++
  deployment/servix/install.sh                       |   6 +-
- docs/CURRENT_STATE.md                              |  93 ++++++++
- docs/SERVIX_APPLICATION_RELEASE_HANDOFF.md         | 166 +++++++++++++--
- docs/adr/README.md                                 |  12 ++
+ docs/CURRENT_STATE.md                              | 109 +++
+ docs/DISCOVERY_ROLE_ACCESS_HANDOFF.md              | 391 +++++++++++
+ docs/SERVIX_APPLICATION_RELEASE_HANDOFF.md         | 167 ++++-
+ .../0070-discovery-role-and-owner-visibility.md    |  56 ++
+ .../0071-device-bound-login-and-approved-join.md   |  89 +++
+ docs/adr/0072-http-connector-confirmed-login.md    |  51 ++
+ docs/adr/README.md                                 |  12 +
  packages/contracts/src/developer-connectors.ts     |   2 +
+ packages/contracts/src/device-login.ts             |  29 +
  packages/contracts/src/index.ts                    |   2 +
+ packages/contracts/src/join-requests.ts            |  63 ++
  packages/contracts/src/system-discovery.ts         |  10 +
- 36 files changed, 1677 insertions(+), 174 deletions(-)
+ 56 files changed, 5761 insertions(+), 174 deletions(-)
 ```
+
+Final uncommitted evidence updates: `docs/CURRENT_STATE.md` and `docs/DISCOVERY_ROLE_ACCESS_HANDOFF.md`. They record observed outcomes and do not alter the active application. Local operational scripts/receipts and images are intentionally ignored, not shipped source or public proof links.

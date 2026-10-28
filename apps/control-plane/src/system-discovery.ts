@@ -800,6 +800,10 @@ export class SystemDiscovery {
           online:
             !!record && d.online && this.now().getTime() - Date.parse(record.receivedAt) < 30000,
           observedAt: record?.receivedAt ?? null,
+          lastSeenAt:
+            d.lastSeenAt && (!record || Date.parse(d.lastSeenAt) > Date.parse(record.receivedAt))
+              ? d.lastSeenAt
+              : (record?.receivedAt ?? null),
           healthHistory: historyDeviceId === d.deviceId ? healthHistory : healthHistory.slice(-12),
           policy,
           observation: record?.observation ?? null,
