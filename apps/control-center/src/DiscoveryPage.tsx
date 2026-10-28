@@ -21,6 +21,7 @@ import { RecordBadge, type RecordColumn, RecordWorkspace } from "./RecordWorkspa
 import { addBasePath } from "./routing.js";
 import { WorkspaceDialog } from "./WorkspaceDialog.js";
 import { HealthGraphs } from "./HealthGraphs.js";
+import { JoinRequestsInbox } from "./JoinRequestsInbox.js";
 
 type System = DiscoveryState["systems"][number];
 const bytes = (n: number) => `${(n / 1073741824).toFixed(1)} GB`;
@@ -62,7 +63,7 @@ export function DiscoveryPage({
   const [state, setState] = useState<DiscoveryState>({ systems: [], reports: [] });
   const [pairing, setPairing] = useState(false);
   const [userId, setUserId] = useState(""),
-    [tab, setTab] = useState<"systems" | "reports">("systems");
+    [tab, setTab] = useState<"systems" | "reports" | "requests">("systems");
   const [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
@@ -90,6 +91,9 @@ export function DiscoveryPage({
   const systems = discoverySystems(state.systems).filter(
     (s) => historical || s.status === "active",
   );
+  const access = state.access;
+  const canManageSystem = (system: System) =>
+    !!access?.canManageOwnSystems && system.userId === access.actorId && system.status === "active";
   // biome-ignore lint/correctness/useExhaustiveDependencies: reload is the explicit retry generation.
   useEffect(() => {
     const abort = new AbortController();
@@ -102,16 +106,43 @@ export function DiscoveryPage({
           api.getSession(abort.signal),
         ]);
         if (!abort.signal.aborted) {
+          if (!next.access || next.access.actorId !== session.userId) throw Error();
           setState(next);
           setUserId(session.userId);
+          if (!next.access.canPair) setPairing(false);
+          if (next.access.role !== "admin")
+            setTab((prior) => (prior === "requests" ? "systems" : prior));
+          const owned = (id: string) =>
+            next.access!.canManageOwnSystems &&
+            next.systems.some(
+              (system) =>
+                system.deviceId === id &&
+                system.userId === session.userId &&
+                system.status === "active",
+            );
+          if (details && !next.systems.some((system) => system.deviceId === details))
+            setDetails(null);
+          setSettings((prior) => (prior && owned(prior.system.deviceId) ? prior : null));
+          setFolderPicker((prior) => (prior && owned(prior.system.deviceId) ? prior : null));
+          setEditor((prior) => (next.access!.canManagePlans ? prior : null));
+          setPreview((prior) => (prior && owned(prior.request.deviceId) ? prior : null));
           setLoading(false);
           setError("");
         }
       } catch {
         if (!abort.signal.aborted) {
-          setError("Discovery connection unavailable. Showing last observed evidence.");
+          setError(
+            "Discovery access unavailable. Reconnect or sign in again to view your systems.",
+          );
           setLoading(false);
-          setState((s) => ({ ...s, systems: s.systems.map((d) => ({ ...d, online: false })) }));
+          setState({ systems: [], reports: [] });
+          setUserId("");
+          setPairing(false);
+          setDetails(null);
+          setSettings(null);
+          setFolderPicker(null);
+          setEditor(null);
+          setPreview(null);
         }
       }
       if (!abort.signal.aborted) timer = setTimeout(() => void poll(), 5000);
@@ -183,7 +214,7 @@ export function DiscoveryPage({
       /* Optional preference. */
     }
   }, [userId, workspaceId]);
-  function selectTab(value: "systems" | "reports") {
+  function selectTab(value: "systems" | "reports" | "requests") {
     setTab(value);
     try {
       sessionStorage.setItem(`frevos:${userId}:${workspaceId}:discovery:tab`, value);
@@ -264,29 +295,33 @@ export function DiscoveryPage({
       <button type="button" className="button secondary" onClick={() => openActivity(s.deviceId)}>
         Activity &amp; health
       </button>
-      <button
-        type="button"
-        className="button secondary"
-        disabled={!s.online || s.userId !== userId}
-        onClick={() => setFolderPicker({ system: s, mode: "inspect" })}
-      >
-        Browse folders
-      </button>
-      <button
-        type="button"
-        className="button secondary"
-        disabled={s.userId !== userId || s.status !== "active" || busy}
-        onClick={() => {
-          setNotice("");
-          setSettings({
-            system: s,
-            policy: structuredClone(s.policy?.policy ?? defaultDiscoveryPolicy),
-            activity: structuredClone(s.activity?.settings ?? defaultActivitySettings),
-          });
-        }}
-      >
-        Tracking settings
-      </button>
+      {canManageSystem(s) ? (
+        <>
+          <button
+            type="button"
+            className="button secondary"
+            disabled={!s.online}
+            onClick={() => setFolderPicker({ system: s, mode: "inspect" })}
+          >
+            Browse folders
+          </button>
+          <button
+            type="button"
+            className="button secondary"
+            disabled={busy}
+            onClick={() => {
+              setNotice("");
+              setSettings({
+                system: s,
+                policy: structuredClone(s.policy?.policy ?? defaultDiscoveryPolicy),
+                activity: structuredClone(s.activity?.settings ?? defaultActivitySettings),
+              });
+            }}
+          >
+            Tracking settings
+          </button>
+        </>
+      ) : null}
     </div>
   );
   const systemColumns: RecordColumn<DiscoverySystem>[] = [
@@ -319,21 +354,21 @@ export function DiscoveryPage({
     },
     { id: "status", label: "Presence", value: (s) => (s.online ? "online" : "offline") },
   ];
-  const reportActions = (r: DeliveryReport) => (
-    <div className="record-row-actions">
-      <button
-        type="button"
-        className="button secondary"
-        disabled={userId !== "usr_windows_admin"}
-        onClick={() => {
-          setNotice("");
-          setEditor({ report: r, plan: newPlan(r) });
-        }}
-      >
-        {r.plan ? "Edit plan / acceptance" : "Set up project plan"}
-      </button>
-    </div>
-  );
+  const reportActions = (r: DeliveryReport) =>
+    access?.canManagePlans ? (
+      <div className="record-row-actions">
+        <button
+          type="button"
+          className="button secondary"
+          onClick={() => {
+            setNotice("");
+            setEditor({ report: r, plan: newPlan(r) });
+          }}
+        >
+          {r.plan ? "Edit plan / acceptance" : "Set up project plan"}
+        </button>
+      </div>
+    ) : null;
   const percent = (n: number | null) => (n === null ? "Unknown" : `${n}%`);
   const reportColumns: RecordColumn<DeliveryReport>[] = [
     { id: "name", label: "Project", value: (r) => r.projectName },
@@ -352,9 +387,28 @@ export function DiscoveryPage({
   ];
   const controls = (
     <div className="record-row-actions">
-      <button type="button" className="button secondary" onClick={() => setPairing(true)}>
-        Approve connection
-      </button>
+      {access?.role === "admin" ? (
+        <button
+          type="button"
+          className={`button ${tab === "requests" ? "primary" : "secondary"}`}
+          aria-pressed={tab === "requests"}
+          onClick={() => selectTab("requests")}
+        >
+          Join requests
+        </button>
+      ) : null}
+      <RecordBadge tone={access?.role === "admin" ? "positive" : "neutral"}>
+        {access
+          ? access.role === "admin"
+            ? "Admin · All workspace systems"
+            : "User · Your systems only"
+          : "Checking access"}
+      </RecordBadge>
+      {access?.canPair ? (
+        <button type="button" className="button secondary" onClick={() => setPairing(true)}>
+          Approve connection
+        </button>
+      ) : null}
       {tab === "systems" ? (
         <label className="record-inline-choice">
           <input
@@ -365,10 +419,12 @@ export function DiscoveryPage({
           Show historical sources
         </label>
       ) : null}
-      <a className="button secondary" href={addBasePath("/projects/local-development")}>
-        Local development
-      </a>
-      {tab === "reports" ? (
+      {access?.canManageOwnSystems ? (
+        <a className="button secondary" href={addBasePath("/projects/local-development")}>
+          Local development
+        </a>
+      ) : null}
+      {tab === "reports" && access?.role === "admin" ? (
         <a className="button secondary" href={addBasePath("/projects/frevos/operations")}>
           Clients &amp; project records
         </a>
@@ -443,7 +499,15 @@ export function DiscoveryPage({
           }}
         />
       ) : null}
-      {tab === "systems" ? (
+      {tab === "requests" && access?.role === "admin" ? (
+        <JoinRequestsInbox
+          api={api}
+          workspaceId={workspaceId}
+          userId={userId}
+          scopeName={scopeName}
+          actions={controls}
+        />
+      ) : tab === "systems" ? (
         <RecordWorkspace
           key={`systems:${userId}`}
           title="Discovery"
@@ -473,7 +537,7 @@ export function DiscoveryPage({
                 <div className="record-identity">
                   <h2>{s.observation?.system.systemName ?? s.name}</h2>
                   <small>
-                    {s.bindings.length} project {s.bindings.length === 1 ? "binding" : "bindings"} ·{" "}
+                    {s.bindings.length} {s.bindings.length === 1 ? "connection" : "connections"} ·{" "}
                     {s.observation?.system.installationId
                       ? "System identity reported"
                       : "Identity unavailable; source shown separately"}
@@ -513,43 +577,48 @@ export function DiscoveryPage({
                         (binding.profileId ? "Source not verified" : "No project required")}
                     </small>
                     <div className="record-row-actions">
-                      <a
-                        className="button secondary"
-                        href={addBasePath(
-                          binding.profileId
-                            ? `/projects/local-development?project=${encodeURIComponent(binding.profileId)}`
-                            : "/projects/components",
-                        )}
-                      >
-                        {binding.profileId ? "Local preview & services" : "Add a project"}
-                      </a>
+                      {canManageSystem(binding) ? (
+                        <a
+                          className="button secondary"
+                          href={addBasePath(
+                            binding.profileId
+                              ? `/projects/local-development?project=${encodeURIComponent(binding.profileId)}`
+                              : "/projects/components",
+                          )}
+                        >
+                          {binding.profileId ? "Local preview & services" : "Add a project"}
+                        </a>
+                      ) : null}
                       <button
                         type="button"
                         className="button secondary"
-                        aria-label={binding.profileId + " activity"}
+                        aria-label={(binding.profileId ?? "System monitoring") + " activity"}
                         onClick={() => openActivity(binding.deviceId)}
                       >
                         Activity
                       </button>
-                      <button
-                        type="button"
-                        className="button secondary"
-                        aria-label={binding.profileId + " tracking settings"}
-                        disabled={binding.userId !== userId || binding.status !== "active"}
-                        onClick={() =>
-                          setSettings({
-                            system: binding,
-                            activity: structuredClone(
-                              binding.activity?.settings ?? defaultActivitySettings,
-                            ),
-                            policy: structuredClone(
-                              binding.policy?.policy ?? defaultDiscoveryPolicy,
-                            ),
-                          })
-                        }
-                      >
-                        Tracking
-                      </button>
+                      {canManageSystem(binding) ? (
+                        <button
+                          type="button"
+                          className="button secondary"
+                          aria-label={
+                            (binding.profileId ?? "System monitoring") + " tracking settings"
+                          }
+                          onClick={() =>
+                            setSettings({
+                              system: binding,
+                              activity: structuredClone(
+                                binding.activity?.settings ?? defaultActivitySettings,
+                              ),
+                              policy: structuredClone(
+                                binding.policy?.policy ?? defaultDiscoveryPolicy,
+                              ),
+                            })
+                          }
+                        >
+                          Tracking
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 ))}
@@ -879,7 +948,7 @@ export function DiscoveryPage({
                         {new Date(e.at).toLocaleTimeString()}
                       </small>
                     ) : null}
-                    {e.kind !== "gap" ? (
+                    {e.kind !== "gap" && canManageSystem(selected) ? (
                       <button
                         type="button"
                         className="button secondary"

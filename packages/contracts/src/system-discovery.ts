@@ -476,6 +476,16 @@ export const DeliveryReportSchema = z
   .strict();
 export const DiscoveryStateSchema = z
   .object({
+    access: z
+      .object({
+        actorId: text(128).min(1),
+        role: z.enum(["user", "admin"]),
+        canPair: z.boolean(),
+        canManageOwnSystems: z.boolean(),
+        canManagePlans: z.boolean(),
+      })
+      .strict()
+      .optional(),
     systems: z
       .array(
         z

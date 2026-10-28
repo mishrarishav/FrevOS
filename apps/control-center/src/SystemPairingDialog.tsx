@@ -1,5 +1,5 @@
-import { useState } from "react";
-import type { SystemEnrollmentPreview } from "@frevos/contracts";
+import { useEffect, useState } from "react";
+import type { SystemEnrollmentPreview, LocalAccount } from "@frevos/contracts";
 import type { ControlCenterApi } from "./api.js";
 import { WorkspaceDialog } from "./WorkspaceDialog.js";
 export function SystemPairingDialog({
@@ -15,6 +15,28 @@ export function SystemPairingDialog({
     [preview, setPreview] = useState<SystemEnrollmentPreview | null>(null),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState("");
+  const [owners, setOwners] = useState<LocalAccount[]>([]),
+    [ownerUserId, setOwnerUserId] = useState("");
+  useEffect(() => {
+    let closed = false;
+    void api
+      .systemPairingOwners?.(workspaceId)
+      .then((list) => {
+        if (!closed) {
+          setOwners(list);
+          if (list.length === 1) setOwnerUserId(list[0]!.userId);
+        }
+      })
+      .catch(() => {
+        if (!closed)
+          setMessage(
+            "Administrator access is required to register a computer. Ask your administrator to approve it.",
+          );
+      });
+    return () => {
+      closed = true;
+    };
+  }, [api, workspaceId]);
   async function lookup() {
     if (!api.lookupSystemPairing) return;
     setBusy(true);
@@ -39,6 +61,7 @@ export function SystemPairingDialog({
         version: 1,
         digest: preview.digest,
         decision,
+        ...(ownerUserId ? { ownerUserId } : {}),
       });
       setPreview(result);
       setCode("");
@@ -114,12 +137,29 @@ export function SystemPairingDialog({
                 Valid until {new Date(preview.expiresAt).toLocaleString()} · {preview.status}
               </p>
               <p>Confirm this is the computer displaying that code.</p>
+              {owners.length ? (
+                <label>
+                  System belongs to
+                  <select
+                    value={ownerUserId}
+                    disabled={busy || preview.status !== "pending"}
+                    onChange={(e) => setOwnerUserId(e.target.value)}
+                  >
+                    <option value="">Choose user</option>
+                    {owners.map((owner) => (
+                      <option key={owner.userId} value={owner.userId}>
+                        {owner.displayName ?? owner.username} · {owner.username}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
               {["pending", "approving"].includes(preview.status) ? (
                 <div className="record-row-actions">
                   <button
                     type="button"
                     className="button primary"
-                    disabled={busy}
+                    disabled={busy || (owners.length > 0 && !ownerUserId)}
                     onClick={() => void decide("approve")}
                   >
                     Approve this computer

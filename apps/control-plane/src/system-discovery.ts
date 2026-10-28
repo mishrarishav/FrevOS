@@ -530,8 +530,14 @@ export class SystemDiscovery {
       folderSearch: { version: 1 },
     };
   }
-  async configure(actor: string, input: unknown) {
+  async configure(actor: string, input: unknown, enrollmentApprover?: string) {
     return this.serial(async () => {
+      if (
+        enrollmentApprover &&
+        enrollmentApprover !== actor &&
+        !(await this.connectors.discoveryAccess(enrollmentApprover)).canManagePlans
+      )
+        throw new ServixDeploymentError("discovery-device-access-denied", 403);
       const body = DiscoveryPolicyInputSchema.parse(input);
       const devices = await this.connectors.discoveryDevices(actor);
       const device = devices.find((d) => d.deviceId === body.deviceId && d.status === "active");
@@ -561,7 +567,7 @@ export class SystemDiscovery {
       const record = DiscoveryPolicyRecordSchema.parse({
         ...configuration,
         revision: body.expectedRevision + 1,
-        actor,
+        actor: enrollmentApprover ?? actor,
         updatedAt: this.now().toISOString(),
       });
       await this.save(
@@ -690,7 +696,7 @@ export class SystemDiscovery {
   async savePlan(actor: string, input: unknown) {
     return this.serial(async () => {
       const body = DeliveryPlanInputSchema.parse(input);
-      if (actor !== "usr_windows_admin")
+      if (!(await this.connectors.discoveryAccess(actor)).canManagePlans)
         throw new ServixDeploymentError("discovery-plan-owner-required", 403);
       const { projects } = await this.catalog(actor);
       if (
@@ -745,7 +751,10 @@ export class SystemDiscovery {
     });
   }
   async state(actor: string, historyDeviceId?: string) {
-    const devices = await this.connectors.discoveryDevices(actor),
+    const access = await this.connectors.discoveryAccess(actor),
+      devices = (await this.connectors.discoveryDevices(actor)).filter(
+        (device) => access.role === "admin" || device.userId === actor,
+      ),
       catalog = await this.catalog(actor);
     if (
       historyDeviceId &&
@@ -834,6 +843,28 @@ export class SystemDiscovery {
         .map(async (p) => {
           const value = await this.latest(p.projectId + ".plan");
           const plan: DeliveryPlan | null = value ? DeliveryPlanSchema.parse(value) : null;
+          const bindings = plan?.bindings.filter(
+            (binding) =>
+              binding.userId === actor &&
+              devices.some(
+                (device) =>
+                  device.deviceId === binding.deviceId &&
+                  device.userId === actor &&
+                  device.status === "active" &&
+                  device.workspaceAuthorized &&
+                  device.repositoryId === binding.repositoryId &&
+                  (device.profileId ?? "servix-development") === binding.profileId,
+              ),
+          );
+          if (access.role !== "admin" && !bindings?.length) return null;
+          const visiblePlan =
+            access.role === "admin" || !plan
+              ? plan
+              : {
+                  ...plan,
+                  bindings: bindings!,
+                  deviceIds: bindings!.map((binding) => binding.deviceId),
+                };
           const asOf = this.now().toISOString();
           return {
             projectId: p.projectId,
@@ -842,13 +873,17 @@ export class SystemDiscovery {
               catalog.clients.find(
                 (c) => c.clientId === p.clientId && c.workspaceId === p.workspaceId,
               )?.displayName ?? null,
-            plan,
+            plan: visiblePlan,
             ...deliveryReport(plan, asOf),
             asOf,
           };
         }),
     );
-    return DiscoveryStateSchema.parse({ systems, reports });
+    return DiscoveryStateSchema.parse({
+      access,
+      systems,
+      reports: reports.filter((r) => r !== null),
+    });
   }
   async prune() {
     return this.serial(async () => {

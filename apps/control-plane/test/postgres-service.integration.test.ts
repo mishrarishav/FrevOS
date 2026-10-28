@@ -2025,6 +2025,7 @@ it("onboards an invited developer through authenticated workspace APIs without r
     async () => true,
     deploymentSettings,
     components,
+    async (actor) => actor === owner.userId,
   );
   components.connect(connectors);
   const promotionRoot = join(root, "promotions");

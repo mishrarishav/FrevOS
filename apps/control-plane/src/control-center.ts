@@ -31,13 +31,23 @@ export async function registerControlCenter(
   server: FastifyInstance,
   assetsDirectory: string,
   basePath = "",
+  deviceLogin = false,
 ): Promise<void> {
   const root = resolve(assetsDirectory);
   await access(join(root, INDEX_FILE));
 
   server.addHook("onSend", async (_request, reply, payload) => {
     for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
-      reply.header(name, value);
+      if (name === "content-security-policy" && reply.hasHeader(name)) continue;
+      reply.header(
+        name,
+        deviceLogin && name === "content-security-policy"
+          ? value.replace(
+              "connect-src 'self'",
+              "connect-src 'self' http://127.0.0.1:*/device-login",
+            )
+          : value,
+      );
     }
     return payload;
   });

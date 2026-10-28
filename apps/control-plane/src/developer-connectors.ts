@@ -4,6 +4,7 @@ import { join, dirname, isAbsolute } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import {
   ConnectorIdSchema,
+  UserIdSchema,
   type ConnectorProbe,
   ConnectorProbeSchema,
   ConnectorSchema,
@@ -104,6 +105,7 @@ export class DeveloperConnectorStore {
   private stopped = false;
   private readonly baselineFiles = new Set<string>();
   private readonly heartbeats = new Map<string, string>();
+  private readonly loginProofPorts = new Map<string, number>();
   private readonly probes = new Map<string, { at: number; value: ConnectorProbe }>();
   private readonly folderSelections = new Map<string, FolderSelection>();
   private readonly folderPickers = new Set<string>();
@@ -135,6 +137,9 @@ export class DeveloperConnectorStore {
       >;
       git(id: string): Promise<ConnectorGit & { seed(file: string, head: string): Promise<void> }>;
     },
+    private readonly discoveryAdministrator: (actor: string) => Promise<boolean> = async () =>
+      false,
+    private readonly administratorPairing = false,
   ) {}
   private async profile(id: string) {
     return (await this.configured?.connectorProfile(id)) ?? this.settings?.profile(id);
@@ -145,6 +150,7 @@ export class DeveloperConnectorStore {
   close() {
     this.stopped = true;
     this.heartbeats.clear();
+    this.loginProofPorts.clear();
     this.probes.clear();
     this.folderSelections.clear();
     this.folderPickers.clear();
@@ -168,6 +174,7 @@ export class DeveloperConnectorStore {
         folderPicker: z.boolean().optional(),
         folderBrowser: z.boolean().optional(),
         changeNotes: z.boolean().optional(),
+        loginProofPort: z.number().int().min(1024).max(65535).optional(),
       })
       .strict()
       .parse(input);
@@ -178,6 +185,8 @@ export class DeveloperConnectorStore {
       throw new ServixDeploymentError("connector-project-binding-required", 403);
     if (body.folderPicker) this.folderPickers.add(device.deviceId);
     else this.folderPickers.delete(device.deviceId);
+    if (body.loginProofPort) this.loginProofPorts.set(device.deviceId, body.loginProofPort);
+    else this.loginProofPorts.delete(device.deviceId);
     if (body.folderBrowser) this.folderBrowsers.add(device.deviceId);
     else this.folderBrowsers.delete(device.deviceId);
     if (body.changeNotes) this.changeNoteDevices.add(device.deviceId);
@@ -463,6 +472,11 @@ export class DeveloperConnectorStore {
           ...d,
           folderPicker: this.folderPickers.has(d.deviceId),
           folderBrowser: this.folderBrowsers.has(d.deviceId),
+          ...(lastSeenAt &&
+          this.now().getTime() - Date.parse(lastSeenAt) < 20000 &&
+          this.loginProofPorts.has(d.deviceId)
+            ? { loginProofPort: this.loginProofPorts.get(d.deviceId) }
+            : {}),
           changeNotes: this.changeNoteDevices.has(d.deviceId),
           ...(this.folderSelection(d.deviceId)
             ? { folderSelection: this.folderSelection(d.deviceId) }
@@ -485,6 +499,7 @@ export class DeveloperConnectorStore {
       await this.permission(actor);
       const request = PairConnectorSchema.parse(input);
       if (request.mode === "system") {
+        await this.authorizeSystemPairing(actor);
         if (request.profileId)
           throw new ServixDeploymentError("connector-pairing-scope-invalid", 400);
         if ((await this.list(actor)).filter((d) => d.status === "active").length >= 10)
@@ -570,6 +585,8 @@ export class DeveloperConnectorStore {
   }
   async authorizeSystemPairing(actor: string) {
     await this.permission(actor);
+    if (this.administratorPairing && !(await this.discoveryAdministrator(actor)))
+      throw new ServixDeploymentError("system-registration-admin-required", 403);
   }
   async acceptSystemEnrollment(actor: string, input: unknown) {
     const request = SystemEnrollmentStartSchema.parse(input);
@@ -609,9 +626,20 @@ export class DeveloperConnectorStore {
       await this.save("system-" + request.deviceId + ".json", device, true);
     });
   }
-  async discoveryDevices(actor: string) {
+  async discoveryAccess(actor: string) {
     await this.permission(actor);
-    if (actor !== "usr_windows_admin")
+    const administrator = await this.discoveryAdministrator(actor);
+    return {
+      actorId: actor,
+      role: administrator ? ("admin" as const) : ("user" as const),
+      canPair: !this.administratorPairing || administrator,
+      canManageOwnSystems: true,
+      canManagePlans: administrator,
+    };
+  }
+  async discoveryDevices(actor: string) {
+    const access = await this.discoveryAccess(actor);
+    if (access.role !== "admin")
       return (await this.list(actor)).map((d) => ({ ...d, workspaceAuthorized: true }));
     await this.directory();
     const names = (await readdir(this.root)).filter((n) =>
@@ -909,6 +937,7 @@ const EnrollmentRecord = SystemEnrollmentStartSchema.extend({
   expiresAt: z.iso.datetime(),
   status: z.enum(["pending", "approving", "approved", "rejected"]),
   actor: z.string().nullable(),
+  ownerUserId: UserIdSchema.optional(),
   digest: z.string().regex(/^[a-f0-9]{64}$/),
 }).strict();
 type Enrollment = z.infer<typeof EnrollmentRecord>;
@@ -923,6 +952,7 @@ export class SystemPairings {
     private readonly connectors: DeveloperConnectorStore,
     private readonly discovery: SystemDiscovery,
     private readonly now = () => new Date(),
+    private readonly resolveOwner?: (actor: string, owner?: string) => Promise<string>,
   ) {}
   private serial<T>(fn: () => Promise<T>) {
     const result = this.chain.then(fn);
@@ -1057,6 +1087,7 @@ export class SystemPairings {
       expiresAt: r.expiresAt,
       status: Date.parse(r.expiresAt) <= this.now().getTime() ? "expired" : r.status,
       digest: r.digest,
+      ...(r.ownerUserId ? { ownerUserId: r.ownerUserId } : {}),
     });
   }
   async start(input: unknown, network: string) {
@@ -1140,9 +1171,15 @@ export class SystemPairings {
         version: z.literal(1),
         digest: z.string().regex(/^[a-f0-9]{64}$/),
         decision: z.enum(["approve", "reject"]),
+        ownerUserId: UserIdSchema.optional(),
       })
       .strict()
       .parse(input);
+    const owner = this.resolveOwner
+      ? await this.resolveOwner(actor, body.ownerUserId)
+      : (body.ownerUserId ?? actor);
+    if (!this.resolveOwner && owner !== actor)
+      throw new ServixDeploymentError("pairing-owner-denied", 403);
     return this.serial(async () => {
       const record = (await this.records()).find((r) => r.enrollmentId === id);
       if (!record) throw new ServixDeploymentError("pairing-not-found", 404);
@@ -1150,6 +1187,8 @@ export class SystemPairings {
         throw new ServixDeploymentError("pairing-expired-or-changed", 409);
       if (record.actor && record.actor !== actor)
         throw new ServixDeploymentError("pairing-actor-mismatch", 403);
+      if (record.status !== "pending" && (record.ownerUserId ?? record.actor) !== owner)
+        throw new ServixDeploymentError("pairing-owner-changed", 409);
       if (
         record.status === "rejected" ||
         (body.decision === "reject" && record.status !== "pending")
@@ -1164,6 +1203,7 @@ export class SystemPairings {
             workspaceId: "ws_server20",
             action: "connector:pair:system",
             target: record.deviceId,
+            ...(record.ownerUserId ? { ownerUserId: record.ownerUserId } : {}),
             digest: record.digest,
             correlationId: id,
           },
@@ -1179,7 +1219,8 @@ export class SystemPairings {
         return this.preview(record);
       }
       if (record.status === "pending") {
-        if ((await this.connectors.list(actor)).filter((d) => d.status === "active").length >= 10)
+        record.ownerUserId = UserIdSchema.parse(owner);
+        if ((await this.connectors.list(owner)).filter((d) => d.status === "active").length >= 10)
           throw new ServixDeploymentError("connector-device-limit");
         await this.evidence(
           "intent-" + id + ".json",
@@ -1189,6 +1230,7 @@ export class SystemPairings {
             workspaceId: "ws_server20",
             action: "connector:pair:system",
             target: record.deviceId,
+            ownerUserId: owner,
             digest: record.digest,
             correlationId: id,
             expiresAt: record.expiresAt,
@@ -1199,6 +1241,7 @@ export class SystemPairings {
         );
         record.status = "approving";
         record.actor = actor;
+        record.ownerUserId = UserIdSchema.parse(owner);
         await this.save("record-" + record.deviceId + ".json", record);
       }
       await this.evidence(
@@ -1209,6 +1252,7 @@ export class SystemPairings {
           workspaceId: "ws_server20",
           action: "connector:pair:system",
           target: record.deviceId,
+          ...(record.ownerUserId ? { ownerUserId: record.ownerUserId } : {}),
           digest: record.digest,
           correlationId: id,
           expiresAt: record.expiresAt,
@@ -1225,6 +1269,7 @@ export class SystemPairings {
           workspaceId: "ws_server20",
           action: "connector:pair:system",
           target: record.deviceId,
+          ...(record.ownerUserId ? { ownerUserId: record.ownerUserId } : {}),
           digest: record.digest,
           correlationId: id,
         },
@@ -1232,7 +1277,7 @@ export class SystemPairings {
         true,
       );
       await this.connectors.acceptSystemEnrollment(
-        actor,
+        owner,
         SystemEnrollmentStartSchema.parse({
           version: record.version,
           deviceId: record.deviceId,
@@ -1246,16 +1291,20 @@ export class SystemPairings {
         }),
       );
       if (record.fileActivity) {
-        const current = (await this.discovery.state(actor)).systems.find(
+        const current = (await this.discovery.state(owner)).systems.find(
           (s) => s.deviceId === record.deviceId,
         )?.policy;
         if (!current)
-          await this.discovery.configure(actor, {
-            version: 1,
-            deviceId: record.deviceId,
-            expectedRevision: 0,
-            policy: { ...defaultDiscoveryPolicy, enabled: true, contentFolders: [] },
-          });
+          await this.discovery.configure(
+            owner,
+            {
+              version: 1,
+              deviceId: record.deviceId,
+              expectedRevision: 0,
+              policy: { ...defaultDiscoveryPolicy, enabled: true, contentFolders: [] },
+            },
+            actor,
+          );
       }
       record.status = "approved";
       await this.save("record-" + record.deviceId + ".json", record);
@@ -1267,15 +1316,18 @@ export class SystemPairings {
     if (device.mode !== "system")
       throw new ServixDeploymentError("connector-project-binding-required", 403);
     const record = (await this.records()).find((r) => r.deviceId === device.deviceId);
+    if (record && (record.ownerUserId ?? record.actor) !== device.userId)
+      throw new ServixDeploymentError("pairing-owner-mismatch", 403);
     if (record?.status === "approved")
       await this.evidence(
         "consumed-" + record.enrollmentId + ".json",
         {
           version: 1,
-          actor: device.userId,
+          actor: record.actor!,
           workspaceId: "ws_server20",
           action: "connector:pair:system",
           target: device.deviceId,
+          ...(record.ownerUserId ? { ownerUserId: record.ownerUserId } : {}),
           digest: record.digest,
           correlationId: record.enrollmentId,
         },

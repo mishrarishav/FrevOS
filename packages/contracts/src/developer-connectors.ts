@@ -51,6 +51,7 @@ export const ConnectorRecordBaseSchema = z
     folderSelection: FolderSelectionSchema.optional(),
     folderPicker: z.boolean().optional(),
     folderBrowser: z.boolean().optional(),
+    loginProofPort: z.number().int().min(1024).max(65535).optional(),
     changeNotes: z.boolean().optional(),
   })
   .strict();
@@ -86,6 +87,7 @@ export const SystemEnrollmentPreviewSchema = z
   .object({
     version: z.literal(1),
     enrollmentId: z.string().regex(/^ep_[a-f0-9]{32}$/),
+    ownerUserId: UserIdSchema.optional(),
     deviceId: ConnectorIdSchema,
     name: z.string().max(80),
     platform: z.enum(["win32", "linux"]),

@@ -1,9 +1,133 @@
 # Complete application release follow-up
 
-Date: 2026-10-28 IST. Status: **IN PROGRESS — Production application is live and
-verified; DevSetu completion metadata needs the audited projection correction**.
+Date: 2026-10-28 IST. Status: **PASS — complete Development-to-Production
+frontend/backend flow and audited DevSetu completion reporting verified**.
+
+## Final observed outcome
+
+Servix Production action `pm_ddcdeda2c90cdc2888010328ec7a05d8` is succeeded,
+with frontend and backend together. Actual browser verification at 12:27 IST
+shows worker Online, both digests, saved complete releases, the same last-verified
+Production action, public frontend proof and 8,576 verified protected files.
+The original completed time remains 11:11:59 IST; no action is replayed.
+Customer source is `20bba3ebbf606df6e6a3b919898443aa3e56fc20`, full release
+`4bccfd49407f3d898c5574e468b56da53b91d35864f92ffa98478b14d7df22bc`, frontend
+`7557eb2da721d07f23462c49558ff3a6d964ac6c7d437fcbc87856cc397bea26`, backend
+`5ff7622a9f316edbe0485c47f179f6c1bccac75241e6540f1d0079b11172fb0c`.
+Independent public verification matched all 20 frontend files and the root entry.
+Final TLS/API/auth/bootstrap readiness and three original attachment byte/hash
+samples pass again at 12:25:18 IST. Uploads, attachments, both environments,
+retained source/unknown files, IIS/web.config and external blobs are retained.
+
+The final DevSetu correction is published and active: source
+`8aaf286dad968f1618b0284afe9522e6597c4cbf`, request
+`pr_eaeb18feb3cb8534c39705d706a59604`, native build
+`cj_b5d47dc4827baf6d8bd9db3324ac73e1`, manifest
+`bb5e5ed0378505c28635cb651a334019d3341a05debaaff0502ad3766dd13cb2`, archive
+`ea9e5850e82b64a31f7f791290f0eeb47ecdfbbeba89eacd4b195558d71ee27b`
+(131,641,220 bytes), reference
+`49861a2e772b8a44855cd005120fd6e7421c45b9a6eb612cfe19bb5413a81273`.
+Independent Apply reports PASS, HTTP/UI 200, sibling applications preserved,
+databaseWritten=false and private recovery backups retained.
+
+Startup reconciles the completed result at **12:25:03 IST**, retaining its
+original approval consumption at 11:10:33 IST. Read-only native audit verification
+passes: immutable native/job/review/consumption hashes, retained old-result
+preimage, matching private/public audit and current projected result. Audit SHA
+`6fa78086d925c3e430ddde222ff9e245a61efe5259f3e91522ecdf117762a45e`;
+before-result SHA `892eedf14b2eff38cba61b24c7fa5c5b02af43f1f0e14378de273e92b830f1fa`;
+native receipt SHA `352c00a631071dfd97ebaa984cfe7722010a997916ae14cf3bcf51dc8283c6d2`;
+projected result SHA `cdc9a22b8b89987fc52d90b635126c6c4a9126015269a259cd6f0a12fbc38b4f`.
+The diagnostic reports resultChanged=false, productionChanged=false and
+databaseWritten=false; its temporary task is removed. No new approval is created.
+The original private receipt/consumed approval are unchanged. No Production
+redeploy, rollback, database restore, permission expansion or version upgrade
+is performed by the reporting correction.
+
+Promotion GET now returns 200 with health/frontend/task proof and worker Online.
+Development GET returns 24 runs, two complete saved releases and source 20bba3e.
+The first browser load after platform restart briefly hit unavailable Development
+metadata; its bounded authenticated read then succeeds and a fresh browser reload
+shows the full successful record. Do not interpret the initial empty fallback as
+a missing target or replay any action.
+
+Final visible proof: [DevSetu successful promotion](../.local/servix-production-complete.png).
+Runtime evidence is retained in this worktree's ignored `.local/` directory:
+components-native-application-release-completion-retry-verified.json,
+components-native-application-release-completion-retry-operator.json,
+full-release-production-completion-verified.json,
+production-completed-audit-pm_ddcdeda2c90cdc2888010328ec7a05d8.json,
+full-release-production-public.json and full-release-oct28-production-assets-after.json.
+
+## Final validation and delivery boundaries
+
+Repository: `https://github.com/mishrarishav/FrevOS`; worktree
+`D:\FREVOS\.local\worktrees\servix-dashboard`; branch `codex/servix-full-release`.
+Base `a51e97c20dc27ce047cb54ef54a4ef343a5a5b22`; resulting published commit
+`8aaf286dad968f1618b0284afe9522e6597c4cbf`. Publication is to configured server20
+internal Git, not GitHub. PR URL: none for this continuation. No merge or default-
+branch push is performed. Complete published inventory/stat appears below.
+Final uncommitted changes are only CURRENT_STATE.md and this evidence handoff.
+
+Observed commands/results:
+
+- Configured native `C:\Users\APPC0024\AppData\Local\DevSetu\Executors\ex_e7fa8000834184a9deae261525c62f5f\node.exe C:\Users\APPC0024\AppData\Roaming\npm\node_modules\pnpm\bin\pnpm.mjs run ci`:
+  exit 0 before the
+  package operator starts at 12:16:25 IST. This runs validate:repo, format:check,
+  lint, typecheck, test:coverage, build and audit. All 77 files pass (13 contracts,
+  16 UI, 48 control-plane). Coverage: contracts 98.28% statements / 92.77% branches;
+  UI 100%; control-plane 95.25% statements / 91.70% branches / 96.60% functions /
+  96.72% lines. The configured high-severity audit gate passes; this is not a new
+  repository-wide security scan or a claim of zero low/moderate advisories.
+- `pnpm.cmd --filter @frevos/control-plane exec vitest run
+  test/artifact-promotions.test.ts test/promotion-environment.test.ts`: exit 0,
+  two files / 12 tests including native PowerShell 5.1, denial, audit failure,
+  retry and idempotence cases. No independent acceptance test is modified.
+- `node .local/Recheck-CompletionProofDatabase.cjs`: exit 0, same frozen-source
+  integration suites 22/22 pass after Docker recovery. Prior failed CI remains
+  recorded below; its Docker outage is not hidden or bypassed.
+- `node .local/Watch-FullReleaseFilesLong.cjs native-application-release-completion-retry`
+  and `node .local/Activity-component-native-receipts.cjs native-application-release-completion-retry`:
+  exit 0, full configured request/package/active manifest/independent Apply PASS.
+- `node .local/Verify-ProductionFullRelease.cjs pm_aed46f6b560aa3df3e78e8884960edbd`:
+  exit 0, all 20 public frontend files and entry match the reviewed saved release.
+- `node .local/Verify-CompletedApplicationState.cjs`: exit 0, strict reader 200,
+  same completed action/timestamp and both artifact/source identities verified.
+- `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File
+  .local\Run-CompletedPromotionAuditDiagnostic.ps1 -PromotionId
+  pm_ddcdeda2c90cdc2888010328ec7a05d8`: exit 0, immutable evidence/preimage/public
+  audit/current result PASS, read-only to customer and result, owned task removed.
+- `node .local/Verify-October28Assets.cjs after`: exit 0, final public TLS/API
+  readiness and all three unchanged original attachment samples PASS.
+- `node scripts/validate-repository.mjs`,
+  `node .local/Check-ApplicationReleaseSecrets.cjs` and `git diff --check`:
+  exit 0 before publication; final documentation validation is recorded below.
+
+Known limits remain: the owner performs dashboard/filter/column-resize functional
+checking; no such manual acceptance is claimed. No actual Production forced-failure
+rollback, reboot or database restore is exercised. Development same-artifact
+rollback/restore and native lifecycle fixtures pass. Customer advisory risks stay
+accepted and unchanged (backend 3 critical/26 high/6 moderate, QuerySafe
+1 critical/3 high/3 moderate, possibly overlapping packages). No customer library
+or runtime upgrade occurs. Windows compatibility evidence does not establish live
+Linux/generic-adapter acceptance. Phase 4 wider exit remains open; no later phase
+is started. The next bounded owner action is checking the deployed business UI;
+subsequent code updates use the configured workflow below and a fresh Production
+review/approval, rather than reusing this consumed approval.
 
 ## Current verification and historical checkpoints
+
+At 12:16 IST the actual UI retry pr_eaeb18feb3cb8534c39705d706a59604 /
+source 8aaf286dad968f1618b0284afe9522e6597c4cbf / native build
+cj_b5d47dc4827baf6d8bd9db3324ac73e1 passes all 77 test files: 13 contracts,
+16 UI, 48 control-plane, none failed. Coverage: contracts 98.28% statements /
+92.77% branches; UI 100%; control-plane 95.25% statements / 91.70% branches /
+96.60% functions / 96.72% lines. The configured package operator starts
+12:16:25 IST; its invocation follows successful full pnpm run ci, including
+repository/format/lint/typecheck, coverage, compilation and dependency audit.
+The matching frozen-source integration recheck passed 22/22 at 12:01 IST.
+Await this SAME request's package/Apply and audited completed-result repair.
+Neither retry changes customer application artifacts or reuses its approval.
 
 At 11:54 IST completion-proof request pr_19c91d349789793cb6152fe90b75c65f
 fails CI before package/activation. Retained Vitest metadata identifies only
@@ -733,8 +857,10 @@ still separate and must not be claimed by this implementation session.
 
 ## Complete publication file inventory
 
-At `c0471d297c398473d8dbf2f2fd10be5c754f2ea2`: 39 files changed,
-2,834 insertions(+), 82 deletions(-), relative to the documented base.
+At `8aaf286dad968f1618b0284afe9522e6597c4cbf`: 42 files changed,
+4,078 insertions(+), 99 deletions(-), relative to documented base a51e97c.
+Publication goes to configured server20 internal Git. No GitHub pull request,
+merge or default-branch push is performed in this deployment continuation.
 
 - apps/control-center/src/ArtifactPromotionsPage.tsx
 - apps/control-center/src/DeploymentSettingsPage.tsx
@@ -745,9 +871,11 @@ At `c0471d297c398473d8dbf2f2fd10be5c754f2ea2`: 39 files changed,
 - apps/control-plane/src/main.ts
 - apps/control-plane/src/servix-deployment.ts
 - apps/control-plane/test/artifact-promotions.test.ts
+- apps/control-plane/test/device-enrollment.test.ts
 - apps/control-plane/test/fixtures/PromotionLifecycle.ps1
 - apps/control-plane/test/frontend-artifact.test.ts
 - apps/control-plane/test/managed-runtime.test.ts
+- apps/control-plane/test/promotion-environment.test.ts
 - apps/control-plane/test/promotion-lifecycle.test.ts
 - apps/control-plane/test/servix-deployment.test.ts
 - apps/control-plane/test/servix-execution.test.ts
@@ -770,6 +898,7 @@ At `c0471d297c398473d8dbf2f2fd10be5c754f2ea2`: 39 files changed,
 - docs/SERVIX_PRODUCTION_PROMOTION_HANDOFF.md
 - docs/adr/0067-complete-application-release-promotion.md
 - docs/adr/0068-existing-development-source-acceptance.md
+- docs/adr/0069-audit-commit-development-acceptance.md
 - docs/adr/README.md
 - package.json
 - packages/contracts/src/artifact-promotions.ts
@@ -785,16 +914,25 @@ rollback, rebuild or ask for another approval for this completed action because
 of historical checkpoint text. ADR 0069 is accepted for the owner's same-tree
 Development observation; business UI checking after Production stays with them.
 
-Follow ONLY current DevSetu completion-proof request
-pr_19c91d349789793cb6152fe90b75c65f / source bdd3a56d through CI/package/Apply.
-Then verify audited metadata reconciliation restores the existing Production
-history and last-verified full-release identity. Retain original receipt,
-consumed approval, result preimage and matching audit; no customer or database
-mutation is part of that repair. Phase 4 exit remains open; this is not readiness
-for a later roadmap phase.
+Final DevSetu completion-proof retry pr_eaeb18feb3cb8534c39705d706a59604 /
+source 8aaf286d / active manifest bb5e5ed0 is PASS through full CI/package/Apply.
+Audited metadata reconciliation is complete and independently verified; the actual
+browser shows Frontend + Backend succeeded with the same Production action.
+Do not replay a deployment, retry the earlier failed build, or create another
+approval because of the historical checkpoints. Retain original receipt,
+consumed approval, result preimage and matching audit. Phase 4 exit remains open;
+this is not readiness for a later roadmap phase.
 
 Historical uncommitted checkpoint from b91f842: 2 documentation files, 107 additions and 9 removals (CURRENT_STATE.md and this handoff).
 
-Post-publication evidence diff against 2977bbf: 2 documents, 151 additions/11 deletions.
-Closing validation exits 0. All remaining changes are this handoff
-and CURRENT_STATE.md; implementation source is already published and live.
+Historical post-publication evidence diff against 2977bbf: 2 documents,
+151 additions/11 deletions at that earlier boundary. Current closing evidence is
+measured against 8aaf286d; only this handoff and CURRENT_STATE.md remain changed.
+Implementation is published and live; the final validation/count follows below.
+
+Final closing validation at 12:30 IST: repository validation (106 Markdown files),
+private secret exclusion (42 publication files), complete 42-file inventory
+comparison and git diff --check all exit 0. Complete final evidence diff from
+published 8aaf286d: 2 documents, 189 additions/14 removals. Full evidence diff
+is reviewed; no implementation remains unpublished. No new build is required
+for these documentation-only evidence updates.

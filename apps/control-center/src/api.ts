@@ -33,6 +33,8 @@ import {
   DeploymentSettingsSchema,
   type DeveloperConnector,
   DeveloperInviteResultSchema,
+  DeviceLoginChallengeSchema,
+  DeviceLoginCompletionSchema,
   type DiscoveryPolicyInput,
   DiscoveryPolicyRecordSchema,
   type DiscoveryState,
@@ -44,7 +46,12 @@ import {
   GithubConnectionSchema,
   type GithubDiscoveryOperation,
   GithubDiscoveryOperationSchema,
+  JoinDecisionSchema,
+  type JoinRequest,
+  JoinRequestInputSchema,
+  JoinRequestSchema,
   type LocalAccount,
+  LocalAccountSchema,
   LocalAccountsSchema,
   type LocalDevAction,
   type LocalDevJob,
@@ -102,6 +109,8 @@ import { addBasePath } from "./routing.js";
 export type ApiFailureKind =
   | "unauthenticated"
   | "invalid-credentials"
+  | "paired-system-required"
+  | "paired-system-secure-origin-required"
   | "denied"
   | "unavailable"
   | "invalid-response";
@@ -116,6 +125,11 @@ export class ApiFailure extends Error {
     super(kind);
     this.name = "ApiFailure";
     this.kind = kind;
+  }
+}
+export class DeviceVerificationRequired extends ApiFailure {
+  constructor(readonly challenge: import("@frevos/contracts").DeviceLoginChallenge) {
+    super("paired-system-required");
   }
 }
 
@@ -145,10 +159,15 @@ export interface ControlCenterApi {
   saveAgent?(workspaceId: string, input: AgentInput): Promise<Agent>;
   runAgent?(workspaceId: string, input: AgentRunInput): Promise<AgentRun>;
   lookupSystemPairing?(workspaceId: string, code: string): Promise<SystemEnrollmentPreview>;
+  systemPairingOwners?(workspaceId: string): Promise<LocalAccount[]>;
+  requestJoin?(input: unknown): Promise<JoinRequest>;
+  joinStatus?(signal?: AbortSignal): Promise<JoinRequest>;
+  joinRequests?(workspaceId: string, signal?: AbortSignal): Promise<JoinRequest[]>;
+  decideJoin?(workspaceId: string, input: unknown): Promise<JoinRequest>;
   decideSystemPairing?(
     workspaceId: string,
     id: string,
-    input: { version: 1; digest: string; decision: "approve" | "reject" },
+    input: { version: 1; digest: string; decision: "approve" | "reject"; ownerUserId?: string },
   ): Promise<SystemEnrollmentPreview>;
   discoveryState?(
     workspaceId: string,
@@ -435,6 +454,33 @@ export function createControlCenterApi(
         ContentPreviewJobSchema,
         signal,
       ),
+    systemPairingOwners: (workspaceId) =>
+      get(`${workspacePath(workspaceId)}/connectors/enrollment-owners`, LocalAccountSchema.array()),
+    requestJoin: async (input) => {
+      const response = await fetcher(addBasePath("/auth/join/request", basePath), {
+        method: "POST",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(JoinRequestInputSchema.parse(input)),
+      });
+      if (!response.ok)
+        throw new ApiFailure(response.status === 401 ? "invalid-credentials" : "unavailable");
+      return JoinRequestSchema.parse(await response.json());
+    },
+    joinStatus: (signal) => get("/auth/join/status", JoinRequestSchema, signal),
+    joinRequests: (workspaceId, signal) =>
+      get(
+        `${workspacePath(workspaceId)}/connectors/join-requests`,
+        JoinRequestSchema.array(),
+        signal,
+      ),
+    decideJoin: (workspaceId, input) =>
+      post(
+        `${workspacePath(workspaceId)}/connectors/join-requests/decision`,
+        JoinDecisionSchema.parse(input),
+        JoinRequestSchema,
+      ),
     lookupSystemPairing: (workspaceId, code) =>
       post(
         `${workspacePath(workspaceId)}/connectors/enrollments/lookup`,
@@ -607,8 +653,52 @@ export function createControlCenterApi(
       if (response.status === 401) {
         throw new ApiFailure("invalid-credentials");
       }
+      if (response.status === 403) {
+        const value = await response.json().catch(() => null);
+        if (typeof value?.error === "string" && value.error.startsWith("paired-system-"))
+          throw new ApiFailure("paired-system-required");
+        throw new ApiFailure("denied");
+      }
+      if (response.status === 202) {
+        const challenge = DeviceLoginChallengeSchema.parse(await response.json());
+        if (challenge.method === "connector-page") throw new DeviceVerificationRequired(challenge);
+        if (typeof window !== "undefined" && !window.isSecureContext)
+          throw new ApiFailure("paired-system-secure-origin-required");
+        for (const port of challenge.ports) {
+          try {
+            const local = await fetcher(`http://127.0.0.1:${port}/device-login`, {
+              method: "POST",
+              mode: "cors",
+              credentials: "omit",
+              redirect: "error",
+              cache: "no-store",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ version: 1, challengeId: challenge.challengeId }),
+              signal: signal
+                ? AbortSignal.any([signal, AbortSignal.timeout(4000)])
+                : AbortSignal.timeout(4000),
+            });
+            if (!local.ok) continue;
+            const proof = DeviceLoginCompletionSchema.parse(await local.json());
+            if (proof.challengeId !== challenge.challengeId) continue;
+            const completed = await fetcher(addBasePath("/auth/device-login/complete", basePath), {
+              method: "POST",
+              credentials: "same-origin",
+              redirect: "error",
+              cache: "no-store",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify(proof),
+              ...(signal ? { signal } : {}),
+            });
+            if (completed.status === 204) return;
+          } catch {
+            if (signal?.aborted) throw new ApiFailure("unavailable");
+          }
+        }
+        throw new ApiFailure("paired-system-required");
+      }
       if (!response.ok) {
-        throw new ApiFailure(response.status === 403 ? "denied" : "unavailable");
+        throw new ApiFailure("unavailable");
       }
     },
     getSession: (signal) => get("/v1/session", SessionSummarySchema, signal),

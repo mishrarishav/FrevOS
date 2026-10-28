@@ -1,5 +1,6 @@
 import type {
   Client,
+  DeviceLoginChallenge,
   GithubConnection,
   GithubDiscoveryOperation,
   Project,
@@ -53,9 +54,14 @@ import {
   useState,
 } from "react";
 import { AccountControls } from "./AccountControls.js";
+import { JoinRequestForm } from "./JoinRequestForm.js";
 import { AgentsPage } from "./AgentsPage.js";
 import { ArtifactPromotionsPage } from "./ArtifactPromotionsPage.js";
-import { type ControlCenterApi, createControlCenterApi } from "./api.js";
+import {
+  type ControlCenterApi,
+  createControlCenterApi,
+  DeviceVerificationRequired,
+} from "./api.js";
 import { ComponentConfiguration } from "./ComponentDeployments.js";
 import { DeploymentSettingsPage } from "./DeploymentSettingsPage.js";
 import { DeploymentsPage } from "./DeploymentsPage.js";
@@ -595,7 +601,11 @@ function LocalLoginForm({
 }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [status, setStatus] = useState<"idle" | "submitting" | "invalid" | "unavailable">("idle");
+  const [joining, setJoining] = useState(false);
+  const [verification, setVerification] = useState<DeviceLoginChallenge | null>(null);
+  const [status, setStatus] = useState<
+    "idle" | "submitting" | "invalid" | "unavailable" | "device" | "secure-origin"
+  >("idle");
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -603,6 +613,7 @@ function LocalLoginForm({
       return;
     }
     setStatus("submitting");
+    setVerification(null);
     void api
       .login(username, password)
       .then(() => {
@@ -611,14 +622,20 @@ function LocalLoginForm({
       })
       .catch((error: unknown) => {
         setPassword("");
+        if (error instanceof DeviceVerificationRequired) setVerification(error.challenge);
         setStatus(
-          error instanceof Error && error.message === "invalid-credentials"
-            ? "invalid"
-            : "unavailable",
+          error instanceof Error && error.message === "paired-system-secure-origin-required"
+            ? "secure-origin"
+            : error instanceof Error && error.message === "paired-system-required"
+              ? "device"
+              : error instanceof Error && error.message === "invalid-credentials"
+                ? "invalid"
+                : "unavailable",
         );
       });
   };
 
+  if (joining) return <JoinRequestForm api={api} onClose={() => setJoining(false)} />;
   return (
     <form className="local-login-form" onSubmit={submit}>
       <label>
@@ -649,11 +666,78 @@ function LocalLoginForm({
           Username or password is incorrect.
         </p>
       ) : null}
+      {status === "device" ? (
+        <p className="login-message" role="alert">
+          Sign in from your registered computer with its updated DevSetu connector running. Ask an
+          administrator to register this computer for your account. Allow the browser's
+          local-network permission if requested.
+        </p>
+      ) : null}
       {status === "unavailable" ? (
         <p className="login-message" role="alert">
           Sign in is temporarily unavailable. Please retry.
         </p>
       ) : null}
+      {verification ? (
+        <section aria-label="Verify this paired computer">
+          <p>
+            Confirm using the connector on this computer. It will return to DevSetu in this same
+            browser. No administrator password is needed.
+          </p>
+          {verification.ports.map((port) => (
+            <p key={port}>
+              <a
+                className="button primary"
+                href={`http://127.0.0.1:${port}/device-login/start#${verification.challengeId}`}
+              >
+                Verify{" "}
+                {verification.devices?.find((device) => device.port === port)?.name ??
+                  "this computer"}
+              </a>
+            </p>
+          ))}
+          <small>
+            Choose this computer if multiple systems are listed. A different computer or browser
+            cannot finish this sign in.
+          </small>
+        </section>
+      ) : null}
+      {status === "device" && !verification ? (
+        <section aria-label="Install or update your connector">
+          <p>
+            Already registered? Update the connector on this computer, then sign in again. Its
+            existing pairing is reused. For a new computer, use Request to join.
+          </p>
+          <p>
+            <a className="button secondary" href={addBasePath("/downloads/frevos-connector.zip")}>
+              Windows connector
+            </a>{" "}
+            <a
+              className="button secondary"
+              href={addBasePath("/downloads/devsetu-connector-linux-x64.tar.gz")}
+            >
+              Linux connector
+            </a>
+          </p>
+        </section>
+      ) : null}
+      {status === "secure-origin" ? (
+        <p className="login-message" role="alert">
+          Paired-computer sign in needs your trusted HTTPS DevSetu address. Ask the administrator
+          for that address. Do not disable browser security or certificate checks.
+        </p>
+      ) : null}
+      <button
+        type="button"
+        className="button secondary"
+        disabled={status === "submitting"}
+        onClick={() => {
+          setPassword("");
+          setJoining(true);
+        }}
+      >
+        Request to join
+      </button>
       <button
         className="button primary experience-action"
         type="submit"

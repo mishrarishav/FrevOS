@@ -13,6 +13,8 @@ export {
 export { type AuthCookiePolicy, authCookiePolicy } from "./auth-cookies.js";
 export * from "./component-deployments.js";
 export * from "./deployment-change.js";
+export * from "./device-login.js";
+export * from "./join-requests.js";
 export * from "./deployment-settings.js";
 export * from "./developer-connectors.js";
 export * from "./agent-workspace.js";

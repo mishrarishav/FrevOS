@@ -603,6 +603,114 @@ async function chooseRepository(config, selection) {
     ...(selected.status === "failed" ? { errorCode } : {}),
   };
 }
+
+async function startDeviceLoginProof(origin, attest) {
+  const http = require("node:http");
+  const crypto = require("node:crypto"),
+    pages = new Map();
+  let active = 0;
+  const server = http.createServer(async (request, response) => {
+    const port = server.address().port;
+    const reject = (status) => {
+      response.writeHead(status, { "cache-control": "no-store" });
+      response.end();
+    };
+    if (
+      request.socket.remoteAddress !== "127.0.0.1" ||
+      request.headers.host !== "127.0.0.1:" + port
+    )
+      return reject(403);
+    const localOrigin = "http://127.0.0.1:" + port;
+    for (const [key, expiry] of pages) if (expiry <= Date.now()) pages.delete(key);
+    if (request.method === "GET" && request.url === "/device-login/start") {
+      if (pages.size >= 32) return reject(429);
+      const nonce = crypto.randomBytes(24).toString("base64url");
+      pages.set(nonce, Date.now() + 120000);
+      response.writeHead(200, {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store",
+        // Preserve the form's real Origin while sending no path, fragment or proof.
+        "referrer-policy": "origin",
+        "set-cookie": `devsetu-proof-page=${nonce}; Path=/device-login; HttpOnly; SameSite=Strict; Max-Age=120`,
+        "content-security-policy": `default-src 'none'; script-src 'nonce-${nonce}'; connect-src 'self'; form-action ${origin}/auth/device-login/receive; frame-ancestors 'none'; base-uri 'none'`,
+      });
+      response.end(
+        `<!doctype html><meta charset="utf-8"><title>DevSetu · Confirm this computer</title><h1>Verify this paired computer</h1><p>Continue only if you just signed in to DevSetu at <strong></strong>.</p><button id="confirm">Confirm sign-in from this computer</button><p id="message" role="status"></p><script nonce="${nonce}">const transaction=location.hash.slice(1),target=${JSON.stringify(origin)},button=document.getElementById('confirm');document.querySelector('strong').textContent=target;history.replaceState(null,'','/device-login/start');button.onclick=async()=>{button.disabled=true;try{if(!/^dl_[a-f0-9]{64}$/.test(transaction))throw Error();const r=await fetch('/device-login/confirm',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json','x-devsetu-page':${JSON.stringify(nonce)}},body:JSON.stringify({version:1,challengeId:transaction})});if(!r.ok)throw Error();const proof=await r.json(),form=document.createElement('form');form.method='POST';form.action=target+'/auth/device-login/receive';for(const key of ['version','challengeId','proof']){const field=document.createElement('input');field.type='hidden';field.name=key;field.value=String(proof[key]);form.append(field)}document.body.append(form);form.submit()}catch{document.getElementById('message').textContent='Verification failed or expired. Return to DevSetu and sign in from your own paired computer.';button.disabled=false}}</script>`,
+      );
+      return;
+    }
+    const pageProof = request.url === "/device-login/confirm";
+    if (pageProof) {
+      const nonce = request.headers["x-devsetu-page"];
+      if (
+        request.headers.origin !== localOrigin ||
+        typeof nonce !== "string" ||
+        !pages.has(nonce) ||
+        !(request.headers.cookie || "")
+          .split(";")
+          .some((value) => value.trim() === "devsetu-proof-page=" + nonce)
+      )
+        return reject(403);
+      pages.delete(nonce);
+    } else if (request.headers.origin !== origin || request.url !== "/device-login")
+      return reject(403);
+    const headers = {
+      "access-control-allow-origin": origin,
+      "access-control-allow-methods": "POST, OPTIONS",
+      "access-control-allow-headers": "content-type",
+      "access-control-allow-private-network": "true",
+      "cache-control": "no-store",
+      vary: "Origin",
+      "content-type": "application/json",
+    };
+    if (request.method === "OPTIONS") {
+      response.writeHead(204, headers);
+      response.end();
+      return;
+    }
+    if (
+      request.method !== "POST" ||
+      !request.headers["content-type"]?.startsWith("application/json") ||
+      active >= 4
+    )
+      return reject(403);
+    active++;
+    try {
+      let body = "";
+      for await (const chunk of request) {
+        body += chunk;
+        if (body.length > 2048) throw Error();
+      }
+      const input = JSON.parse(body);
+      if (
+        input.version !== 1 ||
+        !/^dl_[a-f0-9]{64}$/.test(input.challengeId) ||
+        Object.keys(input).sort().join(",") !== "challengeId,version"
+      )
+        throw Error();
+      const proof = await attest(input);
+      response.writeHead(200, headers);
+      response.end(JSON.stringify(proof));
+    } catch {
+      response.writeHead(403, headers);
+      response.end('{"error":"device-login-proof-denied"}');
+    } finally {
+      active--;
+    }
+  });
+  server.maxConnections = 8;
+  server.requestTimeout = 15000;
+  server.headersTimeout = 5000;
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  server.unref();
+  return {
+    port: server.address().port,
+    close: () => new Promise((resolve) => server.close(resolve)),
+  };
+}
 async function connector(config) {
   const server = controlPlane(config);
   await fs.mkdir(config.stateRoot, { recursive: true });
@@ -630,10 +738,13 @@ async function connector(config) {
       !path.isAbsolute(config.monitoringRoot || "")
     )
       throw Error("system-enrollment-scope");
+    const loginProof = await startDeviceLoginProof(server.origin, (body) =>
+      api("/v1/connector/login-proof", body),
+    );
     const collector = require("./SystemDiscovery.cjs").start(config, api);
     const beat = async () => {
       try {
-        await api("/v1/connector/heartbeat", {});
+        await api("/v1/connector/heartbeat", { loginProofPort: loginProof.port });
       } catch {
         /* Retry after network loss without project actions. */
       }
@@ -758,7 +869,60 @@ async function connector(config) {
     await delay(5000);
   }
 }
+async function completeDeviceLogin(server, response, fetcher = fetch) {
+  if (response.status !== 202) return response;
+  const origin = new URL(server);
+  if (!["https:", "http:"].includes(origin.protocol) || origin.origin !== server)
+    throw Error("invalid-login-origin");
+  const challenge = await response.json();
+  if (
+    challenge.status !== "device-verification-required" ||
+    !/^dl_[a-f0-9]{64}$/.test(challenge.challengeId) ||
+    !Array.isArray(challenge.ports) ||
+    !challenge.ports.length ||
+    challenge.ports.length > 10 ||
+    challenge.ports.some((port) => !Number.isInteger(port) || port < 1024 || port > 65535)
+  )
+    throw Error("invalid-device-login-challenge");
+  const cookie = response.headers
+    .getSetCookie()
+    .map((item) => item.split(";")[0])
+    .join("; ");
+  for (const port of challenge.ports) {
+    try {
+      const local = await fetcher(`http://127.0.0.1:${port}/device-login`, {
+        method: "POST",
+        redirect: "error",
+        headers: { origin: server, "content-type": "application/json" },
+        body: JSON.stringify({ version: 1, challengeId: challenge.challengeId }),
+        signal: AbortSignal.timeout(4000),
+      });
+      if (!local.ok) continue;
+      const proof = await local.json();
+      if (
+        Object.keys(proof).sort().join() !== "challengeId,proof,version" ||
+        proof.version !== 1 ||
+        proof.challengeId !== challenge.challengeId ||
+        !/^[a-f0-9]{64}$/.test(proof.proof)
+      )
+        continue;
+      const completed = await fetcher(server + "/auth/device-login/complete", {
+        method: "POST",
+        redirect: "error",
+        headers: { origin: server, cookie, "content-type": "application/json" },
+        body: JSON.stringify(proof),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (completed.status === 204) return completed;
+    } catch {
+      /* Try only another validated loopback port belonging to this user. */
+    }
+  }
+  throw Error("paired-system-required");
+}
 module.exports = {
+  completeDeviceLogin,
+  startDeviceLoginProof,
   publishWorkingTree,
   cloneFromBundle,
   inspectRepository,

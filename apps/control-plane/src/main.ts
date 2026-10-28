@@ -27,6 +27,13 @@ import {
   servixExecution,
 } from "./servix-deployment.js";
 import { SystemDiscovery } from "./system-discovery.js";
+import {
+  isDiscoveryAdministrator,
+  loadDiscoveryAccessPolicy,
+  requireDeviceLoginOrigin,
+} from "./discovery-access.js";
+import { DeviceLogins } from "./device-logins.js";
+import { JoinRequests } from "./join-requests.js";
 
 const config = loadConfig(process.env);
 const pool = createDatabasePool(config.databaseUrl);
@@ -39,6 +46,8 @@ try {
   let componentDeployments: ComponentDeployments | undefined;
   let localDevelopment: LocalDevelopment | undefined;
   let systemDiscovery: SystemDiscovery | undefined;
+  let deviceLogins: DeviceLogins | undefined;
+  let joinRequests: JoinRequests | undefined;
   let artifactPromotions: ArtifactPromotions | undefined;
   const agentWorkspaces = new Map<string, AgentWorkspace>();
   const notifications = new Map<string, AgentNotifications>();
@@ -199,6 +208,18 @@ try {
       allowed,
     );
     const approvedSettings = deploymentSettings;
+    const discoveryPolicy = await loadDiscoveryAccessPolicy(
+      join(operator, "DiscoveryAccessPolicy.json"),
+    );
+    requireDeviceLoginOrigin(config.publicOrigin, discoveryPolicy.deviceLoginMethod);
+    if (discoveryPolicy.workspaceId !== "ws_server20")
+      throw new ServixDeploymentError("discovery-access-policy-workspace-denied", 403);
+    const discoveryAdministrator = async (actor: string) =>
+      isDiscoveryAdministrator(
+        discoveryPolicy,
+        actor,
+        await new WorkspaceRepository(pool).getEvidence(discoveryPolicy.workspaceId, actor),
+      );
     artifactPromotions = new ArtifactPromotions(
       join(config.servixRoot, "jobs", "promotions"),
       "ws_server20",
@@ -231,8 +252,19 @@ try {
         ((await componentDeployments?.sourceRequestActive(id, actor, deviceId)) ?? false),
       deploymentSettings,
       componentDeployments,
+      discoveryAdministrator,
+      true,
     );
     componentDeployments.connect(developerConnectors);
+    deviceLogins = new DeviceLogins(
+      join(config.servixRoot, "jobs", "device-logins"),
+      discoveryPolicy.workspaceId,
+      developerConnectors,
+      discoveryAdministrator,
+      undefined,
+      (principal) => new IdentitySessionRepository(pool).localCredentialVersion(principal),
+      discoveryPolicy.deviceLoginMethod,
+    );
     localDevelopment = new LocalDevelopment(
       join(config.servixRoot, "jobs", "local-development"),
       developerConnectors,
@@ -256,6 +288,14 @@ try {
             : [],
         };
       },
+    );
+    joinRequests = new JoinRequests(
+      join(config.servixRoot, "private", "join-requests"),
+      discoveryPolicy.workspaceId,
+      new IdentitySessionRepository(pool),
+      developerConnectors,
+      systemDiscovery,
+      discoveryAdministrator,
     );
     servixDeployment = new ServixDeploymentStore(
       config.servixRoot,
@@ -297,6 +337,8 @@ try {
     ...(componentDeployments === undefined ? {} : { componentDeployments }),
     ...(localDevelopment === undefined ? {} : { localDevelopment }),
     ...(systemDiscovery === undefined ? {} : { systemDiscovery }),
+    ...(deviceLogins === undefined ? {} : { deviceLogins }),
+    ...(joinRequests === undefined ? {} : { joinRequests }),
     ...(config.servixRoot ? { agentWorkspace } : {}),
     ...(systemDiscovery
       ? {
@@ -329,6 +371,7 @@ try {
     server,
     fileURLToPath(new URL("../../control-center/dist/", import.meta.url)),
     config.basePath,
+    deviceLogins !== undefined,
   );
 
   const shutdown = async () => {

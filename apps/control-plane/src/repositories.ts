@@ -32,6 +32,7 @@ import {
   consumeDummyPasswordCheck,
   hashLocalPassword,
   LocalUsernameSchema,
+  type PasswordDigest,
   verifyLocalPassword,
 } from "./passwords.js";
 
@@ -119,6 +120,7 @@ interface WorkspaceEvidenceRow extends QueryResultRow {
 }
 
 export interface IdentityPrincipal {
+  readonly credentialVersion?: string;
   readonly identity: ExternalIdentity;
   readonly userId: UserId;
 }
@@ -209,29 +211,40 @@ export class IdentitySessionRepository {
     this.#pool = pool;
   }
 
-  async provisionLocalCredential(input: {
-    username: string;
-    password: string;
-    displayName: string;
-    userId?: string;
-    identityId?: string;
-    requireNew?: boolean;
-    developerWorkspaceId?: string;
-    now?: Date;
-  }): Promise<IdentityPrincipal> {
+  async provisionLocalCredential(
+    input: {
+      username: string;
+      password: string;
+      displayName: string;
+      userId?: string;
+      identityId?: string;
+      requireNew?: boolean;
+      developerWorkspaceId?: string;
+      now?: Date;
+    },
+    preparedPassword?: PasswordDigest,
+  ): Promise<IdentityPrincipal> {
     const username = LocalUsernameSchema.parse(input.username);
     const displayName = DisplayNameSchema.parse(input.displayName.trim());
-    const digest = await hashLocalPassword(input.password);
+    if (
+      preparedPassword &&
+      (preparedPassword.salt.length !== 16 || preparedPassword.hash.length !== 64)
+    )
+      throw new Error("Invalid prepared credential");
+    const digest = preparedPassword ?? (await hashLocalPassword(input.password));
     const now = input.now ?? new Date();
     const requestedUserId = UserIdSchema.parse(input.userId ?? randomIdentifier("usr"));
     const requestedIdentityId = IdentityIdSchema.parse(input.identityId ?? randomIdentifier("idn"));
 
     return withApplicationTransaction(this.#pool, undefined, async (client) => {
       await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [username]);
-      const existing = await client.query<IdentityRow>(
+      const existing = await client.query<
+        IdentityRow & { password_salt: Buffer; password_hash: Buffer; credential_status: string }
+      >(
         `
           SELECT identity.identity_id, identity.user_id, identity.issuer, identity.subject,
-                 identity.linked_at, identity.last_authenticated_at
+                 identity.linked_at, identity.last_authenticated_at,
+                 credential.password_salt, credential.password_hash, credential.status AS credential_status
           FROM frevos.local_credentials AS credential
           INNER JOIN frevos.external_identities AS identity
             ON identity.identity_id = credential.identity_id
@@ -241,6 +254,16 @@ export class IdentitySessionRepository {
       );
       const current = existing.rows[0];
       if (current !== undefined) {
+        if (
+          preparedPassword &&
+          input.requireNew &&
+          current.user_id === requestedUserId &&
+          current.credential_status === "active" &&
+          current.password_salt.equals(digest.salt) &&
+          current.password_hash.equals(digest.hash)
+        ) {
+          return { identity: identityFromRow(current), userId: requestedUserId };
+        }
         if (input.requireNew) throw new Error("Local account already exists");
         await client.query("UPDATE frevos.users SET display_name = $2 WHERE user_id = $1", [
           current.user_id,
@@ -366,7 +389,26 @@ export class IdentitySessionRepository {
         [row.identity_id, now],
       );
       const identity = identityFromRow({ ...row, last_authenticated_at: now });
-      return { identity, userId: UserIdSchema.parse(identity.userId) };
+      return {
+        identity,
+        userId: UserIdSchema.parse(identity.userId),
+        credentialVersion: sha256(row.password_hash.toString("hex")).toString("hex"),
+      };
+    });
+  }
+
+  async localCredentialVersion(principal: {
+    userId: string;
+    identity: { identityId: string };
+  }): Promise<string | null> {
+    return withApplicationTransaction(this.#pool, undefined, async (client) => {
+      const result = await client.query<{ password_hash: Buffer }>(
+        "SELECT password_hash FROM frevos.local_credentials WHERE identity_id=$1 AND user_id=$2 AND status='active'",
+        [principal.identity.identityId, principal.userId],
+      );
+      return result.rows[0]
+        ? sha256(result.rows[0].password_hash.toString("hex")).toString("hex")
+        : null;
     });
   }
 

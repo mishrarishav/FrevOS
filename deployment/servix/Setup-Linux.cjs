@@ -7,6 +7,12 @@ const { spawn } = require("node:child_process"),
 const { run } = require("./SystemPrerequisites.cjs");
 const { serve } = require("./SystemSetup.cjs");
 const sourceFiles = [
+  "SystemLinuxInstaller.cjs",
+  "Setup-SystemLinux.cjs",
+  "DeviceEnrollment.cjs",
+  "DeviceEnrollmentClient.js",
+  "SystemEnrollment.cjs",
+  "SetupSession.cjs",
   "Connector.cjs",
   "Preservation.cjs",
   "LocalDevelopment.cjs",
@@ -273,7 +279,7 @@ async function interactive() {
     const username = (await ask("DevSetu username: ")).trim();
     if (!/^[a-z0-9][a-z0-9._-]{2,63}$/.test(username)) throw Error();
     let password = await ask("DevSetu password: ", true);
-    const login = await fetch(server + "/auth/login", {
+    let login = await fetch(server + "/auth/login", {
       method: "POST",
       redirect: "error",
       headers: { origin: server, "content-type": "application/json" },
@@ -281,6 +287,7 @@ async function interactive() {
       signal: AbortSignal.timeout(15000),
     });
     password = null;
+    login = await require("./Connector.cjs").completeDeviceLogin(server, login);
     if (!login.ok) throw Error();
     const cookies = login.headers.getSetCookie().map((c) => c.split(";")[0]),
       csrf = cookies

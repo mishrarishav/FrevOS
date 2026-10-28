@@ -1,4 +1,5 @@
 import { createReadStream } from "node:fs";
+import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import cookie from "@fastify/cookie";
@@ -61,6 +62,8 @@ import {
 } from "./self-updates.js";
 import { ServixDeploymentError, type ServixDeploymentStore } from "./servix-deployment.js";
 import type { SystemDiscovery } from "./system-discovery.js";
+import type { DeviceLogins } from "./device-logins.js";
+import type { JoinRequests } from "./join-requests.js";
 
 export const SESSION_COOKIE = "__Host-frevos-session";
 export const CSRF_COOKIE = "__Host-frevos-csrf";
@@ -165,6 +168,8 @@ interface BuildServerOptions {
   readonly developerConnectors?: DeveloperConnectorStore;
   readonly localDevelopment?: LocalDevelopment;
   readonly systemDiscovery?: SystemDiscovery;
+  readonly deviceLogins?: DeviceLogins;
+  readonly joinRequests?: JoinRequests;
   readonly agentWorkspace?: (workspaceId: string) => AgentWorkspace;
   readonly agentNotifications?: (workspaceId: string) => AgentNotifications;
   readonly connectorNotifications?: AgentNotifications;
@@ -228,6 +233,31 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
   await server.register(cookie);
   const now = options.now ?? (() => new Date());
   const authMode = options.authMode ?? "oidc";
+  const deviceLoginCookie = "devsetu-device-login";
+  const deviceReceiverCookie = "devsetu-device-receiver";
+  const joinCookie = "devsetu-join-request";
+  const deviceCookieOptions = {
+    httpOnly: true,
+    secure: options.authCookies.secure,
+    sameSite: "strict" as const,
+    path: basePath || "/",
+    maxAge: 120,
+  };
+  server.addHook("preHandler", async (request) => {
+    if (
+      options.deviceLogins &&
+      request.cookies[options.authCookies.session] &&
+      request.routeOptions.url?.startsWith(route("/v1/"))
+    ) {
+      const evidence = await requireSession(
+        request,
+        options.identitySessions,
+        now(),
+        options.authCookies.session,
+      );
+      await options.deviceLogins.authorizeSession(evidence.session.context);
+    }
+  });
 
   server.setErrorHandler((error, _request, reply) => {
     if (error instanceof AccountActionError) {
@@ -280,12 +310,37 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
   );
 
   if (authMode === "local") {
+    server.post(route("/auth/join/request"), async (request, reply) => {
+      if (request.headers.origin !== options.publicOrigin || !options.joinRequests)
+        throw new HttpError(403, "join-unavailable");
+      options.joinRequests.rate(request.ip + ":request", 5);
+      const result = await options.joinRequests.request(request.body);
+      return reply
+        .header("cache-control", "no-store")
+        .setCookie(joinCookie, result.requester, { ...deviceCookieOptions, maxAge: 86400 })
+        .send(result.record);
+    });
+    server.get(route("/auth/join/status"), async (request, reply) => {
+      if (!options.joinRequests) throw new HttpError(503, "join-unavailable");
+      return reply
+        .header("cache-control", "no-store")
+        .send(await options.joinRequests.status(request.cookies[joinCookie] ?? ""));
+    });
+    for (const action of ["prepare", "redeem"] as const)
+      server.post(route("/v1/connector/join/" + action), async (request, reply) => {
+        if (!options.joinRequests) throw new HttpError(503, "join-unavailable");
+        options.joinRequests.rate(request.ip + ":code", 20);
+        return reply
+          .header("cache-control", "no-store")
+          .send(await options.joinRequests[action](request.body));
+      });
     server.post(
       route("/auth/login"),
       {
         schema: {
           response: {
             204: { type: "null" },
+            202: { type: "object", additionalProperties: true },
             400: ErrorResponseSchema,
             401: ErrorResponseSchema,
             403: ErrorResponseSchema,
@@ -305,6 +360,16 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
         if (principal === null) {
           throw new HttpError(401, "invalid-credentials");
         }
+        if (options.deviceLogins) {
+          const browserState = randomBytes(32).toString("hex");
+          const challenge = await options.deviceLogins.begin(principal, browserState);
+          if (challenge)
+            return reply
+              .header("cache-control", "no-store")
+              .setCookie(deviceLoginCookie, browserState, deviceCookieOptions)
+              .status(202)
+              .send(challenge);
+        }
         const previousRawToken = request.cookies[options.authCookies.session];
         const session = await options.identitySessions.createSession({
           principal,
@@ -315,6 +380,105 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
         return reply.status(204).send();
       },
     );
+    server.post(route("/auth/device-login/complete"), async (request, reply) => {
+      if (request.headers.origin !== options.publicOrigin || !options.deviceLogins)
+        throw new HttpError(403, "device-login-proof-denied");
+      const verified = await options.deviceLogins.consume(
+        request.body,
+        request.cookies[deviceLoginCookie] ?? "",
+      );
+      const previousRawToken = request.cookies[options.authCookies.session];
+      const session = await options.identitySessions.createSession({
+        principal: verified.principal,
+        ...(previousRawToken === undefined ? {} : { previousRawToken }),
+        now: now(),
+      });
+      await options.deviceLogins.bind(session.context, verified.deviceId, verified.verifiedAt);
+      setSessionCookies(reply, session.rawToken, session.rawCsrfToken, options.authCookies);
+      reply.clearCookie(deviceLoginCookie, { path: basePath || "/" });
+      return reply.header("cache-control", "no-store").status(204).send();
+    });
+    await server.register(async (localProof) => {
+      localProof.addContentTypeParser(
+        "application/x-www-form-urlencoded",
+        { parseAs: "string", bodyLimit: 2048 },
+        (_request, body, done) => {
+          try {
+            const fields = new URLSearchParams(String(body));
+            if (
+              fields.size !== 3 ||
+              [...fields.keys()].sort().join() !== "challengeId,proof,version" ||
+              fields.get("version") !== "1"
+            )
+              throw new HttpError(400, "invalid-request");
+            done(null, {
+              version: 1,
+              challengeId: fields.get("challengeId"),
+              proof: fields.get("proof"),
+            });
+          } catch (error) {
+            done(error as Error);
+          }
+        },
+      );
+      localProof.post(
+        route("/auth/device-login/receive"),
+        { bodyLimit: 2048 },
+        async (request, reply) => {
+          if (
+            !options.deviceLogins ||
+            typeof request.headers.origin !== "string" ||
+            !/^http:\/\/127\.0\.0\.1:[0-9]{4,5}$/.test(request.headers.origin)
+          )
+            throw new HttpError(403, "device-login-proof-denied");
+          const receiver = await options.deviceLogins.receive(request.body, request.headers.origin);
+          return reply
+            .header("cache-control", "no-store")
+            .setCookie(deviceReceiverCookie, receiver, deviceCookieOptions)
+            .redirect(route("/auth/device-login/return"), 303);
+        },
+      );
+    });
+    server.get(route("/auth/device-login/return"), async (_request, reply) => {
+      const nonce = randomBytes(24).toString("base64url");
+      return reply
+        .header("cache-control", "no-store")
+        .header("referrer-policy", "no-referrer")
+        .header(
+          "content-security-policy",
+          `default-src 'none'; script-src 'nonce-${nonce}'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'`,
+        )
+        .type("text/html")
+        .send(
+          `<!doctype html><meta charset="utf-8"><title>DevSetu · Verify this computer</title><h1>Completing your sign in</h1><p id="state">Checking this browser and paired computer…</p><script nonce="${nonce}">fetch(${JSON.stringify(route("/auth/device-login/finish"))},{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:'{}',redirect:'error'}).then(r=>{if(r.status!==204)throw Error();location.replace(${JSON.stringify(route("/"))})}).catch(()=>{document.getElementById('state').textContent='Verification expired, pairing changed, or this is a different browser. Return to sign in and retry from your paired computer.'})</script>`,
+        );
+    });
+    server.post(route("/auth/device-login/finish"), async (request, reply) => {
+      if (request.headers.origin !== options.publicOrigin || !options.deviceLogins)
+        throw new HttpError(403, "device-login-proof-denied");
+      EmptyBodySchema.parse(request.body);
+      const verified = await options.deviceLogins.finish(
+        request.cookies[deviceLoginCookie] ?? "",
+        request.cookies[deviceReceiverCookie] ?? "",
+      );
+      const previousRawToken = request.cookies[options.authCookies.session];
+      const session = await options.identitySessions.createSession({
+        principal: verified.principal,
+        ...(previousRawToken === undefined ? {} : { previousRawToken }),
+        now: now(),
+      });
+      await options.deviceLogins.bind(session.context, verified.deviceId, verified.verifiedAt);
+      setSessionCookies(reply, session.rawToken, session.rawCsrfToken, options.authCookies);
+      reply.clearCookie(deviceLoginCookie, { path: basePath || "/" });
+      reply.clearCookie(deviceReceiverCookie, { path: basePath || "/" });
+      return reply.header("cache-control", "no-store").status(204).send();
+    });
+    server.post(route("/v1/connector/login-proof"), async (request, reply) => {
+      if (!options.deviceLogins) throw new HttpError(503, "device-login-unavailable");
+      return reply
+        .header("cache-control", "no-store")
+        .send(await options.deviceLogins.attest(connectorCredential(request), request.body));
+    });
   } else {
     if (options.oidcProvider === undefined || options.transactionCodec === undefined) {
       throw new Error("OIDC provider and transaction codec are required in OIDC mode");
@@ -1059,6 +1223,22 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
       throw new HttpError(503, "component-deployments-unavailable");
     return options.componentDeployments;
   };
+  server.get<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/connectors/join-requests"),
+    async (request) => {
+      const actor = await connectorActor(request);
+      if (!options.joinRequests) throw new HttpError(503, "join-unavailable");
+      return options.joinRequests.list(actor);
+    },
+  );
+  server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/connectors/join-requests/decision"),
+    async (request) => {
+      const actor = await connectorActor(request, true);
+      if (!options.joinRequests) throw new HttpError(503, "join-unavailable");
+      return options.joinRequests.decide(actor, request.body);
+    },
+  );
   const localDevelopment = () => {
     if (!options.localDevelopment) throw new HttpError(503, "local-development-unavailable");
     return options.localDevelopment;
@@ -1074,6 +1254,21 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
       connectors(),
       discovery(),
       now,
+      async (actor, requestedOwner) => {
+        const owner = requestedOwner ?? actor;
+        await connectors().authorizeSystemPairing(actor);
+        if (owner !== actor && !(await connectors().discoveryAccess(actor)).canManagePlans)
+          throw new HttpError(403, "pairing-owner-denied");
+        const evidence = await options.workspaces.getEvidence("ws_server20", owner);
+        if (
+          evidence?.workspace.status !== "active" ||
+          evidence.membership?.status !== "active" ||
+          evidence.membership.userId !== owner ||
+          !evidence.membership.grantedScopes.some((scope) => scope === "project:write")
+        )
+          throw new HttpError(403, "pairing-owner-denied");
+        return owner;
+      },
     ));
   server.post(route("/v1/connector/enrollment/start"), async (request, reply) => {
     if (request.headers.origin !== options.publicOrigin)
@@ -1082,6 +1277,18 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
       .header("cache-control", "no-store")
       .send(await pairings().start(request.body, request.ip));
   });
+  server.get<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/connectors/enrollment-owners"),
+    async (request) => {
+      const actor = await connectorActor(request);
+      await connectors().authorizeSystemPairing(actor);
+      if (!(await connectors().discoveryAccess(actor)).canManagePlans || !options.localAccounts)
+        throw new HttpError(403, "system-registration-admin-required");
+      return (await options.localAccounts.list(request.params.workspaceId)).filter(
+        (account) => account.status === "active",
+      );
+    },
+  );
   server.post(route("/v1/connector/enrollment/poll"), async (request, reply) => {
     z.object({}).strict().parse(request.body);
     return reply

@@ -24,8 +24,9 @@ $server=(Read-Host 'DevSetu server URL').TrimEnd('/');$uri=[uri]$server
 if($uri.Scheme -notin @('http','https') -or $uri.UserInfo -or $uri.Query -or $uri.Fragment -or $uri.AbsolutePath -ne '/'){throw 'Use a server origin without credentials or a path'}
 $username=Read-Host 'DevSetu username';$secure=Read-Host 'DevSetu password' -AsSecureString
 $session=New-Object Microsoft.PowerShell.Commands.WebRequestSession
-try{$password=[Net.NetworkCredential]::new('unused',$secure).Password;Invoke-WebRequest ($server+'/auth/login') -UseBasicParsing -WebSession $session -Method Post -ContentType 'application/json' -Headers @{Origin=$server} -Body (@{username=$username;password=$password}|ConvertTo-Json -Compress)|Out-Null}finally{$password=$null;$secure=$null}
-$csrf=$session.Cookies.GetCookies([uri]$server)['frevos-internal-csrf'].Value
+try{$password=[Net.NetworkCredential]::new('unused',$secure).Password;$login=Invoke-WebRequest ($server+'/auth/login') -UseBasicParsing -WebSession $session -Method Post -ContentType 'application/json' -Headers @{Origin=$server} -Body (@{username=$username;password=$password}|ConvertTo-Json -Compress);Import-Module (Join-Path $PSScriptRoot 'PairedLogin.psm1') -Force;Complete-DevSetuPairedLogin -Server $server -Response $login -Session $session}finally{$password=$null;$secure=$null}
+$csrfName=if($uri.Scheme -ceq 'https'){'__Host-frevos-csrf'}else{'frevos-internal-csrf'}
+$csrf=$session.Cookies.GetCookies([uri]$server)[$csrfName].Value
 $state=(Invoke-WebRequest ($server+'/v1/workspaces/ws_server20/component-deployments') -UseBasicParsing -WebSession $session).Content|ConvertFrom-Json
 $profiles=@($state.profiles|Where-Object {-not $_.archived});if(-not $profiles.Count){throw 'Save a component project in DevSetu first'}
 $form=New-Object Windows.Forms.Form;$form.Text='DevSetu System connector - build or destination';$form.Width=650;$form.Height=290;$form.StartPosition='CenterScreen'

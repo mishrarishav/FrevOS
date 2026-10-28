@@ -37,6 +37,22 @@ describe("same-origin Control Center delivery", () => {
     expect(asset.headers["cache-control"]).toBe("public, max-age=31536000, immutable");
   });
 
+  it("allows only the fixed loopback proof path when device login is enabled", async () => {
+    const paired = Fastify();
+    try {
+      await registerControlCenter(paired, assetsDirectory, "", true);
+      const response = await paired.inject({ method: "GET", url: "/" });
+      expect(response.headers["content-security-policy"]).toContain(
+        "connect-src 'self' http://127.0.0.1:*/device-login",
+      );
+      expect(response.headers["content-security-policy"]).not.toContain("connect-src *");
+      const normal = await server.inject({ method: "GET", url: "/" });
+      expect(normal.headers["content-security-policy"]).not.toContain("127.0.0.1");
+    } finally {
+      await paired.close();
+    }
+  });
+
   it("uses the shell only for browser navigation and preserves API and asset 404s", async () => {
     for (const url of ["/projects/frevos", "/projects/frevos/"]) {
       const navigation = await server.inject({

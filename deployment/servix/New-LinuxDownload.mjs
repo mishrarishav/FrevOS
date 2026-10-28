@@ -114,6 +114,15 @@ async function build(output) {
     ];
     await run(tar, args, { windowsHide: true, timeout: 120000, maxBuffer: 4096 });
     const runtime = join(staging, folder);
+    const manifest = { version: 1, files: {} };
+    for (const name of require("./SystemLinuxInstaller.cjs").runtimeFiles) {
+      const file = name === "runtime/bin/node" ? join(runtime, "bin/node") : join(source, name);
+      manifest.files[name] = createHash("sha256")
+        .update(await readFile(file))
+        .digest("hex");
+    }
+    const manifestFile = join(staging, "system-runtime-manifest.json");
+    await writeFile(manifestFile, JSON.stringify(manifest), { flag: "wx", mode: 0o600 });
     const zipped = createGzip({ level: 6 }),
       target = createWriteStream(output, { flags: "wx" });
     zipped.pipe(target);
@@ -129,6 +138,7 @@ async function build(output) {
     };
     for (const file of [...sourceFiles, "Setup-Linux.cjs", "install.sh"].sort())
       await add(join(source, file), file, file.endsWith(".sh") ? 0o755 : 0o644);
+    await add(manifestFile, "system-runtime-manifest.json", 0o644);
     const walk = async (directory) => {
       for (const name of (await readdir(directory)).sort()) {
         const file = join(directory, name),

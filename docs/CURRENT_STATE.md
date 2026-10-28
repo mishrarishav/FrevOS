@@ -2,7 +2,100 @@
 
 Last updated: 2026-10-28
 
+## Discovery ownership and approved join — HTTP local implementation PASS
+
+The owner has now explicitly approved configured publication and server build
+of reviewed patch 8206e2d1ccfc on codex/discovery-role-access. This continuation
+uses the actual DevSetu workflow; exact-artifact live activation remains a
+separate approval. Source publication/build outcomes are not yet observed.
+The owner subsequently explicitly approved the full reviewed update deployment;
+the configured UI/native workflow will bind its exact generated artifact and
+single-use approval. No Servix application action is included.
+
+Local code now supports own-data Discovery, server-derived admin capabilities,
+paired ordinary login, admin bootstrap on unpaired computers, and Request to join
+for BOTH new users and existing users' additional computers. Every request needs
+manual admin approval. ADRs 0070/0071/0072 and
+[the detailed handoff](DISCOVERY_ROLE_ACCESS_HANDOFF.md) define the scope and tests.
+No live deployment, account/grant/ownership change or certificate change occurred.
+The prior live Servix/DevSetu releases and customer data remain unchanged.
+
+The owner explicitly retains HTTP now. ADR 0072 supersedes the earlier HTTPS
+activation prerequisite for the configured connector-page method. A correct
+password opens a deliberate local connector confirmation; a separate receipt
+cookie AND the original pending-browser cookie are required before creating a
+session. No browser flags, certificate changes, background-fetch permission bypass
+or remembered-device bypass are used. The automatic loopback-fetch alternative
+still requires HTTPS. The pilot keeps its existing origin and pairing identity.
+
+Actual isolated browser checks cover unpaired rejection, join choices/pending,
+manual admin review, code/OS download and all-owner visibility. Browser policy
+blocks the private file bootstrap; no workaround is used and full installer-browser
+acceptance remains unverified. A separate actual browser test on an HTTP network
+origin now passes paired-user confirmation and session creation; Discovery shows
+only that user's one Online system and excludes the admin's device. This does not
+use or bypass the blocked private installer file. Real Debian user-systemd setup, approved redemption,
+authenticated Online health, private storage, update, startup-failure recovery and
+preservation pass. Its owned fixture is stopped. Final Windows/Linux inventories
+verify; these local packages are not live downloads. Other Linux distributions'
+new native onboarding is not claimed. Final backend 205, UI 99 and contracts 88
+tests pass (392 total), including unchanged coverage gates. Backend statements
+95.08%, branches 91.48%, functions 96.8%, lines 96.62%; UI coverage is 100%.
+Final build and audit exit 0 (5 low / 6 moderate, no high/critical). Package digests,
+exact commands and earlier resolved validation failures are recorded in the handoff.
+The complete local platform package and unchanged native release acceptance now
+also pass: 3,994 files, manifest baff00a1c97e, archive 73700619318a. It remains an
+uncommitted-source test artifact, not a live deployment. Three new service modules
+and two contracts are explicitly packaged; the final preview-launcher discard
+idiom passes all four native runtime rechecks without weakening acceptance.
+
+The owner requests own-data Discovery for normal users and all-workspace
+visibility for admins. Dedicated branch codex/discovery-role-access starts from
+the live platform source 8aaf286d; the preceding two Servix evidence edits are
+retained. ADR 0070 defines this bounded Phase 4 continuation, configurable admin
+identity, owner-bound reports and server-derived control capabilities. No new
+live role grant, ownership reassignment, database migration or Servix deployment
+has occurred. Publication and live activation remain separate reviewed actions.
+Earlier Servix completion evidence below remains valid.
+
 ## Complete application release follow-up — resumed
+
+**PASS for this bounded full-release flow, 12:27 IST.** Servix Production
+`pm_ddcdeda2c90cdc2888010328ec7a05d8` shows **Frontend + Backend / succeeded**
+in the actual DevSetu browser. Last verified source is customer 20bba3e, complete
+release 4bccfd49407f, frontend 7557eb2da721 and backend 5ff7622a9f31.
+All 20 public frontend files were verified; 8,576 protected files are verified.
+Final TLS/API readiness and all three original attachment samples pass again at
+12:25:18 IST. Environment/IIS/source/unknown files and external blobs are retained;
+no customer dependency/runtime upgrade or Production database restore occurred.
+
+DevSetu completion correction is active at source
+`8aaf286dad968f1618b0284afe9522e6597c4cbf`, manifest
+`bb5e5ed0378505c28635cb651a334019d3341a05debaaff0502ad3766dd13cb2`.
+Request pr_eaeb18feb3cb8534c39705d706a59604 completes CI/package/independent
+Apply, HTTP/UI 200, siblings preserved and databaseWritten=false. All 77 test
+files and coverage/audit gates pass. At 12:25:03 IST worker startup reconciles
+only missing frontend completion fields from the original validly consumed
+approval/native receipt. Immutable before-image and matching private/public
+audit verify independently; no new approval or customer action is replayed.
+Promotion state is HTTP 200, worker online, and the latest Production job ID and
+original completion timestamp are unchanged. Development state also responds
+with 24 runs / two saved complete releases. Screenshot and complete evidence are
+linked from SERVIX_APPLICATION_RELEASE_HANDOFF.md.
+
+Owner business UI checking remains separate; Phase 4 exit remains open. No later
+roadmap phase or GitHub merge is claimed. All checkpoints below are historical
+and must not trigger another activation or approval replay.
+
+Latest 12:16 IST: actual DevSetu retry
+`pr_eaeb18feb3cb8534c39705d706a59604`, source
+`8aaf286dad968f1618b0284afe9522e6597c4cbf`, native build
+`cj_b5d47dc4827baf6d8bd9db3324ac73e1`, passes all 77 test files and coverage
+gates. The configured package operator starts at 12:16:25 IST, which occurs
+only after the full CI command succeeds (validation, typecheck, coverage, build
+and dependency audit). Matching frozen-source database recheck already passed
+22/22 after Docker recovery. Await package and independent Apply for this SAME
+request, then verify the audited existing-result projection; no Servix replay.
 
 At 11:54 IST request pr_19c91d349789793cb6152fe90b75c65f fails CI before
 package/activation: 46 control-plane files pass (including both completion-proof

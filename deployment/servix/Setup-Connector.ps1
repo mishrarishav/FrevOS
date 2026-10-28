@@ -32,9 +32,12 @@ $password=[Net.NetworkCredential]::new('unused',$secure).Password
 $session=New-Object Microsoft.PowerShell.Commands.WebRequestSession
 try{
  if($invite){Invoke-WebRequest ($server+'/v1/developers/redeem') -UseBasicParsing -Method Post -ContentType 'application/json' -Body (@{version=1;code=$invite;password=$password}|ConvertTo-Json -Compress)|Out-Null}
- Invoke-WebRequest ($server+'/auth/login') -UseBasicParsing -Method Post -ContentType 'application/json' -Headers @{Origin=$server} -WebSession $session -Body (@{username=$username;password=$password}|ConvertTo-Json -Compress)|Out-Null
+ $login=Invoke-WebRequest ($server+'/auth/login') -UseBasicParsing -Method Post -ContentType 'application/json' -Headers @{Origin=$server} -WebSession $session -Body (@{username=$username;password=$password}|ConvertTo-Json -Compress)
+ Import-Module (Join-Path $PSScriptRoot 'PairedLogin.psm1') -Force
+ Complete-DevSetuPairedLogin -Server $server -Response $login -Session $session
 }finally{$password=$null;$invite=$null;$secure=$null;$inviteSecure=$null}
-$csrf=$session.Cookies.GetCookies([uri]$server)['frevos-internal-csrf'].Value
+$csrfName=if($serverUri.Scheme -ceq 'https'){'__Host-frevos-csrf'}else{'frevos-internal-csrf'}
+$csrf=$session.Cookies.GetCookies([uri]$server)[$csrfName].Value
 $profiles=@(((Invoke-WebRequest ($server+'/v1/workspaces/ws_server20/deployment-settings') -UseBasicParsing -WebSession $session).Content|ConvertFrom-Json)|Where-Object {$_.runner -cne 'devsetu-platform' -and (-not ($_.PSObject.Properties.Name -contains 'archived') -or -not $_.archived)})
 $pipelines=(Invoke-WebRequest ($server+'/v1/workspaces/ws_server20/component-deployments') -UseBasicParsing -WebSession $session).Content|ConvertFrom-Json
 $profiles=@($profiles|Where-Object {$_.profileId -cnotin @($pipelines.profiles.profileId)})+@($pipelines.profiles|Where-Object {-not $_.archived})

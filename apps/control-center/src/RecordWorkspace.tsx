@@ -102,11 +102,17 @@ export function RecordWorkspace<T>({
   loading?: boolean;
   error?: string;
   onRetry?: () => void;
-  noun?: "projects" | "systems" | "agents";
+  noun?: "projects" | "systems" | "agents" | "requests";
 }) {
   const key = `frevos:${userId}:${workspaceId}:${page}:records:v1`;
   const listLabel =
-    noun === "systems" ? "System list" : noun === "agents" ? "Agent list" : "Project list";
+    noun === "systems"
+      ? "System list"
+      : noun === "agents"
+        ? "Agent list"
+        : noun === "requests"
+          ? "Join request list"
+          : "Project list";
   const [preferences, setPreferences] = useState(() => readPreferences(key, defaultView));
   const [filtersOpen, setFiltersOpen] = useState(false);
   useEffect(() => {
@@ -238,7 +244,9 @@ export function RecordWorkspace<T>({
               placeholder={
                 noun === "agents"
                   ? "Search agent, role or model…"
-                  : "Search project, source folder or server…"
+                  : noun === "requests"
+                    ? "Search account or request ID…"
+                    : "Search project, source folder or server…"
               }
             />
           </label>

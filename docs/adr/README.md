@@ -144,3 +144,15 @@ release gates and separate exact Production decision/post-deployment checking.
 [0069: Development acceptance across audit-only source commits](0069-audit-commit-development-acceptance.md)
 records the owner's accepted same-tree Development release and retains the
 separate valid Production review requirement after the earlier review expired.
+
+[0070: Discovery roles and owner-scoped visibility](0070-discovery-role-and-owner-visibility.md)
+records configured admin visibility, owner-only user dashboards and project
+reports, authoritative API checks and capability-based Discovery controls.
+
+[0071: Paired-device login and manually approved join](0071-device-bound-login-and-approved-join.md)
+records paired-user login, admin bootstrap/ownership assignment, and manual
+approval for new users and existing users' additional Windows/Linux computers.
+
+[0072: HTTP connector-confirmed login](0072-http-connector-confirmed-login.md)
+records the owner's retained HTTP deployment, explicit connector-page confirmation
+and original-browser plus receiver-cookie binding without browser security overrides.
