@@ -70,7 +70,18 @@ foreach($sid in $permitted|Select-Object -Unique){$acl.AddAccessRule([Security.A
 if($role -ceq 'destination'){$acl.SetOwner([Security.Principal.SecurityIdentifier]::new('S-1-5-32-544'))}
 Set-Acl -LiteralPath $install -AclObject $acl
 foreach($name in @('ComponentExecutor.cjs','ComponentRuntime.ps1','ComponentPlatform.ps1','NativePlatform.cjs','Preservation.cjs','Run-Executor.ps1','BuildProcess.psm1','node.exe','New-ServixDashboardRelease.ps1','HttpCommon.ps1','Verify-HttpManifest.mjs','Apply-ServixDashboard.ps1','Start-Server20.ps1','Install-SelfUpdate.ps1','Run-SelfUpdate.ps1')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $install}
-if($recipe -ceq 'devsetu-native'){$binding.nativeAdapter=@{file=(Join-Path $install 'NativePlatform.cjs');sha256=(Get-FileHash -LiteralPath (Join-Path $install 'NativePlatform.cjs')).Hash.ToLowerInvariant()}}
+if($recipe -ceq 'devsetu-native'){
+ $binding.nativeAdapter=@{file=(Join-Path $install 'NativePlatform.cjs');sha256=(Get-FileHash -LiteralPath (Join-Path $install 'NativePlatform.cjs')).Hash.ToLowerInvariant()}
+ Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'AndroidBuildClient.cjs') -Destination $install
+ Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Verify-AndroidCompatibility.ps1') -Destination $install
+ if($role -ceq 'builder'){
+  $nativeValues=@{}
+  if($binding.nativeOptions -is [Collections.IDictionary]){foreach($key in $binding.nativeOptions.Keys){$nativeValues[$key]=$binding.nativeOptions[$key]}}else{foreach($property in $binding.nativeOptions.PSObject.Properties){$nativeValues[$property.Name]=$property.Value}}
+  if(-not $NonInteractiveEnrollment){$androidReference=Read-Host 'Enrolled Android SDK reference file (blank for a platform without Android source)';if($androidReference){$nativeValues.androidBuilderReference=[IO.Path]::GetFullPath($androidReference)}}
+  if($nativeValues.ContainsKey('androidBuilderReference')){$nativeValues.androidBuilderClientSha256=(Get-FileHash -LiteralPath (Join-Path $install 'AndroidBuildClient.cjs')).Hash.ToLowerInvariant()}
+  $binding.nativeOptions=$nativeValues
+ }
+}
 $config=@{version=1;server=$server;allowInternalHttp=($uri.Scheme -ceq 'http');id=$paired.id;credential=$paired.credential;profileId=$profileId;role=$role;stateRoot=(Join-Path $install 'state');bindings=@($binding)}
 if($role -ceq 'builder'){$config.git=(Get-Command git.exe).Source;$npm=Get-Command npm.cmd -ErrorAction SilentlyContinue;if($npm){$config.npmCli=Join-Path (Split-Path $npm.Source) 'node_modules\npm\bin\npm-cli.js'};$dotnet=Get-Command dotnet.exe -ErrorAction SilentlyContinue;if($dotnet){$config.dotnet=$dotnet.Source}}
 $validation=[Diagnostics.ProcessStartInfo]::new();$validation.FileName=Join-Path $install 'node.exe';$validation.Arguments='"'+(Join-Path $install 'ComponentExecutor.cjs')+'" --validate';$validation.UseShellExecute=$false;$validation.CreateNoWindow=$true;$validation.RedirectStandardInput=$true

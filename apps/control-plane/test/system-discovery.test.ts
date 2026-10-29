@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID, randomBytes, createHash } from "node:crypto";
 import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -15,6 +15,96 @@ import { DeveloperConnectorStore } from "../src/developer-connectors.js";
 import { SystemDiscovery } from "../src/system-discovery.js";
 
 const cleanups: (() => Promise<unknown>)[] = [];
+it("reports Android health and last seen with owner isolation while rejecting file tracking and forged platform capabilities", async () => {
+  const f = await fixture();
+  const id = "fc_" + randomBytes(16).toString("hex"),
+    credential = id + "." + randomBytes(32).toString("base64url");
+  const hash = (text: string) => createHash("sha256").update(text).digest("hex");
+  const enrollment = {
+    version: 1,
+    deviceId: id,
+    name: "Android fixture",
+    platform: "android",
+    architecture: "arm64",
+    fileActivity: false,
+    credentialHash: hash(credential),
+    pollHash: hash("isolated-poll"),
+    codeHash: hash("isolated-code"),
+  };
+  await expect(
+    f.connectors.acceptSystemEnrollment("usr_alice", { ...enrollment, fileActivity: true }),
+  ).rejects.toThrow("android-monitoring-only");
+  await f.connectors.acceptSystemEnrollment("usr_alice", enrollment);
+  await f.connectors.heartbeat(credential);
+  const observation = {
+    ...f.observation,
+    deviceId: id,
+    profileId: null,
+    system: {
+      ...f.observation.system,
+      systemName: "Android fixture",
+      platform: "android",
+      architecture: "arm64",
+      batteryPercent: 74,
+      cpuPercent: null,
+      tools: [],
+    },
+    coverage: {
+      ...f.observation.coverage,
+      status: "disabled",
+      roots: [],
+      watchedDirectories: 0,
+      gaps: [],
+      attribution: "unavailable",
+    },
+    events: [],
+  };
+  await f.store.observe(credential, observation);
+  let state = await f.store.state("usr_alice");
+  const system = state.systems.find((entry) => entry.deviceId === id)!;
+  expect(system.platform).toBe("android");
+  expect(system.online).toBe(true);
+  expect(system.lastSeenAt).toBe(f.clock().toISOString());
+  expect(system.observation!.system.batteryPercent).toBe(74);
+  expect(system.observation!.system.cpuPercent).toBeNull();
+  await expect(
+    f.store.observe(credential, {
+      ...observation,
+      system: { ...observation.system, cpuPercent: 50 },
+    }),
+  ).rejects.toThrow("android-monitoring-only");
+  expect((await f.store.state("usr_bob")).systems.some((entry) => entry.deviceId === id)).toBe(
+    false,
+  );
+  expect(
+    (await f.store.state("usr_windows_admin")).systems.some((entry) => entry.deviceId === id),
+  ).toBe(true);
+  await expect(f.store.configure("usr_alice", { ...f.policy, deviceId: id })).rejects.toThrow(
+    "android-monitoring-only",
+  );
+  await expect(
+    f.store.requestFolders("usr_alice", { version: 1, deviceId: id, root: "/", path: "", page: 0 }),
+  ).rejects.toThrow("android-monitoring-only");
+  await expect(
+    f.store.observe(credential, {
+      ...observation,
+      system: { ...observation.system, platform: "win32" },
+    }),
+  ).rejects.toThrow("android-monitoring-only");
+  await expect(
+    f.store.observe(credential, {
+      ...observation,
+      coverage: { ...observation.coverage, status: "collecting", roots: ["/"] },
+    }),
+  ).rejects.toThrow("android-monitoring-only");
+  const seen = f.clock().toISOString();
+  f.advance(31000);
+  state = await f.store.state("usr_alice");
+  expect(state.systems.find((entry) => entry.deviceId === id)).toMatchObject({
+    online: false,
+    lastSeenAt: seen,
+  });
+});
 it("reports server heartbeat presence for legacy and stale connectors without inventing a last-online time", async () => {
   const f = await fixture();
   const neverSeen = await f.connectors.pair("usr_alice", { version: 1, name: "Never connected" });

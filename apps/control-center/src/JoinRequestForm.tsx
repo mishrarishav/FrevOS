@@ -3,7 +3,9 @@ import { sha256 } from "@noble/hashes/sha2.js";
 import type { JoinRequest } from "@frevos/contracts";
 import type { ControlCenterApi } from "./api.js";
 import { addBasePath } from "./routing.js";
-export function suggestedJoinPlatform(agent: string): "win32" | "linux" | "unknown" {
+import { connectorPlatform } from "./connector-platform.js";
+export function suggestedJoinPlatform(agent: string): "win32" | "linux" | "android" | "unknown" {
+  if (/Android/i.test(agent)) return "android";
   if (/Windows/i.test(agent)) return "win32";
   if (/Linux/i.test(agent) && !/Android/i.test(agent)) return "linux";
   return "unknown";
@@ -94,7 +96,7 @@ export function JoinRequestForm({ api, onClose }: { api: ControlCenterApi; onClo
         platform,
         deviceId,
         codeHash,
-        fileActivity,
+        fileActivity: platform === "android" ? false : fileActivity,
       });
       const reference = { id: result.id, code, deviceId };
       sessionStorage.setItem(storageKey, JSON.stringify(reference));
@@ -190,26 +192,27 @@ export function JoinRequestForm({ api, onClose }: { api: ControlCenterApi; onClo
             </label>
           ) : null}
           <label>
-            This computer
+            This device
             <select
               value={platform}
               disabled={busy}
-              onChange={(event) => setPlatform(event.target.value as "win32" | "linux")}
+              onChange={(event) => setPlatform(event.target.value as "win32" | "linux" | "android")}
             >
               <option value="unknown">Choose operating system</option>
               <option value="win32">Windows · x64</option>
               <option value="linux">Linux · x64</option>
+              <option value="android">Android · ARM64 / x64</option>
             </select>
           </label>
           <small>
-            Suggested from this browser. Change it if needed. macOS and ARM installers are not
-            included.
+            Suggested from this browser. Change it if needed. Android supports system health;
+            Windows/Linux downloads are x64. macOS is not included.
           </small>
           <label>
             <input
               type="checkbox"
-              checked={fileActivity}
-              disabled={busy}
+              checked={platform !== "android" && fileActivity}
+              disabled={busy || platform === "android"}
               onChange={(event) => setFileActivity(event.target.checked)}
             />{" "}
             Request file activity monitoring as well as basic system health
@@ -226,7 +229,7 @@ export function JoinRequestForm({ api, onClose }: { api: ControlCenterApi; onClo
         <section>
           <p role="status">Request: {record?.status ?? "Checking status"}</p>
           <p>
-            {record?.username} · {record?.platform === "win32" ? "Windows" : "Linux"}
+            {record?.username} · {record ? connectorPlatform[record.platform].name : ""}
           </p>
           {record?.status === "pending" ? (
             <p>
@@ -250,18 +253,17 @@ export function JoinRequestForm({ api, onClose }: { api: ControlCenterApi; onClo
               <p>
                 <a
                   className="button primary"
-                  href={addBasePath(
-                    record.platform === "win32"
-                      ? "/downloads/frevos-connector.zip"
-                      : "/downloads/devsetu-connector-linux-x64.tar.gz",
-                  )}
+                  href={addBasePath(connectorPlatform[record.platform].download)}
                 >
-                  Download {record.platform === "win32" ? "Windows" : "Linux"} installer
+                  Download {connectorPlatform[record.platform].name} installer
                 </a>
               </p>
               <p>
-                Extract the download, open its installer and enter this approval code. DevSetu
-                address: {location.origin}. No administrator password is needed.
+                {record.platform === "android"
+                  ? "Install and open the APK"
+                  : "Extract the download and open its installer"}
+                , then enter this approval code. DevSetu address: {location.origin}. No
+                administrator password is needed.
               </p>
             </>
           ) : null}

@@ -1,13 +1,31 @@
 # Discovery duplicate cards and last seen
 
-Status: implementation checks PASS; configured publication/live verification pending.
+Status: **PASS — published and live through DevSetu**.
 Date: 2026-10-29 (Asia/Calcutta).
 
 Repository: mishrarishav/FrevOS, worktree
 D:\FREVOS\.local\worktrees\servix-dashboard.
 Branch: codex/discovery-system-presence.
 Base: 3e97455a43d15edc46bf2f61e6fa5a6364177383.
-Resulting commit / pull request: not created yet.
+Resulting published commit: 1d859f6e2c6b324bc73186f0516a1bb59a711b45.
+Pull request: none; no GitHub/default-branch push or merge.
+
+Final configured request pr_6b3cee034395eec77a87f99f10a06da9 succeeds. Manifest:
+82daa48b33301f48808377ebb3f9e9d499b38b8709e604001555df3e111e956a.
+Archive: 501db65f7cc33af36b7755ada1299c873be30d86b6a20cda1677932114e8e7c9.
+Native descriptor: de0c0c81336d74149edec23eb080e93dc6b996fbbbcb38e65502c206cb81b7b7.
+Destination job cj_a134cf85033c38b2400b1851ee17f15f. The unchanged native CI and
+packager complete before activation. Native Plan/Apply passes. Independent
+read-only verification (node .local/Verify-PresenceLive.cjs, exit 0) verifies
+scope/expiry/one-use approval, matching active source/digests, runtime values,
+sibling preservation, databaseWritten=false, HTTP/UI 200 and public Windows/Linux
+download integrity. Report: .local/discovery-presence-live-verification.json.
+
+Actual live UI: ESDS003228SS has one card with two retained connections and Last
+seen absolute/elapsed time; three systems total, one Online and two Offline.
+Proof: .local/discovery-presence-live.png. No connector reinstall is required.
+These final evidence edits are local follow-on notes; the active correction is
+the exact published commit above.
 
 ## Scope and evidence
 

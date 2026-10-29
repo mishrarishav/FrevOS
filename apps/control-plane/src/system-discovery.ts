@@ -372,6 +372,8 @@ export class SystemDiscovery {
         (d.source || d.mode === "system"),
     );
     if (!device) throw new ServixDeploymentError("discovery-device-access-denied", 403);
+    if (device.platform === "android")
+      throw new ServixDeploymentError("android-monitoring-only", 409);
     const value = await this.read(id + ".observation.json");
     const stored = value ? StoredObservation.parse(value) : null;
     if (!stored || this.now().getTime() - Date.parse(stored.receivedAt) > 30000)
@@ -543,6 +545,8 @@ export class SystemDiscovery {
       const device = devices.find((d) => d.deviceId === body.deviceId && d.status === "active");
       if (!device || !device.workspaceAuthorized || device.userId !== actor)
         throw new ServixDeploymentError("discovery-device-access-denied", 403);
+      if (device.platform === "android" && body.policy.enabled)
+        throw new ServixDeploymentError("android-monitoring-only", 409);
       if (device.mode === "system" && body.policy.contentFolders.length)
         throw new ServixDeploymentError("connector-project-binding-required", 403);
       const prior = await this.policy(body.deviceId);
@@ -582,6 +586,21 @@ export class SystemDiscovery {
     return this.serial(async () => {
       const device = await this.connectors.checkCredential(credential);
       const observation = DiscoveryObservationSchema.parse(input);
+      if (
+        device.platform === "android" &&
+        (observation.system.platform !== "android" ||
+          observation.system.cpuPercent !== null ||
+          observation.system.tools.length !== 0 ||
+          observation.events.length !== 0 ||
+          observation.coverage.status !== "disabled" ||
+          observation.coverage.roots.length !== 0 ||
+          observation.coverage.watchedDirectories !== 0 ||
+          observation.coverage.gaps.length !== 0 ||
+          observation.coverage.attribution !== "unavailable")
+      )
+        throw new ServixDeploymentError("android-monitoring-only", 409);
+      if (device.platform && device.platform !== observation.system.platform)
+        throw new ServixDeploymentError("discovery-platform-mismatch", 403);
       const acknowledged = Math.max(0, ...observation.events.map((e) => e.sequence));
       if (
         device.deviceId !== observation.deviceId ||
@@ -794,6 +813,7 @@ export class SystemDiscovery {
           name: d.name,
           userId: d.userId,
           profileId: d.mode === "system" ? null : (d.profileId ?? "servix-development"),
+          ...(d.platform ? { platform: d.platform } : {}),
           status: d.workspaceAuthorized ? d.status : "workspace-access-revoked",
           source: d.source ?? record?.source ?? null,
           sourceFresh: !!d.source && d.online,

@@ -577,6 +577,86 @@ it("approves new/existing user requests manually, redeems only the reviewed comp
       code: "join-approval-invalid",
     });
     await writeFile(auditFile, auditBytes);
+    const androidId = "fc_" + "8".repeat(32),
+      androidCode = "KLMNPQRS";
+    const androidRequest = {
+      ...input,
+      username: "android.user",
+      platform: "android",
+      deviceId: androidId,
+      codeHash: hash(androidCode),
+    };
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: "/auth/join/request",
+          headers: { origin },
+          payload: { ...androidRequest, fileActivity: true },
+        })
+      ).statusCode,
+    ).toBe(400);
+    const androidPending = await server.inject({
+      method: "POST",
+      url: "/auth/join/request",
+      headers: { origin },
+      payload: androidRequest,
+    });
+    expect(androidPending.statusCode).toBe(200);
+    expect((await codeRequest("prepare", { version: 1, code: androidCode })).statusCode).toBe(403);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: inbox + "/decision",
+          headers: adminHeaders,
+          payload: {
+            ...decision,
+            requestId: androidPending.json().id,
+            digest: androidPending.json().digest,
+          },
+        })
+      ).statusCode,
+    ).toBe(200);
+    expect((await codeRequest("prepare", { version: 1, code: androidCode })).json()).toMatchObject({
+      deviceId: androidId,
+      platform: "android",
+      fileActivity: false,
+    });
+    const androidCredential = androidId + "." + "a".repeat(43);
+    const androidRedeem = {
+      ...redeem,
+      code: androidCode,
+      deviceId: androidId,
+      platform: "android",
+      architecture: "arm64",
+      name: "Android fixture",
+      credentialHash: hash(androidCredential),
+      pollHash: hash(androidId + "." + "b".repeat(43)),
+    };
+    expect((await codeRequest("redeem", { ...androidRedeem, platform: "win32" })).statusCode).toBe(
+      403,
+    );
+    expect((await codeRequest("redeem", { ...androidRedeem, fileActivity: true })).statusCode).toBe(
+      403,
+    );
+    expect((await codeRequest("redeem", androidRedeem)).statusCode).toBe(200);
+    expect(await connectors.checkCredential(androidCredential)).toMatchObject({
+      platform: "android",
+      userId: androidPending.json().ownerUserId,
+    });
+    expect((await discovery.state(androidPending.json().ownerUserId)).systems).toHaveLength(1);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: "/v1/connector/heartbeat",
+          headers: { authorization: "Bearer " + androidCredential },
+          payload: { loginProofPort: 55124 },
+        })
+      ).statusCode,
+    ).toBe(200);
+    expect((await login("android.user", input.password)).statusCode).toBe(202);
     const collision = await joins.request({
       ...input,
       username: input.username,

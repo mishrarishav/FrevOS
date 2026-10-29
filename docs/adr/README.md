@@ -160,3 +160,7 @@ and original-browser plus receiver-cookie binding without browser security overr
 [0073: Discovery legacy display grouping and last seen](0073-discovery-legacy-grouping-and-last-seen.md)
 records unambiguous owner-scoped legacy connection presentation, retained device
 authority, collision handling and server-derived last-seen timestamps.
+
+[0074: Android system monitoring connector](0074-android-system-monitoring-connector.md)
+records the owner's follow-on Android APK goal, bounded monitoring, approved
+pairing, consent, retained identity and required native acceptance.

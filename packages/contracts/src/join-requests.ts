@@ -13,7 +13,7 @@ export const JoinRequestInputSchema = z
       .regex(/^[a-z0-9][a-z0-9._-]{2,63}$/),
     password: z.string().min(1).max(128),
     displayName: z.string().trim().min(1).max(120),
-    platform: z.enum(["win32", "linux"]),
+    platform: z.enum(["win32", "linux", "android"]),
     deviceId: ConnectorIdSchema,
     codeHash: hex,
     fileActivity: z.boolean(),
@@ -54,8 +54,8 @@ export const JoinCodeSchema = z
   .strict();
 export const JoinRedemptionSchema = JoinCodeSchema.extend({
   deviceId: ConnectorIdSchema,
-  platform: z.enum(["win32", "linux"]),
-  architecture: z.literal("x64"),
+  platform: z.enum(["win32", "linux", "android"]),
+  architecture: z.enum(["x64", "arm64"]),
   name: z.string().trim().min(1).max(80),
   fileActivity: z.boolean(),
   credentialHash: hex,

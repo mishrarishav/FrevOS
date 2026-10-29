@@ -178,6 +178,33 @@ module.exports = {
       source,
     );
     await processFile(process.execPath, [options.pnpmCli, "run", "ci"], source);
+    let androidArtifactReference;
+    const androidSource = path.join(source, "apps/android-connector");
+    if (
+      await fs.stat(androidSource).catch((error) => {
+        if (error.code !== "ENOENT") throw error;
+        return null;
+      })
+    ) {
+      const client = path.join(__dirname, "AndroidBuildClient.cjs");
+      if (
+        !path.isAbsolute(options.androidBuilderReference ?? "") ||
+        !/^[a-f0-9]{64}$/.test(options.androidBuilderClientSha256 ?? "")
+      )
+        throw Error("android-builder-not-enrolled");
+      await plain(client);
+      await plain(options.androidBuilderReference);
+      if (sha(await fs.readFile(client)) !== options.androidBuilderClientSha256)
+        throw Error("android-builder-client-integrity");
+      const built = await require(client).submit({
+        reference: options.androidBuilderReference,
+        sourceRoot: source,
+        sourceHead: job.sourceHead,
+        correlationId: job.id,
+        outputRoot: path.join(directory, "android-artifact"),
+      });
+      androidArtifactReference = built.artifactReference;
+    }
     // The builder is enrolled from the installed worker package, not selected by
     // customer source or request input. Source is an isolated pinned checkout.
     await processFile(
@@ -194,6 +221,14 @@ module.exports = {
         "-SourceRoot",
         source,
         ...(options.releaseOutputRoot ? ["-ReleaseOutputRoot", options.releaseOutputRoot] : []),
+        ...(androidArtifactReference
+          ? [
+              "-AndroidArtifactReference",
+              androidArtifactReference,
+              "-AndroidBuilderReference",
+              options.androidBuilderReference,
+            ]
+          : []),
       ],
       source,
     );
@@ -258,6 +293,26 @@ module.exports = {
     const payload = await fs.readFile(saved);
     if (sha(payload) !== reference.archiveSha256) throw Error("native-artifact-store-corrupt");
     await fs.writeFile(archive, payload, { flag: "wx" });
+    await processFile(
+      powershell(),
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "RemoteSigned",
+        "-File",
+        path.join(__dirname, "Verify-AndroidCompatibility.ps1"),
+        "-InstallationRoot",
+        binding.root,
+        "-Archive",
+        archive,
+        "-ArchiveSha256",
+        reference.archiveSha256,
+        "-SourceHead",
+        job.sourceHead,
+      ],
+      directory,
+    );
     const request = {
       archive,
       archiveSha256: reference.archiveSha256,

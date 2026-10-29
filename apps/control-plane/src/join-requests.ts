@@ -191,6 +191,8 @@ export class JoinRequests {
   }
   async request(input: unknown) {
     const body = JoinRequestInputSchema.parse(input);
+    if (body.platform === "android" && body.fileActivity)
+      throw new ServixDeploymentError("android-monitoring-only", 400);
     return this.serial(async () => {
       if ((await this.records()).length >= 500)
         throw new ServixDeploymentError("join-capacity", 503);
@@ -417,6 +419,11 @@ export class JoinRequests {
   }
   async redeem(input: unknown) {
     const body = JoinRedemptionSchema.parse(input);
+    if (
+      (body.platform !== "android" && body.architecture !== "x64") ||
+      (body.platform === "android" && body.fileActivity)
+    )
+      throw new ServixDeploymentError("join-redemption-scope-denied", 403);
     return this.serial(async () => {
       const record = await this.approved(body.code);
       if (

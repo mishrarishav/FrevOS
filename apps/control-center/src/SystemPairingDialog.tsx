@@ -126,7 +126,7 @@ export function SystemPairingDialog({
             <section>
               <h3>{preview.name}</h3>
               <p>
-                {preview.platform === "win32" ? "Windows" : "Linux"} · {preview.architecture}
+                {connectorPlatform[preview.platform].name} · {preview.architecture}
               </p>
               <p>
                 Access: system health
@@ -182,3 +182,4 @@ export function SystemPairingDialog({
     </WorkspaceDialog>
   );
 }
+import { connectorPlatform } from "./connector-platform.js";

@@ -590,6 +590,8 @@ export class DeveloperConnectorStore {
   }
   async acceptSystemEnrollment(actor: string, input: unknown) {
     const request = SystemEnrollmentStartSchema.parse(input);
+    if (request.platform === "android" && request.fileActivity)
+      throw new ServixDeploymentError("android-monitoring-only", 400);
     return this.serial(async () => {
       await this.permission(actor);
       let prior: z.infer<typeof DeviceRecord> | undefined;
@@ -613,6 +615,7 @@ export class DeveloperConnectorStore {
       const device = DeviceRecord.parse({
         version: 1,
         mode: "system",
+        ...(request.platform === "android" ? { platform: "android" } : {}),
         deviceId: request.deviceId,
         userId: actor,
         workspaceId: "ws_server20",
@@ -1093,6 +1096,8 @@ export class SystemPairings {
   async start(input: unknown, network: string) {
     this.rate("start:" + digest(network), 10);
     const request = SystemEnrollmentStartSchema.parse(input);
+    if (request.platform === "android" && request.fileActivity)
+      throw new ServixDeploymentError("android-monitoring-only", 400);
     if (
       request.credentialHash === request.pollHash ||
       request.pollHash === request.codeHash ||

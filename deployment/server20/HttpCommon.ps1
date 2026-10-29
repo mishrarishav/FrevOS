@@ -33,6 +33,7 @@ function Assert-ServixDelta($Previous,$Candidate) {
     $before=@{};foreach($file in $Previous.files){$before[$file.path]=$file.sha256}
     $after=@{};foreach($file in $Candidate.files){$after[$file.path]=$file.sha256}
     foreach($path in @(@($before.Keys)+@($after.Keys)|Sort-Object -Unique)){
+        if($path -ceq 'deployment/server20/Verify-AndroidCompatibility.ps1'){continue}
         if($before.ContainsKey($path) -and $after.ContainsKey($path) -and $before[$path] -ceq $after[$path]){continue}
         if($path -match '^apps/control-plane/(dist|node_modules/@frevos/contracts/dist)/system-discovery\.(js|js\.map|d\.ts|d\.ts\.map)$' -or $path -match '^apps/control-plane/node_modules/zod/'){continue}
         if($path -match '^apps/control-plane/dist/(device-logins|discovery-access|join-requests)\.(js|js\.map|d\.ts|d\.ts\.map)$' -or $path -match '^apps/control-plane/node_modules/@frevos/contracts/dist/(device-login|join-requests)\.(js|js\.map|d\.ts|d\.ts\.map)$'){continue}

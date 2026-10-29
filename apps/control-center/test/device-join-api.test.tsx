@@ -216,7 +216,7 @@ it("fails closed for wrong-device proof, malformed ports and unpaired accounts",
 it("suggests supported desktop OS, keeps both request types and never asks for an administrator password", () => {
   expect(suggestedJoinPlatform("Mozilla Windows NT 10.0 Win64 x64")).toBe("win32");
   expect(suggestedJoinPlatform("Mozilla X11 Linux x86_64")).toBe("linux");
-  expect(suggestedJoinPlatform("Linux Android")).toBe("unknown");
+  expect(suggestedJoinPlatform("Linux Android")).toBe("android");
   expect(suggestedJoinPlatform("Macintosh")).toBe("unknown");
   const html = renderToStaticMarkup(
     <JoinRequestForm api={createControlCenterApi()} onClose={() => {}} />,

@@ -115,7 +115,7 @@ export function JoinRequestsInbox({
           {
             id: "platform",
             label: "Computer",
-            value: (record) => (record.platform === "win32" ? "Windows · x64" : "Linux · x64"),
+            value: (record) => connectorPlatform[record.platform].name,
           },
           { id: "status", label: "Status", value: (record) => record.status },
           {
@@ -151,7 +151,7 @@ export function JoinRequestsInbox({
             <h2>{record.displayName}</h2>
             <p>
               {record.username} · {record.mode === "new" ? "New user" : "Existing user"} ·{" "}
-              {record.platform === "win32" ? "Windows" : "Linux"}
+              {connectorPlatform[record.platform].name}
             </p>
             <p>
               {record.status} · {new Date(record.createdAt).toLocaleString()}
@@ -186,7 +186,7 @@ export function JoinRequestsInbox({
               </dd>
               <dt>System</dt>
               <dd>
-                {review.deviceId} · {review.platform === "win32" ? "Windows" : "Linux"} · x64
+                {review.deviceId} · {connectorPlatform[review.platform].name}
               </dd>
               <dt>Monitoring</dt>
               <dd>
@@ -243,3 +243,4 @@ export function JoinRequestsInbox({
     </>
   );
 }
+import { connectorPlatform } from "./connector-platform.js";

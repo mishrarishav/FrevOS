@@ -2,15 +2,77 @@
 
 Last updated: 2026-10-29 (Asia/Calcutta; deployment applied late 2026-10-28)
 
+Current Android source CI passes 83 files / 401 tests, build/coverage/audit gates.
+The runtime host is observed Windows Server 2016 Standard (10.0.14393); emulator
+boot still crashes with 0xC0000005 after the documented software-renderer attempt.
+The owner agrees to phone install/open acceptance of the signed prototype.
+Proceed through the configured platform pilot workflow with that limitation
+explicit; Android native acceptance and full goal completion remain pending.
+
+Android native worker enrollment is now PASS on both the existing builder and
+Server20 destination, preserving credential values/scopes, task definitions and
+permissions. The runtime engine executable passes; emulator boot still fails
+with Windows access-violation code 0xC0000005. A documented software-renderer retry
+is in progress. No signed committed-source platform release or public Android
+installer is claimed yet. Signing approval/admin login are already resolved.
+
+Android signing approval and fresh admin login are now resolved. Server20 has
+the retained private signing identity and a verified 33,177-byte signed prototype;
+the worker runs non-admin. Official runtime files are fully verified against the
+archives after correcting the API 36 empty-data marker. First emulator smoke
+fails during boot, so Android install/native pairing and public rollout remain
+unverified. A targeted image-path/diagnostic retry is being prepared. No repeated
+key creation or new signing permission request is needed. The Android handoff
+records exact SDK/signing/runtime receipts and the remaining native integration.
+
+Android goal resumed after the owner's VPN reconnection at 09:49 IST. Server20
+HTTP health and SDK READY are fresh. The reviewed SDK operator update is APPLIED,
+and current Java source compiles into a 23,189-byte unsigned prototype with exact
+source/job/configuration provenance. Emulator/image copy is still in progress.
+No key, signed installer, runtime pairing or Android rollout is claimed. The
+signing decision and fresh DevSetu browser admin login remain pending. See the
+Android handoff for current receipt identities; earlier blocked checkpoints are
+historical and must not be replayed.
+
 ## Discovery rollout — LIVE PASS
+
+2026-10-29 correction is now LIVE PASS: configured request
+pr_6b3cee034395eec77a87f99f10a06da9, source 1d859f6e2c6b324bc73186f0516a1bb59a711b45,
+manifest 82daa48b33301f48808377ebb3f9e9d499b38b8709e604001555df3e111e956a.
+Live UI confirms one ESDS003228SS card with both connections and Last seen;
+health, approval bindings, preservation and installer integrity verify. The first
+CI assertion failure and four-case exact-source native recheck are retained in
+the presence handoff. No acceptance gate or timeout was changed.
+
+The owner then explicitly requests the Android goal and accepts Google SDK terms
+for SDK/build on Server20. ADR 0074 and codex/android-system-connector record this
+bounded follow-on, based on the correction above. Android app/backend code and
+operator tools are being validated; official SDK/JDK archives are verified in
+Server20's separate android-builder root. No Android installer or Android device
+connection is claimed live yet, and no retained signing key has been created.
+Windows/Linux and customer applications remain separate from this work.
+The SDK worker was observed READY as a non-admin virtual service account under the
+separate E:\DevSetuAndroid root. The latest unsigned prototype compiles on
+Server20, 22,144 bytes, APK digest af4766721c690ebd246642116dd21f826b04e61cf7746037503506d8e378d9bd.
+Android join/approval and owner-isolation tests pass. A retained signing-key
+approval question is pending; no key is created, APK published or Android runtime
+connection claimed. Local full CI passes 83 files / 401 tests; final native-source
+CI, current Java compilation and installer integration remain in progress. VPN
+now makes Server20 HTTP/SMB unreachable and Windows screen access is denied.
+Signing approval and user VPN/unlock questions are pending. Prepared local
+operators are not an applied server upgrade. See
+[the Android handoff](ANDROID_CONNECTOR_HANDOFF.md) for exact evidence and limits.
+The same blockers are freshly confirmed on three consecutive goal turns; the
+Android goal is BLOCKED pending external connectivity and the signing decision,
+with its original scope retained. No Android installer has been published.
 
 2026-10-29 follow-up: the owner reports duplicate ESDS003228SS cards and missing
 offline last-seen wording. Live UI confirms a monitoring observation plus a
 legacy project connection with no observation. Bounded branch
 codex/discovery-system-presence starts at live 3e97455a43d1, retaining preceding
 handoff-only edits. ADR 0073 adds collision-safe, explicitly provisional display
-association and server heartbeat/observation last seen. Validation is in progress;
-the live rollout described below predates this correction.
+association and server heartbeat/observation last seen. This initial checkpoint
+predates the completed correction above.
 
 Actual DevSetu request pr_8615ebaba63e611c68f997505b229e70 succeeds with source
 3e97455a43d15edc46bf2f61e6fa5a6364177383 and manifest

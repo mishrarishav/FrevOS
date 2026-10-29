@@ -1,0 +1,15 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="org.devsetu.connector" android:versionCode="1" android:versionName="1.0.0">
+  <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="36" />
+  <uses-permission android:name="android.permission.INTERNET" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <application android:label="DevSetu Connector" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:icon="@android:drawable/ic_menu_info_details" android:allowBackup="false" android:fullBackupContent="false" android:usesCleartextTraffic="true" android:supportsRtl="true">
+    <activity android:name=".MainActivity" android:exported="true">
+      <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+    </activity>
+    <service android:name=".MonitorService" android:exported="false" android:foregroundServiceType="specialUse">
+      <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-started enterprise device health and presence monitoring with an ongoing notification and a Stop action; no personal file collection or remote commands." />
+    </service>
+  </application>
+</manifest>

@@ -1547,6 +1547,20 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
         ),
       ),
   );
+  server.get(route("/downloads/devsetu-connector-android.apk"), async (_request, reply) =>
+    reply
+      .header("cache-control", "no-store")
+      .header("content-disposition", 'attachment; filename="DevSetu-System-Connector-Android.apk"')
+      .header("x-content-type-options", "nosniff")
+      .type("application/vnd.android.package-archive")
+      .send(
+        createReadStream(
+          fileURLToPath(
+            new URL("../../../deployment/servix/devsetu-connector-android.apk", import.meta.url),
+          ),
+        ),
+      ),
+  );
   server.post<{ Params: WorkspaceParams }>(
     route("/v1/workspaces/:workspaceId/connectors/pair"),
     async (request, reply) =>
