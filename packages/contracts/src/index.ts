@@ -85,6 +85,7 @@ export {
 export { contractJsonSchemas } from "./json-schemas.js";
 export * from "./local-accounts.js";
 export * from "./local-development.js";
+export * from "./preview-relay.js";
 export {
   type PermissionScope,
   PermissionScopeSchema,

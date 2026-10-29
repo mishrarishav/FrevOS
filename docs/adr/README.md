@@ -164,3 +164,8 @@ authority, collision handling and server-derived last-seen timestamps.
 [0074: Android system monitoring connector](0074-android-system-monitoring-connector.md)
 records the owner's follow-on Android APK goal, bounded monitoring, approved
 pairing, consent, retained identity and required native acceptance.
+
+[0075: Private paired-device HTTP preview relay](0075-private-preview-request-response-relay.md)
+records the owner's VPN-only application preview request, isolated configured
+origins, opted-in running services, bounded HTTP request/response transport and
+owner/workspace/session checks. Android acceptance remains separate.

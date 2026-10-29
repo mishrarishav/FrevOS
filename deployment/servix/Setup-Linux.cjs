@@ -16,6 +16,7 @@ const sourceFiles = [
   "Connector.cjs",
   "Preservation.cjs",
   "LocalDevelopment.cjs",
+  "PreviewRelay.cjs",
   "LocalDevBoundary.cjs",
   "EnvironmentEditor.cjs",
   "DiscoverySafety.cjs",

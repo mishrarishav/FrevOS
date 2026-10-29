@@ -1,6 +1,34 @@
 # DevSetu Current State
 
-Last updated: 2026-10-29 (Asia/Calcutta; deployment applied late 2026-10-28)
+2026-10-30: The owner explicitly requests a configurable VPN-only paired-laptop
+HTTP preview relay. Branch codex/vpn-preview-relay is stacked on deployed
+d4967eca5272cc1360245e44336a738151b6e325 under ADR 0075. Implementation and
+validation are in progress; private preview origin/DNS/listener configuration
+and an updated project connector are required before live use. No public
+exposure, GitHub publication or customer deployment is authorized by this task.
+Android phone installation is owner-reported; approval/pairing glitches remain
+unresolved and Android acceptance is not completed. Phase 4 remains open.
+
+The owner explicitly approves the observed private DCAPP7 name, complete
+same-scope DevSetu rollout and paired-connector update. DCAPP7 resolves to
+Server20 on this VPN client; no DNS mutation is needed here. The existing
+approved owner sign-in boundary verifies the actual DevSetu browser session.
+Isolated browser GET/POST/close and real Windows owned-runtime HTTP transport
+pass. The relay suite passes 18 cases and its own unchanged coverage gates
+(96.78% statements, 91.15% branches, 100% functions, 99.23% lines).
+Full CI now passes 86 files / 427 tests, including real Windows process/file/DPAPI
+and isolated browser HTTP checks. Backend coverage is 95.16% statements, 91.59%
+branches, 96.78% functions and 96.71% lines; unchanged thresholds pass. Build and
+high-severity audit gate pass (5 low / 6 moderate advisories remain). Fixed
+operator bootstrap now passes on the actual existing builder/destination,
+preserving encrypted enrollment, native adapter, task definitions and parent
+permissions. Configured source deployment, live preview configuration and
+cross-laptop acceptance remain pending. The first full run fails an added PowerShell
+fixture's array construction; the corrected 8-case compatibility test passes.
+The next full run passes all tests but fails the unchanged global 95% statement
+gate at 94.72%; additional boundary tests are added instead of lowering it.
+
+Last updated: 2026-10-30 (Asia/Calcutta).
 
 Current Android source CI passes 83 files / 401 tests, build/coverage/audit gates.
 The runtime host is observed Windows Server 2016 Standard (10.0.14393); emulator

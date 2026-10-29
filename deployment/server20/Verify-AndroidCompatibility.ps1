@@ -31,5 +31,7 @@ try{
  $inventory=[Text.Encoding]::UTF8.GetString($inventoryBytes)|ConvertFrom-Json
  if($inventory.sourceBase -cne $SourceHead -or $inventory.state -cne 'committed'){throw 'Android compatibility candidate source is not committed'}
  if((Includes-Android $beforeInventory) -and -not(Includes-Android $inventory)){throw 'Android compatibility boundary: use a release that supports existing Android records; no changes applied'}
+ $previewMarker='packages/contracts/src/preview-relay.ts'
+ if(@($beforeInventory.files|Where-Object path -CEQ $previewMarker).Count -and -not @($inventory.files|Where-Object path -CEQ $previewMarker).Count){throw 'Preview compatibility boundary: use a release that supports retained preview service plans; no changes applied'}
 }finally{$zip.Dispose()}
 'PASS: Android data compatibility boundary retained'

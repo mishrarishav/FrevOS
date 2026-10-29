@@ -34,6 +34,7 @@ import {
 } from "./discovery-access.js";
 import { DeviceLogins } from "./device-logins.js";
 import { JoinRequests } from "./join-requests.js";
+import { loadPreviewConfig, PreviewRelay } from "./preview-relay.js";
 
 const config = loadConfig(process.env);
 const pool = createDatabasePool(config.databaseUrl);
@@ -49,6 +50,7 @@ try {
   let deviceLogins: DeviceLogins | undefined;
   let joinRequests: JoinRequests | undefined;
   let artifactPromotions: ArtifactPromotions | undefined;
+  let previewRelay: PreviewRelay | undefined;
   const agentWorkspaces = new Map<string, AgentWorkspace>();
   const notifications = new Map<string, AgentNotifications>();
   const agentNotifications = (workspaceId: string) => {
@@ -269,6 +271,21 @@ try {
       join(config.servixRoot, "jobs", "local-development"),
       developerConnectors,
     );
+    const previewConfig = await loadPreviewConfig(
+      join(config.servixRoot, "config", "preview-relay.json"),
+      config.publicOrigin,
+    );
+    if (previewConfig) {
+      if (previewConfig.workspaceId !== discoveryPolicy.workspaceId)
+        throw new Error("preview-workspace-mismatch");
+      previewRelay = new PreviewRelay(
+        previewConfig,
+        config.publicOrigin,
+        join(config.servixRoot, "jobs", "local-development", "preview-audit"),
+        localDevelopment,
+        developerConnectors,
+      );
+    }
     systemDiscovery = new SystemDiscovery(
       join(config.servixRoot, "jobs", "discovery"),
       developerConnectors,
@@ -336,6 +353,7 @@ try {
     ...(deploymentSettings === undefined ? {} : { deploymentSettings }),
     ...(componentDeployments === undefined ? {} : { componentDeployments }),
     ...(localDevelopment === undefined ? {} : { localDevelopment }),
+    ...(previewRelay === undefined ? {} : { previewRelay }),
     ...(systemDiscovery === undefined ? {} : { systemDiscovery }),
     ...(deviceLogins === undefined ? {} : { deviceLogins }),
     ...(joinRequests === undefined ? {} : { joinRequests }),
@@ -372,9 +390,11 @@ try {
     fileURLToPath(new URL("../../control-center/dist/", import.meta.url)),
     config.basePath,
     deviceLogins !== undefined,
+    previewRelay?.config.targets.map((target) => target.origin) ?? [],
   );
 
   const shutdown = async () => {
+    await previewRelay?.close();
     developerConnectors?.close();
     servixDeployment?.close();
     await server.close();
@@ -383,7 +403,18 @@ try {
   process.once("SIGINT", () => void shutdown());
   process.once("SIGTERM", () => void shutdown());
 
-  await server.listen({ host: config.host, port: config.port });
+  if (previewRelay) {
+    server.addHook("onClose", async () => {
+      await previewRelay?.close();
+    });
+    await previewRelay.listen();
+  }
+  try {
+    await server.listen({ host: config.host, port: config.port });
+  } catch (error) {
+    await server.close();
+    throw error;
+  }
 } catch (error) {
   await pool.end();
   throw error;

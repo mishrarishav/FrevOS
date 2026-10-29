@@ -213,6 +213,7 @@ it.skipIf(process.platform !== "win32")(
           database: "mysql",
           developmentEnvironment: ".env.dev",
           productionEnvironment: ".env.prod",
+          preview: { apiPath: "/api" },
         },
       ],
     };
@@ -231,6 +232,31 @@ it.skipIf(process.platform !== "win32")(
       });
       const running = await runtime.snapshot();
       expect(running.services[0].status).toBe("running");
+      const relayJob = {
+        version: 1,
+        id: "prv_" + "d".repeat(32),
+        workspaceId: "ws_server20",
+        deviceId: config.deviceId,
+        profileId: config.profileId,
+        serviceId: candidate.id,
+        revision: running.revision,
+        fingerprint: running.fingerprint,
+        origin: "http://preview.internal",
+        method: "GET",
+        path: "/",
+        headers: [],
+        body: "",
+        timeoutMs: 5000,
+        maxResponseBytes: 65536,
+      };
+      const forwarded = await createRequire(import.meta.url)(
+        "../../../deployment/servix/PreviewRelay.cjs",
+      ).forward(relayJob, runtime);
+      expect(forwarded.ok).toBe(true);
+      expect(JSON.parse(Buffer.from(forwarded.body, "base64").toString())).toMatchObject({
+        database: "synthetic_development",
+        host: "127.0.0.1",
+      });
       expect(await runtime.execute(start.job)).toEqual(start.result);
       expect((await runtime.snapshot()).services[0].pid).toBe(running.services[0].pid);
       expect((await action("configure", { plan })).result.errorCode).toBe(

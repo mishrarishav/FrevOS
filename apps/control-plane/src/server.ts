@@ -64,6 +64,7 @@ import { ServixDeploymentError, type ServixDeploymentStore } from "./servix-depl
 import type { SystemDiscovery } from "./system-discovery.js";
 import type { DeviceLogins } from "./device-logins.js";
 import type { JoinRequests } from "./join-requests.js";
+import type { PreviewRelay } from "./preview-relay.js";
 
 export const SESSION_COOKIE = "__Host-frevos-session";
 export const CSRF_COOKIE = "__Host-frevos-csrf";
@@ -147,6 +148,7 @@ const LocalLoginBodySchema = z
 const EmptyBodySchema = z.object({}).strict();
 
 interface BuildServerOptions {
+  readonly previewRelay?: PreviewRelay;
   readonly selfUpdates?: SelfUpdates;
   readonly localAccounts?: LocalAccounts;
   readonly deploymentSettings?: DeploymentSettingsStore;
@@ -1218,6 +1220,65 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
       );
     return evidence.session.session.context.userId;
   };
+  for (const action of ["open", "close"] as const) {
+    server.post<{ Params: WorkspaceParams }>(
+      route("/v1/workspaces/:workspaceId/local-development/preview/" + action),
+      async (request) => {
+        const evidence = await requireWorkspace(request, options, "project:write", now());
+        requireCsrf(
+          request,
+          evidence.session.session,
+          options.publicOrigin,
+          options.authCookies.csrf,
+        );
+        const relay = options.previewRelay;
+        if (!relay) throw new HttpError(503, "preview-not-configured");
+        const actor = evidence.session.session.context.userId;
+        if (action === "close") return relay.end(actor, evidence.workspaceId, request.body);
+        return relay.open(actor, evidence.workspaceId, request.body, async () => {
+          const live = await options.identitySessions.authenticate(
+            evidence.session.rawToken,
+            now(),
+          );
+          if (
+            !live ||
+            live.context.userId !== actor ||
+            live.context.sessionId !== evidence.session.session.context.sessionId
+          )
+            throw new ServixDeploymentError("preview-authentication-required", 401);
+          await options.deviceLogins?.authorizeSession(live.context);
+          const workspace = await options.workspaces.getEvidence(evidence.workspaceId, actor);
+          if (
+            !workspace ||
+            !authorizeWorkspaceAction({
+              session: live.context,
+              workspace: workspace.workspace,
+              membership: workspace.membership,
+              requiredScope: "project:write",
+              evaluatedAt: now().toISOString(),
+            }).allowed
+          )
+            throw new ServixDeploymentError("preview-workspace-access-denied", 403);
+        });
+      },
+    );
+  }
+  server.post(route("/v1/connector/preview/identity"), async (request) => {
+    if (!options.localDevelopment) throw new HttpError(503, "preview-source-identity-unavailable");
+    return options.localDevelopment.connectorIdentity(connectorCredential(request));
+  });
+  server.post(route("/v1/connector/preview/claim"), async (request) => {
+    if (!options.previewRelay) throw new HttpError(503, "preview-not-configured");
+    return options.previewRelay.claim(connectorCredential(request));
+  });
+  server.post(
+    route("/v1/connector/preview/complete"),
+    { bodyLimit: 23_000_000 },
+    async (request) => {
+      if (!options.previewRelay) throw new HttpError(503, "preview-not-configured");
+      return options.previewRelay.complete(connectorCredential(request), request.body);
+    },
+  );
   const components = () => {
     if (!options.componentDeployments)
       throw new HttpError(503, "component-deployments-unavailable");

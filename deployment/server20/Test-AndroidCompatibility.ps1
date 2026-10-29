@@ -6,9 +6,10 @@ $temporaryParent=[IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')
 $temporary=[IO.Path]::Combine($temporaryParent,('dvac-'+[guid]::NewGuid().ToString('N')))
 [void][IO.Directory]::CreateDirectory($temporary)
 function Write-Json([string]$Path,$Value){[void][IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($Path));[IO.File]::WriteAllText($Path,($Value|ConvertTo-Json -Depth 7 -Compress),[Text.UTF8Encoding]::new($false))}
-function Candidate([string]$Name,[bool]$Android){
+function Candidate([string]$Name,[bool]$Android,[bool]$Preview=$false){
  $folder=Join-Path $temporary $Name;$inventory=Join-Path $folder 'deployment\server20\source-inventory.json'
  $files=if($Android){@(@{path='apps/android-connector/AndroidManifest.xml';sha256=('a'*64)})}else{@(@{path='package.json';sha256=('a'*64)})}
+ if($Preview){$files=@($files)+@(@{path='packages/contracts/src/preview-relay.ts';sha256=('a'*64)})}
  Write-Json $inventory @{sourceBase=('b'*40);state='committed';files=$files}
  Write-Json (Join-Path $folder 'release-manifest.json') @{applicationSource=('b'*40);files=@(@{path='deployment/server20/source-inventory.json';sha256=(Get-FileHash -LiteralPath $inventory).Hash.ToLowerInvariant()})}
  return $folder
@@ -32,9 +33,13 @@ try{
  & $verifier -InstallationRoot $newerRoot -Archive $newerZip -ArchiveSha256 (Get-FileHash -LiteralPath $newerZip).Hash.ToLowerInvariant() -SourceHead ('b'*40)|Out-Null
  $denied=$false;try{& $verifier -InstallationRoot $newerRoot -Archive $olderZip -ArchiveSha256 (Get-FileHash -LiteralPath $olderZip).Hash.ToLowerInvariant() -SourceHead ('b'*40)|Out-Null}catch{if($_.Exception.Message -notlike 'Android compatibility boundary:*'){throw};$denied=$true}
  if(-not $denied){throw 'Incompatible Android downgrade was accepted'}
+ $preview=Candidate 'preview' $true $true;$previewZip=Join-Path $temporary 'preview.zip';Archive-Candidate $preview $previewZip;$previewRoot=Install-Current $preview
+ & $verifier -InstallationRoot $newerRoot -Archive $previewZip -ArchiveSha256 (Get-FileHash -LiteralPath $previewZip).Hash.ToLowerInvariant() -SourceHead ('b'*40)|Out-Null
+ & $verifier -InstallationRoot $previewRoot -Archive $previewZip -ArchiveSha256 (Get-FileHash -LiteralPath $previewZip).Hash.ToLowerInvariant() -SourceHead ('b'*40)|Out-Null
+ $denied=$false;try{& $verifier -InstallationRoot $previewRoot -Archive $newerZip -ArchiveSha256 (Get-FileHash -LiteralPath $newerZip).Hash.ToLowerInvariant() -SourceHead ('b'*40)|Out-Null}catch{if($_.Exception.Message -notlike 'Preview compatibility boundary:*'){throw};$denied=$true};if(-not $denied){throw 'Incompatible preview downgrade was accepted'}
  $denied=$false;try{& $verifier -InstallationRoot $newerRoot -Archive $newerZip -ArchiveSha256 ('0'*64) -SourceHead ('b'*40)|Out-Null}catch{$denied=$true};if(-not $denied){throw 'Tampered Android archive accepted'}
  $denied=$false;try{& $verifier -InstallationRoot $newerRoot -Archive $newerZip -ArchiveSha256 (Get-FileHash -LiteralPath $newerZip).Hash.ToLowerInvariant() -SourceHead ('c'*40)|Out-Null}catch{$denied=$true};if(-not $denied){throw 'Different source accepted'}
- @{status='PASS';checks=5;newCapabilityAccepted=$true;sameCapabilityRecoveryAccepted=$true;incompatibleDowngradeDenied=$true;archiveAndSourceTamperingDenied=$true}|ConvertTo-Json -Compress
+ @{status='PASS';checks=8;newCapabilityAccepted=$true;sameCapabilityRecoveryAccepted=$true;incompatibleDowngradeDenied=$true;previewDowngradeDenied=$true;archiveAndSourceTamperingDenied=$true}|ConvertTo-Json -Compress
 }finally{
  $resolved=[IO.Path]::GetFullPath($temporary)
  if([IO.Path]::GetDirectoryName($resolved) -cne $temporaryParent -or [IO.Path]::GetFileName($resolved) -cnotmatch '^dvac-[a-f0-9]{32}$'){throw 'Temporary compatibility fixture cleanup escaped its owned target'}

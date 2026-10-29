@@ -84,6 +84,31 @@ describe("same-origin Control Center delivery", () => {
     expect(nonNavigation.statusCode).toBe(404);
     expect(nonNavigation.json()).toEqual({ error: "not-found" });
   });
+  it("allows only configured preview bootstrap origins while retaining paired-login restrictions", async () => {
+    const preview = Fastify();
+    try {
+      await registerControlCenter(preview, assetsDirectory, "", true, ["http://preview.internal"]);
+      const response = await preview.inject({ method: "GET", url: "/" });
+      expect(response.headers["content-security-policy"]).toContain(
+        "form-action 'self' http://preview.internal",
+      );
+      expect(response.headers["content-security-policy"]).toContain(
+        "connect-src 'self' http://127.0.0.1:*/device-login",
+      );
+    } finally {
+      await preview.close();
+    }
+    const invalid = Fastify();
+    try {
+      await expect(
+        registerControlCenter(invalid, assetsDirectory, "", false, [
+          "http://preview.internal; form-action *",
+        ]),
+      ).rejects.toThrow("Invalid preview origin");
+    } finally {
+      await invalid.close();
+    }
+  });
 
   it("fails startup when the compiled shell is absent", async () => {
     const emptyDirectory = await mkdtemp(join(tmpdir(), "frevos-empty-control-center-"));

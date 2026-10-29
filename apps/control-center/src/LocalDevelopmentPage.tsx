@@ -16,6 +16,7 @@ import { EnvironmentVariables } from "./EnvironmentVariables.js";
 import { RecordBadge, type RecordColumn, RecordWorkspace } from "./RecordWorkspace.js";
 import { addBasePath } from "./routing.js";
 import { WorkspaceDialog } from "./WorkspaceDialog.js";
+import { VpnPreviewButton } from "./VpnPreviewButton.js";
 
 type Connection = LocalDevState["connections"][number];
 type Row = {
@@ -428,8 +429,20 @@ export function LocalDevelopmentPage({
                   target="_blank"
                   rel="noreferrer"
                 >
-                  Open preview <ExternalLink size={13} />
+                  Open on source laptop <ExternalLink size={13} />
                 </a>
+              ) : null}
+              {service.preview &&
+              current?.status === "running" &&
+              row.connection?.online &&
+              row.connection.snapshot.previewRelay === 1 &&
+              api.previewOpen ? (
+                <VpnPreviewButton
+                  api={api}
+                  workspaceId={workspaceId}
+                  deviceId={row.connection.deviceId}
+                  serviceId={service.id}
+                />
               ) : null}
             </div>
             {current?.existing ? (
@@ -649,8 +662,10 @@ export function LocalDevelopmentPage({
             <details>
               <summary>More details</summary>
               <p className="record-muted">
-                Preview opens on the source computer. Restart applies the selected database profile.
-                Production database access must be verified read-only; writable access is blocked.
+                Local preview opens on the source computer. Enable VPN preview in service
+                configuration to open it from another computer. Restart applies configuration
+                changes. Production database access must be verified read-only; writable access is
+                blocked.
               </p>
               <ol className="local-dev-history">
                 {state.jobs
@@ -796,6 +811,53 @@ export function LocalDevelopmentPage({
                     </small>
                     {service ? (
                       <div className="local-dev-config-grid">
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={!!service.preview}
+                            disabled={busy || editor.row.connection?.snapshot.previewRelay !== 1}
+                            aria-label={`${candidate.name} VPN preview`}
+                            title={
+                              editor.row.connection?.snapshot.previewRelay === 1
+                                ? ""
+                                : "Update this project connector to enable VPN preview."
+                            }
+                            onChange={(event) => {
+                              const checked = event.target.checked;
+                              setEditor((current) =>
+                                current
+                                  ? {
+                                      ...current,
+                                      plan: {
+                                        ...current.plan,
+                                        services: current.plan.services.map((s) => {
+                                          if (s.id !== candidate.id) return s;
+                                          const next = { ...s };
+                                          if (checked) next.preview = { apiPath: "/api" };
+                                          else delete next.preview;
+                                          return next;
+                                        }),
+                                      },
+                                    }
+                                  : null,
+                              );
+                            }}
+                          />
+                          Allow VPN preview of this service
+                        </label>
+                        {service.preview && service.apiServiceId ? (
+                          <label>
+                            API route prefix
+                            <input
+                              aria-label={`${candidate.name} preview API prefix`}
+                              value={service.preview.apiPath}
+                              disabled={busy}
+                              onChange={(event) =>
+                                update({ preview: { apiPath: event.target.value } })
+                              }
+                            />
+                          </label>
+                        ) : null}
                         <label>
                           Port
                           <input

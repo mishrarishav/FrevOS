@@ -58,6 +58,8 @@ import {
   LocalDevJobSchema,
   type LocalDevState,
   LocalDevStateSchema,
+  PreviewBootstrapSchema,
+  PreviewClosedSchema,
   type ModelCommitInput,
   type ModelConnection,
   type ModelConnectionInput,
@@ -244,6 +246,14 @@ export interface ControlCenterApi {
   ): Promise<DeveloperConnector[]>;
   localDevelopmentState?(workspaceId: string, signal?: AbortSignal): Promise<LocalDevState>;
   localDevelopmentAction?(workspaceId: string, input: LocalDevAction): Promise<LocalDevJob>;
+  previewOpen?(
+    workspaceId: string,
+    input: { deviceId: string; serviceId: string },
+  ): Promise<{ action: string; ticket: string }>;
+  previewClose?(
+    workspaceId: string,
+    input: { deviceId: string; serviceId: string },
+  ): Promise<unknown>;
   revokeDeveloperConnector?(workspaceId: string, deviceId: string): Promise<{ revoked: true }>;
   chooseConnectorFolder?(
     workspaceId: string,
@@ -505,6 +515,18 @@ export function createControlCenterApi(
       post(`${workspacePath(workspaceId)}/discovery/plans`, input, DeliveryPlanSchema),
     localDevelopmentAction: (workspaceId, input) =>
       post(`${workspacePath(workspaceId)}/local-development/actions`, input, LocalDevJobSchema),
+    previewOpen: (workspaceId, input) =>
+      post(
+        `${workspacePath(workspaceId)}/local-development/preview/open`,
+        input,
+        PreviewBootstrapSchema,
+      ),
+    previewClose: (workspaceId, input) =>
+      post(
+        `${workspacePath(workspaceId)}/local-development/preview/close`,
+        input,
+        PreviewClosedSchema,
+      ),
     revokeExecutor: (workspaceId, executorId) =>
       post(
         `${workspacePath(workspaceId)}/component-deployments/executors/${encodeURIComponent(executorId)}/revoke`,
