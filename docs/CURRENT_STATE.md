@@ -1,6 +1,825 @@
 # DevSetu Current State
 
-Last updated: 2026-10-26
+2026-10-31: Implementation 88e6420717898b6633bce86308053c3fa8b01314 is pushed
+to GitHub codex/central-git-collaboration; draft PR 41 remains unmerged.
+Native Windows CI passes all 472 tests; both prior failures are repaired.
+GitHub CI 41185857616 passes, including the pinned engine and runtime image.
+Server20 is reachable after VPN reconnection; its active manifest still points
+to d4967ec. Eight pairings and five stable configuration digests are baselined.
+Deployment is waiting for owner sign-in: one saved-credential attempt returns
+401; no retry, reset, new pairing or live activation is performed. The full
+release handoff records the exact authenticated workflow to resume. Phase 4
+and the documented Android/Linux/cross-laptop acceptance limits remain open.
+
+2026-10-31: The owner resumes the two Windows process-inventory failures,
+Server20 platform deployment and GitHub task-branch publication under ADR 0078.
+The direct Windows TCP-owner API reports a real listener that CIM/netstat omit.
+The production inventory uses that bounded IPv4/IPv6 API while retaining exact
+process/project/creation-time checks. All four unchanged native runtime tests
+now pass, including start/restart/stop, foreign-process denial and exact owned
+process termination. Local full CI passes 93 files / 472 tests (94 contracts,
+104 UI, 274 backend), unchanged coverage gates, build and high-severity audit.
+The final prepare:test-git CI entry is also verified separately; it ensures
+fresh source builds run the pinned native engine acceptance. Publication and
+same-scope release are in progress;
+no new live Git engine, role grant or customer deployment is authorized.
+
+2026-10-31: Native Choose folder is locally verified under ADR 0077 on
+codex/central-git-collaboration. The actual Windows dialog opens from Code;
+selecting an existing non-empty test folder opens real read-only Changes,
+protects .env and leaves source/Git metadata untouched. Cancel and expiry are
+explicit, once-only device/workspace/owner-scoped outcomes. Native helper,
+new-download manifest and pairing-preserving updater are included. Linux UI
+and cross-laptop/live rollout remain unverified; no Server20 activation or
+GitHub publication is applied. Phase 4 remains open. The handoff records the
+native proof, exact validation and separate publication limitations.
+The final full backend has 271 passes and the two established baseline process
+failures; unchanged coverage gates pass at 95.01% statements, 91.39% branches,
+96.73% functions and 96.81% lines. The final system updater extension separately
+passes real Windows file/DPAPI migration and recovery tests, retaining pairing
+and monitoring history; project-sidecar updates refuse pinned system mode.
+
+2026-10-31: The owner's simple Code flow is locally implemented on
+codex/central-git-collaboration: pair once, choose an existing folder, review
+Changes and explicitly Commit & Push; private repository creation happens only
+at publication. Native Git/roles/PR/review/merge, preserved history/remotes,
+clone/remote checkout and encrypted full backup/isolated restore pass. The
+full Windows backend run has 267 passed / 2 failed tests; both failures reproduce
+on the unchanged base's local process-inventory tests. Unchanged coverage gates
+pass (95% statements, 91.4% branches, 96.7% functions, 96.79% lines). Latest
+runtime/filter/ignore/native checks pass separately. The repeated-folder binding
+bug found during verification is fixed. Build/typecheck, contracts/frontend
+coverage and dependency audit pass. No commit/push/PR, live engine, secret/role
+grant or rollout is applied. Publication/live readiness remains BLOCKED; the
+complete evidence, configuration boundary and changed files are in
+[the Git handoff](CENTRAL_GIT_COLLABORATION_HANDOFF.md). Phase 4 remains open.
+
+2026-10-30: The owner explicitly requests configurable private Git collaboration
+through DevSetu: standard Git transport, branches, PR/review, repository RBAC and
+verified full backup/restore. ADR 0076 scopes the dedicated
+codex/central-git-collaboration branch at e5b1122ad95323b46beab3789672d2cb6ca2d9cd.
+Implementation and isolated verification are in progress. A separate private
+Gitea engine owns repositories; the control plane remains an authorization and
+integration boundary. No live install, secret/role grant, repository migration,
+GitHub push/merge or live restore is claimed. Existing deployment flows and the
+previous worktree's three unpublished preview corrections are preserved.
+Phase 4 and Android/preview live acceptance remain open.
+
+2026-10-30: The owner explicitly requests a configurable VPN-only paired-laptop
+HTTP preview relay. Branch codex/vpn-preview-relay is stacked on deployed
+d4967eca5272cc1360245e44336a738151b6e325 under ADR 0075. Implementation and
+validation are in progress; private preview origin/DNS/listener configuration
+and an updated project connector are required before live use. No public
+exposure, GitHub publication or customer deployment is authorized by this task.
+Android phone installation is owner-reported; approval/pairing glitches remain
+unresolved and Android acceptance is not completed. Phase 4 remains open.
+
+The owner explicitly approves the observed private DCAPP7 name, complete
+same-scope DevSetu rollout and paired-connector update. DCAPP7 resolves to
+Server20 on this VPN client; no DNS mutation is needed here. The existing
+approved owner sign-in boundary verifies the actual DevSetu browser session.
+Isolated browser GET/POST/close and real Windows owned-runtime HTTP transport
+pass. The relay suite passes 18 cases and its own unchanged coverage gates
+(96.78% statements, 91.15% branches, 100% functions, 99.23% lines).
+Full CI now passes 86 files / 427 tests, including real Windows process/file/DPAPI
+and isolated browser HTTP checks. Backend coverage is 95.16% statements, 91.59%
+branches, 96.78% functions and 96.71% lines; unchanged thresholds pass. Build and
+high-severity audit gate pass (5 low / 6 moderate advisories remain). Fixed
+operator bootstrap now passes on the actual existing builder/destination,
+preserving encrypted enrollment, native adapter, task definitions and parent
+permissions. Configured source deployment, live preview configuration and
+cross-laptop acceptance remain pending. The first full run fails an added PowerShell
+fixture's array construction; the corrected 8-case compatibility test passes.
+The next full run passes all tests but fails the unchanged global 95% statement
+gate at 94.72%; additional boundary tests are added instead of lowering it.
+
+Last updated: 2026-10-30 (Asia/Calcutta).
+
+Current Android source CI passes 83 files / 401 tests, build/coverage/audit gates.
+The runtime host is observed Windows Server 2016 Standard (10.0.14393); emulator
+boot still crashes with 0xC0000005 after the documented software-renderer attempt.
+The owner agrees to phone install/open acceptance of the signed prototype.
+Proceed through the configured platform pilot workflow with that limitation
+explicit; Android native acceptance and full goal completion remain pending.
+
+Android native worker enrollment is now PASS on both the existing builder and
+Server20 destination, preserving credential values/scopes, task definitions and
+permissions. The runtime engine executable passes; emulator boot still fails
+with Windows access-violation code 0xC0000005. A documented software-renderer retry
+is in progress. No signed committed-source platform release or public Android
+installer is claimed yet. Signing approval/admin login are already resolved.
+
+Android signing approval and fresh admin login are now resolved. Server20 has
+the retained private signing identity and a verified 33,177-byte signed prototype;
+the worker runs non-admin. Official runtime files are fully verified against the
+archives after correcting the API 36 empty-data marker. First emulator smoke
+fails during boot, so Android install/native pairing and public rollout remain
+unverified. A targeted image-path/diagnostic retry is being prepared. No repeated
+key creation or new signing permission request is needed. The Android handoff
+records exact SDK/signing/runtime receipts and the remaining native integration.
+
+Android goal resumed after the owner's VPN reconnection at 09:49 IST. Server20
+HTTP health and SDK READY are fresh. The reviewed SDK operator update is APPLIED,
+and current Java source compiles into a 23,189-byte unsigned prototype with exact
+source/job/configuration provenance. Emulator/image copy is still in progress.
+No key, signed installer, runtime pairing or Android rollout is claimed. The
+signing decision and fresh DevSetu browser admin login remain pending. See the
+Android handoff for current receipt identities; earlier blocked checkpoints are
+historical and must not be replayed.
+
+## Discovery rollout — LIVE PASS
+
+2026-10-29 correction is now LIVE PASS: configured request
+pr_6b3cee034395eec77a87f99f10a06da9, source 1d859f6e2c6b324bc73186f0516a1bb59a711b45,
+manifest 82daa48b33301f48808377ebb3f9e9d499b38b8709e604001555df3e111e956a.
+Live UI confirms one ESDS003228SS card with both connections and Last seen;
+health, approval bindings, preservation and installer integrity verify. The first
+CI assertion failure and four-case exact-source native recheck are retained in
+the presence handoff. No acceptance gate or timeout was changed.
+
+The owner then explicitly requests the Android goal and accepts Google SDK terms
+for SDK/build on Server20. ADR 0074 and codex/android-system-connector record this
+bounded follow-on, based on the correction above. Android app/backend code and
+operator tools are being validated; official SDK/JDK archives are verified in
+Server20's separate android-builder root. No Android installer or Android device
+connection is claimed live yet, and no retained signing key has been created.
+Windows/Linux and customer applications remain separate from this work.
+The SDK worker was observed READY as a non-admin virtual service account under the
+separate E:\DevSetuAndroid root. The latest unsigned prototype compiles on
+Server20, 22,144 bytes, APK digest af4766721c690ebd246642116dd21f826b04e61cf7746037503506d8e378d9bd.
+Android join/approval and owner-isolation tests pass. A retained signing-key
+approval question is pending; no key is created, APK published or Android runtime
+connection claimed. Local full CI passes 83 files / 401 tests; final native-source
+CI, current Java compilation and installer integration remain in progress. VPN
+now makes Server20 HTTP/SMB unreachable and Windows screen access is denied.
+Signing approval and user VPN/unlock questions are pending. Prepared local
+operators are not an applied server upgrade. See
+[the Android handoff](ANDROID_CONNECTOR_HANDOFF.md) for exact evidence and limits.
+The same blockers are freshly confirmed on three consecutive goal turns; the
+Android goal is BLOCKED pending external connectivity and the signing decision,
+with its original scope retained. No Android installer has been published.
+
+2026-10-29 follow-up: the owner reports duplicate ESDS003228SS cards and missing
+offline last-seen wording. Live UI confirms a monitoring observation plus a
+legacy project connection with no observation. Bounded branch
+codex/discovery-system-presence starts at live 3e97455a43d1, retaining preceding
+handoff-only edits. ADR 0073 adds collision-safe, explicitly provisional display
+association and server heartbeat/observation last seen. This initial checkpoint
+predates the completed correction above.
+
+Actual DevSetu request pr_8615ebaba63e611c68f997505b229e70 succeeds with source
+3e97455a43d15edc46bf2f61e6fa5a6364177383 and manifest
+1b9ae1cbc550996a2e18399a00c68f61d5ceedbfed36813e098cd59686fc4e47. Full configured
+CI passes all 82 files and unchanged coverage/audit gates. Native exact-artifact
+acceptance and independent Plan/Apply pass; approval scope/expiry/one-use,
+source/artifact identity, runtime-value preservation and sibling sites verify.
+Health/UI and public installer integrity checks pass. No Servix app deployment,
+customer database write, certificate change, live user grant or ownership change.
+
+The admin Discovery view and Join requests inbox are verified live. The legacy
+private credential parent excludes Local Service, so initialize only the new empty
+join-requests child with a protected service ACL and a separate fresh scoped audit;
+parent permissions and existing secret values remain unchanged. The inbox then
+loads successfully. This state persists under protected servix; fresh control-server
+bootstrap needs the same narrow initialization, not access to the credential parent.
+Existing ordinary connectors need their explicit same-origin runtime update before
+paired login. Actual ordinary real-user login and full Windows browser bootstrap
+remain unclaimed; isolated same-source evidence is recorded separately.
+
+Complete source/digest/command evidence and retained limitations are in
+[the Discovery handoff](DISCOVERY_ROLE_ACCESS_HANDOFF.md). The owner raises Android
+as a possible separate connector; no Android client or later roadmap phase starts.
+All checkpoints below are historical and must not replay a failed run or approval.
+
+## Discovery ownership and approved join — HTTP local implementation PASS
+
+The owner has now explicitly approved configured publication and server build
+of reviewed patch 8206e2d1ccfc on codex/discovery-role-access. This continuation
+uses the actual DevSetu workflow; exact-artifact live activation remains a
+separate approval. Source publication/build outcomes are not yet observed.
+The owner subsequently explicitly approved the full reviewed update deployment;
+the configured UI/native workflow will bind its exact generated artifact and
+single-use approval. No Servix application action is included.
+
+Actual DevSetu request pr_7f5fff2f4d234a6d9074a45130e9e947 publishes source
+6b82769f66572a55a34808527a41d00e5f356aa3. Its native CI fails repository validation
+before tests: three Markdown links point to intentionally ignored local screenshots.
+References now identify operator-only evidence paths instead of broken portable
+links; no screenshots, application data or validation rule is changed. The old
+live manifest bb5e5ed03785 remains active. Validate a clean exported source tree
+before a new actual DevSetu retry; do not replay the failed run.
+
+Retry pr_a34afc3b5e2f023373dd93f7de110fda publishes 6770c803ddf9. Its native
+CI passes contracts/UI and 49/52 backend files; the three database files fail
+because Docker Desktop is down. Retain only verified zero-byte stale runtime
+endpoint directories while stopped, then start Docker without any data reset.
+Engine 29.7.2 and all four local preview containers return. Recheck the same
+frozen source in the exact native builder environment: all 23 database tests pass.
+Start a new full configured retry; the original active platform is unchanged.
+
+Local code now supports own-data Discovery, server-derived admin capabilities,
+paired ordinary login, admin bootstrap on unpaired computers, and Request to join
+for BOTH new users and existing users' additional computers. Every request needs
+manual admin approval. ADRs 0070/0071/0072 and
+[the detailed handoff](DISCOVERY_ROLE_ACCESS_HANDOFF.md) define the scope and tests.
+No live deployment, account/grant/ownership change or certificate change occurred.
+The prior live Servix/DevSetu releases and customer data remain unchanged.
+
+The owner explicitly retains HTTP now. ADR 0072 supersedes the earlier HTTPS
+activation prerequisite for the configured connector-page method. A correct
+password opens a deliberate local connector confirmation; a separate receipt
+cookie AND the original pending-browser cookie are required before creating a
+session. No browser flags, certificate changes, background-fetch permission bypass
+or remembered-device bypass are used. The automatic loopback-fetch alternative
+still requires HTTPS. The pilot keeps its existing origin and pairing identity.
+
+Actual isolated browser checks cover unpaired rejection, join choices/pending,
+manual admin review, code/OS download and all-owner visibility. Browser policy
+blocks the private file bootstrap; no workaround is used and full installer-browser
+acceptance remains unverified. A separate actual browser test on an HTTP network
+origin now passes paired-user confirmation and session creation; Discovery shows
+only that user's one Online system and excludes the admin's device. This does not
+use or bypass the blocked private installer file. Real Debian user-systemd setup, approved redemption,
+authenticated Online health, private storage, update, startup-failure recovery and
+preservation pass. Its owned fixture is stopped. Final Windows/Linux inventories
+verify; these local packages are not live downloads. Other Linux distributions'
+new native onboarding is not claimed. Final backend 205, UI 99 and contracts 88
+tests pass (392 total), including unchanged coverage gates. Backend statements
+95.08%, branches 91.48%, functions 96.8%, lines 96.62%; UI coverage is 100%.
+Final build and audit exit 0 (5 low / 6 moderate, no high/critical). Package digests,
+exact commands and earlier resolved validation failures are recorded in the handoff.
+The complete local platform package and unchanged native release acceptance now
+also pass: 3,994 files, manifest baff00a1c97e, archive 73700619318a. It remains an
+uncommitted-source test artifact, not a live deployment. Three new service modules
+and two contracts are explicitly packaged; the final preview-launcher discard
+idiom passes all four native runtime rechecks without weakening acceptance.
+
+The owner requests own-data Discovery for normal users and all-workspace
+visibility for admins. Dedicated branch codex/discovery-role-access starts from
+the live platform source 8aaf286d; the preceding two Servix evidence edits are
+retained. ADR 0070 defines this bounded Phase 4 continuation, configurable admin
+identity, owner-bound reports and server-derived control capabilities. No new
+live role grant, ownership reassignment, database migration or Servix deployment
+has occurred. Publication and live activation remain separate reviewed actions.
+Earlier Servix completion evidence below remains valid.
+
+## Complete application release follow-up — resumed
+
+**PASS for this bounded full-release flow, 12:27 IST.** Servix Production
+`pm_ddcdeda2c90cdc2888010328ec7a05d8` shows **Frontend + Backend / succeeded**
+in the actual DevSetu browser. Last verified source is customer 20bba3e, complete
+release 4bccfd49407f, frontend 7557eb2da721 and backend 5ff7622a9f31.
+All 20 public frontend files were verified; 8,576 protected files are verified.
+Final TLS/API readiness and all three original attachment samples pass again at
+12:25:18 IST. Environment/IIS/source/unknown files and external blobs are retained;
+no customer dependency/runtime upgrade or Production database restore occurred.
+
+DevSetu completion correction is active at source
+`8aaf286dad968f1618b0284afe9522e6597c4cbf`, manifest
+`bb5e5ed0378505c28635cb651a334019d3341a05debaaff0502ad3766dd13cb2`.
+Request pr_eaeb18feb3cb8534c39705d706a59604 completes CI/package/independent
+Apply, HTTP/UI 200, siblings preserved and databaseWritten=false. All 77 test
+files and coverage/audit gates pass. At 12:25:03 IST worker startup reconciles
+only missing frontend completion fields from the original validly consumed
+approval/native receipt. Immutable before-image and matching private/public
+audit verify independently; no new approval or customer action is replayed.
+Promotion state is HTTP 200, worker online, and the latest Production job ID and
+original completion timestamp are unchanged. Development state also responds
+with 24 runs / two saved complete releases. Screenshot and complete evidence are
+linked from SERVIX_APPLICATION_RELEASE_HANDOFF.md.
+
+Owner business UI checking remains separate; Phase 4 exit remains open. No later
+roadmap phase or GitHub merge is claimed. All checkpoints below are historical
+and must not trigger another activation or approval replay.
+
+Latest 12:16 IST: actual DevSetu retry
+`pr_eaeb18feb3cb8534c39705d706a59604`, source
+`8aaf286dad968f1618b0284afe9522e6597c4cbf`, native build
+`cj_b5d47dc4827baf6d8bd9db3324ac73e1`, passes all 77 test files and coverage
+gates. The configured package operator starts at 12:16:25 IST, which occurs
+only after the full CI command succeeds (validation, typecheck, coverage, build
+and dependency audit). Matching frozen-source database recheck already passed
+22/22 after Docker recovery. Await package and independent Apply for this SAME
+request, then verify the audited existing-result projection; no Servix replay.
+
+At 11:54 IST request pr_19c91d349789793cb6152fe90b75c65f fails CI before
+package/activation: 46 control-plane files pass (including both completion-proof
+tests), while postgres-service/accounts integration fixtures fail at setup.
+Docker CLI confirms its engine is absent. Startup then exposes stale AF_UNIX
+inference/secrets transport sockets. Direct socket rename fails and original
+is retained. With Docker stopped, only its inspected temporary socket
+directories are renamed aside; the secrets-engine directory contains solely a
+zero-byte engine.sock. No image, volume, credential or database reset occurs.
+Docker starts at 12:00 IST, engine 29.7.2 responds, and the same frozen-source
+database suites are being rechecked before a fresh full configured attempt.
+Servix Production is already live; this failure does not change it.
+
+Authoritative current continuation (11:40 IST): completion-proof correction is
+published by the actual DevSetu UI as source
+`bdd3a56d4cb2dc8caa0444522b4256acfc4f5927`, request
+`pr_19c91d349789793cb6152fe90b75c65f`, native build
+`cj_dc0ee339fda31e7f6194f99a94a60c92`. Follow this SAME request through full CI,
+package and independent activation. This updates DevSetu only: the completed
+Servix Production action below must not be replayed. Manual customer business
+acceptance stays with the owner. This remains a bounded Phase 4 follow-up;
+later roadmap phases, customer dependency changes and database restore are out
+of scope. Subsequent paragraphs are historical checkpoints until superseded.
+
+Production application activation `pm_ddcdeda2c90cdc2888010328ec7a05d8`
+executes through the actual DevSetu UI with current owner confirmation, using fresh
+review pm_aed46f6b560aa3df3e78e8884960edbd. Approval consumption at 11:10:33 IST
+precedes its 11:13:17 expiry. Native target succeeds: PID 14248, same owner,
+8,576 protected files, same backend bundle and frontend 7557eb2d / 20 files.
+Independent public verification passes all 20 static files/root entry and TLS API
+readiness plus all three original attachment samples at 11:13:50–51 IST.
+No Production database restore or dependency/runtime upgrade occurred.
+
+Completion reporting still needs repair: another remoting dictionary membership
+check omits native frontendDigest/frontendVerified from the public result, and the
+existing strict full-application reader correctly returns 503. Native deployment
+and public application are healthy; do NOT redeploy or replay the consumed action.
+Fix dictionary/object frontend projection and reconcile ONLY missing metadata on
+already-succeeded results, from immutable native receipt/review/consumption proof.
+Audit and exact old-result preimage precede the atomic metadata update; no approval,
+app or database mutation. Native tests (2 files/12 tests) and actual read-only
+projection on this completed job pass. Full configured platform CI/update remains
+required to activate that correction and restore history/future promotion reads.
+Earlier checkpoints below are historical.
+
+At 10:53 IST the owner replied "approval hai bhai". The identified Production
+review had expired at 05:54:03 IST, so it is not submitted or renewed. ADR 0069
+now records the owner's acceptance of the exact same-tree Development release;
+this does not authorize an expired Production scope. The same platform source
+2977bbf / active df48db02 and clean customer source 20bba3e remain unchanged.
+Fresh actual UI preparation pm_aed46f6b560aa3df3e78e8884960edbd is queued at
+10:54 IST for the same saved full release. Public Prod health/readiness and three
+original attachments pass at 10:54:47 IST. Follow this new scope through matching
+backup/restore and a valid exact Production decision before activation.
+Earlier checkpoints below are historical.
+
+The refreshed review pm_aed46f6b560aa3df3e78e8884960edbd is prepared and
+expires 11:13:17 IST. Comparison proves all planned deployment/artifact/target/
+identity/permission fields unchanged. The only inventory difference is six new
+protected uploads; all 8,570 original records remain unchanged and none removed.
+Source/environment/database binding/Node hashes match. Preserve all 8,576 files.
+The current explicit owner confirmation can be bound once to this NEW valid
+unchanged action scope after matching fresh backup restore passes; the expired
+record is never reused. Any material execution-scope change needs a new decision.
+No Production approval has yet been submitted; the fresh isolated restore is running.
+
+Ready for the exact owner decision at 05:50 IST. Review
+pm_54e8481b41d67628f9f8c87e200784b4 has matching isolated restore PASS
+(05:49:27 IST), proof SHA f1b554df1861be04a717b7085d1fd5962c74715d0ba3951c3010b376ac397e74:
+114 tables, one view, 213,139 rows, full SQL-stream/schema verification, temporary
+data/task removed and no Production database/file write. The fresh exact owner
+decision was requested; no reply is recorded. All browser acknowledgments remain
+unchecked, Approval reference empty, ADR 0069 proposed, and Production activation
+unexecuted. Review expires 05:54:03 IST. If expired, prepare a new exact review;
+never reuse the old approval scope. Source 2977bbf / active df48db02 and all 77
+test files/coverage gates are PASS. See the application release handoff for full
+source/artifact/target/backup identities and remaining manual/Production limits.
+
+Fresh full-application review pm_54e8481b41d67628f9f8c87e200784b4 now passes
+preparation and correctly records managedRuntimeVerified=true / prior pm_9b481b3a.
+It expires 05:54:03 IST; SHA 8e8ed6d733b832c44c81cb29083a6dbf78b39010eb53e37806f30f29f68ebd68.
+Fresh encrypted backup 6edfebfa6c4b08c2b98256992a46b338ea688fb512fbfa5ef7feb4831b6d8f19
+has full-stream integrity, and its matching isolated restore is running. All
+8,570 protected files are inventoried. Public Prod readiness and three original
+attachment samples pass at 05:41:58 IST. Review acknowledgments are unchecked,
+ADR 0069 is still proposed, and there is no full-application Production activation.
+
+Latest live checkpoint at 05:36 IST: source
+`2977bbf736cb71b90bc32c3b3a8dd3d90740a225` is active, manifest
+`df48db020b1a231da6bf38aac0c4b20ac738f9a93deb35253ed9e7b87fc1d6f7`.
+Independent Apply cj_b212d8365a338d1ac4e0e692a1b216f5 verifies HTTP/UI 200,
+preserved siblings and databaseWritten=false. Full configured CI passes all
+77 files and coverage gates. Fresh actual Production preparation
+`pm_54e8481b41d67628f9f8c87e200784b4` is capturing/verifying its encrypted
+backup. The customer checkout remains clean at 20bba3e and its tree still equals
+the owner's observed e04137b tree. No approval or Production cutover occurred.
+Earlier checkpoints below remain historical.
+
+Latest at 05:26 IST: corrected source
+`2977bbf736cb71b90bc32c3b3a8dd3d90740a225`, actual DevSetu request
+`pr_14b5aa503c55b4ea4ffbc3440ee1000a`, native build
+`cj_1af61b623abb3742373166c034f4e586`, passes all 77 test files (13 contracts,
+16 UI, 48 control-plane), zero failed files and all coverage gates. The native
+package builder starts at 05:24:54, proving full configured CI completed. Track
+this SAME request to package/Apply; active platform remains 9ed0dbb2 until then.
+Require a NEW immutable full-application Production prepare and matching backup
+restore before the exact human decision. No full-application Prod activation.
+
+At 05:10 IST correction request pr_9b4d03e06eb6538d614d119dd380317f fails
+native CI before package/activation: cached Vitest results identify only
+device-enrollment.test.ts as failed; all other 47 control-plane files, including
+the new observation test, pass. Its isolated exact installed-Node/restricted-env
+reruns pass, including test assertions under coverage (the partial-file coverage
+gate is intentionally incomplete and not a full CI pass). Raw failure output
+was not retained; do not claim the precise original assertion was recovered.
+The fixture contains three fixed 100-by-10ms state polling windows and a one-second
+heartbeat budget. Replace those with bounded five-second vi.waitFor assertions
+and a matching fixture heartbeat budget, retaining every assertion and all
+production/independent acceptance code. This addresses the observed load-sensitive
+test without claiming its exact failure cause is proven. Pairing/observation
+focused run passes two files/three tests, 5.91 seconds. A new actual full CI is
+required. Active platform remains 9ed0dbb2; no Production activation occurred.
+
+At 04:58 IST the isolated restore of backup 9368ef076964e2ed48125e75151ae4f270a48ff9925f3eb509911b0ca19841a6
+passes: 114 tables, one view, 213,139 rows and full-stream integrity; private
+temporary data/task removed, no Production write. It does not fix the incomplete
+review below. Worker correction source d762b661184ece8950fda70e6468b3c2b32d9b90
+is building through actual DevSetu request pr_9b4d03e06eb6538d614d119dd380317f;
+contracts/UI coverage pass. Follow the same request to full CI and activation,
+then prepare a fresh immutable Production review and matching backup evidence.
+
+At 04:51 IST, prepare pm_318cc4094cd89d00b95f0022e2e10ac5 completes runtime,
+protected inventory and encrypted full-stream backup verification. Its immutable
+review is NOT usable for activation: the worker checked the remoted hashtable
+through PSObject.Properties, dropping managedRuntimeVerified/previousPromotionId.
+The UI labels it first adoption and the existing protocol correctly rejects an
+existing-task promotion without that verification. No approval was submitted.
+The same backup's isolated restore is still running; retain its result as recovery
+evidence, not approval for this incomplete review. A bounded worker correction
+reads dictionary keys or object properties, rejects inconsistent task/evidence
+before backup, and preserves the verified previous identity in the review.
+Native tests cover dictionary, real CLIXML round-trip and JSON shapes plus four
+denials (one file/two tests, 2.65 seconds, exit 0). This correction requires actual
+platform CI/activation and a new immutable Production preparation. Never edit or
+reuse the incomplete review.
+
+Latest checkpoint, 04:43 IST: the task-observer correction is now live through
+actual request `pr_1b1e23ac5292ec9abdd711a9419c89cc`, source
+`e6115eccc9d6df09e61025dabddf701460bc6d0a`, manifest
+`9ed0dbb212d52c16549e95653aebf2bab7772a116b866266e4db92d1760bda61`.
+Full configured CI and coverage pass. Independent Apply
+`cj_5e0adf90a69db5234bb1dc143cd48661` verifies HTTP/UI 200, preserved siblings
+and no database write. Fresh actual UI Production prepare
+`pm_318cc4094cd89d00b95f0022e2e10ac5` is reading the existing runtime and
+protected inventory for saved Development restore sd_165f3a005513759a747408470e7a581f.
+No Production cutover or new approval has occurred. The checkpoint below predates
+this successful publication.
+
+Current checkpoint, 2026-10-28 04:22 IST: platform source
+`15a038af278fb2388c296b3e0f089a88578edb9a` is active with manifest
+`7548a5b468e32e6da1e5eda9052ca44b654abd1359cd1ba023c1c023c9f6132c`.
+Actual configured CI passes all 77 retained test files and coverage gates;
+independent Apply verifies HTTP/UI 200, siblings preserved and no database write.
+Full Servix Development deploy `sd_8199dc23bf2974bb2692f449dc3b73c3`,
+rollback `sd_4010e745f5c57ede4d4820562760480a`, and same-artifact restore
+`sd_165f3a005513759a747408470e7a581f` all succeed. The current full release
+manifest is `4bccfd49407f3d898c5574e468b56da53b91d35864f92ffa98478b14d7df22bc`.
+All five configured customer suites, public frontend byte verification (20 files),
+health, 153 protected files and Production listener isolation pass. Three original
+Production attachments still match their prior bytes; no Production activation
+has occurred in this full-application follow-up.
+
+Production prepare `pm_4c8ea36ee3d920a7f00d4b6d3fcc4cfb` fails before backup
+or cutover because Windows task XML omits default RunLevel/Enabled fields.
+The bounded fix reads effective settings through an unregistered native task
+definition, cross-checks action/principal bindings, and retains ownership and
+least-privilege guards. Native lifecycle/recovery fixture passes (one test,
+28.86 seconds). Actual read-only shadow Observe on the Production target passes,
+verifying the existing successful managed promotion, owner, Node hash and 8,570
+protected files without task registration, permission changes or database writes.
+Its diagnostic summary's managedRuntimeVerified flag incorrectly checks a
+PowerShell hashtable through PSObject.Properties; the nonempty previous promotion
+ID and successful native ManagedRuntime verification are the authoritative proof.
+Do not treat that summary flag as activation evidence. Publish this fix through
+actual configured CI before fresh Production preparation. ADR 0069 remains a
+proposal until the owner's exact decision binds the audit-only source commit.
+
+Earlier paragraphs below are historical checkpoints.
+
+The Git-profile platform correction is live: source `c0471d2...`, manifest
+`2ed37f31f595270c12dc1dffc441ff6974fa79c1e1fe6e45106be63c0350bb31`.
+Its full CI and independent Apply pass, with HTTP/UI 200, preserved siblings
+and no database write. A new customer source upload then exposed the service
+account's five-second Git read deadline. Exact LOCAL SERVICE reproduction kills
+the initial identity read at 5,041 ms; with the same restricted environment and
+a bounded longer observation it succeeds at 19,998 ms. Warm reads and complete
+isolated import then pass in roughly one second. Central repository and Production
+remain unchanged. The follow-up makes this read deadline explicit in the Git
+profile (30 seconds, validated range 5–60 seconds), shared by controller and
+builder identity checks. Require its actual configured CI/activation before the
+next customer retry. No test assertions or test deadlines are changed by this fix.
+
+The sixth actual DevSetu pipeline succeeded at 02:17 IST on 2026-10-28, source
+`53ea0214f4fb1e4e13369256d471122a94a0ad3d`, active manifest
+`accdf66214a481a477334f6c33fc254f8813002c8d4f5ecaeeb884a57337d50f`.
+All 77 cached test files and coverage gates pass. The independent native Apply
+receipt verifies HTTP/UI 200, preserved siblings and no database write.
+
+The subsequent full Servix Development request failed before source publication.
+Read-only server20 SYSTEM diagnostics identify the compatibility adapter's fixed
+Git launcher timing out, including `--version`; the installed direct executable
+reads version, configured repository identity and source head in under 100 ms.
+The compatibility controller and builder now consume that executable/repository
+identity from the versioned build profile. This correction needs a new actual
+configured platform build/activation before retrying customer deployment. No
+customer build or new Production mutation occurred. Earlier observations below
+are historical checkpoints, not the current live outcome.
+
+On 2026-10-28 the owner restored VPN/desktop access. Server20 HTTP/SMB and
+server21 API probes now pass. The previous request and native job both reconcile
+as failed; active platform manifest remains `a4c5e8ab...`. All six previously
+failing native files pass together in the restricted installed Node/pnpm
+environment (15 tests, 224.95 seconds). This does not replace the required
+configured full CI result. Free RAM remains low (464 MB of 16 GB observed), so
+coverage projects now execute sequentially and Windows UI/contracts tests use
+one worker, matching the existing control-plane Windows worker bound. No assertions,
+coverage thresholds or independent acceptance tests are removed. The next
+configured publication/build must pass before platform activation or a new
+customer release. The historical interruption below remains as evidence.
+
+The fifth configured build of `1a7a31ff...` completed all native files except
+the two PostgreSQL integration suites. Exact restricted-environment reproduction
+identified Docker OCI `resource temporarily unavailable`, before test databases
+could start. The repository-owned local Caddy test proxy had 16,068 processes.
+Its scoped restart reduced that to 18 without restarting Docker or touching
+server20/server21; the same two suites then pass all 22 tests. The sixth actual
+UI-created request `pr_569e11398745b52b96aa39217ad8e92d` is building source
+`53ea0214f4fb1e4e13369256d471122a94a0ad3d`. Its tree is identical to `1a7a31ff...`;
+the configured publisher records a new change-message commit. Require that
+request's full CI, package and independent activation receipts before proceeding.
+
+The owner now requests the complete source → frontend/backend Development →
+Production flow and subsequent updates. Branch `codex/servix-full-release`,
+base `a51e97c20dc27ce047cb54ef54a4ef343a5a5b22`, continues the same bounded
+Phase 4 deployment capability. [ADR 0067](adr/0067-complete-application-release-promotion.md)
+supersedes the initial backend-only/first-adoption boundaries while retaining
+all approvals, preservation and runtime ownership checks. Earlier final handoff
+changes are retained. No new Production application activation has occurred.
+At the historical 2026-10-27 interruption, configured source was
+`b91f8423771a3f546445faa1b2c7b631270deaf9` on
+`codex/servix-full-release`; publication is not live activation. Four UI-created
+attempts have stopped in native CI. Two identified harness defects are corrected,
+but the latest run still has six failing native test files. VPN/server20/server21
+access was unavailable, the desktop was locked, and a local observation showed
+335 MB free RAM of 16 GB with CPU 81%. Unlock/VPN input was pending. Reconcile the
+same failed request after reconnecting, reproduce the remaining failures on a
+stable host, and require a successful configured build before proceeding. No
+new customer Development release or fresh full-application Production review
+has yet been prepared. See the handoff for exact request IDs, validation and limits.
+
+Read-only diagnosis confirms server20 Git and local configured source at
+`e04137b4a862e8760a59b95da7e0de9a32bc6d38`, the exact latest backend bundle in
+Production, and an older public frontend. Development includes the newer chip,
+resizing and contextual filter UI; its built-in Development URL prevents direct
+safe promotion. New builds use same-origin routing and component digests.
+Implementation and validation are underway; do not claim complete-flow live
+acceptance until the actual receipts and public file checks are recorded.
+The earlier three configured platform attempts stopped in CI before activation. Reproduction
+isolated a new unit fixture's missing computer-name input under the restricted
+builder environment. Its measured-OS-identity correction passes in that same
+environment. A separate existing UI native-encryption integration test exceeded
+its five-second JavaScript default; only that native test receives a bounded
+30-second allowance and ACL children a 15-second deadline. All 93 UI tests and
+coverage then pass in the restricted environment. Production checks and
+independent acceptance tests are unchanged.
+The owner reserves dashboard/filter/resize manual checks for themselves and
+subsequently confirmed these changes already appear on Development. Under
+[ADR 0068](adr/0068-existing-development-source-acceptance.md), verify the same
+customer source and new technical release gates without waiting for another
+duplicate visual check. A fresh exact Production decision remains required;
+the owner will perform their functional check after Production activation. See the
+[application-release handoff](SERVIX_APPLICATION_RELEASE_HANDOFF.md).
+
+## Servix Production deployment completed — PASS
+
+The actual visible DevSetu activation
+`pm_9b481b3a94f1227d77373247b1d350db` succeeded at 19:13:42 IST on
+2026-10-27. It consumed the owner-confirmed fresh review
+`pm_6ef8e1c91fe2ba73759fe0ff248dfab6` and selected the same tested compiled
+backend bundle `5ff7622a9f316edbe0485c47f179f6c1bccac75241e6540f1d0079b11172fb0c`.
+No customer rebuild, dependency/runtime upgrade, frontend/IIS replacement or
+Production database restore occurred. Normal app startup effects were approved.
+
+The receipt verifies health and all 8,587 protected files. Independent public
+TLS health/full readiness and three original attachment byte/hash checks pass.
+The public Servix login page renders. Independent target files confirm bundle
+selection, the exact descriptor and runtime configuration hash. The new managed
+listener is PID 18504, the same existing owner SID; the task
+`DevSetu-ServixProduction-Backend` resolves to EESL\APPC0024, least privilege,
+password logon and a boot trigger with 30-second delay. No batch-logon right was
+added. Boot configuration is verified; an actual reboot was not performed.
+
+The matching fresh encrypted backup and its complete isolated restore passed
+before cutover: MySQL 8.0.28, 114 tables, one view, 213,131 rows, full SQL digest
+verified and temporary data/task removed. The immutable preparation marker
+predates the separate restore; its later proof is explicitly in the approval
+change record. Code recovery retains the verified original source; a destructive
+Production rollback/DB restore was not run as a test. Retained customer dependency
+findings remain accepted and unresolved. Authenticated customer workflows were
+not exercised; public rendering, readiness, original attachments and the complete
+protected inventory were verified. Broader Phase 4 exit and later managed
+Production upgrades/rollback remain separate work. See the final
+[handoff](SERVIX_PRODUCTION_PROMOTION_HANDOFF.md) for exact receipts and limits.
+
+## Production execution accepted (2026-10-27, 19:10 IST)
+
+Fresh preparation `pm_6ef8e1c91fe2ba73759fe0ff248dfab6` matches the approved
+target/configuration, owner, original PID 10760, artifact and all 8,587 protected
+files exactly. Its review SHA is
+`893b8daffcaf68b8a273212b93b75adf30f1de6133500e3805fe0b875cef0d70`.
+Fresh backup SHA `bcaf96bcd603d95e8ec1498ef81269999f0ba568060240dc07a2ce25713b40c7`
+passes full integrity and a separate matching native restore: 114 tables, one
+view, 213,131 rows. Proof SHA is
+`660501e4a98be10dec6082b5e189440a60ab9ff801f9d35d6aafb9d890e59d2f`;
+temporary restore data/task removed. No Production database restore was run.
+
+With the owner's explicit same-scope confirmation, the actual visible UI's five
+acknowledgments were recorded and exact activation
+`pm_9b481b3a94f1227d77373247b1d350db` was accepted. It is working at
+`adopting-reviewed-owner-and-promoting-backend`; this is not yet proof of success.
+Follow this same job to its terminal receipt; do not submit a duplicate after
+an observation timeout. Final public health/attachments, managed-task identity
+and preserved-file verification remain required.
+
+## Owner-confirmed execution resumed (2026-10-27, 18:55 IST)
+
+The owner explicitly answered the task-binding review confirmation with approval
+for the same exact target/account/artifact scope. The earlier review expired;
+it was closed without approval or mutation. Visible DevSetu preparation
+`pm_6ef8e1c91fe2ba73759fe0ff248dfab6` is queued for a fresh observation and
+backup. Verify that its target, runtime owner, bundle and configuration remain
+the same before recording this human confirmation against the new exact review.
+Repeat the matching-backup recovery check. Public readiness and original served
+attachment bytes pass at 18:56 IST. No Production process stop has occurred yet.
+
+## Current Production review ready (2026-10-27, 18:45 IST)
+
+Actual DevSetu publication `pr_7a6a6e4b7a8b7dc75cf37a6d3260a9b2` succeeded from
+source `a51e97c20dc27ce047cb54ef54a4ef343a5a5b22`; active manifest is
+`a4c5e8ab2a0f7c97f1762455e5e6c67c68d21ac652754e19300d3d5ef48bd461`.
+Full configured CI passed. Independent native Apply is PASS, UI HTTP 200,
+databaseWritten=false. The private-backup DTO and safe builder diagnostics are
+now live.
+
+Visible preparation `pm_3cac9475b29bbc1974578dc68ccec70e` succeeded. It observes
+the original PID 10760, existing owner/Node and already-ready batch logon, with
+8,587 protected files. Fresh backup SHA is
+`b26b2eb70ab24a7d7032bdb343f27520071b73353d21c17e1b50cbd2650abc22`,
+443,471,538 encrypted bytes, captured at 18:34:04 IST. Full-stream integrity
+passes. A separate scoped native diagnostic restored this exact backup on
+isolated MySQL 8.0.28: 114 tables, one view, 213,131 rows, matching whole-SQL
+digest and table/view counts. Its temporary data and task were removed; no
+Production database or application file was written. The immutable preparation
+snapshot predates this external diagnostic; its isolatedRestoreTested=false
+marker was not rewritten. The exact UI change record includes the later proof
+SHA `3db01e6bc90bce4d9cd905f4e04bf507bda0c9d3121d5918e56f0398ef9a463f`.
+
+Exact review SHA `a61ff61beab0709b65a6da8deae7acbb950f51dca684d94092173ad9828bfd1d`
+expires at 18:49:04 IST. The owner was asked for action-time confirmation of the
+new same-owner startup-task credential binding. No approval acknowledgments,
+task binding, process stop or Production cutover have been performed. Public
+health/full readiness and three original served attachment hashes pass again.
+Continue only with valid exact review and confirmation; expired review requires
+fresh preparation. See the detailed handoff below.
+
+At 18:51 IST, authenticated read-only observation confirms the worker online,
+the same prepared result, no approval/cutover job, and an expired exact review.
+The required task-binding confirmation is still unanswered. Do not regenerate
+backups repeatedly while waiting; resume fresh preparation when the owner is
+available for the final confirmation. Production activation remains unperformed.
+
+## Saved backend Production promotion (platform live, cutover pending, 2026-10-27)
+
+The visible configured platform pipeline `pr_75dfac707e77900bd3b61db2e2b5ea01`
+published source `6e4478604805a196556c70f81e281f873b2fcb70` and activated manifest
+`bb0a2d8e09a55f3f45819d627da4d2f5f3eec9de3cc5b80ea5b851c01f8e0d57`.
+Independent native Apply reports PASS, HTTP/UI 200, no operator database write
+and sibling IIS preservation. The first build failed because its enrolled
+packager omitted the new modules; a reviewed two-file operator update preserved
+the builder task and credential bytes, and the actual retry succeeded.
+
+The actual new Production page reports its worker online. Preparation
+`pm_8bcdd4bee32b23e623f8bf26b141e3e6` stopped safely before backup/cutover:
+the existing Node executable uses the version manager junction
+`C:\Program Files\nodejs` to `C:\nvm\v20.11.1`. Read-only diagnostics found no
+links in the inspected customer data. [ADR 0066](adr/0066-canonical-promotion-runtime-identity.md)
+pins the same canonical executable and verifies the observed process resolves
+to it, retaining customer/staging link denials. That correction passed the full
+358-test configured CI gate and is live. Actual read-only observation verified
+PID 10760, owner `EESL\APPC0024`, Node 20.11.1, existing batch-logon readiness and
+8,572 protected files. Earlier configured CI attempts failed; normal and exact
+minimal-environment CI passed, then an identity-verified idle builder restart
+and fresh configured run succeeded. The failure cause is not fully established;
+no test/gate was bypassed.
+
+Preparation `pm_430c1fb0df00a6a011c9a03e7ea67b9a` passed the runtime inventory,
+then its official MySQL archive download failed. The already verified official
+8.0.28 archive was imported into the worker cache with its exact configured
+checksum; four required files and actual client loading passed. Preparation
+`pm_f99f5c7b32585b2e951752bcc114a89b` then reached private DB binding but its
+inline JavaScript invocation failed. Replace it with a hash-pinned file helper.
+ASCII JSON escaping preserves private Unicode values across PowerShell 5.1
+console code pages in both directions. Actual server21 read-only binding and
+encrypted PSCredential transport pass; a real native helper/backup-wrapper
+regression passes without reporting credential values. Publish this bounded
+correction through DevSetu before repeating preparation. No Production runtime
+stop, task credential binding, environment write or permission grant occurred.
+
+The first configured file-helper run passed its new native regression but failed
+the unchanged device-enrollment test. That test passes alone. Serialize backend
+test files on Windows to reduce shared Task Scheduler/CIM contention; every test,
+assertion, timeout, coverage threshold and audit gate remains enabled. Require a
+fresh full configured CI before activation; the underlying intermittent failure
+is not claimed fully diagnosed.
+
+The serial configured run above passed full CI and activated the file-helper
+correction. Preparation `pm_0f3777dd9d4ad2996a3aaf1f2e5ab056` then stopped
+before backup at private payload serialization: PowerShell path/hash output
+objects introduced reflection metadata. Use a fixed native DTO with typed string
+and integer fields; retain private JSON escaping and the same wire schema. The
+expanded real PowerShell regression includes path/hash/client metadata, and an
+actual server20/server21 private binding plus full payload-shape check passes.
+Add explicit private-binding/encoding stages and retain only known safe failure
+stage names. Publish this correction through the configured gate, then prepare
+again. Production cutover and its task credential binding remain pending.
+
+The owner explicitly requests completing the missing runner and deploying through
+DevSetu. [ADR 0065](adr/0065-configured-saved-backend-production-promotion.md)
+authorizes this bounded follow-up. Implement a separate configured, reviewed
+saved-artifact promotion worker, fresh encrypted backup, same-owner runtime
+adoption and preservation/recovery. Keep the legacy Development exclusions,
+customer dependency versions and frontend/IIS intact. Full `pnpm.cmd run ci`
+passes with 357 tests and unchanged coverage gates. The actual Windows matching
+MySQL 8.0.28 dump/DPAPI/full-stream verification/isolated restore fixture passes;
+all 48 native operator scripts parse. A SID-only application of the unchanged
+private ACL also fixes the observed offline-domain native secret test failure.
+Standalone native-protocol execution exposed a Windows ESM path error; using
+file URLs fixes it. Actual native validation/sealing/tamper/expiry tests and the
+final packaged executor authorization against isolated PostgreSQL pass. The exact
+worker's four-file matching MySQL client extraction/load check also passes.
+Earlier VPN interruptions were resolved and actual history was inspected before
+the successful publication above. The local ancestry-only merge
+`2ca0759aa75f23b453fef72f25d8f30923728c2d`
+reconciles main's owner squash with central Git without changing accepted code
+or the 42 working files. Production activation remains pending; see the
+[promotion handoff](SERVIX_PRODUCTION_PROMOTION_HANDOFF.md).
+
+The DTO publication attempt `pr_7346423a9ed268e889ae2012ab0814b4` failed before
+activation from source `51eb92751058383186dfc4800c46bff98aa37135`. Its frozen
+Vitest cache identifies `environment-seal.test.ts`. An isolated reproduction
+fails to load the Windows PowerShell security module when inheriting the parent
+PowerShell module path; the same two tests pass with the Windows 5.1 module path.
+Pin that path in the minimal native builder environment. Add bounded failure
+metadata (fixed phase/codes and source locations only), never raw child output
+or command lines. Five focused executor tests pass. Full local `pnpm.cmd run ci`
+exits 0: 361 tests, build and audit gate pass (5 low/6 moderate platform findings).
+The identity-verified existing builder now has the reviewed adapter, with its
+credential value/scope, task and permissions unchanged; encrypted before-files
+and a flushed maintenance intent are retained. The actual configured publication
+is still required. The final live connection check on 2026-10-27 at 17:52 IST
+times out for HTTP/SMB/WinRM on both servers; the visible UI reports systems
+offline. Production remains untouched.
+
+At 18:05 IST the owner reconnected VPN. Fresh TCP checks pass for HTTP/SMB on
+both servers and authenticated observations report the enrolled platform builder
+and destination online. Resume the same configured publication, then fresh
+Production preparation and exact review. Earlier blocked observations remain
+historical evidence; no Production activation has occurred.
+
+## Servix Production configuration (destination pending, 2026-10-26)
+
+The owner subsequently logged into the adjacent DevSetu browser and delegated
+the current configuration/review work. Through that visible authenticated UI,
+`servix-production` revision 1 was saved in DevSetu Internal: server21,
+`D:\Servix`, `https://support.eesl.co.in/`, the existing central Servix repository,
+and the five backend preservation paths. Test connection at 23:17:45 IST reports
+preservation passed and destination pending. No Production adapter is enrolled;
+no Production approval, activation, task, credential binding or permission change
+was created. The existing Development configuration remains revision 3.
+See [ADR 0064](adr/0064-visible-production-configuration.md) and the
+[guided Production plan](SERVIX_PRODUCTION_DEPLOYMENT_PLAN.md).
+
+## Earlier Servix Production readiness (2026-10-26)
+
+Owner direction: defer library/application changes and plan the retained artifact
+with existing dependencies. All future configuration and deployment must be
+through DevSetu, visibly with the owner. That earlier step authorized planning;
+the subsequent visible configuration result above supersedes its plan-only limit.
+The dependency findings remain recorded for final
+risk/approval review. See the [guided Production plan](SERVIX_PRODUCTION_DEPLOYMENT_PLAN.md).
+
+Branch `codex/servix-production-readiness` starts at merged main
+`5730940fe6c40cc3eb5002ef6beaa564c9571e5f`. Read-only checks preserve the original
+Production PID/owner, 8,542 original protected files, eleven environments and
+IIS; all 85 recovery-source files match the retained unapproved backend candidate.
+Public TLS health is HTTP 200. Production is not a connected DevSetu target.
+
+An encrypted CurrentUser-DPAPI backup of MySQL 8.0.28 passes full-stream integrity
+and isolated restore: 114 tables, one view, 212,077 rows and matching schema.
+Production application/database/permissions were not changed. Same-owner task
+XML parses on target, but batch-logon readiness is unproven; no task was registered.
+
+Fresh runtime lock audits: Development backend 6 moderate/19 high/3 critical,
+Production backend 6 moderate/26 high/3 critical, and QuerySafe on both targets
+3 moderate/3 high/1 critical. QuerySafe locks/root versions match; 22/25 backend
+root versions match. Functional Development success was not a clean customer
+security audit. The owner has deferred upgrades for this plan; runtime adoption,
+final risk acknowledgement and fresh Production approval remain separate gates.
+See [Production readiness](SERVIX_PRODUCTION_READINESS.md).
 
 ## GitHub main integration (owner-authorized PR preparation, 2026-10-26)
 
@@ -24,6 +843,13 @@ Reuse the existing strict Windows/POSIX literal-path validator for authenticated
 executor bindings, retaining traversal/relative/control-character/root denial.
 This does not broaden Windows-only service/native activation recipes or claim
 Linux desktop/onboarding/browser acceptance.
+
+The human owner subsequently squash-merged PR #38 at
+`5730940fe6c40cc3eb5002ef6beaa564c9571e5f` after exact-head GitHub CI run
+`40277221413` passed (340 applicable Linux tests and unchanged coverage/image/
+audit gates). Native Windows CI had passed all 346 tests; targeted Windows
+contract/component checks passed after the final root correction. This merge
+did not activate those integration fixes on server20 or change Servix Production.
 
 ## Configurable agents and measured health (bounded live pilot PASS, 2026-10-26)
 

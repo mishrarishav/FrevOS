@@ -28,7 +28,15 @@ export function healthSegments(points: SystemHealthPoint[], metric: "cpu" | "mem
   if (current.length) segments.push(current);
   return segments;
 }
-export function HealthGraphs({ points, online }: { points: SystemHealthPoint[]; online: boolean }) {
+export function HealthGraphs({
+  points,
+  online,
+  cpuSupported = true,
+}: {
+  points: SystemHealthPoint[];
+  online: boolean;
+  cpuSupported?: boolean;
+}) {
   const end = Math.max(Date.now(), ...points.map((p) => Date.parse(p.at)));
   return (
     <section aria-label="System utilization graphs">
@@ -104,7 +112,11 @@ export function HealthGraphs({ points, online }: { points: SystemHealthPoint[]; 
                   {new Date(end).toLocaleTimeString()}
                 </text>
               </svg>
-              {!segments.length ? <p>Waiting for measured samples.</p> : null}
+              {metric === "cpu" && !cpuSupported ? (
+                <p>System-wide CPU measurement is unavailable on this Android connector.</p>
+              ) : !segments.length ? (
+                <p>Waiting for measured samples.</p>
+              ) : null}
             </figure>
           );
         })}

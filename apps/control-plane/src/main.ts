@@ -1,5 +1,9 @@
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { ProjectFolderSearchJob } from "@frevos/contracts";
+import { AgentNotifications } from "./agent-notifications.js";
+import { AgentWorkspace } from "./agent-workspace.js";
+import { ArtifactPromotions } from "./artifact-promotions.js";
 import { ComponentDeployments } from "./component-deployments.js";
 import { loadConfig } from "./config.js";
 import { registerControlCenter } from "./control-center.js";
@@ -10,6 +14,7 @@ import { DeveloperConnectorStore } from "./developer-connectors.js";
 import { GithubOnboardingRepository } from "./github-onboarding.js";
 import { LocalAccounts } from "./local-accounts.js";
 import { LocalDevelopment } from "./local-development.js";
+import { ProtectedModelSecrets } from "./model-secrets.js";
 import { OpenIdClientProvider } from "./oidc.js";
 import { ProjectAutomationRepository } from "./project-automation.js";
 import { IdentitySessionRepository, WorkspaceRepository } from "./repositories.js";
@@ -18,13 +23,20 @@ import { buildServer } from "./server.js";
 import {
   ServixDeploymentError,
   ServixDeploymentStore,
+  loadServixExecutionProfile,
   servixExecution,
 } from "./servix-deployment.js";
 import { SystemDiscovery } from "./system-discovery.js";
-import { AgentWorkspace } from "./agent-workspace.js";
-import { ProtectedModelSecrets } from "./model-secrets.js";
-import { AgentNotifications } from "./agent-notifications.js";
-import type { ProjectFolderSearchJob } from "@frevos/contracts";
+import {
+  isDiscoveryAdministrator,
+  loadDiscoveryAccessPolicy,
+  requireDeviceLoginOrigin,
+} from "./discovery-access.js";
+import { DeviceLogins } from "./device-logins.js";
+import { JoinRequests } from "./join-requests.js";
+import { loadPreviewConfig, PreviewRelay } from "./preview-relay.js";
+import { loadRepositoryHosting, RepositoryCenter } from "./repository-center.js";
+import { GitDesktop } from "./git-desktop.js";
 
 const config = loadConfig(process.env);
 const pool = createDatabasePool(config.databaseUrl);
@@ -37,6 +49,12 @@ try {
   let componentDeployments: ComponentDeployments | undefined;
   let localDevelopment: LocalDevelopment | undefined;
   let systemDiscovery: SystemDiscovery | undefined;
+  let deviceLogins: DeviceLogins | undefined;
+  let joinRequests: JoinRequests | undefined;
+  let artifactPromotions: ArtifactPromotions | undefined;
+  let previewRelay: PreviewRelay | undefined;
+  let repositoryCenter: RepositoryCenter | undefined;
+  let gitDesktop: GitDesktop | undefined;
   const agentWorkspaces = new Map<string, AgentWorkspace>();
   const notifications = new Map<string, AgentNotifications>();
   const agentNotifications = (workspaceId: string) => {
@@ -177,9 +195,11 @@ try {
     return service;
   };
   if (config.servixRoot) {
+    const operator = fileURLToPath(new URL("../../../deployment/servix/", import.meta.url));
     const execution = servixExecution(
       config.servixRoot,
-      fileURLToPath(new URL("../../../deployment/servix/", import.meta.url)),
+      operator,
+      await loadServixExecutionProfile(operator),
     );
     const allowed = async (actor: string) => {
       const evidence = await new WorkspaceRepository(pool).getEvidence("ws_server20", actor);
@@ -192,6 +212,26 @@ try {
     deploymentSettings = new DeploymentSettingsStore(
       join(config.servixRoot, "jobs", "configuration"),
       allowed,
+    );
+    const approvedSettings = deploymentSettings;
+    const discoveryPolicy = await loadDiscoveryAccessPolicy(
+      join(operator, "DiscoveryAccessPolicy.json"),
+    );
+    requireDeviceLoginOrigin(config.publicOrigin, discoveryPolicy.deviceLoginMethod);
+    if (discoveryPolicy.workspaceId !== "ws_server20")
+      throw new ServixDeploymentError("discovery-access-policy-workspace-denied", 403);
+    const discoveryAdministrator = async (actor: string) =>
+      isDiscoveryAdministrator(
+        discoveryPolicy,
+        actor,
+        await new WorkspaceRepository(pool).getEvidence(discoveryPolicy.workspaceId, actor),
+      );
+    artifactPromotions = new ArtifactPromotions(
+      join(config.servixRoot, "jobs", "promotions"),
+      "ws_server20",
+      fileURLToPath(new URL("../../../deployment/servix/PromotionRegistry.json", import.meta.url)),
+      async (actor) => await allowed(actor),
+      (id) => approvedSettings.profile(id),
     );
     componentDeployments = new ComponentDeployments(
       join(config.servixRoot, "jobs", "components"),
@@ -218,12 +258,52 @@ try {
         ((await componentDeployments?.sourceRequestActive(id, actor, deviceId)) ?? false),
       deploymentSettings,
       componentDeployments,
+      discoveryAdministrator,
+      true,
     );
     componentDeployments.connect(developerConnectors);
+    deviceLogins = new DeviceLogins(
+      join(config.servixRoot, "jobs", "device-logins"),
+      discoveryPolicy.workspaceId,
+      developerConnectors,
+      discoveryAdministrator,
+      undefined,
+      (principal) => new IdentitySessionRepository(pool).localCredentialVersion(principal),
+      discoveryPolicy.deviceLoginMethod,
+    );
     localDevelopment = new LocalDevelopment(
       join(config.servixRoot, "jobs", "local-development"),
       developerConnectors,
     );
+    const hosting = await loadRepositoryHosting(
+      join(config.servixRoot, "config", "repository-hosting.json"),
+    );
+    if (hosting) {
+      if (hosting.workspaceId !== discoveryPolicy.workspaceId)
+        throw new Error("repository-hosting-workspace-mismatch");
+      repositoryCenter = new RepositoryCenter(
+        hosting,
+        new ProtectedModelSecrets(
+          join(config.servixRoot, "private", "repository-hosting", hosting.workspaceId, "secrets"),
+        ),
+        join(config.servixRoot, "jobs", "repository-center"),
+      );
+    }
+    const previewConfig = await loadPreviewConfig(
+      join(config.servixRoot, "config", "preview-relay.json"),
+      config.publicOrigin,
+    );
+    if (previewConfig) {
+      if (previewConfig.workspaceId !== discoveryPolicy.workspaceId)
+        throw new Error("preview-workspace-mismatch");
+      previewRelay = new PreviewRelay(
+        previewConfig,
+        config.publicOrigin,
+        join(config.servixRoot, "jobs", "local-development", "preview-audit"),
+        localDevelopment,
+        developerConnectors,
+      );
+    }
     systemDiscovery = new SystemDiscovery(
       join(config.servixRoot, "jobs", "discovery"),
       developerConnectors,
@@ -243,6 +323,20 @@ try {
             : [],
         };
       },
+    );
+    gitDesktop = new GitDesktop(
+      join(config.servixRoot, "jobs", "git-desktop"),
+      developerConnectors,
+      (actor, id) => systemDiscovery!.folders(actor, id),
+      repositoryCenter,
+    );
+    joinRequests = new JoinRequests(
+      join(config.servixRoot, "private", "join-requests"),
+      discoveryPolicy.workspaceId,
+      new IdentitySessionRepository(pool),
+      developerConnectors,
+      systemDiscovery,
+      discoveryAdministrator,
     );
     servixDeployment = new ServixDeploymentStore(
       config.servixRoot,
@@ -278,11 +372,17 @@ try {
     automation: new ProjectAutomationRepository(pool),
     githubOnboarding: new GithubOnboardingRepository(pool),
     ...(servixDeployment === undefined ? {} : { servixDeployment }),
+    ...(artifactPromotions === undefined ? {} : { artifactPromotions }),
     ...(developerConnectors === undefined ? {} : { developerConnectors }),
     ...(deploymentSettings === undefined ? {} : { deploymentSettings }),
     ...(componentDeployments === undefined ? {} : { componentDeployments }),
     ...(localDevelopment === undefined ? {} : { localDevelopment }),
+    ...(previewRelay === undefined ? {} : { previewRelay }),
+    ...(repositoryCenter === undefined ? {} : { repositoryCenter }),
+    ...(gitDesktop === undefined ? {} : { gitDesktop }),
     ...(systemDiscovery === undefined ? {} : { systemDiscovery }),
+    ...(deviceLogins === undefined ? {} : { deviceLogins }),
+    ...(joinRequests === undefined ? {} : { joinRequests }),
     ...(config.servixRoot ? { agentWorkspace } : {}),
     ...(systemDiscovery
       ? {
@@ -315,9 +415,12 @@ try {
     server,
     fileURLToPath(new URL("../../control-center/dist/", import.meta.url)),
     config.basePath,
+    deviceLogins !== undefined,
+    previewRelay?.config.targets.map((target) => target.origin) ?? [],
   );
 
   const shutdown = async () => {
+    await previewRelay?.close();
     developerConnectors?.close();
     servixDeployment?.close();
     await server.close();
@@ -326,7 +429,18 @@ try {
   process.once("SIGINT", () => void shutdown());
   process.once("SIGTERM", () => void shutdown());
 
-  await server.listen({ host: config.host, port: config.port });
+  if (previewRelay) {
+    server.addHook("onClose", async () => {
+      await previewRelay?.close();
+    });
+    await previewRelay.listen();
+  }
+  try {
+    await server.listen({ host: config.host, port: config.port });
+  } catch (error) {
+    await server.close();
+    throw error;
+  }
 } catch (error) {
   await pool.end();
   throw error;

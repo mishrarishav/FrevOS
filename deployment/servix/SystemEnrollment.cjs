@@ -9,6 +9,8 @@ const sessionHelper = require("./SetupSession.cjs");
 const runtimeFiles = [
   "node.exe",
   "Connector.cjs",
+  "GitDesktop.cjs",
+  "FrevOS.FolderPicker.exe",
   "Preservation.cjs",
   "SystemDiscovery.cjs",
   "DiscoverySafety.cjs",
@@ -191,7 +193,7 @@ async function serve(options = {}) {
       state.defaults = { server: remote, username: body.username, fileActivity: body.fileActivity };
       state.phase = "signing-in";
       state.message = "Signing in to DevSetu…";
-      const login = await fetcher(remote + "/auth/login", {
+      let login = await fetcher(remote + "/auth/login", {
         method: "POST",
         headers: { origin: remote, "content-type": "application/json" },
         body: JSON.stringify({ username: body.username, password: body.password }),
@@ -199,11 +201,14 @@ async function serve(options = {}) {
         signal: AbortSignal.timeout(20000),
       });
       body.password = "";
+      login = await require("./Connector.cjs").completeDeviceLogin(remote, login, fetcher);
       if (login.status !== 204) throw Error("account-sign-in-failed");
       const cookies = login.headers.getSetCookie().map((v) => v.split(";")[0]);
       csrf = cookies
-        .find((v) => v.startsWith("frevos-internal-csrf="))
-        ?.slice("frevos-internal-csrf=".length);
+        .find((v) => v.startsWith("frevos-internal-csrf=") || v.startsWith("__Host-frevos-csrf="))
+        ?.split("=")
+        .slice(1)
+        .join("=");
       authCookie = cookies.join("; ");
       if (!csrf) throw Error("account-session-unavailable");
       const api = async (route, input) => {

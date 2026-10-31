@@ -1,5 +1,26 @@
 # FrevOS Permissions and Approval Model
 
+## Optional private Git engine
+
+ADR 0076 uses explicit DevSetu actor/workspace to immutable native account and
+repository mappings. A local folder, matching email, DevSetu administrator label
+or hidden button never grants native repository access. Every operation checks
+current engine identity and permission. Readers clone/pull; developers publish
+work branches and propose/review changes; maintainers manage repository access
+through the native engine and merge only after exact-head/base protection,
+non-author review and configured checks. Native clients obey the engine rules.
+
+Paired-folder jobs belong to the paired owner, workspace, device and selected
+folder. A fresh connector capability and file fingerprint gate mutations.
+Browser session/CSRF authorization is separate from connector job authorization.
+Publication credentials never cross into the paired laptop. No generic command
+or caller-supplied executable is exposed.
+
+Full backup/isolated restore additionally requires a live verified native engine
+administrator, a protected recovery-key reference, exact enrolled service/image
+and private storage. It grants no live overwrite permission. Permission grants,
+secret enrollment and live cutover retain the separate approvals in AGENTS.md.
+
 ## Purpose
 
 FrevOS uses explicit, workspace-scoped capabilities. Authentication identifies

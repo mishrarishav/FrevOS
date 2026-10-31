@@ -74,6 +74,7 @@ export const ServixDeploymentStateSchema = z
     currentRequestId: ServixRequestIdSchema.optional(),
     rollbackRequestId: ServixRequestIdSchema.optional(),
     restorableRequestIds: z.array(ServixRequestIdSchema).max(30).optional(),
+    applicationReleaseIds: z.array(ServixRequestIdSchema).max(30).optional(),
   })
   .strict();
 export type ServixDeploymentState = z.infer<typeof ServixDeploymentStateSchema>;

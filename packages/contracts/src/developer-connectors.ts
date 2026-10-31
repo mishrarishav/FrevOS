@@ -40,6 +40,7 @@ export const ConnectorRecordBaseSchema = z
       .regex(/^gitrepo_[a-f0-9]{32}$/)
       .optional(),
     mode: z.literal("system").optional(),
+    platform: z.enum(["win32", "linux", "android"]).optional(),
     profileId: DeploymentProfileIdSchema.optional(),
     name: z.string().trim().min(1).max(80),
     status: z.enum(["active", "revoked"]),
@@ -51,6 +52,7 @@ export const ConnectorRecordBaseSchema = z
     folderSelection: FolderSelectionSchema.optional(),
     folderPicker: z.boolean().optional(),
     folderBrowser: z.boolean().optional(),
+    loginProofPort: z.number().int().min(1024).max(65535).optional(),
     changeNotes: z.boolean().optional(),
   })
   .strict();
@@ -74,7 +76,7 @@ export const SystemEnrollmentStartSchema = z
     version: z.literal(1),
     deviceId: ConnectorIdSchema,
     name: z.string().trim().min(1).max(80),
-    platform: z.enum(["win32", "linux"]),
+    platform: z.enum(["win32", "linux", "android"]),
     architecture: z.enum(["x64", "arm64"]),
     fileActivity: z.boolean(),
     credentialHash: z.string().regex(/^[a-f0-9]{64}$/),
@@ -86,9 +88,10 @@ export const SystemEnrollmentPreviewSchema = z
   .object({
     version: z.literal(1),
     enrollmentId: z.string().regex(/^ep_[a-f0-9]{32}$/),
+    ownerUserId: UserIdSchema.optional(),
     deviceId: ConnectorIdSchema,
     name: z.string().max(80),
-    platform: z.enum(["win32", "linux"]),
+    platform: z.enum(["win32", "linux", "android"]),
     architecture: z.enum(["x64", "arm64"]),
     fileActivity: z.boolean(),
     expiresAt: IsoTimestampSchema,

@@ -176,7 +176,7 @@ export const SystemSampleSchema = z
       .regex(/^[a-f0-9]{64}$/)
       .nullable()
       .optional(),
-    platform: z.enum(["win32", "linux"]),
+    platform: z.enum(["win32", "linux", "android"]),
     os: text(128).min(1),
     architecture: z.enum(["x64", "arm64"]),
     cpuPercent: z.number().min(0).max(100).nullable(),
@@ -184,6 +184,7 @@ export const SystemSampleSchema = z
     memoryTotal: z.number().int().nonnegative(),
     memoryAvailable: z.number().int().nonnegative(),
     uptimeSeconds: z.number().nonnegative(),
+    batteryPercent: z.number().min(0).max(100).nullable().optional(),
     tools: z
       .array(
         z
@@ -476,6 +477,16 @@ export const DeliveryReportSchema = z
   .strict();
 export const DiscoveryStateSchema = z
   .object({
+    access: z
+      .object({
+        actorId: text(128).min(1),
+        role: z.enum(["user", "admin"]),
+        canPair: z.boolean(),
+        canManageOwnSystems: z.boolean(),
+        canManagePlans: z.boolean(),
+      })
+      .strict()
+      .optional(),
     systems: z
       .array(
         z
@@ -484,11 +495,13 @@ export const DiscoveryStateSchema = z
             name: text(120),
             userId: text(128),
             profileId: text(64).nullable(),
+            platform: z.enum(["win32", "linux", "android"]).optional(),
             status: z.enum(["active", "revoked", "workspace-access-revoked"]),
             source: ConnectorProbeSchema.nullable(),
             sourceFresh: z.boolean(),
             online: z.boolean(),
             observedAt: z.iso.datetime().nullable(),
+            lastSeenAt: z.iso.datetime().nullable().optional(),
             healthHistory: z.array(SystemHealthPointSchema).max(180).optional(),
             policy: DiscoveryPolicyRecordSchema.nullable(),
             observation: DiscoveryObservationSchema.nullable(),

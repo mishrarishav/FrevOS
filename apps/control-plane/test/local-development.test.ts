@@ -11,6 +11,29 @@ afterEach(async () => {
   for (const fn of cleanups.splice(0).reverse()) await fn();
 });
 const id = (n: number) => "ld_" + String(n).padStart(32, "0");
+it("requires an updated connector before accepting an opted-in preview service plan", async () => {
+  const f = await fixture();
+  const request = {
+    ...f.request,
+    operation: "configure" as const,
+    plan: {
+      services: [
+        {
+          id: "backend",
+          port: 5000,
+          database: "mysql" as const,
+          script: "dev" as const,
+          preview: { apiPath: "/api" },
+        },
+      ],
+    },
+  };
+  await expect(f.store.request("usr_alice", request)).rejects.toThrow(
+    "preview-connector-update-required",
+  );
+  await f.store.observe(f.alice.credential, { ...f.snapshot, previewRelay: 1 });
+  expect((await f.store.request("usr_alice", request)).status).toBe("queued");
+});
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), "devsetu-local-state-"));
   cleanups.push(() => rm(root, { recursive: true, force: true }));

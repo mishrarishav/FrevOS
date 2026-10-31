@@ -1,33 +1,31 @@
 import {
-  type NotificationState,
-  NotificationStateSchema,
-  type NotificationDraftInput,
-  type AgentNotification,
-  NotificationSchema,
-  type NotificationApprovalInput,
-  type AgentWorkspaceState,
-  AgentWorkspaceStateSchema,
-  type ModelConnectionInput,
-  type ModelProposal,
-  ModelProposalSchema,
-  type ModelCommitInput,
-  type ModelConnection,
-  ModelConnectionSchema,
-  type ModelTestResult,
-  ModelTestResultSchema,
-  type AgentInput,
-  type Agent,
-  AgentSchema,
-  type AgentRunInput,
-  type AgentRun,
-  AgentRunSchema,
-  type ActivitySettingsInput,
-  ActivitySettingsRecordSchema,
-  type ContentPreviewInput,
-  type ContentPreviewJob,
-  ContentPreviewJobSchema,
   type AccountProfile,
   AccountProfileSchema,
+  RepositoryCenterStateSchema,
+  HostedRepositorySchema,
+  RepositoryActionResultSchema,
+  type RepositoryCenterState,
+  type RepositoryAction,
+  GitDesktopStateSchema,
+  GitFolderPickerSchema,
+  type GitFolderPicker,
+  GitDesktopJobSchema,
+  type GitDesktopState,
+  RepositoryRecoveryStateSchema,
+  RepositoryRecoveryResultSchema,
+  type RepositoryRecoveryState,
+  type RepositoryRecoveryResult,
+  type ActivitySettingsInput,
+  ActivitySettingsRecordSchema,
+  type Agent,
+  type AgentInput,
+  type AgentNotification,
+  type AgentRun,
+  type AgentRunInput,
+  AgentRunSchema,
+  AgentSchema,
+  type AgentWorkspaceState,
+  AgentWorkspaceStateSchema,
   authCookiePolicy,
   type BuildResolutionInput,
   type Client,
@@ -35,8 +33,9 @@ import {
   type ConnectGithubRepositoryRequest,
   ConnectorListSchema,
   ConnectorRevocationSchema,
-  SystemEnrollmentPreviewSchema,
-  type SystemEnrollmentPreview,
+  type ContentPreviewInput,
+  type ContentPreviewJob,
+  ContentPreviewJobSchema,
   type DeliveryPlanInput,
   DeliveryPlanSchema,
   type DeploymentChange,
@@ -48,6 +47,8 @@ import {
   DeploymentSettingsSchema,
   type DeveloperConnector,
   DeveloperInviteResultSchema,
+  DeviceLoginChallengeSchema,
+  DeviceLoginCompletionSchema,
   type DiscoveryPolicyInput,
   DiscoveryPolicyRecordSchema,
   type DiscoveryState,
@@ -59,13 +60,33 @@ import {
   GithubConnectionSchema,
   type GithubDiscoveryOperation,
   GithubDiscoveryOperationSchema,
+  JoinDecisionSchema,
+  type JoinRequest,
+  JoinRequestInputSchema,
+  JoinRequestSchema,
   type LocalAccount,
+  LocalAccountSchema,
   LocalAccountsSchema,
   type LocalDevAction,
   type LocalDevJob,
   LocalDevJobSchema,
   type LocalDevState,
   LocalDevStateSchema,
+  PreviewBootstrapSchema,
+  PreviewClosedSchema,
+  type ModelCommitInput,
+  type ModelConnection,
+  type ModelConnectionInput,
+  ModelConnectionSchema,
+  type ModelProposal,
+  ModelProposalSchema,
+  type ModelTestResult,
+  ModelTestResultSchema,
+  type NotificationApprovalInput,
+  type NotificationDraftInput,
+  NotificationSchema,
+  type NotificationState,
+  NotificationStateSchema,
   PasswordChangedSchema,
   type Pipeline,
   type PipelineInput,
@@ -84,12 +105,18 @@ import {
   type ProjectRepositoryConnection,
   ProjectRepositoryConnectionSchema,
   ProjectSchema,
+  type PromotionJob,
+  PromotionJobSchema,
+  type PromotionState,
+  PromotionStateSchema,
   type ServixDeployment,
   ServixDeploymentSchema,
   type ServixDeploymentState,
   ServixDeploymentStateSchema,
   type SessionSummary,
   SessionSummarySchema,
+  type SystemEnrollmentPreview,
+  SystemEnrollmentPreviewSchema,
   type Workspace,
   WorkspaceSchema,
 } from "@frevos/contracts";
@@ -98,6 +125,8 @@ import { addBasePath } from "./routing.js";
 export type ApiFailureKind =
   | "unauthenticated"
   | "invalid-credentials"
+  | "paired-system-required"
+  | "paired-system-secure-origin-required"
   | "denied"
   | "unavailable"
   | "invalid-response";
@@ -114,6 +143,11 @@ export class ApiFailure extends Error {
     this.kind = kind;
   }
 }
+export class DeviceVerificationRequired extends ApiFailure {
+  constructor(readonly challenge: import("@frevos/contracts").DeviceLoginChallenge) {
+    super("paired-system-required");
+  }
+}
 
 export interface WorkspaceSnapshot {
   readonly workspace: Workspace;
@@ -122,6 +156,31 @@ export interface WorkspaceSnapshot {
 }
 
 export interface ControlCenterApi {
+  repositoryRecoveryState?(
+    workspaceId: string,
+    signal?: AbortSignal,
+  ): Promise<RepositoryRecoveryState>;
+  repositoryRecoveryAction?(workspaceId: string, input: unknown): Promise<RepositoryRecoveryResult>;
+  createHostedRepository?(
+    workspaceId: string,
+    input: unknown,
+  ): Promise<RepositoryCenterState["repositories"][number]>;
+  gitDesktopState?(workspaceId: string, signal?: AbortSignal): Promise<GitDesktopState>;
+  pickGitFolder?(workspaceId: string, input: unknown): Promise<GitFolderPicker>;
+  gitFolderPicker?(workspaceId: string, id: string, signal?: AbortSignal): Promise<GitFolderPicker>;
+  selectGitFolder?(workspaceId: string, input: unknown): Promise<GitDesktopState["jobs"][number]>;
+  gitDesktopAction?(workspaceId: string, input: unknown): Promise<GitDesktopState["jobs"][number]>;
+  connectGitFolder?(workspaceId: string, input: unknown): Promise<GitDesktopState["jobs"][number]>;
+  repositoryCenterState?(workspaceId: string, signal?: AbortSignal): Promise<RepositoryCenterState>;
+  repositoryDetails?(
+    workspaceId: string,
+    repositoryId: string,
+    signal?: AbortSignal,
+  ): Promise<RepositoryCenterState["repositories"][number]>;
+  repositoryAction?(workspaceId: string, input: RepositoryAction): Promise<unknown>;
+  promotionState?(workspaceId: string, signal?: AbortSignal): Promise<PromotionState>;
+  preparePromotion?(workspaceId: string, input: unknown): Promise<PromotionJob>;
+  approvePromotion?(workspaceId: string, input: unknown): Promise<PromotionJob>;
   agentState?(workspaceId: string, signal?: AbortSignal): Promise<AgentWorkspaceState>;
   agentNotifications?(workspaceId: string, signal?: AbortSignal): Promise<NotificationState>;
   draftNotification?(
@@ -138,10 +197,15 @@ export interface ControlCenterApi {
   saveAgent?(workspaceId: string, input: AgentInput): Promise<Agent>;
   runAgent?(workspaceId: string, input: AgentRunInput): Promise<AgentRun>;
   lookupSystemPairing?(workspaceId: string, code: string): Promise<SystemEnrollmentPreview>;
+  systemPairingOwners?(workspaceId: string): Promise<LocalAccount[]>;
+  requestJoin?(input: unknown): Promise<JoinRequest>;
+  joinStatus?(signal?: AbortSignal): Promise<JoinRequest>;
+  joinRequests?(workspaceId: string, signal?: AbortSignal): Promise<JoinRequest[]>;
+  decideJoin?(workspaceId: string, input: unknown): Promise<JoinRequest>;
   decideSystemPairing?(
     workspaceId: string,
     id: string,
-    input: { version: 1; digest: string; decision: "approve" | "reject" },
+    input: { version: 1; digest: string; decision: "approve" | "reject"; ownerUserId?: string },
   ): Promise<SystemEnrollmentPreview>;
   discoveryState?(
     workspaceId: string,
@@ -218,6 +282,14 @@ export interface ControlCenterApi {
   ): Promise<DeveloperConnector[]>;
   localDevelopmentState?(workspaceId: string, signal?: AbortSignal): Promise<LocalDevState>;
   localDevelopmentAction?(workspaceId: string, input: LocalDevAction): Promise<LocalDevJob>;
+  previewOpen?(
+    workspaceId: string,
+    input: { deviceId: string; serviceId: string },
+  ): Promise<{ action: string; ticket: string }>;
+  previewClose?(
+    workspaceId: string,
+    input: { deviceId: string; serviceId: string },
+  ): Promise<unknown>;
   revokeDeveloperConnector?(workspaceId: string, deviceId: string): Promise<{ revoked: true }>;
   chooseConnectorFolder?(
     workspaceId: string,
@@ -378,6 +450,12 @@ export function createControlCenterApi(
   };
 
   return {
+    promotionState: (ws, signal) =>
+      get(`${workspacePath(ws)}/artifact-promotions`, PromotionStateSchema, signal),
+    preparePromotion: (ws, input) =>
+      post(`${workspacePath(ws)}/artifact-promotions/prepare`, input, PromotionJobSchema),
+    approvePromotion: (ws, input) =>
+      post(`${workspacePath(ws)}/artifact-promotions/approve`, input, PromotionJobSchema),
     agentNotifications: (ws, signal) =>
       get(`${workspacePath(ws)}/agents/notifications`, NotificationStateSchema, signal),
     draftNotification: (ws, input) =>
@@ -398,6 +476,46 @@ export function createControlCenterApi(
       ),
     saveAgent: (ws, input) => post(`${workspacePath(ws)}/agents/configuration`, input, AgentSchema),
     runAgent: (ws, input) => post(`${workspacePath(ws)}/agents/runs`, input, AgentRunSchema),
+    repositoryRecoveryState: (ws, signal) =>
+      get(`${workspacePath(ws)}/repository-center/recovery`, RepositoryRecoveryStateSchema, signal),
+    repositoryRecoveryAction: (ws, input) =>
+      post(
+        `${workspacePath(ws)}/repository-center/recovery`,
+        input,
+        RepositoryRecoveryResultSchema,
+      ),
+    createHostedRepository: (ws, input) =>
+      post(`${workspacePath(ws)}/repository-center/create`, input, HostedRepositorySchema),
+    gitDesktopState: (ws, signal) =>
+      get(`${workspacePath(ws)}/git-desktop`, GitDesktopStateSchema, signal),
+    pickGitFolder: (ws, input) =>
+      post(`${workspacePath(ws)}/git-desktop/pick`, input, GitFolderPickerSchema),
+    gitFolderPicker: (ws, id, signal) =>
+      get(
+        `${workspacePath(ws)}/git-desktop/pick/${encodeURIComponent(id)}`,
+        GitFolderPickerSchema,
+        signal,
+      ),
+    selectGitFolder: (ws, input) =>
+      post(`${workspacePath(ws)}/git-desktop/select`, input, GitDesktopJobSchema),
+    gitDesktopAction: (ws, input) =>
+      post(`${workspacePath(ws)}/git-desktop/actions`, input, GitDesktopJobSchema),
+    connectGitFolder: (ws, input) =>
+      post(`${workspacePath(ws)}/git-desktop/connect`, input, GitDesktopJobSchema),
+    repositoryCenterState: (workspaceId, signal) =>
+      get(`${workspacePath(workspaceId)}/repository-center`, RepositoryCenterStateSchema, signal),
+    repositoryDetails: (workspaceId, id, signal) =>
+      get(
+        `${workspacePath(workspaceId)}/repository-center/${encodeURIComponent(id)}`,
+        HostedRepositorySchema,
+        signal,
+      ),
+    repositoryAction: (workspaceId, input) =>
+      post(
+        `${workspacePath(workspaceId)}/repository-center/actions`,
+        input,
+        RepositoryActionResultSchema,
+      ),
     localDevelopmentState: (workspaceId, signal) =>
       get(`${workspacePath(workspaceId)}/local-development`, LocalDevStateSchema, signal),
     discoveryState: (workspaceId, signal, historyDeviceId) =>
@@ -421,6 +539,33 @@ export function createControlCenterApi(
         `${workspacePath(workspaceId)}/discovery/content/${encodeURIComponent(id)}`,
         ContentPreviewJobSchema,
         signal,
+      ),
+    systemPairingOwners: (workspaceId) =>
+      get(`${workspacePath(workspaceId)}/connectors/enrollment-owners`, LocalAccountSchema.array()),
+    requestJoin: async (input) => {
+      const response = await fetcher(addBasePath("/auth/join/request", basePath), {
+        method: "POST",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(JoinRequestInputSchema.parse(input)),
+      });
+      if (!response.ok)
+        throw new ApiFailure(response.status === 401 ? "invalid-credentials" : "unavailable");
+      return JoinRequestSchema.parse(await response.json());
+    },
+    joinStatus: (signal) => get("/auth/join/status", JoinRequestSchema, signal),
+    joinRequests: (workspaceId, signal) =>
+      get(
+        `${workspacePath(workspaceId)}/connectors/join-requests`,
+        JoinRequestSchema.array(),
+        signal,
+      ),
+    decideJoin: (workspaceId, input) =>
+      post(
+        `${workspacePath(workspaceId)}/connectors/join-requests/decision`,
+        JoinDecisionSchema.parse(input),
+        JoinRequestSchema,
       ),
     lookupSystemPairing: (workspaceId, code) =>
       post(
@@ -446,6 +591,18 @@ export function createControlCenterApi(
       post(`${workspacePath(workspaceId)}/discovery/plans`, input, DeliveryPlanSchema),
     localDevelopmentAction: (workspaceId, input) =>
       post(`${workspacePath(workspaceId)}/local-development/actions`, input, LocalDevJobSchema),
+    previewOpen: (workspaceId, input) =>
+      post(
+        `${workspacePath(workspaceId)}/local-development/preview/open`,
+        input,
+        PreviewBootstrapSchema,
+      ),
+    previewClose: (workspaceId, input) =>
+      post(
+        `${workspacePath(workspaceId)}/local-development/preview/close`,
+        input,
+        PreviewClosedSchema,
+      ),
     revokeExecutor: (workspaceId, executorId) =>
       post(
         `${workspacePath(workspaceId)}/component-deployments/executors/${encodeURIComponent(executorId)}/revoke`,
@@ -594,8 +751,52 @@ export function createControlCenterApi(
       if (response.status === 401) {
         throw new ApiFailure("invalid-credentials");
       }
+      if (response.status === 403) {
+        const value = await response.json().catch(() => null);
+        if (typeof value?.error === "string" && value.error.startsWith("paired-system-"))
+          throw new ApiFailure("paired-system-required");
+        throw new ApiFailure("denied");
+      }
+      if (response.status === 202) {
+        const challenge = DeviceLoginChallengeSchema.parse(await response.json());
+        if (challenge.method === "connector-page") throw new DeviceVerificationRequired(challenge);
+        if (typeof window !== "undefined" && !window.isSecureContext)
+          throw new ApiFailure("paired-system-secure-origin-required");
+        for (const port of challenge.ports) {
+          try {
+            const local = await fetcher(`http://127.0.0.1:${port}/device-login`, {
+              method: "POST",
+              mode: "cors",
+              credentials: "omit",
+              redirect: "error",
+              cache: "no-store",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ version: 1, challengeId: challenge.challengeId }),
+              signal: signal
+                ? AbortSignal.any([signal, AbortSignal.timeout(4000)])
+                : AbortSignal.timeout(4000),
+            });
+            if (!local.ok) continue;
+            const proof = DeviceLoginCompletionSchema.parse(await local.json());
+            if (proof.challengeId !== challenge.challengeId) continue;
+            const completed = await fetcher(addBasePath("/auth/device-login/complete", basePath), {
+              method: "POST",
+              credentials: "same-origin",
+              redirect: "error",
+              cache: "no-store",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify(proof),
+              ...(signal ? { signal } : {}),
+            });
+            if (completed.status === 204) return;
+          } catch {
+            if (signal?.aborted) throw new ApiFailure("unavailable");
+          }
+        }
+        throw new ApiFailure("paired-system-required");
+      }
       if (!response.ok) {
-        throw new ApiFailure(response.status === 403 ? "denied" : "unavailable");
+        throw new ApiFailure("unavailable");
       }
     },
     getSession: (signal) => get("/v1/session", SessionSummarySchema, signal),

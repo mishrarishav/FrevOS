@@ -6,10 +6,52 @@ const { run } = vi.hoisted(() => ({ run: vi.fn() }));
 vi.mock("node:child_process", () => ({
   execFile: Object.assign(() => undefined, { [Symbol.for("nodejs.util.promisify.custom")]: run }),
 }));
-import { servixExecution } from "../src/servix-deployment.js";
+import { loadServixExecutionProfile, servixExecution } from "../src/servix-deployment.js";
 afterEach(() => {
   vi.unstubAllEnvs();
   run.mockReset();
+});
+it("uses the enrolled Git executable and verifies its configured repository identity", async () => {
+  const root = await mkdtemp(join(tmpdir(), "servix-tool-profile-"));
+  const git = join(root, "tools", "git.exe"),
+    repository = join(root, "repository.git"),
+    repositoryId = "gitrepo_" + "d".repeat(32),
+    head = "e".repeat(40);
+  const file = join(root, "ReleaseBuildProfile.json");
+  const profile = {
+    version: 1,
+    git: { executable: git, repository, repositoryId, readTimeoutMs: 45_000 },
+    tests: [],
+  };
+  try {
+    await writeFile(file, JSON.stringify(profile));
+    const loaded = await loadServixExecutionProfile(root);
+    expect(loaded).toEqual({ git, repository, repositoryId, readTimeoutMs: 45_000 });
+    run.mockImplementation(async (_file: string, args: string[]) => ({
+      stdout: args.includes("config") ? repositoryId : head,
+      stderr: "",
+    }));
+    expect(await servixExecution(root, root, loaded).head()).toBe(head);
+    expect(run.mock.calls.every((call) => call[0] === git)).toBe(true);
+    expect(run.mock.calls.every((call) => call[2].timeout === 45_000)).toBe(true);
+    expect(run.mock.calls[1]?.[1]).toContain(`--git-dir=${repository}`);
+    run.mockResolvedValue({ stdout: "gitrepo_" + "f".repeat(32), stderr: "" });
+    await expect(servixExecution(root, root, loaded).head()).rejects.toThrow(
+      "deployment-repository-identity-mismatch",
+    );
+    await writeFile(
+      file,
+      JSON.stringify({ ...profile, git: { ...profile.git, executable: "git" } }),
+    );
+    await expect(loadServixExecutionProfile(root)).rejects.toThrow();
+    await writeFile(
+      file,
+      JSON.stringify({ ...profile, git: { ...profile.git, readTimeoutMs: 120_000 } }),
+    );
+    await expect(loadServixExecutionProfile(root)).rejects.toThrow();
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 it("keeps service and transport secrets out of the repository build process", async () => {
   vi.stubEnv("DATABASE_URL", "synthetic-private-database");

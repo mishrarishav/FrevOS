@@ -326,6 +326,7 @@ function validatePlan(plan, candidates) {
             "apiServiceId",
             "developmentEnvironment",
             "productionEnvironment",
+            "preview",
           ].includes(k),
       )
     )
@@ -342,6 +343,15 @@ function validatePlan(plan, candidates) {
       fail("local-development-invalid-plan");
     if (!["none", "mysql", "postgres", "application"].includes(service.database))
       fail("local-development-invalid-plan");
+    if (
+      service.preview &&
+      (typeof service.preview !== "object" ||
+        Object.keys(service.preview).join() !== "apiPath" ||
+        typeof service.preview.apiPath !== "string" ||
+        service.preview.apiPath.length > 120 ||
+        !/^\/[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*$/.test(service.preview.apiPath))
+    )
+      fail("local-development-invalid-preview");
     if (
       service.database === "none" &&
       (["mysql", "postgres"].includes(candidate.databaseHint) ||
@@ -690,10 +700,54 @@ class LocalDevelopmentRuntime {
       plan: this.planRecord?.plan || null,
       services,
       environmentEditor: this.environmentEditor.metadata(),
+      previewRelay: 1,
     };
   }
   hasRunning() {
     return this.controllers.size > 0;
+  }
+  async previewTarget(job) {
+    // Concurrent page assets share one fresh ownership probe, rather than
+    // queueing a separate CIM/process scan for every asset. Never reuse a
+    // completed probe across later requests or configuration changes.
+    if (!this.previewProbe) {
+      const pending = this.snapshot();
+      this.previewProbe = pending;
+      pending
+        .finally(() => {
+          if (this.previewProbe === pending) this.previewProbe = null;
+        })
+        .catch(() => {});
+    }
+    const snapshot = await this.previewProbe;
+    if (
+      job.deviceId !== this.config.deviceId ||
+      job.profileId !== snapshot.profileId ||
+      job.revision !== snapshot.revision ||
+      job.fingerprint !== snapshot.fingerprint ||
+      !snapshot.sourceReady
+    )
+      fail("local-development-preview-scope-changed");
+    const service = snapshot.plan?.services.find((s) => s.id === job.serviceId);
+    if (
+      !service?.preview ||
+      snapshot.services.find((s) => s.id === service.id)?.status !== "running" ||
+      !this.controllers.has(service.id)
+    )
+      fail("local-development-preview-unavailable");
+    const pathname = new URL(job.path, "http://localhost").pathname;
+    const apiPath = service.preview.apiPath;
+    const target =
+      service.apiServiceId && (pathname === apiPath || pathname.startsWith(apiPath + "/"))
+        ? snapshot.plan.services.find((s) => s.id === service.apiServiceId)
+        : service;
+    if (
+      !target ||
+      snapshot.services.find((s) => s.id === target.id)?.status !== "running" ||
+      !this.controllers.has(target.id)
+    )
+      fail("local-development-preview-unavailable");
+    return { port: target.port };
   }
   async stop(id) {
     const owned = this.controllers.get(id);
@@ -758,7 +812,9 @@ class LocalDevelopmentRuntime {
         "VITE_API_BASE_URL",
         "PUBLIC_API_URL",
       ])
-        values[key] = "http://localhost:" + api.port + "/api";
+        values[key] = service.preview
+          ? service.preview.apiPath
+          : "http://localhost:" + api.port + "/api";
     } else if (mode === "production" && service.database === "none" && reference)
       fail("local-development-production-api-binding-required");
     const env = {
@@ -1077,6 +1133,7 @@ class LocalDevelopmentRuntime {
 }
 function start(config, inspectRepository, api) {
   const runtime = new LocalDevelopmentRuntime(config, inspectRepository);
+  const preview = require("./PreviewRelay.cjs").start(runtime, api);
   let stopped = false,
     refreshBusy = false;
   const refresh = async () => {
@@ -1116,6 +1173,7 @@ function start(config, inspectRepository, api) {
     runtime,
     stop: async () => {
       stopped = true;
+      preview.stop();
       await runtime.close();
     },
   };

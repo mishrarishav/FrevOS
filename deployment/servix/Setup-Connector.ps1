@@ -32,9 +32,12 @@ $password=[Net.NetworkCredential]::new('unused',$secure).Password
 $session=New-Object Microsoft.PowerShell.Commands.WebRequestSession
 try{
  if($invite){Invoke-WebRequest ($server+'/v1/developers/redeem') -UseBasicParsing -Method Post -ContentType 'application/json' -Body (@{version=1;code=$invite;password=$password}|ConvertTo-Json -Compress)|Out-Null}
- Invoke-WebRequest ($server+'/auth/login') -UseBasicParsing -Method Post -ContentType 'application/json' -Headers @{Origin=$server} -WebSession $session -Body (@{username=$username;password=$password}|ConvertTo-Json -Compress)|Out-Null
+ $login=Invoke-WebRequest ($server+'/auth/login') -UseBasicParsing -Method Post -ContentType 'application/json' -Headers @{Origin=$server} -WebSession $session -Body (@{username=$username;password=$password}|ConvertTo-Json -Compress)
+ Import-Module (Join-Path $PSScriptRoot 'PairedLogin.psm1') -Force
+ Complete-DevSetuPairedLogin -Server $server -Response $login -Session $session
 }finally{$password=$null;$invite=$null;$secure=$null;$inviteSecure=$null}
-$csrf=$session.Cookies.GetCookies([uri]$server)['frevos-internal-csrf'].Value
+$csrfName=if($serverUri.Scheme -ceq 'https'){'__Host-frevos-csrf'}else{'frevos-internal-csrf'}
+$csrf=$session.Cookies.GetCookies([uri]$server)[$csrfName].Value
 $profiles=@(((Invoke-WebRequest ($server+'/v1/workspaces/ws_server20/deployment-settings') -UseBasicParsing -WebSession $session).Content|ConvertFrom-Json)|Where-Object {$_.runner -cne 'devsetu-platform' -and (-not ($_.PSObject.Properties.Name -contains 'archived') -or -not $_.archived)})
 $pipelines=(Invoke-WebRequest ($server+'/v1/workspaces/ws_server20/component-deployments') -UseBasicParsing -WebSession $session).Content|ConvertFrom-Json
 $profiles=@($profiles|Where-Object {$_.profileId -cnotin @($pipelines.profiles.profileId)})+@($pipelines.profiles|Where-Object {-not $_.archived})
@@ -82,7 +85,7 @@ $install=Join-Path $env:LOCALAPPDATA 'FrevOS\Connector'
 $destination=Join-Path $install $paired.deviceId
 if(Test-Path -LiteralPath $destination){
  if(-not $ResumeEnrollment -or (Test-Path -LiteralPath (Join-Path $destination 'device.dpapi'))){throw 'Device installation collision'}
- foreach($name in @('Connector.cjs','Preservation.cjs','Choose-Repository.ps1','RepositoryPicker.psm1','FrevOS.FolderPicker.exe','Run-Connector.ps1','BuildProcess.psm1','LocalDevelopment.cjs','LocalDevBoundary.cjs','Run-LocalDevService.ps1','LocalDevProcesses.ps1','EnvironmentEditor.cjs','Write-LocalEnvironment.ps1','DiscoverySafety.cjs','SystemDiscovery.cjs','FolderBrowse.cjs','Browse-Folders.ps1','SystemPrerequisites.cjs','SystemSetup.cjs','NodeToolchain.cjs','node.exe')){if((Get-FileHash -LiteralPath (Join-Path $destination $name)).Hash -cne (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot $name)).Hash){throw 'Interrupted installation bytes changed'}}
+ foreach($name in @('Connector.cjs','Preservation.cjs','Choose-Repository.ps1','RepositoryPicker.psm1','FrevOS.FolderPicker.exe','Run-Connector.ps1','BuildProcess.psm1','LocalDevelopment.cjs','PreviewRelay.cjs','GitDesktop.cjs','LocalDevBoundary.cjs','Run-LocalDevService.ps1','LocalDevProcesses.ps1','EnvironmentEditor.cjs','Write-LocalEnvironment.ps1','DiscoverySafety.cjs','SystemDiscovery.cjs','FolderBrowse.cjs','Browse-Folders.ps1','SystemPrerequisites.cjs','SystemSetup.cjs','NodeToolchain.cjs','node.exe')){if((Get-FileHash -LiteralPath (Join-Path $destination $name)).Hash -cne (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot $name)).Hash){throw 'Interrupted installation bytes changed'}}
 }else{[void][IO.Directory]::CreateDirectory($destination)}
 function Copy-ReviewedRuntimeFile([string]$Name){
  if($Name -cnotmatch '^[A-Za-z0-9][A-Za-z0-9.-]+$'){throw 'Runtime sidecar name differs'}
@@ -92,7 +95,7 @@ function Copy-ReviewedRuntimeFile([string]$Name){
  $bytes=[IO.File]::ReadAllBytes($source);[IO.File]::WriteAllBytes($target,$bytes)
  if((Get-FileHash -LiteralPath $target).Hash -cne (Get-FileHash -LiteralPath $source).Hash){throw 'Installed runtime bytes differ'}
 }
-foreach($name in @('Connector.cjs','Preservation.cjs','Choose-Repository.ps1','RepositoryPicker.psm1','FrevOS.FolderPicker.exe','Run-Connector.ps1','BuildProcess.psm1','LocalDevelopment.cjs','LocalDevBoundary.cjs','Run-LocalDevService.ps1','LocalDevProcesses.ps1','EnvironmentEditor.cjs','Write-LocalEnvironment.ps1','DiscoverySafety.cjs','SystemDiscovery.cjs','FolderBrowse.cjs','Browse-Folders.ps1','SystemPrerequisites.cjs','SystemSetup.cjs','NodeToolchain.cjs','node.exe')){Copy-ReviewedRuntimeFile $name}
+foreach($name in @('Connector.cjs','Preservation.cjs','Choose-Repository.ps1','RepositoryPicker.psm1','FrevOS.FolderPicker.exe','Run-Connector.ps1','BuildProcess.psm1','LocalDevelopment.cjs','PreviewRelay.cjs','GitDesktop.cjs','LocalDevBoundary.cjs','Run-LocalDevService.ps1','LocalDevProcesses.ps1','EnvironmentEditor.cjs','Write-LocalEnvironment.ps1','DiscoverySafety.cjs','SystemDiscovery.cjs','FolderBrowse.cjs','Browse-Folders.ps1','SystemPrerequisites.cjs','SystemSetup.cjs','NodeToolchain.cjs','node.exe')){Copy-ReviewedRuntimeFile $name}
 foreach($name in @('FileAudit.cjs','Read-WindowsFileAudit.ps1','Protect-SetupSession.ps1','DotNetToolchain.cjs','SystemSetupClient.js','SetupSession.cjs','npm','npm.cmd','npx','npx.cmd')){
  $target=Join-Path $destination $name
  if($ResumeEnrollment -and (Test-Path -LiteralPath $target) -and (Get-FileHash -LiteralPath $target).Hash -cne (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot $name)).Hash){throw 'Interrupted audit collector bytes changed'}

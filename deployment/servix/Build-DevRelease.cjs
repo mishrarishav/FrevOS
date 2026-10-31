@@ -4,6 +4,11 @@ const crypto = require("node:crypto");
 const { spawnSync } = require("node:child_process");
 const { builtinModules } = require("node:module");
 const { parsePreservedPaths, isPreserved } = require("./Preservation.cjs");
+const buildProfile = JSON.parse(
+  fs.readFileSync(path.join(__dirname, "ReleaseBuildProfile.json"), "utf8"),
+);
+if (buildProfile.version !== 1 || buildProfile.frontend.routing !== "same-origin")
+  throw Error("Build profile is unavailable");
 const root = path.resolve(process.argv[2]);
 const runtime = path.resolve(process.argv[3]);
 const id = crypto.randomUUID().replaceAll("-", "");
@@ -12,6 +17,16 @@ const payload = path.join(release, "payload");
 const preservedPaths = parsePreservedPaths(
   JSON.parse(fs.readFileSync(path.join(runtime, "preserve.json"), "utf8")),
 );
+const validation = JSON.parse(fs.readFileSync(path.join(runtime, "validation.json"), "utf8"));
+if (
+  validation.version !== 1 ||
+  validation.status !== "passed" ||
+  !/^[a-f0-9]{40}$/.test(validation.sourceHead) ||
+  !Array.isArray(validation.suites) ||
+  validation.suites.some((s) => s.exitCode !== 0) ||
+  !["frontend", "backend"].every((c) => validation.suites.some((s) => s.component === c))
+)
+  throw Error("Both components require passing validation");
 fs.mkdirSync(payload, { recursive: true });
 const digest = (file) => crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 const copyTree = (from, to) => {
@@ -29,7 +44,7 @@ const copyTree = (from, to) => {
     }
   }
 };
-// A built backend remains independent of target-specific frontend output.
+// Both component artifacts are independent of destination-specific routing.
 // Existing source-only artifacts stay restorable by the compatibility adapter.
 let backendArtifact, backendDescriptor;
 const backendOutput = path.join(root, "dist/servix-server");
@@ -73,9 +88,9 @@ try {
       env: {
         ...process.env,
         BUILD_PATH: buildPath,
-        PUBLIC_URL: "/",
-        REACT_APP_API_URL: "http://10.9.69.21:82/api",
-        REACT_APP_PORTAL_URL: "http://10.9.69.21:82",
+        PUBLIC_URL: buildProfile.frontend.publicPath,
+        REACT_APP_API_URL: "",
+        REACT_APP_PORTAL_URL: "",
         CI: "false",
       },
       stdio: ["ignore", log, log],
@@ -88,10 +103,10 @@ try {
 } finally {
   fs.closeSync(log);
 }
-fs.copyFileSync(path.join(__dirname, "web.config"), path.join(buildPath, "web.config"));
 if (!fs.existsSync(path.join(buildPath, "index.html"))) throw new Error("Missing built frontend");
 fs.mkdirSync(path.join(payload, "frontend"), { recursive: true });
 copyTree(buildPath, path.join(payload, "frontend"));
+const frontendArtifact = require("./FrontendArtifact.cjs").create(payload, buildProfile.frontend);
 const files = [];
 const modules = { backend: new Set(), querysafe: new Set() };
 function inventory(dir) {
@@ -136,10 +151,12 @@ for (const project of ["backend", "querysafe"]) {
 const manifest = {
   schemaVersion: 1,
   id,
-  target: "10.9.69.21",
-  computer: "DCAPP9",
-  root: "D:\\servixDev",
-  database: "servix_db_dev",
+  target: buildProfile.development.host,
+  computer: buildProfile.development.computer,
+  root: buildProfile.development.root,
+  database: buildProfile.development.database,
+  frontendArtifact,
+  validation,
   mode: backendArtifact ? "bundled-existing-dependencies" : "source-only-existing-dependencies",
   ...(backendArtifact ? { backendArtifact } : {}),
   preservedPaths,

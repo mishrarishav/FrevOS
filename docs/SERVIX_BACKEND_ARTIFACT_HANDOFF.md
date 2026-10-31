@@ -2,6 +2,12 @@
 
 Date: 2026-10-25. ADR 0057; Phase 4 exit remains open.
 
+Follow-up 2026-10-26: [fresh Production readiness](SERVIX_PRODUCTION_READINESS.md)
+now verifies an encrypted database backup and matching-version isolated restore,
+current preservation, task-policy evidence and Dev/Production dependency audits.
+This supersedes the historical database-recovery gap below only for the bounded
+rehearsal. Production activation/task registration remain unperformed.
+
 Status: PASS for Development artifact build, activation and both recovery cycles.
 The strengthened preservation guard is live and verified.
 Production activation is BLOCKED on its separately scoped human approval and

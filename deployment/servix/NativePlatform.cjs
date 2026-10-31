@@ -35,7 +35,35 @@ function descriptor(bytes, head) {
     throw Error("native-artifact-reference-invalid");
   return value;
 }
-async function processFile(file, args, cwd, timeout = 30 * 60000) {
+function operationFailure(error, phase) {
+  const output = [error.stdout, error.stderr]
+    .map((value) => (typeof value === "string" ? value.slice(-1024 * 1024) : ""))
+    .join("\n");
+  return {
+    version: 1,
+    phase,
+    exitCode: Number.isInteger(error.code) ? error.code : null,
+    killed: error.killed === true,
+    outputBytes: Buffer.byteLength(output),
+    classifications: [
+      "AssertionError",
+      "TypeError",
+      "TimeoutError",
+      "ENOENT",
+      "ENOTEMPTY",
+      "ERR_CHILD_PROCESS_STDIO_MAXBUFFER",
+      "JavaScript heap out of memory",
+    ].filter((name) => output.includes(name) || error.code === name),
+    locations: [
+      ...new Set(
+        output.match(
+          /(?:test|src)\/[a-zA-Z0-9_./-]+\.(?:test\.)?[cm]?[jt]sx?(?::\d{1,6}:\d{1,6}|\(\d{1,6},\d{1,6}\))/g,
+        ) || [],
+      ),
+    ].slice(0, 30),
+  };
+}
+function buildEnvironment() {
   const env = Object.fromEntries(
     [
       "SystemRoot",
@@ -50,9 +78,41 @@ async function processFile(file, args, cwd, timeout = 30 * 60000) {
       "APPDATA",
     ].flatMap((k) => (process.env[k] === undefined ? [] : [[k, process.env[k]]])),
   );
+  // The native operator invokes Windows PowerShell 5.1. A parent PowerShell 7
+  // module path is incompatible with its ACL/security modules.
+  if (process.platform === "win32")
+    env.PSModulePath = path.join(process.env.WINDIR, "System32/WindowsPowerShell/v1.0/Modules");
+  return env;
+}
+async function processFile(file, args, cwd, timeout = 30 * 60000) {
+  const env = buildEnvironment();
   try {
     return await run(file, args, { cwd, env, windowsHide: true, timeout, maxBuffer: 1024 * 1024 });
-  } catch {
+  } catch (error) {
+    // Never persist command lines, error messages or raw child output: builds
+    // may emit private values. Retain only fixed codes and source locations.
+    const phase = args.includes("ci")
+      ? "ci"
+      : args.includes("install")
+        ? "install"
+        : args.includes("clone") || args.includes("checkout")
+          ? "git"
+          : args.some((arg) => arg.endsWith("New-ServixDashboardRelease.ps1"))
+            ? "package"
+            : "verify";
+    try {
+      const folder = path.join(cwd, ".local");
+      await plain(cwd);
+      await fs.mkdir(folder, { recursive: true });
+      await plain(folder);
+      await fs.writeFile(
+        path.join(folder, "native-operation-failure.json"),
+        JSON.stringify(operationFailure(error, phase)),
+        { flag: "wx", mode: 0o600 },
+      );
+    } catch {
+      /* Diagnostic failure must not replace the original failure. */
+    }
     throw Error("native-platform-operation-failed");
   }
 }
@@ -60,6 +120,8 @@ const powershell = () =>
   path.join(process.env.WINDIR, "System32/WindowsPowerShell/v1.0/powershell.exe");
 module.exports = {
   descriptor,
+  operationFailure,
+  buildEnvironment,
   async build({ config, job, binding, input, directory }) {
     const options = binding.nativeOptions;
     if (
@@ -116,6 +178,33 @@ module.exports = {
       source,
     );
     await processFile(process.execPath, [options.pnpmCli, "run", "ci"], source);
+    let androidArtifactReference;
+    const androidSource = path.join(source, "apps/android-connector");
+    if (
+      await fs.stat(androidSource).catch((error) => {
+        if (error.code !== "ENOENT") throw error;
+        return null;
+      })
+    ) {
+      const client = path.join(__dirname, "AndroidBuildClient.cjs");
+      if (
+        !path.isAbsolute(options.androidBuilderReference ?? "") ||
+        !/^[a-f0-9]{64}$/.test(options.androidBuilderClientSha256 ?? "")
+      )
+        throw Error("android-builder-not-enrolled");
+      await plain(client);
+      await plain(options.androidBuilderReference);
+      if (sha(await fs.readFile(client)) !== options.androidBuilderClientSha256)
+        throw Error("android-builder-client-integrity");
+      const built = await require(client).submit({
+        reference: options.androidBuilderReference,
+        sourceRoot: source,
+        sourceHead: job.sourceHead,
+        correlationId: job.id,
+        outputRoot: path.join(directory, "android-artifact"),
+      });
+      androidArtifactReference = built.artifactReference;
+    }
     // The builder is enrolled from the installed worker package, not selected by
     // customer source or request input. Source is an isolated pinned checkout.
     await processFile(
@@ -132,6 +221,14 @@ module.exports = {
         "-SourceRoot",
         source,
         ...(options.releaseOutputRoot ? ["-ReleaseOutputRoot", options.releaseOutputRoot] : []),
+        ...(androidArtifactReference
+          ? [
+              "-AndroidArtifactReference",
+              androidArtifactReference,
+              "-AndroidBuilderReference",
+              options.androidBuilderReference,
+            ]
+          : []),
       ],
       source,
     );
@@ -196,6 +293,26 @@ module.exports = {
     const payload = await fs.readFile(saved);
     if (sha(payload) !== reference.archiveSha256) throw Error("native-artifact-store-corrupt");
     await fs.writeFile(archive, payload, { flag: "wx" });
+    await processFile(
+      powershell(),
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "RemoteSigned",
+        "-File",
+        path.join(__dirname, "Verify-AndroidCompatibility.ps1"),
+        "-InstallationRoot",
+        binding.root,
+        "-Archive",
+        archive,
+        "-ArchiveSha256",
+        reference.archiveSha256,
+        "-SourceHead",
+        job.sourceHead,
+      ],
+      directory,
+    );
     const request = {
       archive,
       archiveSha256: reference.archiveSha256,

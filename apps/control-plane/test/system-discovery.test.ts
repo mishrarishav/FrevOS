@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID, randomBytes, createHash } from "node:crypto";
 import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -15,6 +15,124 @@ import { DeveloperConnectorStore } from "../src/developer-connectors.js";
 import { SystemDiscovery } from "../src/system-discovery.js";
 
 const cleanups: (() => Promise<unknown>)[] = [];
+it("reports Android health and last seen with owner isolation while rejecting file tracking and forged platform capabilities", async () => {
+  const f = await fixture();
+  const id = "fc_" + randomBytes(16).toString("hex"),
+    credential = id + "." + randomBytes(32).toString("base64url");
+  const hash = (text: string) => createHash("sha256").update(text).digest("hex");
+  const enrollment = {
+    version: 1,
+    deviceId: id,
+    name: "Android fixture",
+    platform: "android",
+    architecture: "arm64",
+    fileActivity: false,
+    credentialHash: hash(credential),
+    pollHash: hash("isolated-poll"),
+    codeHash: hash("isolated-code"),
+  };
+  await expect(
+    f.connectors.acceptSystemEnrollment("usr_alice", { ...enrollment, fileActivity: true }),
+  ).rejects.toThrow("android-monitoring-only");
+  await f.connectors.acceptSystemEnrollment("usr_alice", enrollment);
+  await f.connectors.heartbeat(credential);
+  const observation = {
+    ...f.observation,
+    deviceId: id,
+    profileId: null,
+    system: {
+      ...f.observation.system,
+      systemName: "Android fixture",
+      platform: "android",
+      architecture: "arm64",
+      batteryPercent: 74,
+      cpuPercent: null,
+      tools: [],
+    },
+    coverage: {
+      ...f.observation.coverage,
+      status: "disabled",
+      roots: [],
+      watchedDirectories: 0,
+      gaps: [],
+      attribution: "unavailable",
+    },
+    events: [],
+  };
+  await f.store.observe(credential, observation);
+  let state = await f.store.state("usr_alice");
+  const system = state.systems.find((entry) => entry.deviceId === id)!;
+  expect(system.platform).toBe("android");
+  expect(system.online).toBe(true);
+  expect(system.lastSeenAt).toBe(f.clock().toISOString());
+  expect(system.observation!.system.batteryPercent).toBe(74);
+  expect(system.observation!.system.cpuPercent).toBeNull();
+  await expect(
+    f.store.observe(credential, {
+      ...observation,
+      system: { ...observation.system, cpuPercent: 50 },
+    }),
+  ).rejects.toThrow("android-monitoring-only");
+  expect((await f.store.state("usr_bob")).systems.some((entry) => entry.deviceId === id)).toBe(
+    false,
+  );
+  expect(
+    (await f.store.state("usr_windows_admin")).systems.some((entry) => entry.deviceId === id),
+  ).toBe(true);
+  await expect(f.store.configure("usr_alice", { ...f.policy, deviceId: id })).rejects.toThrow(
+    "android-monitoring-only",
+  );
+  await expect(
+    f.store.requestFolders("usr_alice", { version: 1, deviceId: id, root: "/", path: "", page: 0 }),
+  ).rejects.toThrow("android-monitoring-only");
+  await expect(
+    f.store.observe(credential, {
+      ...observation,
+      system: { ...observation.system, platform: "win32" },
+    }),
+  ).rejects.toThrow("android-monitoring-only");
+  await expect(
+    f.store.observe(credential, {
+      ...observation,
+      coverage: { ...observation.coverage, status: "collecting", roots: ["/"] },
+    }),
+  ).rejects.toThrow("android-monitoring-only");
+  const seen = f.clock().toISOString();
+  f.advance(31000);
+  state = await f.store.state("usr_alice");
+  expect(state.systems.find((entry) => entry.deviceId === id)).toMatchObject({
+    online: false,
+    lastSeenAt: seen,
+  });
+});
+it("reports server heartbeat presence for legacy and stale connectors without inventing a last-online time", async () => {
+  const f = await fixture();
+  const neverSeen = await f.connectors.pair("usr_alice", { version: 1, name: "Never connected" });
+  let state = await f.store.state("usr_alice");
+  const legacy = state.systems.find((system) => system.deviceId === f.alice.deviceId)!;
+  expect(legacy.observedAt).toBeNull();
+  expect(legacy.lastSeenAt).toBe(f.clock().toISOString());
+  expect(
+    state.systems.find((system) => system.deviceId === neverSeen.deviceId)?.lastSeenAt,
+  ).toBeNull();
+  await f.store.observe(f.alice.credential, f.observation);
+  const receivedAt = f.clock().toISOString();
+  f.advance(60000);
+  await f.connectors.heartbeat(f.alice.credential);
+  const heartbeatAt = f.clock().toISOString();
+  f.advance(31000);
+  const restarted = new SystemDiscovery(f.store.root, f.connectors, f.catalog, f.clock);
+  state = await restarted.state("usr_alice");
+  const stale = state.systems.find((system) => system.deviceId === f.alice.deviceId)!;
+  expect(stale.online).toBe(false);
+  expect(stale.observedAt).toBe(receivedAt);
+  expect(stale.lastSeenAt).toBe(heartbeatAt);
+  expect(
+    (await restarted.state("usr_bob")).systems.some(
+      (system) => system.deviceId === f.alice.deviceId,
+    ),
+  ).toBe(false);
+});
 it("keeps deduplicated bounded real health samples and scopes requested project folder searches", async () => {
   const f = await fixture();
   await f.store.configure("usr_alice", f.policy);
@@ -226,12 +344,17 @@ async function fixture() {
   let now = Date.parse("2026-10-24T10:00:00.000Z");
   const clock = () => new Date(now);
   const allowed = new Set(["usr_alice", "usr_bob", "usr_windows_admin"]);
+  const administrators = new Set(["usr_windows_admin"]);
   const connectors = new DeveloperConnectorStore(
     join(root, "connectors"),
     async (actor) => allowed.has(actor),
     { head: async () => "a".repeat(40), importBundle: async () => {} },
     async () => {},
     clock,
+    undefined,
+    undefined,
+    undefined,
+    async (actor) => administrators.has(actor),
   );
   cleanups.push(async () => connectors.close());
   const alice = await connectors.pair("usr_alice", { version: 1, name: "Alice device" }),
@@ -263,7 +386,8 @@ async function fixture() {
     status: "active",
     createdAt: clock().toISOString(),
   });
-  const catalog = async () => ({ projects: [project], clients: [client] });
+  const catalogData = { projects: [project], clients: [client] };
+  const catalog = async () => catalogData;
   const store = new SystemDiscovery(join(root, "discovery"), connectors, catalog, clock);
   const observation: DiscoveryObservation = {
     version: 1,
@@ -336,6 +460,8 @@ async function fixture() {
     alice,
     bob,
     allowed,
+    administrators,
+    catalogData,
     catalog,
     clock,
     advance: (ms: number) => {
@@ -346,11 +472,101 @@ async function fixture() {
     plan,
   };
 }
+it("limits user dashboards and plan bindings to owned systems, with configurable fresh admin visibility and no cross-owner controls", async () => {
+  const f = await fixture();
+  f.catalogData.projects.push(
+    ProjectSchema.parse({
+      ...f.catalogData.projects[0]!,
+      projectId: "prj_private_bob",
+      displayName: "Bob private project",
+    }),
+  );
+  await f.store.savePlan("usr_windows_admin", {
+    ...f.plan,
+    deviceIds: [f.alice.deviceId, f.bob.deviceId],
+  });
+  await f.store.savePlan("usr_windows_admin", {
+    ...f.plan,
+    projectId: "prj_private_bob",
+    deviceIds: [f.bob.deviceId],
+    poReference: "BOB-PRIVATE-PO",
+  });
+  const alice = await f.store.state("usr_alice");
+  expect(alice.access).toEqual({
+    actorId: "usr_alice",
+    role: "user",
+    canPair: true,
+    canManageOwnSystems: true,
+    canManagePlans: false,
+  });
+  expect(alice.systems.map((system) => system.deviceId)).toEqual([f.alice.deviceId]);
+  expect(alice.reports.map((report) => report.projectId)).toEqual([f.plan.projectId]);
+  expect(alice.reports[0]!.plan!.bindings.map((binding) => binding.userId)).toEqual(["usr_alice"]);
+  expect(alice.reports[0]!.plan!.deviceIds).toEqual([f.alice.deviceId]);
+  for (const privateValue of [f.bob.deviceId, "usr_bob", "prj_private_bob", "BOB-PRIVATE-PO"])
+    expect(JSON.stringify(alice)).not.toContain(privateValue);
+  await expect(f.store.state("usr_alice", f.bob.deviceId)).rejects.toThrow(
+    "discovery-device-access-denied",
+  );
+  await expect(
+    f.store.configure("usr_alice", { ...f.policy, deviceId: f.bob.deviceId }),
+  ).rejects.toThrow("discovery-device-access-denied");
+  await expect(
+    f.store.configureActivity("usr_alice", {
+      version: 1,
+      deviceId: f.bob.deviceId,
+      expectedRevision: 0,
+      settings: defaultActivitySettings,
+    }),
+  ).rejects.toThrow("discovery-device-access-denied");
+  await expect(
+    f.store.requestFolders("usr_alice", {
+      version: 1,
+      deviceId: f.bob.deviceId,
+      root: "C:\\",
+      path: "",
+      page: 0,
+    }),
+  ).rejects.toThrow("discovery-device-access-denied");
+  await expect(
+    f.store.requestContent("usr_alice", {
+      version: 1,
+      deviceId: f.bob.deviceId,
+      root: "C:\\",
+      path: "private.txt",
+    }),
+  ).rejects.toThrow("discovery-device-access-denied");
+  await expect(f.store.savePlan("usr_alice", { ...f.plan, expectedRevision: 1 })).rejects.toThrow(
+    "discovery-plan-owner-required",
+  );
+  f.allowed.add("usr_team_lead");
+  f.administrators.add("usr_team_lead");
+  const admin = await f.store.state("usr_team_lead");
+  expect(admin.access?.role).toBe("admin");
+  expect(admin.access?.canManagePlans).toBe(true);
+  expect(admin.systems).toHaveLength(2);
+  expect(admin.reports).toHaveLength(2);
+  await expect(f.store.configure("usr_team_lead", f.policy)).rejects.toThrow(
+    "discovery-device-access-denied",
+  );
+  f.administrators.delete("usr_team_lead");
+  expect((await f.store.state("usr_team_lead")).systems).toEqual([]);
+  expect((await f.store.state("usr_team_lead")).reports).toEqual([]);
+  await expect(
+    f.store.savePlan("usr_team_lead", { ...f.plan, expectedRevision: 1 }),
+  ).rejects.toThrow("discovery-plan-owner-required");
+  f.administrators.delete("usr_windows_admin");
+  expect((await f.store.state("usr_windows_admin")).systems).toEqual([]);
+  expect((await f.store.state("usr_windows_admin")).access?.role).toBe("user");
+  f.allowed.delete("usr_team_lead");
+  await expect(f.store.state("usr_team_lead")).rejects.toThrow("connector-access-denied");
+});
 it("scopes observations/policies and project plans to verified workspace actors; owner reporting never grants remote tracking writes", async () => {
   const f = await fixture();
   expect((await f.store.state("usr_alice")).systems).toHaveLength(1);
   expect((await f.store.state("usr_windows_admin")).systems).toHaveLength(2);
-  expect((await f.store.state("usr_alice")).reports[0]?.status).toBe("plan-missing");
+  expect((await f.store.state("usr_alice")).reports).toEqual([]);
+  expect((await f.store.state("usr_windows_admin")).reports[0]?.status).toBe("plan-missing");
   await expect(f.store.state("usr_outside")).rejects.toThrow("connector-access-denied");
   await expect(f.store.observe("invalid", f.observation)).rejects.toThrow(
     "connector-authentication-required",

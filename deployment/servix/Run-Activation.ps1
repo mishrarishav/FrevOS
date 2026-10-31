@@ -5,6 +5,7 @@ $root='E:\FrevOS\servix'
 if($env:COMPUTERNAME -cne 'DCAPP7' -or [Security.Principal.WindowsIdentity]::GetCurrent().User.Value -cne 'S-1-5-18'){throw 'Wrong runner identity'}
 $lock=[IO.File]::Open((Join-Path $root 'private\runner.lock'),[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
 Import-Module (Join-Path $PSScriptRoot 'ActivationFiles.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'PromotionWorker.psm1') -Force
 function Assert-PlainPath([string]$Path){
  $cursor=[IO.Path]::GetFullPath($Path)
  while($cursor){if((Test-Path -LiteralPath $cursor) -and ((Get-Item -LiteralPath $cursor -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)){throw 'Linked activation path rejected'};$parent=Split-Path -Parent $cursor;if($parent -eq $cursor){break};$cursor=$parent}
@@ -67,11 +68,11 @@ function Activate-Servix($approval,[string]$Id,[string]$PrivateJob){
    Set-Acl -LiteralPath $job -AclObject $acl
   }
   $hashes=@{}
-  foreach($name in @('Invoke-DevTarget.ps1','Invoke-DevRelease.ps1','DeploymentFiles.psm1','Run-DevBackend.ps1','BackendArtifact.cjs','BackendArtifactSelection.psm1')){
+  foreach($name in @('Invoke-DevTarget.ps1','Invoke-DevRelease.ps1','DeploymentFiles.psm1','Run-DevBackend.ps1','BackendArtifact.cjs','BackendArtifactSelection.psm1','FrontendArtifact.cjs','PromotionFiles.cjs','PublishedRelease.cjs','ReleaseBuildProfile.json')){
    $file=Join-Path $PSScriptRoot $name;$hashes[$name]=(Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
    Copy-Item -LiteralPath $file -Destination (Join-Path $remoteJob $name) -ToSession $session
   }
-  $operation=@{manifestSha256=$approval.artifactDigest;archiveSha256=$approval.archiveSha256;launcherSha256=$hashes['Run-DevBackend.ps1']}
+  $operation=@{manifestSha256=$approval.artifactDigest;archiveSha256=$approval.archiveSha256;launcherSha256=$hashes['Run-DevBackend.ps1'];sourceHead=$approval.sourceHead}
   if($approval.PSObject.Properties['preservedPaths']){$operation.preservedPaths=@($approval.preservedPaths)}
   $stagedNames=@('manifest.json','release.zip','operation.json')
   if($previous){
@@ -129,6 +130,7 @@ try{
    }
    Write-ServixResult (Join-Path $root ('results\'+$id+'.json')) $result
   }
+  Invoke-PromotionQueue $root {param($savedId) Read-SuccessfulRelease $savedId}
   Start-Sleep -Seconds 2
  }
 }finally{$lock.Dispose()}

@@ -148,7 +148,13 @@ it.skipIf(
       );
       const hashes: Record<string, string> = {};
       for (const name of enrollment.runtimeFiles as string[]) {
-        const bytes = await readFile(name === "node.exe" ? process.execPath : join(source, name));
+        const bytes = await readFile(
+          name === "node.exe"
+            ? process.execPath
+            : name === "FrevOS.FolderPicker.exe"
+              ? native
+              : join(source, name),
+        );
         hashes[name] = digest(bytes);
         await writeFile(join(bundle, name), bytes);
         if (name.endsWith(".ps1") || name.endsWith(".psm1"))
