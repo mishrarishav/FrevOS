@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 export const testEnginePins = {
   win32: {
-    asset: "gitea-28.2.0-windows-4.0-amd64.exe",
+    asset: "gitea-28.2.0-windows-amd64.exe",
     hash: "d13471c433903d8c6c8b4cc7dd2783cff8b8ffb66d4698a76c2c0213ac378d53",
     file: "gitea-28.2.0-native.exe",
   },
@@ -32,8 +32,10 @@ export async function prepareTestEngine() {
     redirect: "error",
     signal: AbortSignal.timeout(180000),
   });
-  if (!response.ok || Number(response.headers.get("content-length")) > 160000000)
+  if (!response.ok || Number(response.headers.get("content-length")) > 160000000) {
+    await response.body?.cancel();
     throw Error("test-engine-download-failed");
+  }
   const parts = [];
   let length = 0;
   for await (const part of response.body) {

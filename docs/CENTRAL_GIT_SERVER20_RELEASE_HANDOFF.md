@@ -1,8 +1,8 @@
 # Central Git Server20 release
 
 Status: PASS for implementation, local CI and GitHub publication/CI.
-Server20 deployment is BLOCKED at owner authentication. Owner-authorized
-continuation under ADR 0078; downstream build/activation is not claimed.
+Server20 deployment is in progress through the owner's authenticated DevSetu
+session under ADR 0078. Downstream build/activation is not claimed yet.
 
 Repository: mishrarishav/FrevOS (provider repository ID 1329122983).
 Branch: codex/central-git-collaboration.
@@ -10,7 +10,10 @@ Implementation base: e5b1122ad95323b46beab3789672d2cb6ca2d9cd.
 Canonical GitHub main: 5730940fe6c40cc3eb5002ef6beaa564c9571e5f, an ancestor.
 Published implementation: 88e6420717898b6633bce86308053c3fa8b01314.
 PR: https://github.com/mishrarishav/FrevOS/pull/41 (draft, unmerged).
-Live deployment request: none submitted; no main merge is authorized.
+Live deployment request: pr_38e1305803376977d8b753be579d80fb.
+Configured source publication: 4f1ea9fb20ff17e4400642a7e5bbfb44b30e8fff,
+an empty deployment-record commit over 21d62da; both are pushed to GitHub.
+No main merge is authorized.
 
 Scope: repair the two Windows process-detection failures, validate the existing
 central Git/native-folder implementation, publish the task branch and deploy
@@ -83,12 +86,52 @@ through the authenticated DevSetu workflow before publishing this checkout.
 
 The one attempted saved-credential login is rejected with HTTP 401. It is not
 retried, reset or used to bypass authentication. A visible DevSetu sign-in tab
-is left for the owner; the password is not requested in chat. Once the owner
-signs in, resume the authorized configured workflow: verify the current actor,
-source/target and baseline, select this committed checkout using the existing
-paired connector, submit one declared-approval deployment, observe fresh frozen
-CI/SDK/package/independent activation, then compare health, active source/digest
-and preservation evidence. New failures must be reconciled before any retry.
+is left for the owner; the password is not requested in chat.
+
+The owner subsequently signs in. The authenticated UI verifies DevSetu Internal
+and the existing owner-scoped source, builder and destination. Choose folder
+rebinds the same fc_a36e424f5355a31a00946ce3983ed064 enrollment to this task
+checkout, retaining its Limited running task and credential. The revisioned
+pipeline changes only its default source folder (revision 3 to 4); the exact
+revision-3 preimage is retained. Connection tests all pass. Eight pairings and
+four other configuration files match the preservation baseline.
+
+Preflight finds the existing Android SDK worker stopped after its historical
+configuration-change failure. Its configuration and operator hashes still match
+the enrolled identities. Scoped start as_79077143e9684ba7a6a28951cb1e3c11 restarts
+only that installed restricted worker; fresh READY matches configuration
+4c57e545113e019df054df5fb489307f2d6d05d51530894cfc269cf5f4f7ec41. No configuration,
+signing identity, role or enrollment change is made.
+
+The UI submits one Deploy all with the owner's dated ADR 0078 reference. DevSetu
+publishes 4f1ea9f to its configured central repository and starts native build
+cj_58ab24c11e25d160dc2f67484dce7fe2 in an isolated checkout. A VPN interruption
+makes HTTP/SMB unavailable; the owner reconnects and health returns HTTP 200.
+The same request is reconciled; no duplicate deployment is submitted.
+GitHub CI 41186615284 also passes for the preceding docs-only 21d62da head.
+
+The first native build fails in CI, before any artifact or destination job.
+Its retained diagnostic records exit 3221226505 (0xC0000409), 21,641 output bytes.
+A bounded reproduction identifies test-engine-download-failed followed by a
+Node 24 Windows libuv closing-handle assertion. The fresh Windows test-engine
+asset name incorrectly retains windows-4.0, which returns HTTP 404. The official
+[28.2.0 inventory](https://dl.gitea.com/gitea/28.2.0/) publishes
+gitea-28.2.0-windows-amd64.exe. Its vendor checksum matches the unchanged
+d13471c433903d8c6c8b4cc7dd2783cff8b8ffb66d4698a76c2c0213ac378d53 pin.
+The preparation script corrects that filename and cancels a rejected response
+body before failing. A separate empty-cache download now verifies successfully;
+no dependency version, test assertion, hash or threshold is relaxed.
+
+The installed packaging sidecar also predates the new Git module inventory.
+After the first job is terminal, the existing scoped idle-only updater passes
+PlanOnly and Apply for pve_ad08a11ee79142cc960c96335aed2798. It retains exact
+encrypted enrollment bytes, native adapter bytes, task definition and root
+permissions; preimages remain in the executor's private update directory.
+The reviewed packaging inventory is updated without altering the live release.
+
+GitHub CI 41206764013 passes at 4f1ea9f. Fresh configured retry, frozen CI,
+SDK/package/independent activation and final preservation remain pending;
+no success is inferred from source publication or a prepared build.
 
 Native artifact/request identities, backup and post-activation preservation
 evidence remain pending. Deployment success is not inferred from publication
@@ -103,7 +146,7 @@ only the current task base e5b1122. The current-task-only inventory remains in
 CENTRAL_GIT_COLLABORATION_HANDOFF.md. No ignored runtime/credential artifact is
 included. No main merge is performed.
 
-216 files, +32239/-532.
+216 files, +32298/-532.
 
 - `.github/workflows/ci.yml` (+3/-0)
 - `.gitignore` (+1/-0)
@@ -291,8 +334,8 @@ included. No main merge is performed.
 - `docs/ANDROID_CONNECTOR_HANDOFF.md` (+368/-0)
 - `docs/ARCHITECTURE.md` (+27/-0)
 - `docs/CENTRAL_GIT_COLLABORATION_HANDOFF.md` (+388/-0)
-- `docs/CENTRAL_GIT_SERVER20_RELEASE_HANDOFF.md` (+323/-0)
-- `docs/CURRENT_STATE.md` (+827/-1)
+- `docs/CENTRAL_GIT_SERVER20_RELEASE_HANDOFF.md` (+366/-0)
+- `docs/CURRENT_STATE.md` (+841/-1)
 - `docs/DISCOVERY_PRESENCE_HANDOFF.md` (+90/-0)
 - `docs/DISCOVERY_ROLE_ACCESS_HANDOFF.md` (+477/-0)
 - `docs/PERMISSIONS.md` (+21/-0)
@@ -319,5 +362,5 @@ included. No main merge is performed.
 - `packages/contracts/test/preview-relay.test.ts` (+59/-0)
 - `packages/contracts/test/repository-center.test.ts` (+230/-0)
 - `packages/contracts/vitest.config.ts` (+2/-0)
-- `scripts/prepare-private-git-test.mjs` (+55/-0)
+- `scripts/prepare-private-git-test.mjs` (+57/-0)
 - `scripts/test-private-git.cjs` (+760/-0)

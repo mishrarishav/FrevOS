@@ -320,7 +320,7 @@ dependent roadmap phase or live migration is declared ready.
 
 ## Complete changed-file inventory
 
-Diff stat (tracked and new files): 63 files, +9989/-60.
+Diff stat (tracked and new files): 63 files, +10048/-60.
 No generated binary, credential, ignored fixture or acceptance-repository change is included.
 
 - `.github/workflows/ci.yml` (+3/-0; modified)
@@ -374,8 +374,8 @@ No generated binary, credential, ignored fixture or acceptance-repository change
 - `docs/adr/README.md` (+12/-0; modified)
 - `docs/ARCHITECTURE.md` (+27/-0; modified)
 - `docs/CENTRAL_GIT_COLLABORATION_HANDOFF.md` (+388/-0; new)
-- `docs/CENTRAL_GIT_SERVER20_RELEASE_HANDOFF.md` (+323/-0; new)
-- `docs/CURRENT_STATE.md` (+65/-0; modified)
+- `docs/CENTRAL_GIT_SERVER20_RELEASE_HANDOFF.md` (+366/-0; new)
+- `docs/CURRENT_STATE.md` (+79/-0; modified)
 - `docs/PERMISSIONS.md` (+21/-0; modified)
 - `docs/PRODUCT.md` (+9/-1; modified)
 - `docs/ROADMAP.md` (+8/-0; modified)
@@ -384,5 +384,5 @@ No generated binary, credential, ignored fixture or acceptance-repository change
 - `packages/contracts/src/index.ts` (+2/-0; modified)
 - `packages/contracts/src/repository-center.ts` (+248/-0; new)
 - `packages/contracts/test/repository-center.test.ts` (+230/-0; new)
-- `scripts/prepare-private-git-test.mjs` (+55/-0; new)
+- `scripts/prepare-private-git-test.mjs` (+57/-0; new)
 - `scripts/test-private-git.cjs` (+760/-0; new)

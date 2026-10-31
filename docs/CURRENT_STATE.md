@@ -1,5 +1,19 @@
 # DevSetu Current State
 
+2026-10-31: Owner browser sign-in resolves the Server20 authentication blocker.
+The same paired platform source selects this committed task checkout; only the
+pipeline default-source revision changes (3 to 4), with eight pairing identities
+and four other configuration files preserved. The existing restricted Android
+SDK worker is started with matching unchanged configuration/operator hashes.
+DevSetu run pr_38e1305803376977d8b753be579d80fb publishes 4f1ea9f. A subsequent
+VPN interruption is reconciled after owner reconnection. Its native CI fails
+before activation: the fresh Windows test-engine filename returns HTTP 404.
+The correct official asset passes a separate cold-cache download with the same
+hash pin. After the job is terminal, the scoped builder packaging update passes,
+retaining exact enrollment/adapter bytes, task definition and root permissions.
+Fresh configured retry and final preservation receipts remain pending. Phase 4
+is open; customer apps, new engine enrollment and main merge remain excluded.
+
 2026-10-31: Implementation 88e6420717898b6633bce86308053c3fa8b01314 is pushed
 to GitHub codex/central-git-collaboration; draft PR 41 remains unmerged.
 Native Windows CI passes all 472 tests; both prior failures are repaired.
