@@ -9,6 +9,8 @@ const sessionHelper = require("./SetupSession.cjs");
 const runtimeFiles = [
   "node.exe",
   "Connector.cjs",
+  "GitDesktop.cjs",
+  "FrevOS.FolderPicker.exe",
   "Preservation.cjs",
   "SystemDiscovery.cjs",
   "DiscoverySafety.cjs",

@@ -35,6 +35,8 @@ import {
 import { DeviceLogins } from "./device-logins.js";
 import { JoinRequests } from "./join-requests.js";
 import { loadPreviewConfig, PreviewRelay } from "./preview-relay.js";
+import { loadRepositoryHosting, RepositoryCenter } from "./repository-center.js";
+import { GitDesktop } from "./git-desktop.js";
 
 const config = loadConfig(process.env);
 const pool = createDatabasePool(config.databaseUrl);
@@ -51,6 +53,8 @@ try {
   let joinRequests: JoinRequests | undefined;
   let artifactPromotions: ArtifactPromotions | undefined;
   let previewRelay: PreviewRelay | undefined;
+  let repositoryCenter: RepositoryCenter | undefined;
+  let gitDesktop: GitDesktop | undefined;
   const agentWorkspaces = new Map<string, AgentWorkspace>();
   const notifications = new Map<string, AgentNotifications>();
   const agentNotifications = (workspaceId: string) => {
@@ -271,6 +275,20 @@ try {
       join(config.servixRoot, "jobs", "local-development"),
       developerConnectors,
     );
+    const hosting = await loadRepositoryHosting(
+      join(config.servixRoot, "config", "repository-hosting.json"),
+    );
+    if (hosting) {
+      if (hosting.workspaceId !== discoveryPolicy.workspaceId)
+        throw new Error("repository-hosting-workspace-mismatch");
+      repositoryCenter = new RepositoryCenter(
+        hosting,
+        new ProtectedModelSecrets(
+          join(config.servixRoot, "private", "repository-hosting", hosting.workspaceId, "secrets"),
+        ),
+        join(config.servixRoot, "jobs", "repository-center"),
+      );
+    }
     const previewConfig = await loadPreviewConfig(
       join(config.servixRoot, "config", "preview-relay.json"),
       config.publicOrigin,
@@ -305,6 +323,12 @@ try {
             : [],
         };
       },
+    );
+    gitDesktop = new GitDesktop(
+      join(config.servixRoot, "jobs", "git-desktop"),
+      developerConnectors,
+      (actor, id) => systemDiscovery!.folders(actor, id),
+      repositoryCenter,
     );
     joinRequests = new JoinRequests(
       join(config.servixRoot, "private", "join-requests"),
@@ -354,6 +378,8 @@ try {
     ...(componentDeployments === undefined ? {} : { componentDeployments }),
     ...(localDevelopment === undefined ? {} : { localDevelopment }),
     ...(previewRelay === undefined ? {} : { previewRelay }),
+    ...(repositoryCenter === undefined ? {} : { repositoryCenter }),
+    ...(gitDesktop === undefined ? {} : { gitDesktop }),
     ...(systemDiscovery === undefined ? {} : { systemDiscovery }),
     ...(deviceLogins === undefined ? {} : { deviceLogins }),
     ...(joinRequests === undefined ? {} : { joinRequests }),

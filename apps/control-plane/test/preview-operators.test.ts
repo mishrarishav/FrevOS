@@ -9,6 +9,8 @@ const environment = createRequire(import.meta.url)(
 ).buildEnvironment();
 for (const [script, checks] of [
   ["servix/Test-PreviewConnectorUpdate.ps1", 7],
+  ["servix/Test-GitRecoveryBoundary.ps1", 7],
+  ["servix/Test-SystemConnectorUpdate.ps1", 5],
   ["server20/Test-PrivatePreviewConfiguration.ps1", 6],
   ["server20/Test-PreviewExecutorUpdate.ps1", 5],
 ] as const) {
@@ -52,3 +54,37 @@ for (const [script, checks] of [
     100000,
   );
 }
+it.skipIf(process.platform !== "win32")(
+  "updates Git capability while preserving the real Windows pairing files, ACLs and task definition",
+  async () => {
+    const shell = join(
+      process.env["WINDIR"] ?? "C:/Windows",
+      "System32/WindowsPowerShell/v1.0/powershell.exe",
+    );
+    const { stdout } = await promisify(execFile)(
+      shell,
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "RemoteSigned",
+        "-File",
+        fileURLToPath(
+          new URL("../../../deployment/servix/Test-PreviewConnectorUpdate.ps1", import.meta.url),
+        ),
+        "-NodeExecutable",
+        process.execPath,
+        "-Capability",
+        "Git",
+      ],
+      { env: environment, windowsHide: true, timeout: 60000, maxBuffer: 65536 },
+    );
+    expect(JSON.parse(stdout)).toMatchObject({
+      status: "PASS",
+      checks: 8,
+      pairingPreserved: true,
+      failedStartRestored: true,
+    });
+  },
+  65000,
+);

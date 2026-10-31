@@ -102,7 +102,7 @@ export function RecordWorkspace<T>({
   loading?: boolean;
   error?: string;
   onRetry?: () => void;
-  noun?: "projects" | "systems" | "agents" | "requests";
+  noun?: "projects" | "systems" | "agents" | "requests" | "repositories" | "folders";
 }) {
   const key = `frevos:${userId}:${workspaceId}:${page}:records:v1`;
   const listLabel =
@@ -305,7 +305,9 @@ export function RecordWorkspace<T>({
                         ? "Add a model connection and configure an agent."
                         : noun === "systems"
                           ? "Install and pair a system connector for a configured project."
-                          : "Add a project from Projects to connect its source and destination."}
+                          : noun === "repositories" || noun === "folders"
+                            ? "Connect your system, choose a folder, or ask for repository access."
+                            : "Add a project from Projects to connect its source and destination."}
                   </p>
                 </div>
               ) : renderSurface ? (

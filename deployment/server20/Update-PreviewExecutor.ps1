@@ -1,5 +1,11 @@
 param([Parameter(Mandatory=$true)][string]$PlanReference,[switch]$PlanOnly)
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest;Add-Type -AssemblyName System.Security
+function CopyReviewedAcl([string]$Source,[string]$Destination){
+ $sections=[Security.AccessControl.AccessControlSections]::Access -bor [Security.AccessControl.AccessControlSections]::Owner -bor [Security.AccessControl.AccessControlSections]::Group
+ $security=[Security.AccessControl.FileSecurity]::new();$security.SetSecurityDescriptorBinaryForm([IO.File]::GetAccessControl($Source).GetSecurityDescriptorBinaryForm(),$sections)
+ [IO.File]::SetAccessControl($Destination,$security)
+ if([IO.File]::GetAccessControl($Destination).GetSecurityDescriptorSddlForm($sections) -cne [IO.File]::GetAccessControl($Source).GetSecurityDescriptorSddlForm($sections)){throw 'Reviewed file permissions differ'}
+}
 function Hash([string]$File){(Get-FileHash -LiteralPath $File -Algorithm SHA256).Hash.ToLowerInvariant()}
 function Plain([string]$File){for($cursor=[IO.Path]::GetFullPath($File);;$cursor=[IO.Path]::GetDirectoryName($cursor)){if([IO.File]::GetAttributes($cursor) -band [IO.FileAttributes]::ReparsePoint){throw 'Linked preview executor path denied'};if($cursor -eq [IO.Path]::GetPathRoot($cursor)){break}}}
 Plain $PlanReference;if((Get-Item -LiteralPath $PlanReference).Length -gt 16384){throw 'Preview executor intent capacity'}
@@ -52,7 +58,7 @@ function StopOwned {Disable-ScheduledTask -TaskName $taskName|Out-Null;Stop-Sche
 try{
  StopOwned
  if((Hash (Join-Path $root 'executor.dpapi')) -cne $plan.configurationSha256){throw 'Preview executor changed during maintenance'}
- foreach($file in $plan.files){$destination=Join-Path $root $file.name;$temporary=$destination+'.'+$plan.id+'.tmp';if((Hash $destination) -cne $file.beforeSha256){throw 'Preview executor file changed during maintenance'};[IO.File]::Copy($file.source,$temporary,$false);Set-Acl -LiteralPath $temporary -AclObject (Get-Acl -LiteralPath $destination);[IO.File]::Replace($temporary,$destination,(Join-Path $backup ('atomic-'+$file.name)));if((Hash $destination) -cne $file.sha256){throw 'Preview executor replacement differs'}}
+ foreach($file in $plan.files){$destination=Join-Path $root $file.name;$temporary=$destination+'.'+$plan.id+'.tmp';if((Hash $destination) -cne $file.beforeSha256){throw 'Preview executor file changed during maintenance'};[IO.File]::Copy($file.source,$temporary,$false);CopyReviewedAcl $destination $temporary;[IO.File]::Replace($temporary,$destination,(Join-Path $backup ('atomic-'+$file.name)));if((Hash $destination) -cne $file.sha256){throw 'Preview executor replacement differs'}}
  Enable-ScheduledTask -TaskName $taskName|Out-Null;Start-ScheduledTask -TaskName $taskName
  if((Hash (Join-Path $root 'executor.dpapi')) -cne $plan.configurationSha256 -or (Export-ScheduledTask -TaskName $taskName) -cne $taskXml -or (Get-Acl -LiteralPath $root).Sddl -cne $rootAcl -or (Hash (Join-Path $root 'NativePlatform.cjs')) -cne $plan.adapterSha256){throw 'Preview executor preservation failed'}
  $result=@{status='PASS';id=$plan.id;action=$plan.action;executorId=$plan.executorId;configurationBytesPreserved=$true;adapterBytesPreserved=$true;taskDefinitionPreserved=$true;rootPermissionsPreserved=$true;backup=$backup}

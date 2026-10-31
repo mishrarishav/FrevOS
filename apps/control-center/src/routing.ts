@@ -4,6 +4,7 @@ export type RouteId =
   | "onboarding"
   | "projects"
   | "project-operations"
+  | "repository-center"
   | "intelligence"
   | "tasks"
   | "qa"
@@ -50,6 +51,14 @@ export function removeBasePath(pathname: string, basePath = applicationBasePath)
 }
 
 export const routes: readonly RouteDefinition[] = [
+  {
+    id: "repository-center",
+    path: "/code",
+    label: "Code",
+    shortLabel: "Code",
+    phase: "Private Git collaboration",
+    description: "Connected folders, changes, branches and pull requests.",
+  },
   {
     id: "artifact-promotions",
     path: "/projects/promotions",

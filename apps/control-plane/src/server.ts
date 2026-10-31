@@ -65,6 +65,8 @@ import type { SystemDiscovery } from "./system-discovery.js";
 import type { DeviceLogins } from "./device-logins.js";
 import type { JoinRequests } from "./join-requests.js";
 import type { PreviewRelay } from "./preview-relay.js";
+import type { RepositoryCenter } from "./repository-center.js";
+import type { GitDesktop } from "./git-desktop.js";
 
 export const SESSION_COOKIE = "__Host-frevos-session";
 export const CSRF_COOKIE = "__Host-frevos-csrf";
@@ -148,6 +150,8 @@ const LocalLoginBodySchema = z
 const EmptyBodySchema = z.object({}).strict();
 
 interface BuildServerOptions {
+  readonly repositoryCenter?: RepositoryCenter;
+  readonly gitDesktop?: GitDesktop;
   readonly previewRelay?: PreviewRelay;
   readonly selfUpdates?: SelfUpdates;
   readonly localAccounts?: LocalAccounts;
@@ -1220,6 +1224,177 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
       );
     return evidence.session.session.context.userId;
   };
+  server.get<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/git-desktop"),
+    async (request) => {
+      const e = await requireWorkspace(request, options, "project:read", now());
+      if (!options.gitDesktop) return { devices: [], folders: [], jobs: [] };
+      return options.gitDesktop.state(e.session.session.context.userId, e.workspaceId);
+    },
+  );
+  for (const action of ["select", "actions", "connect", "pick"] as const)
+    server.post<{ Params: WorkspaceParams }>(
+      route("/v1/workspaces/:workspaceId/git-desktop/" + action),
+      async (request) => {
+        const e = await requireWorkspace(request, options, "project:write", now());
+        requireCsrf(request, e.session.session, options.publicOrigin, options.authCookies.csrf);
+        if (!options.gitDesktop) throw new HttpError(503, "git-desktop-not-configured");
+        return action === "pick"
+          ? options.gitDesktop.pick(e.session.session.context.userId, e.workspaceId, request.body)
+          : action === "select"
+            ? options.gitDesktop.select(
+                e.session.session.context.userId,
+                e.workspaceId,
+                request.body,
+              )
+            : action === "connect"
+              ? options.gitDesktop.connect(
+                  e.session.session.context.userId,
+                  e.workspaceId,
+                  request.body,
+                )
+              : options.gitDesktop.action(
+                  e.session.session.context.userId,
+                  e.workspaceId,
+                  request.body,
+                );
+      },
+    );
+  server.get<{ Params: WorkspaceParams & { pickerId: string } }>(
+    route("/v1/workspaces/:workspaceId/git-desktop/pick/:pickerId"),
+    async (request) => {
+      const e = await requireWorkspace(request, options, "project:read", now());
+      if (!options.gitDesktop) throw new HttpError(503, "git-desktop-not-configured");
+      return options.gitDesktop.picker(
+        e.session.session.context.userId,
+        e.workspaceId,
+        request.params.pickerId,
+      );
+    },
+  );
+  server.post<{ Params: { pickerId: string } }>(
+    route("/v1/connector/git-desktop/pickers/:pickerId/complete"),
+    async (request) => {
+      if (!options.gitDesktop) throw new HttpError(503, "git-desktop-not-configured");
+      return options.gitDesktop.completePicker(
+        connectorCredential(request),
+        request.params.pickerId,
+        request.body,
+      );
+    },
+  );
+  server.post(route("/v1/connector/git-desktop/claim"), async (request) => {
+    if (!options.gitDesktop) return { jobs: [] };
+    return options.gitDesktop.claim(connectorCredential(request), request.body);
+  });
+  server.post(route("/v1/connector/git-desktop/identity"), async (request) => {
+    if (!options.gitDesktop) throw new HttpError(503, "git-desktop-not-configured");
+    return options.gitDesktop.identity(connectorCredential(request));
+  });
+  server.post<{ Params: { jobId: string } }>(
+    route("/v1/connector/git-desktop/:jobId/complete"),
+    async (request) => {
+      if (!options.gitDesktop) throw new HttpError(503, "git-desktop-not-configured");
+      return options.gitDesktop.complete(
+        connectorCredential(request),
+        request.params.jobId,
+        request.body,
+      );
+    },
+  );
+  server.post<{ Params: { jobId: string } }>(
+    route("/v1/connector/git-desktop/:jobId/download"),
+    async (request) => {
+      if (!options.gitDesktop) throw new HttpError(503, "git-desktop-not-configured");
+      return options.gitDesktop.download(connectorCredential(request), request.params.jobId);
+    },
+  );
+  server.post<{ Params: { jobId: string } }>(
+    route("/v1/connector/git-desktop/:jobId/publish"),
+    {
+      bodyLimit: 67108864,
+      onRequest: async (request) => {
+        if (!options.gitDesktop) throw new HttpError(503, "git-desktop-not-configured");
+        await options.gitDesktop.authorizeJob(connectorCredential(request), request.params.jobId);
+      },
+    },
+    async (request) => {
+      return options.gitDesktop!.publish(
+        connectorCredential(request),
+        request.params.jobId,
+        String(request.headers["x-devsetu-source-head"] ?? ""),
+        request.body as Buffer,
+      );
+    },
+  );
+  server.get<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/repository-center"),
+    async (request) => {
+      const e = await requireWorkspace(request, options, "project:read", now());
+      if (!options.repositoryCenter) return { configured: false, repositories: [] };
+      return options.repositoryCenter.state(e.session.session.context.userId, e.workspaceId);
+    },
+  );
+  server.get<{ Params: WorkspaceParams & { repositoryId: string } }>(
+    route("/v1/workspaces/:workspaceId/repository-center/:repositoryId"),
+    async (request) => {
+      const e = await requireWorkspace(request, options, "project:read", now());
+      if (!options.repositoryCenter) throw new HttpError(503, "repository-hosting-not-configured");
+      return options.repositoryCenter.details(
+        e.session.session.context.userId,
+        e.workspaceId,
+        request.params.repositoryId,
+      );
+    },
+  );
+  server.get<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/repository-center/recovery"),
+    async (request) => {
+      const e = await requireWorkspace(request, options, "project:read", now());
+      return options.repositoryCenter
+        ? options.repositoryCenter.recoveryState(e.session.session.context.userId, e.workspaceId)
+        : { configured: false, backups: [] };
+    },
+  );
+  server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/repository-center/recovery"),
+    async (request) => {
+      const e = await requireWorkspace(request, options, "project:write", now());
+      requireCsrf(request, e.session.session, options.publicOrigin, options.authCookies.csrf);
+      if (!options.repositoryCenter) throw new HttpError(503, "repository-hosting-not-configured");
+      return options.repositoryCenter.recover(
+        e.session.session.context.userId,
+        e.workspaceId,
+        request.body,
+      );
+    },
+  );
+  server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/repository-center/create"),
+    async (request) => {
+      const e = await requireWorkspace(request, options, "project:write", now());
+      requireCsrf(request, e.session.session, options.publicOrigin, options.authCookies.csrf);
+      if (!options.repositoryCenter) throw new HttpError(503, "repository-hosting-not-configured");
+      return options.repositoryCenter.create(
+        e.session.session.context.userId,
+        e.workspaceId,
+        request.body,
+      );
+    },
+  );
+  server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/repository-center/actions"),
+    async (request) => {
+      const e = await requireWorkspace(request, options, "project:write", now());
+      requireCsrf(request, e.session.session, options.publicOrigin, options.authCookies.csrf);
+      if (!options.repositoryCenter) throw new HttpError(503, "repository-hosting-not-configured");
+      return options.repositoryCenter.action(
+        e.session.session.context.userId,
+        e.workspaceId,
+        request.body,
+      );
+    },
+  );
   for (const action of ["open", "close"] as const) {
     server.post<{ Params: WorkspaceParams }>(
       route("/v1/workspaces/:workspaceId/local-development/preview/" + action),

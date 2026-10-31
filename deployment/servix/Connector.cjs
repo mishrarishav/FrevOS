@@ -738,6 +738,7 @@ async function connector(config) {
       !path.isAbsolute(config.monitoringRoot || "")
     )
       throw Error("system-enrollment-scope");
+    const gitDesktop = require("./GitDesktop.cjs").start(config, api);
     const loginProof = await startDeviceLoginProof(server.origin, (body) =>
       api("/v1/connector/login-proof", body),
     );
@@ -751,8 +752,15 @@ async function connector(config) {
     };
     await beat();
     setInterval(() => void beat(), 5000);
-    return collector;
+    return {
+      ...collector,
+      stop: async () => {
+        gitDesktop.stop();
+        await collector.stop();
+      },
+    };
   }
+  require("./GitDesktop.cjs").start(config, api);
   const development = require("./LocalDevelopment.cjs").start(config, inspectRepository, api);
   require("./SystemDiscovery.cjs").start(config, api, () => inspectRepository(config));
   let heartbeatPending = false;

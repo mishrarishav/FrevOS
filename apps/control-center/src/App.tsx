@@ -82,6 +82,7 @@ import {
   loadWorkspaceExperience,
 } from "./experience.js";
 import { LocalDevelopmentPage } from "./LocalDevelopmentPage.js";
+import { RepositoryCenterPage } from "./RepositoryCenterPage.js";
 import {
   addBasePath,
   isPathActive,
@@ -124,6 +125,7 @@ const routeIcons: Record<Exclude<RouteId, "not-found">, LucideIcon> = {
   "deployment-setup": Settings2,
   "component-setup": Settings2,
   "local-development": Play,
+  "repository-center": GitBranch,
   discovery: Activity,
   approvals: ShieldCheck,
   audit: ScrollText,
@@ -135,6 +137,7 @@ const railRouteIds = [
   "control-center",
   "projects",
   "discovery",
+  "repository-center",
   "agents",
   "qa",
   "reviews",
@@ -302,6 +305,7 @@ export function App({
 
   const route = resolveRoute(pathname);
   const projectWorkspace =
+    route?.id === "repository-center" ||
     route?.id === "agents" ||
     (experience.workspace.workspaceId === "ws_server20" &&
       [
@@ -385,6 +389,15 @@ export function App({
               api={api}
               workspaceId={experience.workspace.workspaceId}
               scopeName={workspaceDisplayName(experience.workspace)}
+            />
+          ) : null}
+          {route?.id === "repository-center" ? (
+            <RepositoryCenterPage
+              api={api}
+              workspaceId={experience.workspace.workspaceId}
+              userId={experience.session.userId}
+              scopeName={workspaceDisplayName(experience.workspace)}
+              navigate={navigate}
             />
           ) : null}
           {route?.id === "local-development" &&

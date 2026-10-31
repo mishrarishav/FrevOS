@@ -1,6 +1,20 @@
 import {
   type AccountProfile,
   AccountProfileSchema,
+  RepositoryCenterStateSchema,
+  HostedRepositorySchema,
+  RepositoryActionResultSchema,
+  type RepositoryCenterState,
+  type RepositoryAction,
+  GitDesktopStateSchema,
+  GitFolderPickerSchema,
+  type GitFolderPicker,
+  GitDesktopJobSchema,
+  type GitDesktopState,
+  RepositoryRecoveryStateSchema,
+  RepositoryRecoveryResultSchema,
+  type RepositoryRecoveryState,
+  type RepositoryRecoveryResult,
   type ActivitySettingsInput,
   ActivitySettingsRecordSchema,
   type Agent,
@@ -142,6 +156,28 @@ export interface WorkspaceSnapshot {
 }
 
 export interface ControlCenterApi {
+  repositoryRecoveryState?(
+    workspaceId: string,
+    signal?: AbortSignal,
+  ): Promise<RepositoryRecoveryState>;
+  repositoryRecoveryAction?(workspaceId: string, input: unknown): Promise<RepositoryRecoveryResult>;
+  createHostedRepository?(
+    workspaceId: string,
+    input: unknown,
+  ): Promise<RepositoryCenterState["repositories"][number]>;
+  gitDesktopState?(workspaceId: string, signal?: AbortSignal): Promise<GitDesktopState>;
+  pickGitFolder?(workspaceId: string, input: unknown): Promise<GitFolderPicker>;
+  gitFolderPicker?(workspaceId: string, id: string, signal?: AbortSignal): Promise<GitFolderPicker>;
+  selectGitFolder?(workspaceId: string, input: unknown): Promise<GitDesktopState["jobs"][number]>;
+  gitDesktopAction?(workspaceId: string, input: unknown): Promise<GitDesktopState["jobs"][number]>;
+  connectGitFolder?(workspaceId: string, input: unknown): Promise<GitDesktopState["jobs"][number]>;
+  repositoryCenterState?(workspaceId: string, signal?: AbortSignal): Promise<RepositoryCenterState>;
+  repositoryDetails?(
+    workspaceId: string,
+    repositoryId: string,
+    signal?: AbortSignal,
+  ): Promise<RepositoryCenterState["repositories"][number]>;
+  repositoryAction?(workspaceId: string, input: RepositoryAction): Promise<unknown>;
   promotionState?(workspaceId: string, signal?: AbortSignal): Promise<PromotionState>;
   preparePromotion?(workspaceId: string, input: unknown): Promise<PromotionJob>;
   approvePromotion?(workspaceId: string, input: unknown): Promise<PromotionJob>;
@@ -440,6 +476,46 @@ export function createControlCenterApi(
       ),
     saveAgent: (ws, input) => post(`${workspacePath(ws)}/agents/configuration`, input, AgentSchema),
     runAgent: (ws, input) => post(`${workspacePath(ws)}/agents/runs`, input, AgentRunSchema),
+    repositoryRecoveryState: (ws, signal) =>
+      get(`${workspacePath(ws)}/repository-center/recovery`, RepositoryRecoveryStateSchema, signal),
+    repositoryRecoveryAction: (ws, input) =>
+      post(
+        `${workspacePath(ws)}/repository-center/recovery`,
+        input,
+        RepositoryRecoveryResultSchema,
+      ),
+    createHostedRepository: (ws, input) =>
+      post(`${workspacePath(ws)}/repository-center/create`, input, HostedRepositorySchema),
+    gitDesktopState: (ws, signal) =>
+      get(`${workspacePath(ws)}/git-desktop`, GitDesktopStateSchema, signal),
+    pickGitFolder: (ws, input) =>
+      post(`${workspacePath(ws)}/git-desktop/pick`, input, GitFolderPickerSchema),
+    gitFolderPicker: (ws, id, signal) =>
+      get(
+        `${workspacePath(ws)}/git-desktop/pick/${encodeURIComponent(id)}`,
+        GitFolderPickerSchema,
+        signal,
+      ),
+    selectGitFolder: (ws, input) =>
+      post(`${workspacePath(ws)}/git-desktop/select`, input, GitDesktopJobSchema),
+    gitDesktopAction: (ws, input) =>
+      post(`${workspacePath(ws)}/git-desktop/actions`, input, GitDesktopJobSchema),
+    connectGitFolder: (ws, input) =>
+      post(`${workspacePath(ws)}/git-desktop/connect`, input, GitDesktopJobSchema),
+    repositoryCenterState: (workspaceId, signal) =>
+      get(`${workspacePath(workspaceId)}/repository-center`, RepositoryCenterStateSchema, signal),
+    repositoryDetails: (workspaceId, id, signal) =>
+      get(
+        `${workspacePath(workspaceId)}/repository-center/${encodeURIComponent(id)}`,
+        HostedRepositorySchema,
+        signal,
+      ),
+    repositoryAction: (workspaceId, input) =>
+      post(
+        `${workspacePath(workspaceId)}/repository-center/actions`,
+        input,
+        RepositoryActionResultSchema,
+      ),
     localDevelopmentState: (workspaceId, signal) =>
       get(`${workspacePath(workspaceId)}/local-development`, LocalDevStateSchema, signal),
     discoveryState: (workspaceId, signal, historyDeviceId) =>

@@ -1,5 +1,11 @@
 param([Parameter(Mandatory=$true)][string]$PlanReference,[switch]$PlanOnly)
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
+function CopyReviewedAcl([string]$Source,[string]$Destination){
+ $sections=[Security.AccessControl.AccessControlSections]::Access -bor [Security.AccessControl.AccessControlSections]::Owner -bor [Security.AccessControl.AccessControlSections]::Group
+ $security=[Security.AccessControl.FileSecurity]::new();$security.SetSecurityDescriptorBinaryForm([IO.File]::GetAccessControl($Source).GetSecurityDescriptorBinaryForm(),$sections)
+ [IO.File]::SetAccessControl($Destination,$security)
+ if([IO.File]::GetAccessControl($Destination).GetSecurityDescriptorSddlForm($sections) -cne [IO.File]::GetAccessControl($Source).GetSecurityDescriptorSddlForm($sections)){throw 'Reviewed file permissions differ'}
+}
 function Hash([string]$File){(Get-FileHash -LiteralPath $File -Algorithm SHA256).Hash.ToLowerInvariant()}
 function Plain([string]$File){for($cursor=[IO.Path]::GetFullPath($File);;$cursor=[IO.Path]::GetDirectoryName($cursor)){if([IO.File]::GetAttributes($cursor) -band [IO.FileAttributes]::ReparsePoint){throw 'Linked private preview path denied'};if($cursor -eq [IO.Path]::GetPathRoot($cursor)){break}}}
 Plain $PlanReference;if((Get-Item -LiteralPath $PlanReference).Length -gt 32768){throw 'Private preview intent capacity'}
@@ -57,11 +63,11 @@ try{
  # read access. Parent/runtime/database/other project ACLs are untouched.
  $principal=$task.Principal.UserId;if($principal -notmatch '^S-1-'){$principal=([Security.Principal.NTAccount]::new($principal)).Translate([Security.Principal.SecurityIdentifier]).Value}
  $owners=@('S-1-5-18','S-1-5-32-544',$plan.executionSid)|Sort-Object -Unique
- if($createdDirectory){$directoryAcl=[Security.AccessControl.DirectorySecurity]::new();$directoryAcl.SetAccessRuleProtection($true,$false);foreach($owner in $owners){$directoryAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($owner),'FullControl','ContainerInherit,ObjectInherit','None','Allow'))};$directoryAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($principal),'ReadAndExecute','ContainerInherit,ObjectInherit','None','Allow'));Set-Acl -LiteralPath $configDirectory -AclObject $directoryAcl}
- $acl=[Security.AccessControl.FileSecurity]::new();$acl.SetAccessRuleProtection($true,$false);foreach($owner in $owners){$acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($owner),'FullControl','Allow'))};$acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($principal),'ReadAndExecute','Allow'));Set-Acl -LiteralPath $temporary -AclObject $acl
+ if($createdDirectory){$directoryAcl=[Security.AccessControl.DirectorySecurity]::new();$directoryAcl.SetAccessRuleProtection($true,$false);foreach($owner in $owners){$directoryAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($owner),'FullControl','ContainerInherit,ObjectInherit','None','Allow'))};$directoryAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($principal),'ReadAndExecute','ContainerInherit,ObjectInherit','None','Allow'));[IO.Directory]::SetAccessControl($configDirectory,$directoryAcl)}
+ $acl=[Security.AccessControl.FileSecurity]::new();$acl.SetAccessRuleProtection($true,$false);foreach($owner in $owners){$acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($owner),'FullControl','Allow'))};$acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($principal),'ReadAndExecute','Allow'));[IO.File]::SetAccessControl($temporary,$acl)
  if(Test-Path -LiteralPath $configFile){[IO.File]::Replace($temporary,$configFile,(Join-Path $backup 'atomic-config.json'))}else{[IO.File]::Move($temporary,$configFile)}
  $changed=$true
- $newGuard=Join-Path $release 'deployment\server20\Verify-AndroidCompatibility.ps1';$temporaryGuard=$guard+'.'+$plan.id+'.tmp';[IO.File]::Copy($newGuard,$temporaryGuard,$false);Set-Acl -LiteralPath $temporaryGuard -AclObject (Get-Acl -LiteralPath $guard);[IO.File]::Replace($temporaryGuard,$guard,(Join-Path $backup 'atomic-guard.ps1'))
+ $newGuard=Join-Path $release 'deployment\server20\Verify-AndroidCompatibility.ps1';$temporaryGuard=$guard+'.'+$plan.id+'.tmp';[IO.File]::Copy($newGuard,$temporaryGuard,$false);CopyReviewedAcl $guard $temporaryGuard;[IO.File]::Replace($temporaryGuard,$guard,(Join-Path $backup 'atomic-guard.ps1'))
  Stop-ScheduledTask -TaskName $plan.controlTask;$deadline=[DateTimeOffset]::UtcNow.AddSeconds(30)
  while((Get-ScheduledTask -TaskName $plan.controlTask).State -ceq 'Running'){if([DateTimeOffset]::UtcNow -gt $deadline){throw 'Private preview stop deadline'};Start-Sleep -Milliseconds 250}
  Start-ScheduledTask -TaskName $plan.controlTask

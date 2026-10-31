@@ -50,6 +50,9 @@ import {
 } from "../src/server.js";
 import { ServixDeploymentStore } from "../src/servix-deployment.js";
 import { SystemDiscovery } from "../src/system-discovery.js";
+import type { RepositoryCenter } from "../src/repository-center.js";
+import type { GitDesktop } from "../src/git-desktop.js";
+import { ServixDeploymentError } from "../src/servix-deployment.js";
 
 const POSTGRES_IMAGE =
   "postgres:18.4-alpine3.23@sha256:996d0920e4ff9df1fc19dacb904492f3c1ec0ec1cc338f0ad7123be7731c5f5e";
@@ -739,6 +742,256 @@ describe("durable identity and session lifecycle", () => {
 });
 
 describe("Fastify BFF and protected workspace APIs", () => {
+  it("enforces session, workspace, write scope and CSRF on central Git routes and authorizes bundle uploads before parsing", async () => {
+    const state = vi.fn(async () => ({ configured: true, repositories: [] })),
+      details = vi.fn(async () => ({ id: "fixture" })),
+      action = vi.fn(async () => ({ status: "succeeded" })),
+      create = vi.fn(async () => ({ id: "created" })),
+      recoveryState = vi.fn(async () => ({ configured: false, backups: [] })),
+      recover = vi.fn(async () => ({ status: "backed-up" }));
+    const center = {
+      state,
+      details,
+      action,
+      create,
+      recoveryState,
+      recover,
+    } as unknown as RepositoryCenter;
+    const gs = vi.fn(async () => ({ devices: [], folders: [], jobs: [] })),
+      select = vi.fn(async () => ({ status: "queued" })),
+      ga = vi.fn(async () => ({ status: "queued" })),
+      connect = vi.fn(async () => ({ status: "queued" })),
+      claim = vi.fn(async () => ({ jobs: [] })),
+      complete = vi.fn(async () => ({ completed: true })),
+      download = vi.fn(async () => ({ head: "a".repeat(40), bundle: "Zml4dHVyZQ==" })),
+      publish = vi.fn(async () => ({ published: true })),
+      authorizeJob = vi.fn(async () => {}),
+      identity = vi.fn(async () => ({
+        deviceId: "fixture",
+        workspaceId: "ws_team",
+        profileId: null,
+      }));
+    const desktop = {
+      state: gs,
+      select,
+      action: ga,
+      connect,
+      claim,
+      complete,
+      download,
+      publish,
+      authorizeJob,
+      identity,
+      pick: vi.fn(async () => ({ status: "queued" })),
+      picker: vi.fn(async () => ({ status: "claimed" })),
+      completePicker: vi.fn(async () => ({ completed: true })),
+    } as unknown as GitDesktop;
+    const server = await buildServer({
+      publicOrigin: PUBLIC_ORIGIN,
+      authMode: "local",
+      identitySessions: identities,
+      workspaces,
+      repositoryCenter: center,
+      gitDesktop: desktop,
+      now: () => NOW,
+    });
+    try {
+      const base = "/v1/workspaces/" + TRACKGRN_WORKSPACE_ID;
+      expect((await server.inject({ url: base + "/repository-center" })).statusCode).toBe(401);
+      const login = await server.inject({
+        method: "POST",
+        url: "/auth/login",
+        headers: { origin: PUBLIC_ORIGIN },
+        payload: { username: "personal.admin", password: "personal-password" },
+      });
+      const session = cookiePair(login, SESSION_COOKIE),
+        csrf = cookiePair(login, CSRF_COOKIE),
+        headers = {
+          cookie: session + "; " + csrf,
+          origin: PUBLIC_ORIGIN,
+          "x-csrf-token": csrf.slice(CSRF_COOKIE.length + 1),
+        };
+      for (const suffix of [
+        "repository-center",
+        "repository-center/repo_fixture",
+        "repository-center/recovery",
+        "git-desktop",
+        "git-desktop/pick/gpick_fixture",
+      ])
+        expect((await server.inject({ url: base + "/" + suffix, headers })).statusCode).toBe(200);
+      expect(state).toHaveBeenCalledWith(localPrincipal.userId, TRACKGRN_WORKSPACE_ID);
+      expect(
+        (await server.inject({ url: "/v1/workspaces/ws_beta/repository-center", headers }))
+          .statusCode,
+      ).toBe(404);
+      for (const suffix of [
+        "repository-center/actions",
+        "repository-center/create",
+        "repository-center/recovery",
+        "git-desktop/select",
+        "git-desktop/actions",
+        "git-desktop/connect",
+        "git-desktop/pick",
+      ]) {
+        expect(
+          (
+            await server.inject({
+              method: "POST",
+              url: base + "/" + suffix,
+              headers: { cookie: headers.cookie },
+              payload: {},
+            })
+          ).statusCode,
+        ).toBe(403);
+        expect(
+          (
+            await server.inject({
+              method: "POST",
+              url: "/v1/workspaces/ws_alpha/" + suffix,
+              headers,
+              payload: {},
+            })
+          ).statusCode,
+        ).toBe(403);
+        expect(
+          (
+            await server.inject({
+              method: "POST",
+              url: base + "/" + suffix,
+              headers,
+              payload: { version: 1 },
+            })
+          ).statusCode,
+        ).toBe(200);
+      }
+      const ch = {
+        authorization: "Bearer synthetic-paired-credential",
+        "content-type": "application/json",
+      };
+      for (const suffix of [
+        "claim",
+        "identity",
+        "gjob_fixture/complete",
+        "gjob_fixture/download",
+        "pickers/gpick_fixture/complete",
+      ])
+        expect(
+          (
+            await server.inject({
+              method: "POST",
+              url: "/v1/connector/git-desktop/" + suffix,
+              headers: ch,
+              payload: {},
+            })
+          ).statusCode,
+        ).toBe(200);
+      const url = "/v1/connector/git-desktop/gjob_fixture/publish";
+      authorizeJob.mockRejectedValueOnce(new ServixDeploymentError("git-desktop-job-denied", 403));
+      expect(
+        (
+          await server.inject({
+            method: "POST",
+            url,
+            headers: { ...ch, "content-type": "application/x-git-bundle" },
+            payload: Buffer.from("fixture"),
+          })
+        ).statusCode,
+      ).toBe(403);
+      expect(publish).not.toHaveBeenCalled();
+      expect(
+        (
+          await server.inject({
+            method: "POST",
+            url,
+            headers: {
+              ...ch,
+              "content-type": "application/x-git-bundle",
+              "x-devsetu-source-head": "a".repeat(40),
+            },
+            payload: Buffer.from("fixture"),
+          })
+        ).statusCode,
+      ).toBe(200);
+      expect(publish).toHaveBeenCalledWith(
+        "synthetic-paired-credential",
+        "gjob_fixture",
+        "a".repeat(40),
+        Buffer.from("fixture"),
+      );
+      const disabled = await buildServer({
+        publicOrigin: PUBLIC_ORIGIN,
+        authMode: "local",
+        identitySessions: identities,
+        workspaces,
+        now: () => NOW,
+      });
+      try {
+        expect(
+          (await disabled.inject({ url: base + "/repository-center", headers })).json(),
+        ).toEqual({ configured: false, repositories: [] });
+        expect(
+          (await disabled.inject({ url: base + "/repository-center/recovery", headers })).json(),
+        ).toEqual({ configured: false, backups: [] });
+        expect((await disabled.inject({ url: base + "/git-desktop", headers })).json()).toEqual({
+          devices: [],
+          folders: [],
+          jobs: [],
+        });
+        expect(
+          (await disabled.inject({ url: base + "/repository-center/repo_fixture", headers }))
+            .statusCode,
+        ).toBe(503);
+        for (const suffix of [
+          "repository-center/create",
+          "repository-center/actions",
+          "repository-center/recovery",
+          "git-desktop/select",
+          "git-desktop/connect",
+          "git-desktop/actions",
+        ])
+          expect(
+            (
+              await disabled.inject({
+                method: "POST",
+                url: base + "/" + suffix,
+                headers,
+                payload: {},
+              })
+            ).statusCode,
+          ).toBe(503);
+        expect(
+          (
+            await disabled.inject({
+              method: "POST",
+              url: "/v1/connector/git-desktop/claim",
+              headers: ch,
+              payload: {},
+            })
+          ).json(),
+        ).toEqual({ jobs: [] });
+        for (const suffix of [
+          "identity",
+          "gjob_fixture/download",
+          "gjob_fixture/complete",
+          "gjob_fixture/publish",
+        ])
+          expect(
+            (
+              await disabled.inject({
+                method: "POST",
+                url: "/v1/connector/git-desktop/" + suffix,
+                headers: ch,
+                payload: {},
+              })
+            ).statusCode,
+          ).toBe(503);
+      } finally {
+        await disabled.close();
+      }
+    } finally {
+      await server.close();
+    }
+  });
   it("supports internal HTTP login, scoped cookies, CSRF and logout without accepting HTTPS cookies", async () => {
     const origin = "http://10.9.69.20";
     await expect(

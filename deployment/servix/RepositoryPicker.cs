@@ -4,11 +4,95 @@ using System.Globalization;
 using System.Text;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
+using System.Runtime.InteropServices;
 
 // A Windows GUI executable owns the interactive window. It receives no credential
 // and only returns a locally chosen path; the installed connector validates it.
 internal static class RepositoryPicker
 {
+    [DllImport("user32.dll", SetLastError=true)] private static extern IntPtr OpenInputDesktop(uint flags, bool inherit, uint access);
+    [DllImport("user32.dll")] private static extern IntPtr GetThreadDesktop(uint threadId);
+    [DllImport("user32.dll")] private static extern IntPtr GetProcessWindowStation();
+    [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll", CharSet=CharSet.Unicode, SetLastError=true)] private static extern bool GetUserObjectInformation(IntPtr handle, int index, StringBuilder value, int length, out int needed);
+    [DllImport("user32.dll")] private static extern bool CloseDesktop(IntPtr desktop);
+    private static bool HasName(IntPtr handle, string expected)
+    {
+        var name = new StringBuilder(256); int needed;
+        return handle != IntPtr.Zero && GetUserObjectInformation(handle, 2, name, 512, out needed) && name.ToString() == expected;
+    }
+    private static void RequireNativeDesktop()
+    {
+        if (!Environment.UserInteractive || System.Diagnostics.Process.GetCurrentProcess().SessionId == 0) throw new InvalidOperationException();
+        var desktop = OpenInputDesktop(0, false, 0x0083);
+        if (desktop == IntPtr.Zero) throw new InvalidOperationException();
+        try
+        {
+            // An interactive connector already inherits this desktop. Reassigning
+            // a thread after framework initialization can fail with ERROR_BUSY.
+            if (!HasName(desktop, "Default") || !HasName(GetThreadDesktop(GetCurrentThreadId()), "Default") || !HasName(GetProcessWindowStation(), "WinSta0")) throw new InvalidOperationException();
+        }
+        finally { CloseDesktop(desktop); }
+        // No desktop switch, elevation, ACL change or lock-screen interaction.
+    }
+    [ComImport, Guid("43826D1E-E718-42EE-BC55-A1E261C37BFE"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IShellItem
+    {
+        void BindToHandler(IntPtr bind, ref Guid handler, ref Guid iid, out IntPtr value);
+        void GetParent(out IShellItem parent);
+        void GetDisplayName(uint kind, out IntPtr name);
+        void GetAttributes(uint mask, out uint attributes);
+        void Compare(IShellItem other, uint hint, out int order);
+    }
+    [ComImport, Guid("42F85136-DB7E-439C-85F1-E4075D135FC8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IFolderDialog
+    {
+        [PreserveSig] int Show(IntPtr owner);
+        void SetFileTypes(uint count, IntPtr types);
+        void SetFileTypeIndex(uint index);
+        void GetFileTypeIndex(out uint index);
+        void Advise(IntPtr events, out uint cookie);
+        void Unadvise(uint cookie);
+        void SetOptions(uint options);
+        void GetOptions(out uint options);
+        void SetDefaultFolder(IShellItem folder);
+        void SetFolder(IShellItem folder);
+        void GetFolder(out IShellItem folder);
+        void GetCurrentSelection(out IShellItem item);
+        void SetFileName([MarshalAs(UnmanagedType.LPWStr)] string name);
+        void GetFileName(out IntPtr name);
+        void SetTitle([MarshalAs(UnmanagedType.LPWStr)] string title);
+        void SetOkButtonLabel([MarshalAs(UnmanagedType.LPWStr)] string label);
+        void SetFileNameLabel([MarshalAs(UnmanagedType.LPWStr)] string label);
+        void GetResult(out IShellItem result);
+        void AddPlace(IShellItem item, uint location);
+        void SetDefaultExtension([MarshalAs(UnmanagedType.LPWStr)] string extension);
+        void Close(int result);
+        void SetClientGuid(ref Guid client);
+        void ClearClientData();
+        void SetFilter(IntPtr filter);
+    }
+    [DllImport("shell32.dll", CharSet=CharSet.Unicode, PreserveSig=true)]
+    private static extern int SHCreateItemFromParsingName(string path, IntPtr bind, ref Guid iid, out IShellItem item);
+    private static string PickNativeFolder()
+    {
+        var dialog = (IFolderDialog)Activator.CreateInstance(Type.GetTypeFromCLSID(new Guid("DC1C5A9C-E88A-4DDE-A5A1-60F82A20AEF7")));
+        IShellItem initial = null, result = null;
+        try
+        {
+            uint options; dialog.GetOptions(out options);
+            dialog.SetOptions(options | 0x20u | 0x40u | 0x800u | 0x8u | 0x02000000u);
+            dialog.SetTitle("DevSetu - Choose folder"); dialog.SetOkButtonLabel("Choose folder");
+            var iid = typeof(IShellItem).GUID;
+            if (SHCreateItemFromParsingName(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), IntPtr.Zero, ref iid, out initial) >= 0) dialog.SetFolder(initial);
+            int status = dialog.Show(IntPtr.Zero);
+            if (status == unchecked((int)0x800704C7)) return null;
+            Marshal.ThrowExceptionForHR(status);
+            dialog.GetResult(out result); IntPtr value; result.GetDisplayName(0x80058000, out value);
+            try { return Marshal.PtrToStringUni(value); } finally { Marshal.FreeCoTaskMem(value); }
+        }
+        finally { if(result != null) Marshal.ReleaseComObject(result); if(initial != null) Marshal.ReleaseComObject(initial); Marshal.ReleaseComObject(dialog); }
+    }
     [STAThread]
     private static void Main(string[] args)
     {
@@ -49,8 +133,19 @@ internal static class RepositoryPicker
             var expires = DateTimeOffset.Parse((string)request["expiresAt"], CultureInfo.InvariantCulture);
             if (profile.Length > 64 || repository.Length > 240 || expires <= DateTimeOffset.UtcNow || expires > DateTimeOffset.UtcNow.AddSeconds(95))
                 throw new InvalidOperationException();
+            if (args.Length == 1 && args[0] == "--choose-folder") RequireNativeDesktop();
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
+            if (args.Length == 1 && args[0] == "--choose-folder")
+            {
+                if (!Environment.UserInteractive || System.Diagnostics.Process.GetCurrentProcess().SessionId == 0)
+                    throw new InvalidOperationException();
+                var folderChoice = PickNativeFolder();
+                output.WriteLine(serializer.Serialize(folderChoice != null && DateTimeOffset.UtcNow < expires
+                    ? new Dictionary<string, object> { { "status", "selected" }, { "repository", folderChoice } }
+                    : new Dictionary<string, object> { { "status", "cancelled" } }));
+                return;
+            }
             using (var form = new Form())
             using (var timer = new Timer())
             {

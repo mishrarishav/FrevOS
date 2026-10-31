@@ -1,5 +1,59 @@
 # DevSetu Current State
 
+2026-10-31: The owner resumes the two Windows process-inventory failures,
+Server20 platform deployment and GitHub task-branch publication under ADR 0078.
+The direct Windows TCP-owner API reports a real listener that CIM/netstat omit.
+The production inventory uses that bounded IPv4/IPv6 API while retaining exact
+process/project/creation-time checks. All four unchanged native runtime tests
+now pass, including start/restart/stop, foreign-process denial and exact owned
+process termination. Local full CI passes 93 files / 472 tests (94 contracts,
+104 UI, 274 backend), unchanged coverage gates, build and high-severity audit.
+The final prepare:test-git CI entry is also verified separately; it ensures
+fresh source builds run the pinned native engine acceptance. Publication and
+same-scope release are in progress;
+no new live Git engine, role grant or customer deployment is authorized.
+
+2026-10-31: Native Choose folder is locally verified under ADR 0077 on
+codex/central-git-collaboration. The actual Windows dialog opens from Code;
+selecting an existing non-empty test folder opens real read-only Changes,
+protects .env and leaves source/Git metadata untouched. Cancel and expiry are
+explicit, once-only device/workspace/owner-scoped outcomes. Native helper,
+new-download manifest and pairing-preserving updater are included. Linux UI
+and cross-laptop/live rollout remain unverified; no Server20 activation or
+GitHub publication is applied. Phase 4 remains open. The handoff records the
+native proof, exact validation and separate publication limitations.
+The final full backend has 271 passes and the two established baseline process
+failures; unchanged coverage gates pass at 95.01% statements, 91.39% branches,
+96.73% functions and 96.81% lines. The final system updater extension separately
+passes real Windows file/DPAPI migration and recovery tests, retaining pairing
+and monitoring history; project-sidecar updates refuse pinned system mode.
+
+2026-10-31: The owner's simple Code flow is locally implemented on
+codex/central-git-collaboration: pair once, choose an existing folder, review
+Changes and explicitly Commit & Push; private repository creation happens only
+at publication. Native Git/roles/PR/review/merge, preserved history/remotes,
+clone/remote checkout and encrypted full backup/isolated restore pass. The
+full Windows backend run has 267 passed / 2 failed tests; both failures reproduce
+on the unchanged base's local process-inventory tests. Unchanged coverage gates
+pass (95% statements, 91.4% branches, 96.7% functions, 96.79% lines). Latest
+runtime/filter/ignore/native checks pass separately. The repeated-folder binding
+bug found during verification is fixed. Build/typecheck, contracts/frontend
+coverage and dependency audit pass. No commit/push/PR, live engine, secret/role
+grant or rollout is applied. Publication/live readiness remains BLOCKED; the
+complete evidence, configuration boundary and changed files are in
+[the Git handoff](CENTRAL_GIT_COLLABORATION_HANDOFF.md). Phase 4 remains open.
+
+2026-10-30: The owner explicitly requests configurable private Git collaboration
+through DevSetu: standard Git transport, branches, PR/review, repository RBAC and
+verified full backup/restore. ADR 0076 scopes the dedicated
+codex/central-git-collaboration branch at e5b1122ad95323b46beab3789672d2cb6ca2d9cd.
+Implementation and isolated verification are in progress. A separate private
+Gitea engine owns repositories; the control plane remains an authorization and
+integration boundary. No live install, secret/role grant, repository migration,
+GitHub push/merge or live restore is claimed. Existing deployment flows and the
+previous worktree's three unpublished preview corrections are preserved.
+Phase 4 and Android/preview live acceptance remain open.
+
 2026-10-30: The owner explicitly requests a configurable VPN-only paired-laptop
 HTTP preview relay. Branch codex/vpn-preview-relay is stacked on deployed
 d4967eca5272cc1360245e44336a738151b6e325 under ADR 0075. Implementation and

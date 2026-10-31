@@ -169,3 +169,15 @@ pairing, consent, retained identity and required native acceptance.
 records the owner's VPN-only application preview request, isolated configured
 origins, opted-in running services, bounded HTTP request/response transport and
 owner/workspace/session checks. Android acceptance remains separate.
+
+[0076: Configured private Git collaboration](0076-configured-private-git-collaboration.md)
+records the owner's standard Git/branch/PR/review request, separate private
+engine boundary, live repository permissions and verified full recovery.
+
+[0077: Native Code folder selection](0077-native-code-folder-selection.md)
+records the owner's native chooser request, once-claimed device-bound jobs,
+interactive desktop requirements and explicit web-browser fallback.
+
+[0078: Native listener detection and Server20 release](0078-native-listener-detection-and-server20-release.md)
+records the owner-authorized process-detection repair, task-branch publication
+and configured platform rollout with pairing/data preservation.

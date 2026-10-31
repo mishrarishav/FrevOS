@@ -3927,6 +3927,42 @@ kbd,
 .agents-page .record-card {
   overflow-wrap: anywhere;
 }
+.git-changes-list {
+  min-inline-size: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+}
+.workspace-dialog:has(.git-folder-chooser) {
+  width: min(560px, calc(100% - 32px));
+}
+.git-folder-chooser {
+  height: auto;
+  width: 100%;
+}
+.git-folder-chooser .discovery-scroll {
+  padding: 12px 20px 20px;
+}
+.discovery-form .git-file-choice {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  margin: 10px 0;
+}
+.discovery-form .git-file-choice input {
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  margin: 3px 0 0;
+}
+.git-file-choice span {
+  overflow-wrap: anywhere;
+}
+.git-file-choice small {
+  display: block;
+  opacity: 0.7;
+}
 @media (max-width: 650px) {
   .discovery-workspace .discovery-form-grid {
     grid-template-columns: minmax(0, 1fr);
