@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ServixDeploymentStore } from "../src/servix-deployment.js";
+import { createHash } from "node:crypto";
 let root: string;
 const head = "a".repeat(40),
   digest = "b".repeat(64),
@@ -23,6 +24,42 @@ function deferred() {
   });
   return { promise, done };
 }
+it("offers complete saved releases only when both component descriptors belong to the successful manifest digest", async () => {
+  const manifest = Buffer.from(
+    JSON.stringify({
+      mode: "bundled-existing-dependencies",
+      backendArtifact: { manifestSha256: "b".repeat(64) },
+      frontendArtifact: { sha256: "c".repeat(64) },
+      validation: { version: 1, status: "passed", sourceHead: head },
+    }),
+  );
+  const identity = createHash("sha256").update(manifest).digest("hex");
+  const store = new ServixDeploymentStore(
+    root,
+    {
+      head: async () => head,
+      build: async () => {
+        const build = join(root, "builds", requestId);
+        await mkdir(join(build, "release"), { recursive: true });
+        await writeFile(join(build, "release/manifest.json"), manifest);
+        await writeFile(join(build, "release.zip"), "fixture zip placeholder");
+        const artifact = { manifestSha256: identity, archiveSha256: "e".repeat(64) };
+        await writeFile(join(build, "artifact.json"), JSON.stringify(artifact));
+        return artifact;
+      },
+    },
+    async () => true,
+  );
+  await store.request("usr_admin", input);
+  await expect.poll(async () => (await store.state()).runs[0]?.status).toBe("activating");
+  await writeFile(
+    join(root, "results", `${requestId}.json`),
+    JSON.stringify({ requestId, sourceHead: head, artifactDigest: identity, status: "succeeded" }),
+  );
+  expect((await store.state()).applicationReleaseIds).toEqual([requestId]);
+  await writeFile(join(root, "builds", requestId, "release/manifest.json"), "changed manifest");
+  expect((await store.state()).applicationReleaseIds).toBeUndefined();
+});
 it("pins the pushed commit, de-duplicates retries and binds activation to its artifact and actor", async () => {
   const task = deferred(),
     build = vi.fn(() => task.promise),

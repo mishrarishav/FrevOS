@@ -14,13 +14,14 @@ import {
 import { X } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { ControlCenterApi } from "./api.js";
-import { type DiscoverySystem, discoverySystems } from "./discovery-systems.js";
+import { type DiscoverySystem, discoverySystems, lastSeenLabel } from "./discovery-systems.js";
 import { FolderBrowser } from "./FolderBrowser.js";
 import { SystemPairingDialog } from "./SystemPairingDialog.js";
 import { RecordBadge, type RecordColumn, RecordWorkspace } from "./RecordWorkspace.js";
 import { addBasePath } from "./routing.js";
 import { WorkspaceDialog } from "./WorkspaceDialog.js";
 import { HealthGraphs } from "./HealthGraphs.js";
+import { JoinRequestsInbox } from "./JoinRequestsInbox.js";
 
 type System = DiscoveryState["systems"][number];
 const bytes = (n: number) => `${(n / 1073741824).toFixed(1)} GB`;
@@ -62,7 +63,7 @@ export function DiscoveryPage({
   const [state, setState] = useState<DiscoveryState>({ systems: [], reports: [] });
   const [pairing, setPairing] = useState(false);
   const [userId, setUserId] = useState(""),
-    [tab, setTab] = useState<"systems" | "reports">("systems");
+    [tab, setTab] = useState<"systems" | "reports" | "requests">("systems");
   const [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
@@ -90,6 +91,13 @@ export function DiscoveryPage({
   const systems = discoverySystems(state.systems).filter(
     (s) => historical || s.status === "active",
   );
+  const access = state.access;
+  const canManageSystem = (system: System) =>
+    !!access?.canManageOwnSystems &&
+    system.userId === access.actorId &&
+    system.status === "active" &&
+    system.platform !== "android" &&
+    system.observation?.system.platform !== "android";
   // biome-ignore lint/correctness/useExhaustiveDependencies: reload is the explicit retry generation.
   useEffect(() => {
     const abort = new AbortController();
@@ -102,16 +110,43 @@ export function DiscoveryPage({
           api.getSession(abort.signal),
         ]);
         if (!abort.signal.aborted) {
+          if (!next.access || next.access.actorId !== session.userId) throw Error();
           setState(next);
           setUserId(session.userId);
+          if (!next.access.canPair) setPairing(false);
+          if (next.access.role !== "admin")
+            setTab((prior) => (prior === "requests" ? "systems" : prior));
+          const owned = (id: string) =>
+            next.access!.canManageOwnSystems &&
+            next.systems.some(
+              (system) =>
+                system.deviceId === id &&
+                system.userId === session.userId &&
+                system.status === "active",
+            );
+          if (details && !next.systems.some((system) => system.deviceId === details))
+            setDetails(null);
+          setSettings((prior) => (prior && owned(prior.system.deviceId) ? prior : null));
+          setFolderPicker((prior) => (prior && owned(prior.system.deviceId) ? prior : null));
+          setEditor((prior) => (next.access!.canManagePlans ? prior : null));
+          setPreview((prior) => (prior && owned(prior.request.deviceId) ? prior : null));
           setLoading(false);
           setError("");
         }
       } catch {
         if (!abort.signal.aborted) {
-          setError("Discovery connection unavailable. Showing last observed evidence.");
+          setError(
+            "Discovery access unavailable. Reconnect or sign in again to view your systems.",
+          );
           setLoading(false);
-          setState((s) => ({ ...s, systems: s.systems.map((d) => ({ ...d, online: false })) }));
+          setState({ systems: [], reports: [] });
+          setUserId("");
+          setPairing(false);
+          setDetails(null);
+          setSettings(null);
+          setFolderPicker(null);
+          setEditor(null);
+          setPreview(null);
         }
       }
       if (!abort.signal.aborted) timer = setTimeout(() => void poll(), 5000);
@@ -183,7 +218,7 @@ export function DiscoveryPage({
       /* Optional preference. */
     }
   }, [userId, workspaceId]);
-  function selectTab(value: "systems" | "reports") {
+  function selectTab(value: "systems" | "reports" | "requests") {
     setTab(value);
     try {
       sessionStorage.setItem(`frevos:${userId}:${workspaceId}:discovery:tab`, value);
@@ -235,13 +270,23 @@ export function DiscoveryPage({
   const health = (s: System) => {
     const sample = s.observation?.system;
     if (!sample)
-      return <p>Awaiting a system observation. Install or update the connector on this device.</p>;
+      return (
+        <p>
+          {s.platform === "android"
+            ? "Awaiting an Android observation. Open DevSetu Connector on that device and tap Start monitoring."
+            : "Awaiting a system observation. Install or update the connector on this device."}
+        </p>
+      );
     return (
       <div className="discovery-facts">
         <span>
           CPU{" "}
           <strong>
-            {sample.cpuPercent === null ? "Sampling" : `${sample.cpuPercent.toFixed(1)}%`}
+            {sample.cpuPercent === null
+              ? sample.platform === "android"
+                ? "Unavailable"
+                : "Sampling"
+              : `${sample.cpuPercent.toFixed(1)}%`}
           </strong>
         </span>
         <span>
@@ -254,8 +299,15 @@ export function DiscoveryPage({
           {sample.os} · {sample.architecture}
         </span>
         <span>
-          {sample.disks.length} local drive{sample.disks.length === 1 ? "" : "s"}
+          {sample.platform === "android"
+            ? "App data volume"
+            : `${sample.disks.length} local drive${sample.disks.length === 1 ? "" : "s"}`}
         </span>
+        {sample.batteryPercent !== undefined && sample.batteryPercent !== null ? (
+          <span>
+            Battery <strong>{sample.batteryPercent.toFixed(0)}%</strong>
+          </span>
+        ) : null}
       </div>
     );
   };
@@ -264,29 +316,33 @@ export function DiscoveryPage({
       <button type="button" className="button secondary" onClick={() => openActivity(s.deviceId)}>
         Activity &amp; health
       </button>
-      <button
-        type="button"
-        className="button secondary"
-        disabled={!s.online || s.userId !== userId}
-        onClick={() => setFolderPicker({ system: s, mode: "inspect" })}
-      >
-        Browse folders
-      </button>
-      <button
-        type="button"
-        className="button secondary"
-        disabled={s.userId !== userId || s.status !== "active" || busy}
-        onClick={() => {
-          setNotice("");
-          setSettings({
-            system: s,
-            policy: structuredClone(s.policy?.policy ?? defaultDiscoveryPolicy),
-            activity: structuredClone(s.activity?.settings ?? defaultActivitySettings),
-          });
-        }}
-      >
-        Tracking settings
-      </button>
+      {canManageSystem(s) ? (
+        <>
+          <button
+            type="button"
+            className="button secondary"
+            disabled={!s.online}
+            onClick={() => setFolderPicker({ system: s, mode: "inspect" })}
+          >
+            Browse folders
+          </button>
+          <button
+            type="button"
+            className="button secondary"
+            disabled={busy}
+            onClick={() => {
+              setNotice("");
+              setSettings({
+                system: s,
+                policy: structuredClone(s.policy?.policy ?? defaultDiscoveryPolicy),
+                activity: structuredClone(s.activity?.settings ?? defaultActivitySettings),
+              });
+            }}
+          >
+            Tracking settings
+          </button>
+        </>
+      ) : null}
     </div>
   );
   const systemColumns: RecordColumn<DiscoverySystem>[] = [
@@ -317,23 +373,38 @@ export function DiscoveryPage({
       label: "Tracking",
       value: (s) => s.observation?.coverage.status ?? "not-installed",
     },
-    { id: "status", label: "Presence", value: (s) => (s.online ? "online" : "offline") },
+    {
+      id: "status",
+      label: "Presence",
+      value: (s) => (s.online ? "online" : "offline"),
+      render: (s) => (
+        <RecordBadge tone={s.online ? "positive" : "warning"}>
+          {s.online ? "Online" : "Offline / stale"}
+        </RecordBadge>
+      ),
+    },
+    {
+      id: "lastSeen",
+      label: "Last seen",
+      value: (s) => s.lastSeenAt ?? "",
+      render: (s) => lastSeenLabel(s.lastSeenAt),
+    },
   ];
-  const reportActions = (r: DeliveryReport) => (
-    <div className="record-row-actions">
-      <button
-        type="button"
-        className="button secondary"
-        disabled={userId !== "usr_windows_admin"}
-        onClick={() => {
-          setNotice("");
-          setEditor({ report: r, plan: newPlan(r) });
-        }}
-      >
-        {r.plan ? "Edit plan / acceptance" : "Set up project plan"}
-      </button>
-    </div>
-  );
+  const reportActions = (r: DeliveryReport) =>
+    access?.canManagePlans ? (
+      <div className="record-row-actions">
+        <button
+          type="button"
+          className="button secondary"
+          onClick={() => {
+            setNotice("");
+            setEditor({ report: r, plan: newPlan(r) });
+          }}
+        >
+          {r.plan ? "Edit plan / acceptance" : "Set up project plan"}
+        </button>
+      </div>
+    ) : null;
   const percent = (n: number | null) => (n === null ? "Unknown" : `${n}%`);
   const reportColumns: RecordColumn<DeliveryReport>[] = [
     { id: "name", label: "Project", value: (r) => r.projectName },
@@ -352,9 +423,28 @@ export function DiscoveryPage({
   ];
   const controls = (
     <div className="record-row-actions">
-      <button type="button" className="button secondary" onClick={() => setPairing(true)}>
-        Approve connection
-      </button>
+      {access?.role === "admin" ? (
+        <button
+          type="button"
+          className={`button ${tab === "requests" ? "primary" : "secondary"}`}
+          aria-pressed={tab === "requests"}
+          onClick={() => selectTab("requests")}
+        >
+          Join requests
+        </button>
+      ) : null}
+      <RecordBadge tone={access?.role === "admin" ? "positive" : "neutral"}>
+        {access
+          ? access.role === "admin"
+            ? "Admin · All workspace systems"
+            : "User · Your systems only"
+          : "Checking access"}
+      </RecordBadge>
+      {access?.canPair ? (
+        <button type="button" className="button secondary" onClick={() => setPairing(true)}>
+          Approve connection
+        </button>
+      ) : null}
       {tab === "systems" ? (
         <label className="record-inline-choice">
           <input
@@ -365,10 +455,12 @@ export function DiscoveryPage({
           Show historical sources
         </label>
       ) : null}
-      <a className="button secondary" href={addBasePath("/projects/local-development")}>
-        Local development
-      </a>
-      {tab === "reports" ? (
+      {access?.canManageOwnSystems ? (
+        <a className="button secondary" href={addBasePath("/projects/local-development")}>
+          Local development
+        </a>
+      ) : null}
+      {tab === "reports" && access?.role === "admin" ? (
         <a className="button secondary" href={addBasePath("/projects/frevos/operations")}>
           Clients &amp; project records
         </a>
@@ -398,9 +490,17 @@ export function DiscoveryPage({
       >
         Linux installer
       </a>
+      <a
+        className="button secondary"
+        href={addBasePath("/downloads/devsetu-connector-android.apk")}
+      >
+        Android installer
+      </a>
     </div>
   );
   const selected = state.systems.find((s) => s.deviceId === details);
+  const selectedIsAndroid =
+    selected?.platform === "android" || selected?.observation?.system.platform === "android";
   useEffect(() => {
     if (!selected) return;
     const retained = selected.contentRequests ?? [];
@@ -443,7 +543,15 @@ export function DiscoveryPage({
           }}
         />
       ) : null}
-      {tab === "systems" ? (
+      {tab === "requests" && access?.role === "admin" ? (
+        <JoinRequestsInbox
+          api={api}
+          workspaceId={workspaceId}
+          userId={userId}
+          scopeName={scopeName}
+          actions={controls}
+        />
+      ) : tab === "systems" ? (
         <RecordWorkspace
           key={`systems:${userId}`}
           title="Discovery"
@@ -473,7 +581,7 @@ export function DiscoveryPage({
                 <div className="record-identity">
                   <h2>{s.observation?.system.systemName ?? s.name}</h2>
                   <small>
-                    {s.bindings.length} project {s.bindings.length === 1 ? "binding" : "bindings"} ·{" "}
+                    {s.bindings.length} {s.bindings.length === 1 ? "connection" : "connections"} ·{" "}
                     {s.observation?.system.installationId
                       ? "System identity reported"
                       : "Identity unavailable; source shown separately"}
@@ -488,9 +596,7 @@ export function DiscoveryPage({
                 Tracking: {s.observation?.coverage.status ?? "Not installed"} ·{" "}
                 {s.observation?.coverage.watchedDirectories ?? 0} watched folders
               </p>
-              <small>
-                Observed: {s.observedAt ? new Date(s.observedAt).toLocaleString() : "Not yet"}
-              </small>
+              <small>{lastSeenLabel(s.lastSeenAt)}</small>
               <small>
                 {s.profileId
                   ? s.sourceFresh
@@ -512,44 +618,56 @@ export function DiscoveryPage({
                       {binding.source?.repository ??
                         (binding.profileId ? "Source not verified" : "No project required")}
                     </small>
+                    <small>
+                      {binding.online ? "Online" : "Offline / stale"} ·{" "}
+                      {lastSeenLabel(binding.lastSeenAt ?? binding.observedAt)}
+                    </small>
+                    {s.unverifiedBindings.includes(binding.deviceId) && s.bindings.length > 1 ? (
+                      <small>Grouped by matching name and account; system identity pending.</small>
+                    ) : null}
                     <div className="record-row-actions">
-                      <a
-                        className="button secondary"
-                        href={addBasePath(
-                          binding.profileId
-                            ? `/projects/local-development?project=${encodeURIComponent(binding.profileId)}`
-                            : "/projects/components",
-                        )}
-                      >
-                        {binding.profileId ? "Local preview & services" : "Add a project"}
-                      </a>
+                      {canManageSystem(binding) ? (
+                        <a
+                          className="button secondary"
+                          href={addBasePath(
+                            binding.profileId
+                              ? `/projects/local-development?project=${encodeURIComponent(binding.profileId)}`
+                              : "/projects/components",
+                          )}
+                        >
+                          {binding.profileId ? "Local preview & services" : "Add a project"}
+                        </a>
+                      ) : null}
                       <button
                         type="button"
                         className="button secondary"
-                        aria-label={binding.profileId + " activity"}
+                        aria-label={(binding.profileId ?? "System monitoring") + " activity"}
                         onClick={() => openActivity(binding.deviceId)}
                       >
                         Activity
                       </button>
-                      <button
-                        type="button"
-                        className="button secondary"
-                        aria-label={binding.profileId + " tracking settings"}
-                        disabled={binding.userId !== userId || binding.status !== "active"}
-                        onClick={() =>
-                          setSettings({
-                            system: binding,
-                            activity: structuredClone(
-                              binding.activity?.settings ?? defaultActivitySettings,
-                            ),
-                            policy: structuredClone(
-                              binding.policy?.policy ?? defaultDiscoveryPolicy,
-                            ),
-                          })
-                        }
-                      >
-                        Tracking
-                      </button>
+                      {canManageSystem(binding) ? (
+                        <button
+                          type="button"
+                          className="button secondary"
+                          aria-label={
+                            (binding.profileId ?? "System monitoring") + " tracking settings"
+                          }
+                          onClick={() =>
+                            setSettings({
+                              system: binding,
+                              activity: structuredClone(
+                                binding.activity?.settings ?? defaultActivitySettings,
+                              ),
+                              policy: structuredClone(
+                                binding.policy?.policy ?? defaultDiscoveryPolicy,
+                              ),
+                            })
+                          }
+                        >
+                          Tracking
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 ))}
@@ -688,13 +806,27 @@ export function DiscoveryPage({
                 </select>
               </label>
               {health(selected)}
-              <p>CPU and RAM above describe the whole computer.</p>
-              <HealthGraphs points={selected.healthHistory ?? []} online={selected.online} />
+              <p>{lastSeenLabel(selected.lastSeenAt)}</p>
               <p>
-                {selected.collector
-                  ? `Connector: ${(selected.collector.rss / 1048576).toFixed(1)} MB RAM (RSS), ${(selected.collector.heapUsed / 1048576).toFixed(1)} MB JavaScript heap · pending jobs ${selected.collector.pendingJobs} / ${selected.collector.maxPendingJobs}`
-                  : "Connector resource metrics unavailable from this installed version. Update the connector once for bounded processing and its own RAM measurement."}
+                {selectedIsAndroid
+                  ? "RAM above describes this Android device. System-wide CPU is unavailable."
+                  : "CPU and RAM above describe the whole computer."}
               </p>
+              <HealthGraphs
+                points={selected.healthHistory ?? []}
+                online={selected.online}
+                cpuSupported={
+                  selected.platform !== "android" &&
+                  selected.observation?.system.platform !== "android"
+                }
+              />
+              {!selectedIsAndroid ? (
+                <p>
+                  {selected.collector
+                    ? `Connector: ${(selected.collector.rss / 1048576).toFixed(1)} MB RAM (RSS), ${(selected.collector.heapUsed / 1048576).toFixed(1)} MB JavaScript heap · pending jobs ${selected.collector.pendingJobs} / ${selected.collector.maxPendingJobs}`
+                    : "Connector resource metrics unavailable from this installed version. Update the connector once for bounded processing and its own RAM measurement."}
+                </p>
+              ) : null}
               <p>
                 {selected.profileId
                   ? selected.sourceFresh
@@ -714,226 +846,252 @@ export function DiscoveryPage({
                   <strong>{d.root}</strong> · {bytes(d.available)} available / {bytes(d.total)}
                 </p>
               ))}
-              <h3>Tools</h3>
-              {selected.observation?.system.tools.map((t) => (
-                <p key={`${t.id}:${t.required}`}>
-                  {t.id}: {t.detected ?? "Missing"} · required {t.required} · {t.status}
-                </p>
-              ))}
-              <p>
-                Use the local installer’s system check to review and install selected prerequisites.
-              </p>
-              <h3>Coverage</h3>
-              <p>{selected.observation?.coverage.roots.join(", ") || "Tracking is not active"}</p>
-              <p>
-                Acting user / process comes only from matching OS audit records when available.
-                Filesystem notifications, connector account and assigned developer do not prove who
-                edited a file.
-              </p>
-              {selected.observation?.coverage.gaps.map((g) => (
-                <p key={g} className="record-muted">
-                  {g.replaceAll("-", " ")}
-                </p>
-              ))}
-              <p>
-                {selected.history.length} of {selected.historyCount} retained events loaded.
-                Retention: {selected.policy?.policy.retentionDays ?? 7} days, up to{" "}
-                {selected.policy?.policy.maxEvents ?? 2000} events within the storage limit.
-                Notifications may coalesce edits; gaps are not reconstructed.
-              </p>
-              <h3>File activity</h3>
-              {selected.contentRequests?.length ? (
-                <label>
-                  Recent file requests
-                  <select
-                    value={preview?.requestId ?? ""}
-                    onChange={(e) =>
-                      setPreview(
-                        selected.contentRequests!.find((j) => j.requestId === e.target.value) ??
-                          null,
-                      )
-                    }
-                  >
-                    {selected.contentRequests.map((j) => (
-                      <option key={j.requestId} value={j.requestId}>
-                        {j.status} · {j.request.path} · {new Date(j.createdAt).toLocaleString()}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ) : null}
-              <p>
-                Request a file snapshot below. The computer's user must approve that exact request
-                in a local browser page. Earlier changes are available only when an earlier approved
-                snapshot exists; file notifications cannot reconstruct old content.
-              </p>
-              {preview ? (
-                <section className="discovery-event" aria-label="Requested file content">
-                  <h3>Requested file content · {preview.status}</h3>
+              {selectedIsAndroid ? (
+                <section aria-label="Android monitoring scope">
+                  <h3>Android monitoring</h3>
                   <p>
-                    {preview.request.root} / {preview.request.path}
+                    Device health and presence are shared. Desktop tools, project execution, folder
+                    browsing and file tracking are unavailable.
                   </p>
-                  {["queued", "working"].includes(preview.status) ? (
-                    <p>
-                      Waiting for one-time approval on that computer. Expires{" "}
-                      {new Date(preview.expiresAt).toLocaleString()}.
-                    </p>
-                  ) : null}
-                  {preview.errorCode ? <p>{preview.errorCode.replaceAll("-", " ")}</p> : null}
-                  {preview.result ? (
-                    <>
-                      <p>
-                        Masked UTF-8 text, at most 8 KiB. Comparing approved snapshots; intervening
-                        edits may be missing.
-                      </p>
-                      <div className="discovery-diff">
-                        <section>
-                          <h4>
-                            Before ·{" "}
-                            {preview.result.beforeAt
-                              ? new Date(preview.result.beforeAt).toLocaleString()
-                              : "Baseline unavailable"}
-                          </h4>
-                          <pre>
-                            {preview.result.before ?? "No earlier approved snapshot was retained."}
-                          </pre>
-                        </section>
-                        <section>
-                          <h4>Current · {new Date(preview.result.observedAt).toLocaleString()}</h4>
-                          <pre>{preview.result.after}</pre>
-                        </section>
-                      </div>
-                    </>
-                  ) : null}
+                  <p>
+                    The Android app's ongoing notification has a Stop action. Android may pause
+                    monitoring after force-close or battery restrictions; open the app and Start
+                    monitoring to resume.
+                  </p>
                 </section>
-              ) : null}
-              <label>
-                Activity segment
-                <select
-                  value={activitySegment}
-                  onChange={(e) => {
-                    setActivitySegment(e.target.value as "work" | "noise" | "all");
-                    setActivityLimit(100);
-                  }}
-                >
-                  <option value="work">
-                    Work / other activity ({selected.activity?.workCount ?? selected.historyCount})
-                  </option>
-                  <option value="noise">
-                    Temp / Cache / Tooling ({selected.activity?.noiseCount ?? 0})
-                  </option>
-                  <option value="all">All activity ({selected.historyCount})</option>
-                </select>
-              </label>
-              <p>
-                Path categories help review activity; they do not prove productive work. Summaries
-                count retained notifications, not edits. Separate event and byte quotas discard the
-                oldest activity in each segment. Excluded sensitive paths stay excluded.
-              </p>
-              <p>
-                Temp / Cache / Tooling: up to {selected.activity?.settings.noisePercent ?? 20}% of
-                the event and storage budget, retained for up to{" "}
-                {Math.min(
-                  selected.policy?.policy.retentionDays ?? 7,
-                  selected.activity?.settings.noiseRetentionDays ?? 2,
-                )}{" "}
-                days. Matching metadata notifications are summarized over{" "}
-                {selected.activity?.settings.summarySeconds ?? 30} seconds.
-              </p>
-              <div className="discovery-form-grid">
-                <label>
-                  Day (your local time)
-                  <input
-                    type="date"
-                    value={activityDay}
-                    onChange={(event) => {
-                      setActivityDay(event.target.value);
-                      setActivityLimit(100);
-                    }}
-                  />
-                </label>
-                <label>
-                  Folder or file path
-                  <input
-                    value={activityPath}
-                    onChange={(event) => {
-                      setActivityPath(event.target.value);
-                      setActivityLimit(100);
-                    }}
-                  />
-                </label>
-              </div>
-              {activity.length ? (
-                activity.slice(0, activityLimit).map((e) => (
-                  <article className="discovery-event" key={`${e.bootId}:${e.sequence}`}>
-                    <strong>
-                      {e.kind} · {e.path}
-                    </strong>
-                    <small>
-                      {new Date(e.at).toLocaleString()} · {e.root}
-                    </small>
-                    {e.count > 1 ? (
-                      <small>
-                        {e.count} retained notifications ·{" "}
-                        {new Date(e.firstAt).toLocaleTimeString()}–
-                        {new Date(e.at).toLocaleTimeString()}
-                      </small>
-                    ) : null}
-                    {e.kind !== "gap" ? (
-                      <button
-                        type="button"
-                        className="button secondary"
-                        disabled={
-                          busy ||
-                          !selected.online ||
-                          !selected.collector ||
-                          selected.userId !== userId ||
-                          (!!preview && ["queued", "working"].includes(preview.status))
-                        }
-                        onClick={() => void requestContent(selected, e.root, e.path)}
-                      >
-                        Request file content
-                      </button>
-                    ) : null}
-                    <small>
-                      {typeof e.attribution === "object"
-                        ? `OS audit: ${e.attribution.user} · ${e.attribution.process} · PID ${e.attribution.pid} · record ${e.attribution.recordId}`
-                        : "Acting user / process unavailable"}
-                    </small>
-                    {e.content ? (
-                      <details>
-                        <summary>
-                          Text before / after · {e.content.status.replaceAll("-", " ")}
-                        </summary>
-                        <div className="discovery-diff">
-                          <section>
-                            <h4>Before</h4>
-                            <pre>{e.content.before || "No baseline"}</pre>
-                          </section>
-                          <section>
-                            <h4>After</h4>
-                            <pre>{e.content.after || "Removed / empty"}</pre>
-                          </section>
-                        </div>
-                      </details>
-                    ) : null}
-                  </article>
-                ))
               ) : (
-                <p>
-                  No matching retained events. Gaps and expired history cannot establish that no
-                  files changed.
-                </p>
+                <>
+                  <h3>Tools</h3>
+                  {selected.observation?.system.tools.map((t) => (
+                    <p key={`${t.id}:${t.required}`}>
+                      {t.id}: {t.detected ?? "Missing"} · required {t.required} · {t.status}
+                    </p>
+                  ))}
+                  <p>
+                    Use the local installer’s system check to review and install selected
+                    prerequisites.
+                  </p>
+                  <h3>Coverage</h3>
+                  <p>
+                    {selected.observation?.coverage.roots.join(", ") || "Tracking is not active"}
+                  </p>
+                  <p>
+                    Acting user / process comes only from matching OS audit records when available.
+                    Filesystem notifications, connector account and assigned developer do not prove
+                    who edited a file.
+                  </p>
+                  {selected.observation?.coverage.gaps.map((g) => (
+                    <p key={g} className="record-muted">
+                      {g.replaceAll("-", " ")}
+                    </p>
+                  ))}
+                  <p>
+                    {selected.history.length} of {selected.historyCount} retained events loaded.
+                    Retention: {selected.policy?.policy.retentionDays ?? 7} days, up to{" "}
+                    {selected.policy?.policy.maxEvents ?? 2000} events within the storage limit.
+                    Notifications may coalesce edits; gaps are not reconstructed.
+                  </p>
+                  <h3>File activity</h3>
+                  {selected.contentRequests?.length ? (
+                    <label>
+                      Recent file requests
+                      <select
+                        value={preview?.requestId ?? ""}
+                        onChange={(e) =>
+                          setPreview(
+                            selected.contentRequests!.find((j) => j.requestId === e.target.value) ??
+                              null,
+                          )
+                        }
+                      >
+                        {selected.contentRequests.map((j) => (
+                          <option key={j.requestId} value={j.requestId}>
+                            {j.status} · {j.request.path} · {new Date(j.createdAt).toLocaleString()}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+                  <p>
+                    Request a file snapshot below. The computer's user must approve that exact
+                    request in a local browser page. Earlier changes are available only when an
+                    earlier approved snapshot exists; file notifications cannot reconstruct old
+                    content.
+                  </p>
+                  {preview ? (
+                    <section className="discovery-event" aria-label="Requested file content">
+                      <h3>Requested file content · {preview.status}</h3>
+                      <p>
+                        {preview.request.root} / {preview.request.path}
+                      </p>
+                      {["queued", "working"].includes(preview.status) ? (
+                        <p>
+                          Waiting for one-time approval on that computer. Expires{" "}
+                          {new Date(preview.expiresAt).toLocaleString()}.
+                        </p>
+                      ) : null}
+                      {preview.errorCode ? <p>{preview.errorCode.replaceAll("-", " ")}</p> : null}
+                      {preview.result ? (
+                        <>
+                          <p>
+                            Masked UTF-8 text, at most 8 KiB. Comparing approved snapshots;
+                            intervening edits may be missing.
+                          </p>
+                          <div className="discovery-diff">
+                            <section>
+                              <h4>
+                                Before ·{" "}
+                                {preview.result.beforeAt
+                                  ? new Date(preview.result.beforeAt).toLocaleString()
+                                  : "Baseline unavailable"}
+                              </h4>
+                              <pre>
+                                {preview.result.before ??
+                                  "No earlier approved snapshot was retained."}
+                              </pre>
+                            </section>
+                            <section>
+                              <h4>
+                                Current · {new Date(preview.result.observedAt).toLocaleString()}
+                              </h4>
+                              <pre>{preview.result.after}</pre>
+                            </section>
+                          </div>
+                        </>
+                      ) : null}
+                    </section>
+                  ) : null}
+                  <label>
+                    Activity segment
+                    <select
+                      value={activitySegment}
+                      onChange={(e) => {
+                        setActivitySegment(e.target.value as "work" | "noise" | "all");
+                        setActivityLimit(100);
+                      }}
+                    >
+                      <option value="work">
+                        Work / other activity (
+                        {selected.activity?.workCount ?? selected.historyCount})
+                      </option>
+                      <option value="noise">
+                        Temp / Cache / Tooling ({selected.activity?.noiseCount ?? 0})
+                      </option>
+                      <option value="all">All activity ({selected.historyCount})</option>
+                    </select>
+                  </label>
+                  <p>
+                    Path categories help review activity; they do not prove productive work.
+                    Summaries count retained notifications, not edits. Separate event and byte
+                    quotas discard the oldest activity in each segment. Excluded sensitive paths
+                    stay excluded.
+                  </p>
+                  <p>
+                    Temp / Cache / Tooling: up to {selected.activity?.settings.noisePercent ?? 20}%
+                    of the event and storage budget, retained for up to{" "}
+                    {Math.min(
+                      selected.policy?.policy.retentionDays ?? 7,
+                      selected.activity?.settings.noiseRetentionDays ?? 2,
+                    )}{" "}
+                    days. Matching metadata notifications are summarized over{" "}
+                    {selected.activity?.settings.summarySeconds ?? 30} seconds.
+                  </p>
+                  <div className="discovery-form-grid">
+                    <label>
+                      Day (your local time)
+                      <input
+                        type="date"
+                        value={activityDay}
+                        onChange={(event) => {
+                          setActivityDay(event.target.value);
+                          setActivityLimit(100);
+                        }}
+                      />
+                    </label>
+                    <label>
+                      Folder or file path
+                      <input
+                        value={activityPath}
+                        onChange={(event) => {
+                          setActivityPath(event.target.value);
+                          setActivityLimit(100);
+                        }}
+                      />
+                    </label>
+                  </div>
+                  {activity.length ? (
+                    activity.slice(0, activityLimit).map((e) => (
+                      <article className="discovery-event" key={`${e.bootId}:${e.sequence}`}>
+                        <strong>
+                          {e.kind} · {e.path}
+                        </strong>
+                        <small>
+                          {new Date(e.at).toLocaleString()} · {e.root}
+                        </small>
+                        {e.count > 1 ? (
+                          <small>
+                            {e.count} retained notifications ·{" "}
+                            {new Date(e.firstAt).toLocaleTimeString()}–
+                            {new Date(e.at).toLocaleTimeString()}
+                          </small>
+                        ) : null}
+                        {e.kind !== "gap" && canManageSystem(selected) ? (
+                          <button
+                            type="button"
+                            className="button secondary"
+                            disabled={
+                              busy ||
+                              !selected.online ||
+                              !selected.collector ||
+                              selected.userId !== userId ||
+                              (!!preview && ["queued", "working"].includes(preview.status))
+                            }
+                            onClick={() => void requestContent(selected, e.root, e.path)}
+                          >
+                            Request file content
+                          </button>
+                        ) : null}
+                        <small>
+                          {typeof e.attribution === "object"
+                            ? `OS audit: ${e.attribution.user} · ${e.attribution.process} · PID ${e.attribution.pid} · record ${e.attribution.recordId}`
+                            : "Acting user / process unavailable"}
+                        </small>
+                        {e.content ? (
+                          <details>
+                            <summary>
+                              Text before / after · {e.content.status.replaceAll("-", " ")}
+                            </summary>
+                            <div className="discovery-diff">
+                              <section>
+                                <h4>Before</h4>
+                                <pre>{e.content.before || "No baseline"}</pre>
+                              </section>
+                              <section>
+                                <h4>After</h4>
+                                <pre>{e.content.after || "Removed / empty"}</pre>
+                              </section>
+                            </div>
+                          </details>
+                        ) : null}
+                      </article>
+                    ))
+                  ) : (
+                    <p>
+                      No matching retained events. Gaps and expired history cannot establish that no
+                      files changed.
+                    </p>
+                  )}
+                  {activity.length > activityLimit ? (
+                    <button
+                      type="button"
+                      className="button secondary"
+                      onClick={() => setActivityLimit((value) => value + 100)}
+                    >
+                      Load more ({activity.length - activityLimit} remaining)
+                    </button>
+                  ) : null}
+                </>
               )}
-              {activity.length > activityLimit ? (
-                <button
-                  type="button"
-                  className="button secondary"
-                  onClick={() => setActivityLimit((value) => value + 100)}
-                >
-                  Load more ({activity.length - activityLimit} remaining)
-                </button>
-              ) : null}
             </div>
           </section>
         </WorkspaceDialog>

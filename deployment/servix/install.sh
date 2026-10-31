@@ -7,4 +7,8 @@ if ! "$package_dir/runtime/bin/node" --version >/dev/null 2>&1; then
  printf '%s\n' 'The bundled Linux runtime cannot start. Check the supported OS baseline and its glibc/libstdc++ libraries before opening the local prerequisite review.' >&2
  exit 1
 fi
-exec "$package_dir/runtime/bin/node" "$package_dir/Setup-Linux.cjs"
+case "${1-}" in
+ --project) exec "$package_dir/runtime/bin/node" "$package_dir/Setup-Linux.cjs" ;;
+ '') exec "$package_dir/runtime/bin/node" "$package_dir/Setup-SystemLinux.cjs" ;;
+ *) printf '%s\n' 'Use ./install.sh for system monitoring or ./install.sh --project for the existing project connector.' >&2; exit 1 ;;
+esac

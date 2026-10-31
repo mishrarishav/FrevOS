@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "workspaceId": "ws_server20",
+  "administrators": ["usr_windows_admin"],
+  "deviceLoginMethod": "connector-page"
+}

@@ -199,6 +199,14 @@ with PostgreSQL 18, Keycloak, and Caddy local HTTPS. It improves authenticated
 local development but is not evidence for the hosted UAT, recovery, or
 independent acceptance exit gates.
 
+The owner-authorized private source-control extension in
+[ADR 0076](adr/0076-configured-private-git-collaboration.md) adds paired-folder
+Changes/Commit & Push and a separate native Git engine for repository RBAC,
+branches, PR/reviews and full recovery. This bounded pilot remains within the
+configured-source track. Its local evidence and live rollout gates are recorded
+in the [handoff](CENTRAL_GIT_COLLABORATION_HANDOFF.md); it neither closes Phase 4
+nor silently starts the generic Phase 5 GitHub App work.
+
 ## Phase 5 — GitHub App and repository onboarding
 
 An owner-authorized UAT-only TrackGRN vertical pilot is defined by

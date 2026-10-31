@@ -102,11 +102,17 @@ export function RecordWorkspace<T>({
   loading?: boolean;
   error?: string;
   onRetry?: () => void;
-  noun?: "projects" | "systems" | "agents";
+  noun?: "projects" | "systems" | "agents" | "requests" | "repositories" | "folders";
 }) {
   const key = `frevos:${userId}:${workspaceId}:${page}:records:v1`;
   const listLabel =
-    noun === "systems" ? "System list" : noun === "agents" ? "Agent list" : "Project list";
+    noun === "systems"
+      ? "System list"
+      : noun === "agents"
+        ? "Agent list"
+        : noun === "requests"
+          ? "Join request list"
+          : "Project list";
   const [preferences, setPreferences] = useState(() => readPreferences(key, defaultView));
   const [filtersOpen, setFiltersOpen] = useState(false);
   useEffect(() => {
@@ -238,7 +244,9 @@ export function RecordWorkspace<T>({
               placeholder={
                 noun === "agents"
                   ? "Search agent, role or model…"
-                  : "Search project, source folder or server…"
+                  : noun === "requests"
+                    ? "Search account or request ID…"
+                    : "Search project, source folder or server…"
               }
             />
           </label>
@@ -297,7 +305,9 @@ export function RecordWorkspace<T>({
                         ? "Add a model connection and configure an agent."
                         : noun === "systems"
                           ? "Install and pair a system connector for a configured project."
-                          : "Add a project from Projects to connect its source and destination."}
+                          : noun === "repositories" || noun === "folders"
+                            ? "Connect your system, choose a folder, or ask for repository access."
+                            : "Add a project from Projects to connect its source and destination."}
                   </p>
                 </div>
               ) : renderSurface ? (

@@ -372,6 +372,8 @@ export class SystemDiscovery {
         (d.source || d.mode === "system"),
     );
     if (!device) throw new ServixDeploymentError("discovery-device-access-denied", 403);
+    if (device.platform === "android")
+      throw new ServixDeploymentError("android-monitoring-only", 409);
     const value = await this.read(id + ".observation.json");
     const stored = value ? StoredObservation.parse(value) : null;
     if (!stored || this.now().getTime() - Date.parse(stored.receivedAt) > 30000)
@@ -530,13 +532,21 @@ export class SystemDiscovery {
       folderSearch: { version: 1 },
     };
   }
-  async configure(actor: string, input: unknown) {
+  async configure(actor: string, input: unknown, enrollmentApprover?: string) {
     return this.serial(async () => {
+      if (
+        enrollmentApprover &&
+        enrollmentApprover !== actor &&
+        !(await this.connectors.discoveryAccess(enrollmentApprover)).canManagePlans
+      )
+        throw new ServixDeploymentError("discovery-device-access-denied", 403);
       const body = DiscoveryPolicyInputSchema.parse(input);
       const devices = await this.connectors.discoveryDevices(actor);
       const device = devices.find((d) => d.deviceId === body.deviceId && d.status === "active");
       if (!device || !device.workspaceAuthorized || device.userId !== actor)
         throw new ServixDeploymentError("discovery-device-access-denied", 403);
+      if (device.platform === "android" && body.policy.enabled)
+        throw new ServixDeploymentError("android-monitoring-only", 409);
       if (device.mode === "system" && body.policy.contentFolders.length)
         throw new ServixDeploymentError("connector-project-binding-required", 403);
       const prior = await this.policy(body.deviceId);
@@ -561,7 +571,7 @@ export class SystemDiscovery {
       const record = DiscoveryPolicyRecordSchema.parse({
         ...configuration,
         revision: body.expectedRevision + 1,
-        actor,
+        actor: enrollmentApprover ?? actor,
         updatedAt: this.now().toISOString(),
       });
       await this.save(
@@ -576,6 +586,21 @@ export class SystemDiscovery {
     return this.serial(async () => {
       const device = await this.connectors.checkCredential(credential);
       const observation = DiscoveryObservationSchema.parse(input);
+      if (
+        device.platform === "android" &&
+        (observation.system.platform !== "android" ||
+          observation.system.cpuPercent !== null ||
+          observation.system.tools.length !== 0 ||
+          observation.events.length !== 0 ||
+          observation.coverage.status !== "disabled" ||
+          observation.coverage.roots.length !== 0 ||
+          observation.coverage.watchedDirectories !== 0 ||
+          observation.coverage.gaps.length !== 0 ||
+          observation.coverage.attribution !== "unavailable")
+      )
+        throw new ServixDeploymentError("android-monitoring-only", 409);
+      if (device.platform && device.platform !== observation.system.platform)
+        throw new ServixDeploymentError("discovery-platform-mismatch", 403);
       const acknowledged = Math.max(0, ...observation.events.map((e) => e.sequence));
       if (
         device.deviceId !== observation.deviceId ||
@@ -690,7 +715,7 @@ export class SystemDiscovery {
   async savePlan(actor: string, input: unknown) {
     return this.serial(async () => {
       const body = DeliveryPlanInputSchema.parse(input);
-      if (actor !== "usr_windows_admin")
+      if (!(await this.connectors.discoveryAccess(actor)).canManagePlans)
         throw new ServixDeploymentError("discovery-plan-owner-required", 403);
       const { projects } = await this.catalog(actor);
       if (
@@ -745,7 +770,10 @@ export class SystemDiscovery {
     });
   }
   async state(actor: string, historyDeviceId?: string) {
-    const devices = await this.connectors.discoveryDevices(actor),
+    const access = await this.connectors.discoveryAccess(actor),
+      devices = (await this.connectors.discoveryDevices(actor)).filter(
+        (device) => access.role === "admin" || device.userId === actor,
+      ),
       catalog = await this.catalog(actor);
     if (
       historyDeviceId &&
@@ -785,12 +813,17 @@ export class SystemDiscovery {
           name: d.name,
           userId: d.userId,
           profileId: d.mode === "system" ? null : (d.profileId ?? "servix-development"),
+          ...(d.platform ? { platform: d.platform } : {}),
           status: d.workspaceAuthorized ? d.status : "workspace-access-revoked",
           source: d.source ?? record?.source ?? null,
           sourceFresh: !!d.source && d.online,
           online:
             !!record && d.online && this.now().getTime() - Date.parse(record.receivedAt) < 30000,
           observedAt: record?.receivedAt ?? null,
+          lastSeenAt:
+            d.lastSeenAt && (!record || Date.parse(d.lastSeenAt) > Date.parse(record.receivedAt))
+              ? d.lastSeenAt
+              : (record?.receivedAt ?? null),
           healthHistory: historyDeviceId === d.deviceId ? healthHistory : healthHistory.slice(-12),
           policy,
           observation: record?.observation ?? null,
@@ -834,6 +867,28 @@ export class SystemDiscovery {
         .map(async (p) => {
           const value = await this.latest(p.projectId + ".plan");
           const plan: DeliveryPlan | null = value ? DeliveryPlanSchema.parse(value) : null;
+          const bindings = plan?.bindings.filter(
+            (binding) =>
+              binding.userId === actor &&
+              devices.some(
+                (device) =>
+                  device.deviceId === binding.deviceId &&
+                  device.userId === actor &&
+                  device.status === "active" &&
+                  device.workspaceAuthorized &&
+                  device.repositoryId === binding.repositoryId &&
+                  (device.profileId ?? "servix-development") === binding.profileId,
+              ),
+          );
+          if (access.role !== "admin" && !bindings?.length) return null;
+          const visiblePlan =
+            access.role === "admin" || !plan
+              ? plan
+              : {
+                  ...plan,
+                  bindings: bindings!,
+                  deviceIds: bindings!.map((binding) => binding.deviceId),
+                };
           const asOf = this.now().toISOString();
           return {
             projectId: p.projectId,
@@ -842,13 +897,17 @@ export class SystemDiscovery {
               catalog.clients.find(
                 (c) => c.clientId === p.clientId && c.workspaceId === p.workspaceId,
               )?.displayName ?? null,
-            plan,
+            plan: visiblePlan,
             ...deliveryReport(plan, asOf),
             asOf,
           };
         }),
     );
-    return DiscoveryStateSchema.parse({ systems, reports });
+    return DiscoveryStateSchema.parse({
+      access,
+      systems,
+      reports: reports.filter((r) => r !== null),
+    });
   }
   async prune() {
     return this.serial(async () => {

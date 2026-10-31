@@ -137,6 +137,16 @@ export const LocalDevServiceSchema = z
     apiServiceId: Id.optional(),
     developmentEnvironment: LocalDevEnvironmentSchema.shape.reference.optional(),
     productionEnvironment: LocalDevEnvironmentSchema.shape.reference.optional(),
+    preview: z
+      .object({
+        apiPath: z
+          .string()
+          .regex(/^\/[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*$/)
+          .max(120)
+          .default("/api"),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 export const LocalDevPlanSchema = z
@@ -197,6 +207,7 @@ export const LocalDevSnapshotSchema = z
     plan: LocalDevPlanSchema.nullable(),
     services: z.array(LocalDevServiceStateSchema).max(12),
     environmentEditor: LocalEnvEditorSchema.optional(),
+    previewRelay: z.literal(1).optional(),
   })
   .strict();
 const ActionBase = {

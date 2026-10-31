@@ -12,7 +12,8 @@
     "audit": "pnpm audit --audit-level=high",
     "build": "pnpm --recursive --if-present run build",
     "check": "biome check .",
-    "ci": "pnpm run validate:repo && pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test:coverage && pnpm run build && pnpm run audit",
+    "ci": "pnpm run validate:repo && pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run prepare:test-git && pnpm run test:coverage && pnpm run build && pnpm run audit",
+    "prepare:test-git": "node scripts/prepare-private-git-test.mjs",
     "format": "biome format --write .",
     "format:check": "biome format .",
     "lint": "biome lint .",
@@ -24,7 +25,7 @@
     "local:restore": "node scripts/local-preview.mjs restore",
     "build:contracts": "pnpm --filter @frevos/contracts run build",
     "test": "pnpm run build:contracts && pnpm --recursive --if-present run test",
-    "test:coverage": "pnpm run build:contracts && pnpm --recursive --if-present run test:coverage",
+    "test:coverage": "pnpm run build:contracts && pnpm --recursive --workspace-concurrency=1 --if-present run test:coverage",
     "typecheck": "pnpm run build:contracts && pnpm --recursive --if-present run typecheck",
     "validate:repo": "node scripts/validate-repository.mjs"
   },

@@ -3321,6 +3321,45 @@ kbd,
   background: #030610b8;
   backdrop-filter: blur(5px);
 }
+
+.workspace-dialog:has(.promotion-review-body) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-height: calc(100dvh - 32px);
+}
+.promotion-review-body {
+  min-height: 0;
+  overflow: auto;
+  padding: 20px;
+  overflow-wrap: anywhere;
+}
+.promotion-review-body label {
+  display: block;
+  margin: 14px 0;
+}
+.promotion-review-body input:not([type="checkbox"]),
+.promotion-review-body textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+.promotion-review-body code {
+  overflow-wrap: anywhere;
+}
+.promotion-review-footer {
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.promotion-page .record-card {
+  margin: 16px 0;
+  overflow-wrap: anywhere;
+}
+.promotion-page select {
+  display: block;
+  max-width: 100%;
+  margin: 8px 0 18px;
+}
 .workspace-dialog .settings-header {
   position: static;
   flex-shrink: 0;
@@ -3887,6 +3926,42 @@ kbd,
 }
 .agents-page .record-card {
   overflow-wrap: anywhere;
+}
+.git-changes-list {
+  min-inline-size: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+}
+.workspace-dialog:has(.git-folder-chooser) {
+  width: min(560px, calc(100% - 32px));
+}
+.git-folder-chooser {
+  height: auto;
+  width: 100%;
+}
+.git-folder-chooser .discovery-scroll {
+  padding: 12px 20px 20px;
+}
+.discovery-form .git-file-choice {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  margin: 10px 0;
+}
+.discovery-form .git-file-choice input {
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  margin: 3px 0 0;
+}
+.git-file-choice span {
+  overflow-wrap: anywhere;
+}
+.git-file-choice small {
+  display: block;
+  opacity: 0.7;
 }
 @media (max-width: 650px) {
   .discovery-workspace .discovery-form-grid {

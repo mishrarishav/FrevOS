@@ -17,6 +17,9 @@ export default defineConfig({
     sourcemap: false,
   },
   test: {
+    // Native Windows encryption/ACL fixtures run on the same laptop as builds.
+    // Bound worker memory and OS contention without skipping any test or gate.
+    ...(process.platform === "win32" ? { maxWorkers: 1 } : {}),
     coverage: {
       include: ["src/api.ts", "src/experience.ts", "src/routing.ts"],
       provider: "v8",

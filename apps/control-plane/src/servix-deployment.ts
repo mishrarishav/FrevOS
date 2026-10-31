@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { lstat, mkdir, open, readdir, readFile, rename } from "node:fs/promises";
-import { basename, join, resolve } from "node:path";
+import { basename, isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import {
   type DeploymentChange,
@@ -56,11 +56,32 @@ export interface ServixPublisher {
     changeDetails?: DeploymentChange,
   ): Promise<string>;
 }
+export async function loadServixExecutionProfile(operator: string) {
+  const profile = z
+    .object({
+      version: z.literal(1),
+      git: z
+        .object({
+          executable: z.string().min(1).max(500).refine(isAbsolute),
+          repository: z.string().min(1).max(500).refine(isAbsolute),
+          repositoryId: z.string().regex(/^gitrepo_[a-f0-9]{32}$/),
+          readTimeoutMs: z.number().int().min(5000).max(60_000),
+        })
+        .strict(),
+    })
+    .parse(JSON.parse(await readFile(join(operator, "ReleaseBuildProfile.json"), "utf8")));
+  return {
+    git: profile.git.executable,
+    repository: profile.git.repository,
+    repositoryId: profile.git.repositoryId,
+    readTimeoutMs: profile.git.readTimeoutMs,
+  };
+}
 // All paths, commands and targets belong to this fixed server-owned profile.
 export function servixExecution(
   root: string,
   operator: string,
-  profile = {
+  profile: { git: string; repository: string; repositoryId?: string; readTimeoutMs?: number } = {
     git: "C:\\Program Files\\Git\\cmd\\git.exe",
     repository: "E:\\FrevOS\\git\\servix.git",
   },
@@ -69,6 +90,15 @@ export function servixExecution(
   exportBundle(file: string, heads: string[]): Promise<void>;
 } {
   const { git, repository: repo } = profile;
+  const repositoryId = profile.repositoryId ?? "gitrepo_6cb7e163f807493fa37963196c49fbac";
+  // Native service-account Git startup can exceed an interactive process's
+  // latency. Keep its read deadline bounded in the enrolled tool profile.
+  const readTimeoutMs = z
+    .number()
+    .int()
+    .min(5000)
+    .max(60_000)
+    .parse(profile.readTimeoutMs ?? 30_000);
   const env: NodeJS.ProcessEnv = {};
   for (const name of [
     "SystemRoot",
@@ -100,9 +130,9 @@ export function servixExecution(
         "--get",
         "frevos.repositoryId",
       ],
-      { env, windowsHide: true, timeout: 5000, maxBuffer: 4096 },
+      { env, windowsHide: true, timeout: readTimeoutMs, maxBuffer: 4096 },
     );
-    if (identity.stdout.trim() !== "gitrepo_6cb7e163f807493fa37963196c49fbac")
+    if (identity.stdout.trim() !== repositoryId)
       throw new ServixDeploymentError("deployment-repository-identity-mismatch", 503);
   };
   return {
@@ -177,7 +207,7 @@ export function servixExecution(
           "--verify",
           "refs/heads/frevos-dev^{commit}",
         ],
-        { env, windowsHide: true, timeout: 5000, maxBuffer: 4096 },
+        { env, windowsHide: true, timeout: readTimeoutMs, maxBuffer: 4096 },
       );
       return ServixHeadSchema.parse(stdout.trim());
     },
@@ -393,10 +423,25 @@ export class ServixDeploymentStore {
       const completed = successful(runs),
         current = completed[0];
       const restorableRequestIds: string[] = [];
+      const applicationReleaseIds: string[] = [];
       for (const run of completed.slice(0, 30)) {
         try {
-          await this.savedRelease(run, runs);
+          const saved = await this.savedRelease(run, runs);
           restorableRequestIds.push(run.requestId);
+          const bytes = await readFile(
+            join(this.root, "builds", saved.origin.requestId, "release/manifest.json"),
+          );
+          if (createHash("sha256").update(bytes).digest("hex") === saved.origin.artifactDigest) {
+            const manifest = JSON.parse(bytes.toString("utf8"));
+            if (
+              manifest.mode === "bundled-existing-dependencies" &&
+              ServixDigestSchema.safeParse(manifest.backendArtifact?.manifestSha256).success &&
+              ServixDigestSchema.safeParse(manifest.frontendArtifact?.sha256).success &&
+              manifest.validation?.status === "passed" &&
+              manifest.validation?.sourceHead === saved.origin.sourceHead
+            )
+              applicationReleaseIds.push(run.requestId);
+          }
         } catch {}
       }
       const rollback = completed.find(
@@ -427,6 +472,7 @@ export class ServixDeploymentStore {
         ...(current ? { currentRequestId: current.requestId } : {}),
         ...(rollback ? { rollbackRequestId: rollback.requestId } : {}),
         restorableRequestIds,
+        ...(applicationReleaseIds.length ? { applicationReleaseIds } : {}),
       };
     });
   }

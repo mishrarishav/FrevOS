@@ -12,12 +12,14 @@ import { SelfUpdates } from "../src/self-updates.js";
 import { buildServer, SESSION_COOKIE, CSRF_COOKIE } from "../src/server.js";
 import { DeveloperConnectorStore } from "../src/developer-connectors.js";
 import { SystemDiscovery } from "../src/system-discovery.js";
+import { DiscoveryAccessPolicySchema, isDiscoveryAdministrator } from "../src/discovery-access.js";
 import { AgentWorkspace } from "../src/agent-workspace.js";
 import { AgentNotifications } from "../src/agent-notifications.js";
 import { ProtectedModelSecrets } from "../src/model-secrets.js";
 import { sealModelCredential } from "./fixtures/model-seal.js";
 import {
   defaultAgentGuardrails,
+  defaultDiscoveryPolicy,
   type ModelProposal,
   ModelTestResultSchema,
 } from "@frevos/contracts";
@@ -84,11 +86,26 @@ it("protects account metadata and password actions, revokes sessions, preserves 
       label: "Synthetic sealed build",
     };
     await writeFile(join(maintenance, "catalog.json"), JSON.stringify(candidate));
+    const discoveryPolicy = DiscoveryAccessPolicySchema.parse({
+      version: 1,
+      workspaceId: "ws_server20",
+      administrators: [owner.userId],
+    });
     const connectors = new DeveloperConnectorStore(
       join(root, "connectors"),
       async (actor) => actor === owner.userId || actor === dev.userId,
       { head: async () => "a".repeat(40), importBundle: async () => {} },
       async () => {},
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      async (actor) =>
+        isDiscoveryAdministrator(
+          discoveryPolicy,
+          actor,
+          await workspaces.getEvidence("ws_server20", actor),
+        ),
     );
     const discovery = new SystemDiscovery(join(root, "discovery"), connectors, async () => ({
       projects: [],
@@ -225,6 +242,83 @@ it("protects account metadata and password actions, revokes sessions, preserves 
         headers: { authorization: "Bearer " + token },
         payload: {},
       });
+    const personalDevice = await connectors.pair(dev.userId, {
+      version: 1,
+      mode: "system",
+      name: "Alice personal laptop",
+    });
+    const discoveryRoute = "/v1/workspaces/ws_server20/discovery";
+    const ownDashboard = await get(discoveryRoute, devAuth);
+    expect(ownDashboard.statusCode).toBe(200);
+    expect(ownDashboard.json().access).toMatchObject({
+      actorId: dev.userId,
+      role: "user",
+      canManagePlans: false,
+    });
+    expect(
+      ownDashboard.json().systems.map((system: { deviceId: string }) => system.deviceId),
+    ).toEqual([personalDevice.deviceId]);
+    expect(JSON.stringify(ownDashboard.json())).not.toContain(deviceId);
+    const adminDashboard = await get(discoveryRoute);
+    expect(adminDashboard.statusCode).toBe(200);
+    expect(adminDashboard.json().access).toMatchObject({ role: "admin", canManagePlans: true });
+    expect(adminDashboard.json().systems).toHaveLength(2);
+    expect((await get(discoveryRoute + "?historyDeviceId=" + deviceId, devAuth)).statusCode).toBe(
+      403,
+    );
+    expect((await get(discoveryRoute + "?role=admin", devAuth)).statusCode).toBe(400);
+    expect(
+      (await get(discoveryRoute + "?historyDeviceId=" + personalDevice.deviceId)).statusCode,
+    ).toBe(200);
+    expect(
+      (
+        await post(
+          discoveryRoute + "/policy",
+          { version: 1, deviceId, expectedRevision: 0, policy: defaultDiscoveryPolicy },
+          devAuth,
+        )
+      ).statusCode,
+    ).toBe(403);
+    expect(
+      (
+        await post(
+          discoveryRoute + "/content",
+          { version: 1, deviceId, root: "C:\\", path: "private.txt" },
+          devAuth,
+        )
+      ).statusCode,
+    ).toBe(403);
+    expect(
+      (
+        await post(
+          discoveryRoute + "/plans",
+          {
+            version: 1,
+            projectId: "prj_private",
+            expectedRevision: 0,
+            poReference: "PRIVATE",
+            poDate: "2026-10-28",
+            timeZone: "UTC",
+            responsible: "Alice",
+            deviceIds: [],
+            milestones: [
+              {
+                id: "work",
+                title: "Work",
+                weight: 100,
+                dueDate: "2026-10-28",
+                acceptance: "pending",
+                evidence: "",
+              },
+            ],
+          },
+          devAuth,
+        )
+      ).statusCode,
+    ).toBe(403);
+    expect((await server.inject({ method: "GET", url: discoveryRoute })).statusCode).toBe(401);
+    const outsideAuth = await login("other.bob", "bob-original-password");
+    expect((await get(discoveryRoute, outsideAuth)).statusCode).toBe(404);
     const agentBase = "/v1/workspaces/ws_server20/agents";
     const modelInput = {
       version: 1,

@@ -18,6 +18,7 @@ export function FolderBrowser({
   onChoose,
   label = "Choose folder",
   projectOnly = false,
+  allowDriveRoot = true,
 }: {
   api: ControlCenterApi;
   workspaceId: string;
@@ -26,6 +27,7 @@ export function FolderBrowser({
   onChoose?: ((choice: FolderChoice) => void) | undefined;
   label?: string;
   projectOnly?: boolean;
+  allowDriveRoot?: boolean;
 }) {
   const [system, setSystem] = useState<DiscoveryState["systems"][number] | null>(null),
     [root, setRoot] = useState(""),
@@ -160,7 +162,11 @@ export function FolderBrowser({
               <button
                 type="button"
                 className="button primary"
-                disabled={busy || !job?.result}
+                disabled={
+                  busy ||
+                  !job?.result ||
+                  (!allowDriveRoot && !folder && (root === "/" || /^[A-Za-z]:[\\/]?$/.test(root)))
+                }
                 onClick={() =>
                   job?.result &&
                   onChoose({

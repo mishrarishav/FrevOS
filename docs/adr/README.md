@@ -120,3 +120,64 @@ records system-only enrollment, Git-independent monitoring and recoverable setup
 
 [0059: Approve a computer without sharing the administrator password](0059-passwordless-system-pairing.md)
 records target-bound, expiring browser approval and passwordless system setup.
+
+[0064: Visible Production configuration with a separate execution gate](0064-visible-production-configuration.md)
+records the owner's delegated visible configuration, the saved Production
+proposal and its unconnected execution boundary.
+
+[0065: Configured saved-backend Production promotion](0065-configured-saved-backend-production-promotion.md)
+records the explicit follow-up to implement and verify the missing Production
+execution path while preserving the legacy Development exclusion.
+
+[0066: Canonical executable identity for initial runtime adoption](0066-canonical-promotion-runtime-identity.md)
+records the actual NVM junction preflight failure, canonical toolchain identity
+and unchanged customer-data link denials.
+
+[0067: Complete application releases and managed Production updates](0067-complete-application-release-promotion.md)
+records portable frontend artifacts, full saved Development release promotion,
+verified existing-task updates and exact previous-release recovery.
+
+[0068: Existing Development source acceptance during full-release rollout](0068-existing-development-source-acceptance.md)
+records the owner's existing visual confirmation, new same-source technical
+release gates and separate exact Production decision/post-deployment checking.
+
+[0069: Development acceptance across audit-only source commits](0069-audit-commit-development-acceptance.md)
+records the owner's accepted same-tree Development release and retains the
+separate valid Production review requirement after the earlier review expired.
+
+[0070: Discovery roles and owner-scoped visibility](0070-discovery-role-and-owner-visibility.md)
+records configured admin visibility, owner-only user dashboards and project
+reports, authoritative API checks and capability-based Discovery controls.
+
+[0071: Paired-device login and manually approved join](0071-device-bound-login-and-approved-join.md)
+records paired-user login, admin bootstrap/ownership assignment, and manual
+approval for new users and existing users' additional Windows/Linux computers.
+
+[0072: HTTP connector-confirmed login](0072-http-connector-confirmed-login.md)
+records the owner's retained HTTP deployment, explicit connector-page confirmation
+and original-browser plus receiver-cookie binding without browser security overrides.
+
+[0073: Discovery legacy display grouping and last seen](0073-discovery-legacy-grouping-and-last-seen.md)
+records unambiguous owner-scoped legacy connection presentation, retained device
+authority, collision handling and server-derived last-seen timestamps.
+
+[0074: Android system monitoring connector](0074-android-system-monitoring-connector.md)
+records the owner's follow-on Android APK goal, bounded monitoring, approved
+pairing, consent, retained identity and required native acceptance.
+
+[0075: Private paired-device HTTP preview relay](0075-private-preview-request-response-relay.md)
+records the owner's VPN-only application preview request, isolated configured
+origins, opted-in running services, bounded HTTP request/response transport and
+owner/workspace/session checks. Android acceptance remains separate.
+
+[0076: Configured private Git collaboration](0076-configured-private-git-collaboration.md)
+records the owner's standard Git/branch/PR/review request, separate private
+engine boundary, live repository permissions and verified full recovery.
+
+[0077: Native Code folder selection](0077-native-code-folder-selection.md)
+records the owner's native chooser request, once-claimed device-bound jobs,
+interactive desktop requirements and explicit web-browser fallback.
+
+[0078: Native listener detection and Server20 release](0078-native-listener-detection-and-server20-release.md)
+records the owner-authorized process-detection repair, task-branch publication
+and configured platform rollout with pairing/data preservation.
