@@ -1,15 +1,22 @@
 # Central Git collaboration
 
-Status: **BLOCKED for publication/live rollout**. The local implementation and
-isolated native workflow are available; final validation is recorded below.
-No live installation, permission grant, migration or live restore is claimed.
+Status: **PASS for local validation and GitHub task-branch publication**.
+Server20 activation is pending an authenticated owner session; no live Git
+engine installation, permission grant, repository migration or restore is claimed.
 
 Repository: mishrarishav/FrevOS.
 Branch: codex/central-git-collaboration.
 Base: e5b1122ad95323b46beab3789672d2cb6ca2d9cd.
-Result commit / pull request: none.
+Implementation commit: 88e6420717898b6633bce86308053c3fa8b01314.
+Pull request: https://github.com/mishrarishav/FrevOS/pull/41 (draft, unmerged).
 
-Current commit is the base SHA; all task changes remain uncommitted.
+The implementation is committed and published on the task branch. ADR 0078
+authorizes this publication and the same-scope Server20 platform release.
+Both prior Windows failures are fixed without changing their assertions. Full
+Windows CI passes 93 files / 472 tests and unchanged coverage gates; GitHub CI
+also passes at the exact implementation head, including the runtime image.
+Current release status and full canonical inventory:
+[Server20 release handoff](CENTRAL_GIT_SERVER20_RELEASE_HANDOFF.md).
 [ADR 0076](adr/0076-configured-private-git-collaboration.md) records the boundary,
 delivery sequence, preserved previous worktree's three preview corrections and
 distinct live approvals. Phase 4 remains open. Generic GitHub App completion,
@@ -17,8 +24,8 @@ automatic deployment on push and GitHub/GitLab parity are outside this task.
 
 ## Native Choose folder follow-up — 2026-10-31
 
-Status: **PASS for local Windows native selection**; publication/live rollout
-remains BLOCKED by the separate gates below. [ADR 0077](adr/0077-native-code-folder-selection.md)
+Status: **PASS for local Windows native selection**. The later ADR 0078
+publication/release continuation is recorded above. [ADR 0077](adr/0077-native-code-folder-selection.md)
 supersedes only the browser-only selection experience. In scope: the Code
 button, typed picker jobs, connector/native helper, packaging and preservation
 tests. Out of scope: Server20 activation, live connector replacement, repository
@@ -313,7 +320,7 @@ dependent roadmap phase or live migration is declared ready.
 
 ## Complete changed-file inventory
 
-Diff stat (tracked and new files): 63 files, +9941/-60.
+Diff stat (tracked and new files): 63 files, +9989/-60.
 No generated binary, credential, ignored fixture or acceptance-repository change is included.
 
 - `.github/workflows/ci.yml` (+3/-0; modified)
@@ -366,9 +373,9 @@ No generated binary, credential, ignored fixture or acceptance-repository change
 - `docs/adr/0078-native-listener-detection-and-server20-release.md` (+32/-0; new)
 - `docs/adr/README.md` (+12/-0; modified)
 - `docs/ARCHITECTURE.md` (+27/-0; modified)
-- `docs/CENTRAL_GIT_COLLABORATION_HANDOFF.md` (+381/-0; new)
-- `docs/CENTRAL_GIT_SERVER20_RELEASE_HANDOFF.md` (+293/-0; new)
-- `docs/CURRENT_STATE.md` (+54/-0; modified)
+- `docs/CENTRAL_GIT_COLLABORATION_HANDOFF.md` (+388/-0; new)
+- `docs/CENTRAL_GIT_SERVER20_RELEASE_HANDOFF.md` (+323/-0; new)
+- `docs/CURRENT_STATE.md` (+65/-0; modified)
 - `docs/PERMISSIONS.md` (+21/-0; modified)
 - `docs/PRODUCT.md` (+9/-1; modified)
 - `docs/ROADMAP.md` (+8/-0; modified)

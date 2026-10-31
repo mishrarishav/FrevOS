@@ -1,5 +1,16 @@
 # DevSetu Current State
 
+2026-10-31: Implementation 88e6420717898b6633bce86308053c3fa8b01314 is pushed
+to GitHub codex/central-git-collaboration; draft PR 41 remains unmerged.
+Native Windows CI passes all 472 tests; both prior failures are repaired.
+GitHub CI 41185857616 passes, including the pinned engine and runtime image.
+Server20 is reachable after VPN reconnection; its active manifest still points
+to d4967ec. Eight pairings and five stable configuration digests are baselined.
+Deployment is waiting for owner sign-in: one saved-credential attempt returns
+401; no retry, reset, new pairing or live activation is performed. The full
+release handoff records the exact authenticated workflow to resume. Phase 4
+and the documented Android/Linux/cross-laptop acceptance limits remain open.
+
 2026-10-31: The owner resumes the two Windows process-inventory failures,
 Server20 platform deployment and GitHub task-branch publication under ADR 0078.
 The direct Windows TCP-owner API reports a real listener that CIM/netstat omit.

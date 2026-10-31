@@ -1,13 +1,16 @@
 # Central Git Server20 release
 
-Status: PASS for local implementation/validation; publication and live rollout
-IN PROGRESS. Owner-authorized continuation under ADR 0078.
+Status: PASS for implementation, local CI and GitHub publication/CI.
+Server20 deployment is BLOCKED at owner authentication. Owner-authorized
+continuation under ADR 0078; downstream build/activation is not claimed.
 
 Repository: mishrarishav/FrevOS (provider repository ID 1329122983).
 Branch: codex/central-git-collaboration.
 Implementation base: e5b1122ad95323b46beab3789672d2cb6ca2d9cd.
 Canonical GitHub main: 5730940fe6c40cc3eb5002ef6beaa564c9571e5f, an ancestor.
-Result commit / PR / live request: pending; no main merge is authorized.
+Published implementation: 88e6420717898b6633bce86308053c3fa8b01314.
+PR: https://github.com/mishrarishav/FrevOS/pull/41 (draft, unmerged).
+Live deployment request: none submitted; no main merge is authorized.
 
 Scope: repair the two Windows process-detection failures, validate the existing
 central Git/native-folder implementation, publish the task branch and deploy
@@ -53,17 +56,44 @@ local test binary. This is test tooling only, not live engine installation.
 - Bounded credential-format/private-key/protected-filename scan covers changed
   files and 567 unpublished blobs: PASS, zero findings. It is not exhaustive
   secret detection. The final publication head is checked again before push.
+- Final head 88e6420 scan: 630 unpublished blobs, including long literal API
+  credential checks, zero findings. `git push --set-upstream origin
+  codex/central-git-collaboration` succeeds; remote readback is the exact full SHA.
+- GitHub [CI run 41185857616](https://github.com/mishrarishav/FrevOS/actions/runs/41185857616)
+  succeeds at 88e6420: clean install, governance/format/lint/types, pinned native
+  Git test engine, tests/coverage, package build, non-Production image build,
+  non-root runtime-image boundary and audit all pass. This separately establishes
+  Linux/container CI; Windows-specific tests are established by the native run.
 - `git diff --check`: exit 0. Documentation-only delivery edits are revalidated
   before publication. No default-branch push or automated merge is performed.
 
-Server20 initially times out over HTTP. The owner has been asked to reconnect
-the existing VPN while local verification continues. No release activation,
-configuration mutation or new pairing is performed until reachability,
-authenticated scope, artifact identity and preservation baselines are verified.
+Server20 becomes reachable after the owner's VPN reconnection; health returns
+HTTP 200 and authenticated SMB readback succeeds. Active manifest remains
+4cd56dcc9583e9b15e300af116ed1bd35b3a6dc69ecb813afe25f4b9b3bafcd3,
+application source d4967eca5272cc1360245e44336a738151b6e325. The previous e5b1122
+preview request failed with android-build-deadline and is not active.
 
-Publication, native artifact/request identities, fresh backup/preservation
-evidence, exact validation results and limitations will be recorded here after
-they are observed. Deployment success is not inferred from a prepared build.
+Fresh preservation baseline records eight pairing identities/credential hashes
+and five stable runtime/project/pipeline configuration digests. Existing platform
+source fc_a36e424f5355a31a00946ce3983ed064 is active on this laptop with its
+Limited task running, still bound to the previous D: worktree. No re-enrollment,
+source-folder reconfiguration, credential change, data write or release activation
+has been performed in this continuation. The source folder must be selected
+through the authenticated DevSetu workflow before publishing this checkout.
+
+The one attempted saved-credential login is rejected with HTTP 401. It is not
+retried, reset or used to bypass authentication. A visible DevSetu sign-in tab
+is left for the owner; the password is not requested in chat. Once the owner
+signs in, resume the authorized configured workflow: verify the current actor,
+source/target and baseline, select this committed checkout using the existing
+paired connector, submit one declared-approval deployment, observe fresh frozen
+CI/SDK/package/independent activation, then compare health, active source/digest
+and preservation evidence. New failures must be reconciled before any retry.
+
+Native artifact/request identities, backup and post-activation preservation
+evidence remain pending. Deployment success is not inferred from publication
+or a prepared build. No review/merge, SDK re-enrollment, live Git service,
+customer deployment or broad permission change is performed.
 
 ## Complete GitHub publication diff
 
@@ -73,7 +103,7 @@ only the current task base e5b1122. The current-task-only inventory remains in
 CENTRAL_GIT_COLLABORATION_HANDOFF.md. No ignored runtime/credential artifact is
 included. No main merge is performed.
 
-216 files, +32191/-532.
+216 files, +32239/-532.
 
 - `.github/workflows/ci.yml` (+3/-0)
 - `.gitignore` (+1/-0)
@@ -260,9 +290,9 @@ included. No main merge is performed.
 - `docs/adr/README.md` (+61/-0)
 - `docs/ANDROID_CONNECTOR_HANDOFF.md` (+368/-0)
 - `docs/ARCHITECTURE.md` (+27/-0)
-- `docs/CENTRAL_GIT_COLLABORATION_HANDOFF.md` (+381/-0)
-- `docs/CENTRAL_GIT_SERVER20_RELEASE_HANDOFF.md` (+293/-0)
-- `docs/CURRENT_STATE.md` (+816/-1)
+- `docs/CENTRAL_GIT_COLLABORATION_HANDOFF.md` (+388/-0)
+- `docs/CENTRAL_GIT_SERVER20_RELEASE_HANDOFF.md` (+323/-0)
+- `docs/CURRENT_STATE.md` (+827/-1)
 - `docs/DISCOVERY_PRESENCE_HANDOFF.md` (+90/-0)
 - `docs/DISCOVERY_ROLE_ACCESS_HANDOFF.md` (+477/-0)
 - `docs/PERMISSIONS.md` (+21/-0)
