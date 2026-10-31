@@ -1,8 +1,10 @@
 # Central Git collaboration
 
-Status: **PASS for local validation and GitHub task-branch publication**.
-Server20 activation is pending an authenticated owner session; no live Git
-engine installation, permission grant, repository migration or restore is claimed.
+Status: **PASS for local validation, GitHub task-branch publication and the
+configured Server20 platform rollout**. Active source 074b9e5 uses manifest
+b0c300090e9423d4583dd5a386460b2bf5f1b9136bc6c8dd650331a7a3e5d24d.
+No live Git engine installation, permission grant, repository migration or live
+restore is claimed. Existing off-machine connectors are not silently replaced.
 
 Repository: mishrarishav/FrevOS.
 Branch: codex/central-git-collaboration.
@@ -15,6 +17,10 @@ authorizes this publication and the same-scope Server20 platform release.
 Both prior Windows failures are fixed without changing their assertions. Full
 Windows CI passes 93 files / 472 tests and unchanged coverage gates; GitHub CI
 also passes at the exact implementation head, including the runtime image.
+Fresh configured source CI and independent native Plan/Apply also pass. Runtime
+health/UI return 200, eight pairing identities and the stable settings are
+preserved, and the new 14-file Windows download verifies its native picker/Git
+module. Both failed release attempts and final receipts remain in the handoff.
 Current release status and full canonical inventory:
 [Server20 release handoff](CENTRAL_GIT_SERVER20_RELEASE_HANDOFF.md).
 [ADR 0076](adr/0076-configured-private-git-collaboration.md) records the boundary,
@@ -320,7 +326,7 @@ dependent roadmap phase or live migration is declared ready.
 
 ## Complete changed-file inventory
 
-Diff stat (tracked and new files): 63 files, +10048/-60.
+Diff stat (tracked and new files): 63 files, +10162/-60.
 No generated binary, credential, ignored fixture or acceptance-repository change is included.
 
 - `.github/workflows/ci.yml` (+3/-0; modified)
@@ -373,9 +379,9 @@ No generated binary, credential, ignored fixture or acceptance-repository change
 - `docs/adr/0078-native-listener-detection-and-server20-release.md` (+32/-0; new)
 - `docs/adr/README.md` (+12/-0; modified)
 - `docs/ARCHITECTURE.md` (+27/-0; modified)
-- `docs/CENTRAL_GIT_COLLABORATION_HANDOFF.md` (+388/-0; new)
-- `docs/CENTRAL_GIT_SERVER20_RELEASE_HANDOFF.md` (+366/-0; new)
-- `docs/CURRENT_STATE.md` (+79/-0; modified)
+- `docs/CENTRAL_GIT_COLLABORATION_HANDOFF.md` (+394/-0; new)
+- `docs/CENTRAL_GIT_SERVER20_RELEASE_HANDOFF.md` (+448/-0; new)
+- `docs/CURRENT_STATE.md` (+105/-0; modified)
 - `docs/PERMISSIONS.md` (+21/-0; modified)
 - `docs/PRODUCT.md` (+9/-1; modified)
 - `docs/ROADMAP.md` (+8/-0; modified)

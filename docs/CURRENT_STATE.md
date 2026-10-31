@@ -1,5 +1,31 @@
 # DevSetu Current State
 
+2026-10-31: Server20 configured release PASS. DevSetu run
+pr_bd4bd6a5a50a05ec0bb1ca293e55774b activates source 074b9e5 with immutable manifest
+b0c300090e9423d4583dd5a386460b2bf5f1b9136bc6c8dd650331a7a3e5d24d. Fresh full CI
+passes all 93 test files for the unchanged 472-test suite and original coverage,
+build and audit gates. Server20 SDK signs the exact source; independent native
+Plan/Apply pass with HTTP/UI 200, databaseWritten=false and sibling IIS preserved.
+Private preimages are retained. All eight pairing identities/credential hashes
+and four other stable configuration files match the baseline; only the approved
+platform source folder changes to revision 4. The current Windows download's
+14-file manifest, native picker and Git module verify. GitHub CI 41210424284
+passes the exact activated source. Final publication is docs-only. No main merge,
+live Git engine enrollment, customer deployment or off-machine connector update
+is performed. Phase 4 and Android/Linux/cross-laptop acceptance remain open;
+the complete release handoff records earlier failures and exact receipt IDs.
+
+2026-10-31: Corrected-source Server20 run pr_ff167a14c33c9c7b645dd97cc698e5ff
+fails native CI before activation: 58 backend files pass; preview-operators and
+git-engine-native fail. All seven cases in those two files pass in a separate
+exact frozen-source reproduction, without changing any gate or source. Their
+original failure cause is not established. GitHub CI 41208026140 passes b82e17e.
+Fresh configured full retry pr_bd4bd6a5a50a05ec0bb1ca293e55774b builds 074b9e5,
+the same implementation tree. Existing pairings and stable settings are verified
+preserved; activation remains pending the full native CI and package checks.
+Phase 4 remains open. The release handoff retains each failed request rather
+than treating a targeted rerun as a successful complete deployment.
+
 2026-10-31: Owner browser sign-in resolves the Server20 authentication blocker.
 The same paired platform source selects this committed task checkout; only the
 pipeline default-source revision changes (3 to 4), with eight pairing identities

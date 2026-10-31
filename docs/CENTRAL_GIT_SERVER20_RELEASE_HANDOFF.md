@@ -1,8 +1,8 @@
 # Central Git Server20 release
 
-Status: PASS for implementation, local CI and GitHub publication/CI.
-Server20 deployment is in progress through the owner's authenticated DevSetu
-session under ADR 0078. Downstream build/activation is not claimed yet.
+Status: PASS for the bounded implementation, validation, GitHub publication and
+configured Server20 platform deployment under ADR 0078. Phase 4 remains open;
+live Git-engine enrollment and other acceptance limits below remain distinct.
 
 Repository: mishrarishav/FrevOS (provider repository ID 1329122983).
 Branch: codex/central-git-collaboration.
@@ -10,9 +10,11 @@ Implementation base: e5b1122ad95323b46beab3789672d2cb6ca2d9cd.
 Canonical GitHub main: 5730940fe6c40cc3eb5002ef6beaa564c9571e5f, an ancestor.
 Published implementation: 88e6420717898b6633bce86308053c3fa8b01314.
 PR: https://github.com/mishrarishav/FrevOS/pull/41 (draft, unmerged).
-Live deployment request: pr_38e1305803376977d8b753be579d80fb.
-Configured source publication: 4f1ea9fb20ff17e4400642a7e5bbfb44b30e8fff,
-an empty deployment-record commit over 21d62da; both are pushed to GitHub.
+Current deployment request: pr_bd4bd6a5a50a05ec0bb1ca293e55774b.
+Configured source publication: 074b9e5b33770434142facfd0d9bb6dc54c081c7,
+an empty deployment-record commit over b82e17e. Its implementation tree matches
+c0568e7, which fixes fresh Windows test-engine preparation. Publication is
+reconciled separately from native build and activation.
 No main merge is authorized.
 
 Scope: repair the two Windows process-detection failures, validate the existing
@@ -133,10 +135,90 @@ GitHub CI 41206764013 passes at 4f1ea9f. Fresh configured retry, frozen CI,
 SDK/package/independent activation and final preservation remain pending;
 no success is inferred from source publication or a prepared build.
 
-Native artifact/request identities, backup and post-activation preservation
-evidence remain pending. Deployment success is not inferred from publication
-or a prepared build. No review/merge, SDK re-enrollment, live Git service,
-customer deployment or broad permission change is performed.
+The corrected-source run pr_ff167a14c33c9c7b645dd97cc698e5ff publishes b82e17e
+and reaches native backend tests. Its CI exits 1 before packaging/activation.
+Vitest's retained per-file result cache records 58 backend files passed and two
+failed: preview-operators.test.ts and git-engine-native.test.ts. Both original
+local-development process cases pass. The exact frozen checkout then passes
+all seven cases in those two files using the sanitized native environment and
+the same non-elevated Windows SID and Node binary. That targeted diagnostic uses
+the JSON reporter without coverage; it does not replace the full coverage gate.
+No source, assertion, timeout or dependency change is made. The original
+failure messages were not retained, so their cause is not established and is not
+attributed conclusively to host resource pressure.
+
+GitHub CI 41208026140 passes at b82e17e. The owner-authorized fresh full retry
+pr_bd4bd6a5a50a05ec0bb1ca293e55774b publishes 074b9e5 with the same tree and starts
+native build cj_bfa4ee1f2244707bb3eddbeab52bf0a3. No artifact, destination job or
+live activation is claimed yet. The native full CI must pass in this configured
+run before activation. The UI's retained request retry reconciles an accepted
+request after an HTTP response timeout without creating a duplicate deployment.
+
+The negative missing-asset fixture remains fail-closed, but Node 24.19.0 on this
+Windows host still reports its closing-handle assertion after the rejection,
+even when the response body is cancelled. This is not represented as repaired.
+The corrected official asset's positive empty-cache download passes with the
+unchanged checksum and version. No general Node runtime upgrade is included.
+
+## Final live receipt — 2026-10-31
+
+DevSetu run pr_bd4bd6a5a50a05ec0bb1ca293e55774b succeeds. The configured source
+publication, fresh isolated build and independent native destination are used;
+there is no manual artifact activation substitute.
+
+- Active source: 074b9e5b33770434142facfd0d9bb6dc54c081c7.
+- Build job: cj_bfa4ee1f2244707bb3eddbeab52bf0a3.
+- Destination job: cj_8ceb337d28087b1404ccd2312108293c.
+- Component artifact reference: c5072536ecac8d6293a54d213124003c9485af97622d85cd4507b55efa2b5977.
+- Active manifest: b0c300090e9423d4583dd5a386460b2bf5f1b9136bc6c8dd650331a7a3e5d24d.
+- Archive: 131,931,814 bytes, SHA-256 0482509fd0be95e77c7170ff3f92bd9316f5673d51cf8b31fff91bd2a84974d8.
+- Manifest inventory: 4,036 files. Source/digest/active-manifest readback matches.
+- Fresh CI completes all stages; retained Vitest caches contain 15 contracts,
+  18 frontend and 60 backend files, zero failed files, for the unchanged
+  472-test suite. Backend coverage: 95.01% statements, 91.41% branches,
+  96.73% functions, 96.81% lines; all original gates pass.
+- SDK job ab_20848d9988d7145826f71159d68d6af5 returns SIGNED for this exact source
+  and build correlation. APK: 33,177 bytes, SHA-256
+  a0fb5f26d68feac2e6e966e1968717aec164c0030a8552728658bd1d25c6c8cf;
+  retained certificate SHA-256 0d3a704822eacaef060a4560c2f800479179eed96dfbf9e94993dcf2b75cec92.
+- Native Plan and Apply both PASS. Apply records health 200, UI 200,
+  siblingsPreserved=true and databaseWritten=false. The authenticated reloaded
+  UI shows succeeded, both executors online, eight protected paths and current
+  build c5072536ecac. Independent HTTP checks repeat 200 for /health and /.
+- Artifact/actor/workspace/target/correlation-bound approval is consumed once.
+  Private runtime/task/IIS/active-state preimages remain at
+  E:\FrevOS\operator\servix-dashboard-8ceb337d28087b1404ccd2312108293c.
+  Its runtime preimage hash matches the original baseline; its active preimage
+  matches the previous 4cd56d manifest. Saved-artifact code recovery remains
+  available; no live rollback or database restoration is performed.
+- Post-activation comparison preserves all eight pairing IDs, owners/scopes,
+  statuses and credential hashes, and all four other stable configuration
+  digests including runtime settings. Only the reviewed platform source-folder
+  revision changes. Existing history remains visible, including 24 Servix dev
+  records; no customer deployment or data migration is performed.
+- Windows connector download has the current 14-file runtime manifest. Native
+  picker, Connector.cjs and GitDesktop.cjs entry hashes verify; GitDesktop matches
+  the activated release. Existing off-machine connectors are not silently
+  replaced or re-enrolled. Native GUI proof remains the earlier local test.
+- GitHub CI 41210424284 passes the exact activated source 074b9e5. Final handoff
+  publication is a docs-only follow-up; the runtime source identity above is
+  retained explicitly. No default-branch push or automated merge is performed.
+
+Observed final commands: `node .local/Observe-Server20Release.cjs
+pr_bd4bd6a5a50a05ec0bb1ca293e55774b`,
+`node .local/Verify-Server20Preservation.cjs` and
+`powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File
+.local/Verify-Server20GitDownload.ps1`: exit 0 / PASS. The native updater's
+result-plan.json and result-apply.json independently report PASS. Documentation,
+diff and bounded secret checks are repeated before the follow-up push.
+
+Limitations: no live private Git engine/service or permission/secret enrollment,
+repository migration, customer deployment, SDK re-enrollment or automated merge
+is performed. The two earlier native-file failures and the Windows rejected-fetch
+assertion remain recorded rather than represented as resolved underlying causes.
+Android phone pairing, Linux native UI and physical cross-laptop acceptance are
+still unverified. This completes the authorized bounded release; it does not
+declare Phase 4 or full GitHub/GitLab parity complete.
 
 ## Complete GitHub publication diff
 
@@ -146,7 +228,7 @@ only the current task base e5b1122. The current-task-only inventory remains in
 CENTRAL_GIT_COLLABORATION_HANDOFF.md. No ignored runtime/credential artifact is
 included. No main merge is performed.
 
-216 files, +32298/-532.
+216 files, +32412/-532.
 
 - `.github/workflows/ci.yml` (+3/-0)
 - `.gitignore` (+1/-0)
@@ -333,9 +415,9 @@ included. No main merge is performed.
 - `docs/adr/README.md` (+61/-0)
 - `docs/ANDROID_CONNECTOR_HANDOFF.md` (+368/-0)
 - `docs/ARCHITECTURE.md` (+27/-0)
-- `docs/CENTRAL_GIT_COLLABORATION_HANDOFF.md` (+388/-0)
-- `docs/CENTRAL_GIT_SERVER20_RELEASE_HANDOFF.md` (+366/-0)
-- `docs/CURRENT_STATE.md` (+841/-1)
+- `docs/CENTRAL_GIT_COLLABORATION_HANDOFF.md` (+394/-0)
+- `docs/CENTRAL_GIT_SERVER20_RELEASE_HANDOFF.md` (+448/-0)
+- `docs/CURRENT_STATE.md` (+867/-1)
 - `docs/DISCOVERY_PRESENCE_HANDOFF.md` (+90/-0)
 - `docs/DISCOVERY_ROLE_ACCESS_HANDOFF.md` (+477/-0)
 - `docs/PERMISSIONS.md` (+21/-0)
