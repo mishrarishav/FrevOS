@@ -8,11 +8,13 @@ export const testEnginePins = {
     asset: "gitea-28.2.0-windows-amd64.exe",
     hash: "d13471c433903d8c6c8b4cc7dd2783cff8b8ffb66d4698a76c2c0213ac378d53",
     file: "gitea-28.2.0-native.exe",
+    requestTimeoutSeconds: 60,
   },
   linux: {
     asset: "gitea-28.2.0-linux-amd64",
     hash: "15681fc615d56611c274f52803fef4d6d5316b620f93b677dd4b831a74e50b9f",
     file: "gitea-28.2.0-native",
+    requestTimeoutSeconds: 15,
   },
 };
 export async function prepareTestEngine() {

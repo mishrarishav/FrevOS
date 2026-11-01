@@ -116,7 +116,7 @@ async function runNativeAcceptance(implementations = {}) {
           ...(body ? { "content-type": "application/json" } : {}),
         },
         ...(body ? { body: JSON.stringify(body) } : {}),
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(pin.requestTimeoutSeconds * 1000),
         redirect: "error",
       });
       const text = await r.text();
@@ -181,6 +181,7 @@ async function runNativeAcceptance(implementations = {}) {
       apiUrl: origin + "/",
       webUrl: origin + "/",
       allowPrivateHttp: true,
+      requestTimeoutSeconds: pin.requestTimeoutSeconds,
       accounts: Object.entries(users).map(([login, u], i) => ({
         userId: ids[login],
         providerUserId: u.id,

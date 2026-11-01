@@ -1,5 +1,14 @@
 # Central Git collaboration
 
+The ADR 0083 release follow-up adds `requestTimeoutSeconds` to the private
+hosting connection registry: integer 1–60, default 15. It bounds the entire
+exchange, including a streaming body, and reports expiry without replaying an
+uncertain write. Operators may explicitly select a longer budget for a slow
+provider. Existing configurations and permissions are not rewritten. The
+isolated Windows qualification profile selects 60 seconds; its outer test,
+real Git/PR/RBAC/encrypted-recovery assertions and original coverage gates stay
+enabled. New Server20 activation is not established by the older status below.
+
 Status: **PASS for local validation, GitHub task-branch publication and the
 configured Server20 platform rollout**. Active source 074b9e5 uses manifest
 b0c300090e9423d4583dd5a386460b2bf5f1b9136bc6c8dd650331a7a3e5d24d.

@@ -625,3 +625,59 @@ it("retains uncertain repository creation receipts rather than replaying a poten
     f.calls.filter((c) => c.method === "POST" && c.path === "/api/v1/user/repos"),
   ).toHaveLength(1);
 });
+
+it("bounds configured provider budgets and permits a response within the chosen deadline", async () => {
+  const f = await fixture();
+  for (const requestTimeoutSeconds of [0, 61, 1.5, Number.NaN])
+    await expect(
+      giteaRequest({ ...f.config, requestTimeoutSeconds }, "fixture", "GET", "/api/v1/user"),
+    ).rejects.toThrow("invalid-provider-request");
+  Reflect.deleteProperty(f.config, "requestTimeoutSeconds");
+  expect(await giteaRequest(f.config, "fixture-1", "GET", "/api/v1/user")).toMatchObject({
+    id: 1,
+  });
+  f.server.removeAllListeners("request");
+  f.server.on("request", (_request, response) => {
+    const timer = setTimeout(() => response.end('{"ready":true}'), 1200);
+    response.once("close", () => clearTimeout(timer));
+  });
+  expect(
+    await giteaRequest({ ...f.config, requestTimeoutSeconds: 5 }, "fixture", "GET", "/api/v1/user"),
+  ).toEqual({ ready: true });
+  await new Promise<void>((resolve) => f.server.close(() => resolve()));
+  await expect(giteaRequest(f.config, "fixture", "GET", "/api/v1/user")).rejects.toMatchObject({
+    code: "repository-provider-unavailable",
+    statusCode: 503,
+  });
+});
+
+it("expires a streaming mutation at its total deadline and requires reconciliation without replay", async () => {
+  const f = await fixture(),
+    requestId = "git_" + "8".repeat(32),
+    input = { version: 1, requestId, name: "slow-project" };
+  f.config.requestTimeoutSeconds = 1;
+  f.server.removeAllListeners("request");
+  let writes = 0;
+  f.server.on("request", (request, response) => {
+    if (request.method === "GET" && request.url === "/api/v1/user") {
+      response.end(JSON.stringify({ id: 1, login: "alice" }));
+      return;
+    }
+    writes++;
+    response.writeHead(201, { "content-type": "application/json" });
+    response.write(" ");
+    const timer = setInterval(() => response.write(" "), 100);
+    response.once("close", () => clearInterval(timer));
+  });
+  await expect(f.center.create("usr_alice", "ws_team", input)).rejects.toMatchObject({
+    code: "repository-provider-timeout",
+    statusCode: 504,
+  });
+  expect(JSON.parse(await readFile(join(f.root, requestId + ".json"), "utf8")).status).toBe(
+    "needs-reconciliation",
+  );
+  await expect(f.center.create("usr_alice", "ws_team", input)).rejects.toThrow(
+    "request-needs-reconciliation",
+  );
+  expect(writes).toBe(1);
+});

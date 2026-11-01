@@ -176,6 +176,44 @@ Repository validation (128 Markdown files), whole-repository format check
 observed exit 0. A preceding attempt to format only Markdown processes no files
 because Biome excludes them; the configured repository format command is used.
 
+The subsequent aca3aa6 native attempts do not qualify a release: the first
+reports the installer approval-poll fixture, the recheck reports native Git
+creation, and the final recheck reports both (last native Git code:
+native-create:repository-provider-unavailable). Unchanged targeted installer
+and real Git/PR/RBAC/encrypted-recovery fixtures pass independently. No failing
+full run is waived. Temporary local previews are restored after each attempt.
+A temporary task-priority adjustment does not establish the failures' causes.
+
+An isolated diagnostic reproduces the 10ms fixture exhausting the real
+40-per-minute poll limit before delayed approval; production's default
+two-second cadence connects. A native request trace subsequently succeeds with
+1.9–3.3-second creation responses; its preceding raw setup failure is retained.
+These observations do not prove the generic full-run Git failure was a timeout.
+[ADR 0083](adr/0083-native-provider-budgets-and-pairing-fixture.md) records the
+production-cadence fixture correction and bounded configurable provider wait.
+Existing connection defaults stay 15 seconds; the isolated Windows native
+profile chooses 60, with its outer 180-second test, real assertions and security
+gates preserved. Total streaming expiry and no-replay reconciliation now have
+regression coverage. Targeted checks pass: four contract cases and 17 backend
+cases before the final unavailable-service assertion; backend typecheck,
+129-document repository validation, 278-file format check and diff check exit 0.
+Fresh full frozen-source CI and exact-artifact review remain required.
+
+The final focused run also passes all three backend files / 18 tests, including
+the actual pinned Git engine, PR/RBAC and encrypted metadata recovery. Its
+configured Windows API budget is 60 seconds and the original 180-second outer
+test remains. This is focused validation, not a substituted full-CI result.
+The final backend typecheck and repository validation exit 0. Lint exits 0
+with 332 warnings / 1,165 infos in the operator worktree; zero diagnostics is
+not claimed. No lint rule or coverage threshold is changed.
+
+The authenticated pre-update UI shows three agents and one Owner Qwen model
+connection, credential stored, revision 1, last test timeout. Direct byte
+comparison of the protected agent/secret directory is denied by Windows ACL;
+no ACL is changed or secret exported. Post-activation checks must distinguish
+live connection readiness from byte-for-byte proof. No new live model test,
+Paperclip enrollment, signing key, database migration or activation occurs.
+
 ## Preservation and next boundary
 
 Existing pairing, model secrets, environment, applications, databases, uploads,

@@ -95,11 +95,15 @@ export async function giteaRequest(
   path: string,
   body?: unknown,
 ): Promise<unknown> {
+  const timeoutSeconds = config.requestTimeoutSeconds ?? 15;
   if (
     !/^\/api\/v1\/[A-Za-z0-9%._/?=&-]+$/.test(path) ||
     path.includes("..") ||
     /[\r\n]/.test(token) ||
-    token.length > 4096
+    token.length > 4096 ||
+    !Number.isInteger(timeoutSeconds) ||
+    timeoutSeconds < 1 ||
+    timeoutSeconds > 60
   )
     fail("invalid-provider-request", 400);
   const base = new URL(config.apiUrl),
@@ -110,6 +114,18 @@ export async function giteaRequest(
   const pinned = addresses[0]!,
     bytes = body === undefined ? undefined : Buffer.from(JSON.stringify(body));
   return new Promise((resolve, reject) => {
+    let expired = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const finish = (error?: Error, value?: unknown) => {
+      clearTimeout(timer);
+      if (error) reject(error);
+      else resolve(value);
+    };
+    const unavailable = () =>
+      new ServixDeploymentError(
+        expired ? "repository-provider-timeout" : "repository-provider-unavailable",
+        expired ? 504 : 503,
+      );
     const request = (url.protocol === "https:" ? httpsRequest : httpRequest)(
       url,
       {
@@ -131,16 +147,14 @@ export async function giteaRequest(
           size += part.length;
           if (size > 2097152) {
             response.destroy();
-            reject(new ServixDeploymentError("repository-provider-capacity", 502));
+            finish(new ServixDeploymentError("repository-provider-capacity", 502));
           } else parts.push(part);
         });
-        response.on("error", () =>
-          reject(new ServixDeploymentError("repository-provider-unavailable", 503)),
-        );
+        response.on("error", () => finish(unavailable()));
         response.on("end", () => {
           const status = response.statusCode ?? 502;
           if (status >= 300) {
-            reject(
+            finish(
               new ServixDeploymentError(
                 status === 401
                   ? "repository-account-expired"
@@ -155,17 +169,24 @@ export async function giteaRequest(
             return;
           }
           try {
-            resolve(size ? JSON.parse(Buffer.concat(parts).toString("utf8")) : null);
+            finish(undefined, size ? JSON.parse(Buffer.concat(parts).toString("utf8")) : null);
           } catch {
-            reject(new ServixDeploymentError("repository-provider-invalid-response", 502));
+            finish(new ServixDeploymentError("repository-provider-invalid-response", 502));
           }
         });
       },
     );
-    request.setTimeout(15000, () => request.destroy());
-    request.on("error", () =>
-      reject(new ServixDeploymentError("repository-provider-unavailable", 503)),
-    );
+    const expire = () => {
+      expired = true;
+      finish(unavailable());
+      request.destroy();
+    };
+    // Bound the whole exchange, including a response which keeps sending bytes.
+    // An ambiguous mutation still requires reconciliation; never replay it here.
+    timer = setTimeout(expire, timeoutSeconds * 1000);
+    timer.unref();
+    request.setTimeout(timeoutSeconds * 1000, expire);
+    request.on("error", () => finish(unavailable()));
     request.end(bytes);
   });
 }

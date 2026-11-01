@@ -102,6 +102,15 @@ it("requires immutable per-user/provider identities and rejects duplicate bindin
     repositories: [repo],
   };
   expect(RepositoryHostingConfigSchema.parse(config).defaultBranch).toBe("main");
+  expect(RepositoryHostingConfigSchema.parse(config).requestTimeoutSeconds).toBe(15);
+  expect(
+    RepositoryHostingConfigSchema.parse({ ...config, requestTimeoutSeconds: 60 })
+      .requestTimeoutSeconds,
+  ).toBe(60);
+  for (const requestTimeoutSeconds of [0, 61, 1.5, "60", Number.NaN])
+    expect(
+      RepositoryHostingConfigSchema.safeParse({ ...config, requestTimeoutSeconds }).success,
+    ).toBe(false);
   expect(RepositoryHostingConfigSchema.parse(config).repositories[0]?.requiredApprovals).toBe(1);
   for (const accounts of [
     [account, account],

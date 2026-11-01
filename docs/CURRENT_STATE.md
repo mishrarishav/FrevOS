@@ -1,5 +1,17 @@
 # DevSetu Current State
 
+2026-11-02: Three aca3aa6 full native attempts fail installer polling and/or
+native Git creation; release packaging and activation stay blocked by those
+gates. Both unchanged targeted fixtures pass. ADR 0083 records a reproducible
+10ms fixture/server-rate mismatch and removes that override while retaining
+the production polling default, assertions and five-second fixture windows.
+Git provider waits become configurable 1–60 seconds, default 15, with a total
+deadline and fail-closed timeout/reconciliation; the isolated Windows native
+profile explicitly selects 60 while its 180-second test and security/recovery
+assertions remain. The earlier generic Git error's exact cause is not proved.
+Targeted contract/backend checks pass; new frozen-source CI and artifact review
+remain required. Existing data, pairings and secrets are not reconfigured.
+
 2026-11-02: Fresh frozen-source 3633e4c native CI passes all 95 files / 487
 tests, unchanged coverage/build/audit gates (5 low / 8 moderate advisories).
 The existing Server20 SDK signs the exact source with its retained certificate.

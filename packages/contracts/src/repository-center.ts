@@ -106,6 +106,7 @@ export const RepositoryHostingConfigSchema = z
     apiUrl: z.url(),
     webUrl: z.url(),
     allowPrivateHttp: z.boolean().default(false),
+    requestTimeoutSeconds: z.number().int().min(1).max(60).default(15),
     defaultBranch: SafeGitBranchSchema.default("main"),
     recovery: RepositoryRecoveryConfigSchema.optional(),
     accounts: z

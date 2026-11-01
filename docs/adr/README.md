@@ -197,3 +197,7 @@ preservation baseline and separate exact-artifact activation approval.
 [0082: Team release delta policy](0082-team-release-delta-policy.md)
 records the observed final-package rejection and exact two-module correction
 without broadening other allowed paths or deployment authority.
+
+[0083: Native provider budgets and pairing fixture](0083-native-provider-budgets-and-pairing-fixture.md)
+records the observed native failures, production-cadence fixture correction,
+bounded connection budgets and unchanged security/recovery qualification gates.

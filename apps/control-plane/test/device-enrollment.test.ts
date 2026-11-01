@@ -59,7 +59,8 @@ it("pairs with an approved target code, never requests an account password, surv
   const options = {
     noOpen: true,
     preferences: join(root, "preferences"),
-    pollDelay: 10,
+    // Exercise production's rate-safe polling cadence. A 10ms fixture override
+    // can exhaust the real 40/minute budget before durable approval completes.
     // Native CI can delay filesystem/poll continuations under coverage. Wait for
     // the actual states within a bounded fixture window, not 100 timer ticks.
     heartbeatWait: 5000,
