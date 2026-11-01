@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "connections": {
+    "server21-existing-connection": {
+      "host": "10.9.69.21",
+      "credentialRelativePath": "private/server21.credential.xml"
+    }
+  },
+  "repositories": {
+    "gitrepo_6cb7e163f807493fa37963196c49fbac": {
+      "path": "E:\\FrevOS\\git\\servix.git",
+      "git": "C:\\Program Files\\Git\\cmd\\git.exe"
+    }
+  }
+}

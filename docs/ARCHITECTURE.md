@@ -1,5 +1,32 @@
 # FrevOS Architecture
 
+## Optional private source control pilot
+
+[ADR 0076](adr/0076-configured-private-git-collaboration.md) adds a separately
+installed private Git engine behind a strict workspace/account/repository-ID
+registry. It does not embed customer repositories in the control plane or
+complete the generic GitHub App phase. The engine independently enforces native
+Git permissions, PR reviews and protected branches. Per-user tokens resolve at
+the deterministic adapter boundary; neither model prompts nor connectors
+receive them.
+
+The Code experience reuses paired-system folder browsing. Selection queues only
+read-only Changes. An explicit Commit & Push creates/binds a private repository
+when requested, then commits selected files on a work branch. A certified fresh
+repository seed may be linked by an additive two-parent commit to preserve
+existing history/remotes; arbitrary unrelated histories cannot be reset or
+rebased. Bundles travel through the authenticated paired API into disposable
+server checkouts. Publication is confirmed against the engine before success.
+Uncertain effects require fresh observation and explicit reconciliation. Push
+does not trigger deployment. Native Git clients remain supported independently.
+
+Full recovery includes engine metadata and Git data. The initial Windows/SQLite
+adapter quiesces only the enrolled service, encrypts a complete local-storage
+snapshot, and verifies restore into a new isolated root with an offline database
+consistency check. Live replacement, external storage/database adapters and new
+live permissions are separate operations. See the
+[operator handoff](CENTRAL_GIT_COLLABORATION_HANDOFF.md) for evidence and limits.
+
 ## Architectural intent
 
 FrevOS separates user experience, orchestration, repository integration,

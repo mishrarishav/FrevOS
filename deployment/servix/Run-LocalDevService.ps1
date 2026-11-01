@@ -22,7 +22,7 @@ $info.EnvironmentVariables.Clear()
 foreach($property in $launch.environment.PSObject.Properties){$info.EnvironmentVariables[$property.Name]=[string]$property.Value}
 $child=[Diagnostics.Process]::new();$child.StartInfo=$info
 try {
- [void]$child.Start();$null=$child.Handle
+ [void]$child.Start();[void]$child.Handle
  # Application processes never inherit the controller's private input pipe.
  $child.StandardInput.Close()
  # Raw customer output can contain credentials. It is never persisted or sent

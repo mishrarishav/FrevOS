@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "targets": [
+    {
+      "profileId": "servix-production",
+      "displayName": "Servix Production application",
+      "releaseMode": "application",
+      "managedUpdates": true,
+      "frontend": {
+        "root": "frontend",
+        "applicationUrl": "https://support.eesl.co.in/",
+        "preservedFiles": ["web.config"]
+      },
+      "workspaceId": "ws_server20",
+      "ownerId": "usr_windows_admin",
+      "repositoryId": "gitrepo_6cb7e163f807493fa37963196c49fbac",
+      "sourceProfileId": "servix-development",
+      "connectionReference": "server21-existing-connection",
+      "host": "10.9.69.21",
+      "computer": "DCAPP9",
+      "root": "D:\\Servix",
+      "scratchRoot": "D:\\servixDev\\.runtime\\frevos-promotions",
+      "node": "C:\\nvm\\v20.11.1\\node.exe",
+      "nodeVersion": "v20.11.1",
+      "port": 5000,
+      "healthUrl": "http://127.0.0.1:5000/api/health",
+      "publicHealthUrl": "https://support.eesl.co.in/api/health",
+      "taskName": "DevSetu-ServixProduction-Backend",
+      "preservedPaths": [
+        "backend/uploads",
+        "backend/database",
+        "backend/.env",
+        "backend/.env.prd",
+        "backend/attachment"
+      ],
+      "additionalProtectedRoots": ["D:\\oracle\\blob"],
+      "protectedConfigurationFiles": [
+        "C:\\Windows\\System32\\inetsrv\\config\\applicationHost.config"
+      ],
+      "databaseVersion": "8.0.28",
+      "dependencyRisk": "Existing versions retained by owner direction. Backend lock audit: 3 critical / 26 high / 6 moderate; QuerySafe: 1 critical / 3 high / 3 moderate. Counts overlap; findings remain unresolved."
+    }
+  ]
+}

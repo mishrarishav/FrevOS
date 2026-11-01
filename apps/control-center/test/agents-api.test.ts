@@ -151,6 +151,9 @@ it("uses verified workspace routes, CSRF and strict contracts for models, agents
     approve: true,
   });
   await api.testModel!("ws_fixture", mc);
+  expect(JSON.parse(String(calls.at(-1)?.init?.body))).toEqual({});
+  await api.testModel!("ws_fixture", mc, { version: 1, timeoutSeconds: 60 });
+  expect(JSON.parse(String(calls.at(-1)?.init?.body))).toEqual({ version: 1, timeoutSeconds: 60 });
   await api.saveAgent!("ws_fixture", input);
   await api.runAgent!("ws_fixture", { version: 1, agentId: ag, prompt: "Status" });
   await api.draftNotification!("ws_fixture", draft);
@@ -161,7 +164,7 @@ it("uses verified workspace routes, CSRF and strict contracts for models, agents
     digest: notice.digest,
     approve: true,
   });
-  expect(calls).toHaveLength(9);
+  expect(calls).toHaveLength(10);
   expect(calls.every((c) => c.url.startsWith("/frevos/v1/workspaces/ws_fixture/agents"))).toBe(
     true,
   );

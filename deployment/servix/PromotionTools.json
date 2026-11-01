@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "mysql": {
+    "version": "8.0.28",
+    "url": "https://cdn.mysql.com/archives/mysql-8.0/mysql-8.0.28-winx64.zip",
+    "sha256": "cb207afb33e2bbfe9535ba78fa9a1a3cccd11156f73864a5db0be8dcc2dbb1bc",
+    "bytes": 222021254,
+    "directory": "mysql-8.0.28-winx64"
+  }
+}

@@ -6,6 +6,7 @@ import {
   blankSettings,
   DeploymentSettingsPage,
   settingsForm,
+  hasPromotionBinding,
 } from "../src/DeploymentSettingsPage.js";
 import { resolveRoute } from "../src/routing.js";
 
@@ -26,6 +27,41 @@ const profile: DeploymentSettings = DeploymentSettingsSchema.parse({
   updatedAt: "2026-10-21T00:00:00.000Z",
   updatedBy: "usr_windows_admin",
   runner: "servix-development",
+});
+it("recognizes a configured promotion by its data-bound target without claiming another destination is ready", async () => {
+  const { PromotionRegistrySchema } = await import("@frevos/contracts");
+  const { readFile } = await import("node:fs/promises");
+  const target = PromotionRegistrySchema.parse(
+    JSON.parse(
+      await readFile(
+        new URL("../../../deployment/servix/PromotionRegistry.json", import.meta.url),
+        "utf8",
+      ),
+    ),
+  ).targets[0]!;
+  const p = {
+    ...profile,
+    profileId: target.profileId,
+    preservedPaths: target.preservedPaths,
+    destination: {
+      ...profile.destination,
+      host: target.host,
+      root: target.root,
+      siteUrl: target.publicHealthUrl,
+    },
+  };
+  const state = { online: true, targets: [target], jobs: [] };
+  expect(hasPromotionBinding(p, state, target.workspaceId)).toBe(true);
+  expect(hasPromotionBinding({ ...p, archived: true }, state, target.workspaceId)).toBe(false);
+  expect(
+    hasPromotionBinding(
+      { ...p, destination: { ...p.destination, root: "D:\\other" } },
+      state,
+      target.workspaceId,
+    ),
+  ).toBe(false);
+  expect(hasPromotionBinding({ ...p, preservedPaths: [] }, state, target.workspaceId)).toBe(false);
+  expect(hasPromotionBinding(p, null, target.workspaceId)).toBe(false);
 });
 it("uses the real settings route, keeps new projects disconnected, and strips read-only server metadata from saves", () => {
   expect(resolveRoute("/deployments/setup")?.id).toBe("deployment-setup");

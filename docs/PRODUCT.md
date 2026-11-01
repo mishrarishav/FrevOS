@@ -23,11 +23,19 @@ FrevOS is:
 FrevOS is not:
 
 - a general-purpose code editor or unrestricted chat shell;
-- a replacement for GitHub as source control;
+- an in-process replacement for a mature Git hosting engine;
 - a permanent mirror of customer repositories;
 - a model-training system for customer source code;
 - an AI runtime installed on a Production Windows server;
 - an authority that may bypass human approval for sensitive actions.
+
+The owner-approved optional private source-control integration in
+[ADR 0076](adr/0076-configured-private-git-collaboration.md) adds a Repository
+Center over a separately installed Git engine. That engine hosts central code,
+standard Git transport, branches and reviews. DevSetu retains workspace/policy,
+configuration, audit, deployment and verified recovery boundaries; customer
+repositories remain external to this platform repository and control-plane
+storage. Existing GitHub integration remains separately supported.
 
 ## Primary user outcomes
 

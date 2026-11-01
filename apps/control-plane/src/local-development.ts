@@ -100,6 +100,54 @@ export class LocalDevelopment {
     this.observations.set(device.deviceId, { at: this.now().toISOString(), snapshot });
     return { observed: true };
   }
+  async previewTarget(actor: string, workspaceId: string, deviceId: string, serviceId: string) {
+    const device = (await this.connectors.discoveryDevices(actor)).find(
+      (d) => d.deviceId === deviceId,
+    );
+    const observed = this.observations.get(deviceId);
+    if (
+      !device ||
+      device.workspaceId !== workspaceId ||
+      !device.workspaceAuthorized ||
+      device.mode === "system"
+    )
+      throw new ServixDeploymentError("preview-target-denied", 403);
+    const snapshot = observed?.snapshot;
+    const active = snapshot?.services.find((s) => s.id === serviceId);
+    const service = snapshot?.plan?.services.find((s) => s.id === serviceId);
+    if (
+      device.status !== "active" ||
+      !device.online ||
+      !observed ||
+      this.now().getTime() - Date.parse(observed.at) >= 20000 ||
+      !snapshot?.sourceReady ||
+      active?.status !== "running" ||
+      !service?.preview ||
+      snapshot.previewRelay !== 1
+    )
+      throw new ServixDeploymentError("preview-target-unavailable", 503);
+    if (
+      service.apiServiceId &&
+      snapshot.services.find((s) => s.id === service.apiServiceId)?.status !== "running"
+    )
+      throw new ServixDeploymentError("preview-api-unavailable", 503);
+    return { device, snapshot, service };
+  }
+  async connectorIdentity(credential: string) {
+    const device = await this.connectors.checkCredential(credential),
+      observed = this.observations.get(device.deviceId);
+    if (
+      device.mode === "system" ||
+      !observed ||
+      this.now().getTime() - Date.parse(observed.at) >= 20000
+    )
+      throw new ServixDeploymentError("preview-source-identity-unavailable", 503);
+    return {
+      workspaceId: device.workspaceId,
+      deviceId: device.deviceId,
+      profileId: observed.snapshot.profileId,
+    };
+  }
   async request(actor: string, input: unknown) {
     return this.serial(async () => {
       const request = LocalDevActionSchema.parse(input);
@@ -146,6 +194,8 @@ export class LocalDevelopment {
         if (snapshot.services.some((s) => ["starting", "running"].includes(s.status)))
           throw new ServixDeploymentError("local-development-stop-before-configuration");
         for (const service of request.plan.services) {
+          if (service.preview && snapshot.previewRelay !== 1)
+            throw new ServixDeploymentError("preview-connector-update-required", 409);
           const candidate = snapshot.candidates.find((c) => c.id === service.id);
           if (
             !candidate ||

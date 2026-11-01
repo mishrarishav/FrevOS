@@ -10,7 +10,7 @@ for($p=$root;;){if(Test-Path -LiteralPath $p){if((Get-Item -LiteralPath $p -Forc
 $identity=[Security.Principal.WindowsIdentity]::GetCurrent();$system=[Security.Principal.SecurityIdentifier]::new('S-1-5-18')
 if(-not(Test-Path -LiteralPath $root)){
  [void][IO.Directory]::CreateDirectory($root);$acl=[Security.AccessControl.DirectorySecurity]::new();$acl.SetAccessRuleProtection($true,$false);$acl.SetOwner($identity.User)
- foreach($sid in @($identity.User,$system)){$acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($sid,[Security.AccessControl.FileSystemRights]::FullControl,([Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [Security.AccessControl.InheritanceFlags]::ObjectInherit),[Security.AccessControl.PropagationFlags]::None,[Security.AccessControl.AccessControlType]::Allow))};Set-Acl -LiteralPath $root -AclObject $acl
+ foreach($sid in @($identity.User,$system)){$acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($sid,[Security.AccessControl.FileSystemRights]::FullControl,([Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [Security.AccessControl.InheritanceFlags]::ObjectInherit),[Security.AccessControl.PropagationFlags]::None,[Security.AccessControl.AccessControlType]::Allow))};[IO.DirectoryInfo]::new($root).SetAccessControl($acl)
 }
 $actual=Get-Acl -LiteralPath $root
 if($actual.GetOwner([Security.Principal.SecurityIdentifier]).Value -cne $identity.User.Value -or -not $actual.AreAccessRulesProtected){throw 'Secret storage ownership differs'}

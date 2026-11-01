@@ -5,6 +5,7 @@ node_modules/
 coverage/
 dist/
 *.tsbuildinfo
+/deployment/servix/FrevOS.FolderPicker.exe
 
 # Local environment and secrets
 .env
