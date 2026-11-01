@@ -13,6 +13,8 @@ import {
   type ModelProposal,
   type Project,
   defaultAgentGuardrails,
+  defaultModelTestTimeoutSeconds,
+  ModelTestInputSchema,
 } from "@frevos/contracts";
 import type { ControlCenterApi } from "./api.js";
 import { WorkspaceDialog } from "./WorkspaceDialog.js";
@@ -68,11 +70,12 @@ export function AgentsPage({
     [editorTab, setEditorTab] = useState<"identity" | "skills" | "memory" | "guardrails">(
       "identity",
     ),
-    [network, setNetwork] = useState(true);
+    [network, setNetwork] = useState(false);
   const [ask, setAsk] = useState<Agent | null>(null),
     [prompt, setPrompt] = useState(""),
     [projectId, setProjectId] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [testBudgets, setTestBudgets] = useState<Record<string, number>>({});
   const [notificationsOpen, setNotificationsOpen] = useState(false),
     [notificationSource, setNotificationSource] = useState<AgentRun | null>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: reload is the explicit retry generation.
@@ -447,6 +450,19 @@ export function AgentsPage({
                     Last test:{" "}
                     {state?.tests.find((t) => t.connectionId === c.id)?.status ?? "Not tested"}
                   </p>
+                  <label className="record-inline-choice">
+                    Test timeout (seconds)
+                    <input
+                      type="number"
+                      min={5}
+                      max={60}
+                      disabled={busy}
+                      value={testBudgets[c.id] ?? defaultModelTestTimeoutSeconds}
+                      onChange={(e) =>
+                        setTestBudgets((prior) => ({ ...prior, [c.id]: Number(e.target.value) }))
+                      }
+                    />
+                  </label>
                   <div className="record-row-actions">
                     <button type="button" className="button secondary" onClick={() => editModel(c)}>
                       Edit connection
@@ -454,10 +470,18 @@ export function AgentsPage({
                     <button
                       type="button"
                       className="button primary"
-                      disabled={busy}
+                      disabled={
+                        busy ||
+                        !ModelTestInputSchema.safeParse({
+                          timeoutSeconds: testBudgets[c.id] ?? defaultModelTestTimeoutSeconds,
+                        }).success
+                      }
                       onClick={() =>
                         void action(async () => {
-                          const result = await api.testModel!(workspaceId, c.id);
+                          const result = await api.testModel!(workspaceId, c.id, {
+                            version: 1,
+                            timeoutSeconds: testBudgets[c.id] ?? defaultModelTestTimeoutSeconds,
+                          });
                           setState((s) =>
                             s
                               ? {

@@ -1,5 +1,28 @@
 # DevSetu Current State
 
+2026-11-01: The owner explicitly approves task-branch publication and DevSetu
+Server20 release-build preparation for ADR 0079, with existing pairing, data and
+environment protected. Activation is excluded until the exact built artifact
+is reviewed. Publication and build preparation are in progress; no new active
+manifest, release success or default-branch merge is claimed.
+
+2026-11-01: The owner requests Qwen live Hindi/latency and Paperclip qualification
+and reports unstable Agents network interaction. ADR 0079 scopes a bounded
+follow-up on codex/qwen-live-qualification from d1356d1. The gateway is already
+enabled after the owner starts Qwen; authenticated synthetic completion returns
+HTTP 200. Six small direct inference checks pass, with an observed percentage
+point wording limitation; these are not general model/agent acceptance. Match
+the existing agents through revisioned configuration and fix network interaction
+without changing provider defaults, authority or existing data. Local browser
+interaction checks and the fresh full CI retry pass all 93 files / 473 tests,
+unchanged coverage gates, build and high-severity audit. All three live agents
+are revision 2 with 256-token/60-second limits; Server20's final model test still
+times out. The actual pinned Paperclip OpenCode runner fails HTTP 400 because
+the gateway rejects its streaming fields. The local UI fix and bounded
+connection-test budget remain uncommitted and undeployed. No new Production UI activation, GitHub
+publication, permanent Paperclip installation or roadmap phase completion is
+claimed.
+
 2026-10-31: Server20 configured release PASS. DevSetu run
 pr_bd4bd6a5a50a05ec0bb1ca293e55774b activates source 074b9e5 with immutable manifest
 b0c300090e9423d4583dd5a386460b2bf5f1b9136bc6c8dd650331a7a3e5d24d. Fresh full CI

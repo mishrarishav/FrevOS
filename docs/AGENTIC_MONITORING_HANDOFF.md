@@ -1,5 +1,13 @@
 # Configurable agent and measured monitoring pilot
 
+2026-11-01 follow-up: direct owner-Qwen inference now passes six bounded synthetic
+checks after the owner starts the existing gateway. The three existing live
+agents use configured 256-token/60-second limits. Server20's own connection test
+still times out; the actual Paperclip OpenCode adapter reaches the gateway but
+fails its unsupported streaming request. A local network-view interaction fix
+is not yet activated. See the [qualification handoff](QWEN_LIVE_QUALIFICATION_HANDOFF.md)
+for separate live/local results, provenance, limitations and release boundaries.
+
 Status: PASS for the bounded application pilot, configured live rollout and
 exact-download native acceptance. Owner-provider inference remains unavailable
 (live test: timeout); this is not an end-to-end working AI-answer claim.

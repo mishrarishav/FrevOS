@@ -3896,8 +3896,9 @@ kbd,
   min-height: 0;
 }
 .agent-network {
-  min-height: 320px;
-  height: 100%;
+  min-height: 0;
+  flex: 1;
+  width: 100%;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -3905,6 +3906,20 @@ kbd,
   color: #e5edf9;
   border-radius: 12px;
   padding: 16px;
+  overflow: hidden;
+}
+.record-scroll:has(> .agent-network) {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  overflow: hidden;
+}
+.agent-network > svg {
+  width: 100%;
+  height: 0;
+  flex: 1 1 0;
+  min-height: 120px;
+  user-select: none;
 }
 .agent-network .button {
   color: #e5edf9;
@@ -3916,6 +3931,11 @@ kbd,
   font-size: 13px;
 }
 .agent-network > .record-row-actions {
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.agent-network > .record-row-actions strong {
   flex-shrink: 0;
 }
 .agent-output {

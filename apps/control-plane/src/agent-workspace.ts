@@ -23,6 +23,8 @@ import {
   ModelProposalSchema,
   ModelCommitInputSchema,
   ModelTestResultSchema,
+  defaultModelTestTimeoutSeconds,
+  ModelTestInputSchema,
   WorkspaceIdSchema,
   modelSecretContext,
   type Agent,
@@ -400,16 +402,19 @@ export class AgentWorkspace {
       return record;
     });
   }
-  async testModel(actor: string, connectionId: string) {
+  async testModel(actor: string, connectionId: string, input: unknown = {}) {
     await this.check(actor, true);
-    const connection = await this.connection(actor, connectionId),
-      start = Date.now();
+    const options = ModelTestInputSchema.parse(input),
+      connection = await this.connection(actor, connectionId),
+      start = Date.now(),
+      timeoutSeconds = options.timeoutSeconds ?? defaultModelTestTimeoutSeconds;
     if (this.testing.has(connectionId) || this.testing.size >= 2)
       throw denied("agent-model-test-busy", 409);
     this.testing.add(connectionId);
     try {
       await this.audit(actor, "model:test", connectionId, {
         connectionRevision: connection.revision,
+        timeoutSeconds,
       });
       let status: ModelTestResult["status"] = "unavailable",
         model = connection.model;
@@ -424,7 +429,7 @@ export class AgentWorkspace {
           instruction: "Connectivity check. Return only OK. Do not use tools.",
           input: "Reply OK.",
           maxOutputTokens: 16,
-          timeoutSeconds: 15,
+          timeoutSeconds,
         });
         status = "ready";
         model = safety.redact(result.model.split(key).join("[credential omitted]")).slice(0, 160);

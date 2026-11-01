@@ -1,6 +1,7 @@
 import { expect, it } from "vitest";
 import {
   ModelConnectionInputSchema,
+  ModelTestInputSchema,
   AgentInputSchema,
   defaultAgentGuardrails,
   NotificationDraftInputSchema,
@@ -19,6 +20,12 @@ it("rejects control characters, duplicate capabilities, secret-shaped paths and 
     credential: "replace",
   };
   expect(ModelConnectionInputSchema.safeParse(m).success).toBe(true);
+  expect(ModelTestInputSchema.safeParse({}).success).toBe(true);
+  expect(ModelTestInputSchema.safeParse({ version: 1, timeoutSeconds: 60 }).success).toBe(true);
+  expect(ModelTestInputSchema.safeParse({ version: 2, timeoutSeconds: 60 }).success).toBe(false);
+  for (const timeoutSeconds of [0, 4, 61, 15.5, Number.NaN]) {
+    expect(ModelTestInputSchema.safeParse({ timeoutSeconds }).success).toBe(false);
+  }
   expect(ModelConnectionInputSchema.safeParse({ ...m, name: "bad\nname" }).success).toBe(false);
   expect(ModelConnectionInputSchema.safeParse({ ...m, model: "bad\x7fmodel" }).success).toBe(false);
   const agent = {

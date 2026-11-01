@@ -181,3 +181,7 @@ interactive desktop requirements and explicit web-browser fallback.
 [0078: Native listener detection and Server20 release](0078-native-listener-detection-and-server20-release.md)
 records the owner-authorized process-detection repair, task-branch publication
 and configured platform rollout with pairing/data preservation.
+
+[0079: Qwen live qualification and network controls](0079-qwen-live-qualification-and-agent-network-controls.md)
+records the bounded provider qualification, configurable agent limits and stable
+graph fit/pan/click behavior without expanding model authority.

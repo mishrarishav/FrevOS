@@ -81,6 +81,7 @@ import {
   type ModelProposal,
   ModelProposalSchema,
   type ModelTestResult,
+  type ModelTestInput,
   ModelTestResultSchema,
   type NotificationApprovalInput,
   type NotificationDraftInput,
@@ -193,7 +194,7 @@ export interface ControlCenterApi {
   ): Promise<AgentNotification>;
   prepareModel?(workspaceId: string, input: ModelConnectionInput): Promise<ModelProposal>;
   commitModel?(workspaceId: string, input: ModelCommitInput): Promise<ModelConnection>;
-  testModel?(workspaceId: string, id: string): Promise<ModelTestResult>;
+  testModel?(workspaceId: string, id: string, input?: ModelTestInput): Promise<ModelTestResult>;
   saveAgent?(workspaceId: string, input: AgentInput): Promise<Agent>;
   runAgent?(workspaceId: string, input: AgentRunInput): Promise<AgentRun>;
   lookupSystemPairing?(workspaceId: string, code: string): Promise<SystemEnrollmentPreview>;
@@ -468,10 +469,10 @@ export function createControlCenterApi(
       post(`${workspacePath(ws)}/agents/models/prepare`, input, ModelProposalSchema),
     commitModel: (ws, input) =>
       post(`${workspacePath(ws)}/agents/models/commit`, input, ModelConnectionSchema),
-    testModel: (ws, id) =>
+    testModel: (ws, id, input = {}) =>
       post(
         `${workspacePath(ws)}/agents/models/${encodeURIComponent(id)}/test`,
-        {},
+        input,
         ModelTestResultSchema,
       ),
     saveAgent: (ws, input) => post(`${workspacePath(ws)}/agents/configuration`, input, AgentSchema),
