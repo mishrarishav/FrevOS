@@ -1,5 +1,24 @@
 # DevSetu Current State
 
+2026-11-02: ADR 0080's local read-only team/task bridge passes complete native
+CI: 95 files / 487 tests, unchanged coverage gates, build and high-severity
+dependency audit (5 low / 8 moderate remain). Backend coverage is 95.16%
+statements, 91.59% branches, 96.78% functions and 96.90% lines. The actual pinned
+Paperclip core, Qwen and AgentWorkspace team flow create/complete three real
+synthetic issues without duplicate inference on request replay. Two bounded
+64-token analyses take 40.16 / 49.48 seconds; the earlier 128-token timeout and
+answer-completeness limitations remain recorded. DevSetu retains execution and
+authorization; Paperclip is a passive task backend, not a native autonomous
+runner. Raw IDs are collapsed after owner feedback. A no-op random tamper in
+an existing unit test is corrected without changing production encryption or
+acceptance gates. Earlier environment/enrollment failures and startup attempts
+are retained. All temporary service credentials are revoked and its three
+containers/network removed. Four existing local preview containers are restored
+with identities/mounts preserved. Implementation remains uncommitted on
+codex/paperclip-agent-bridge from 738bd183; no live Server20 enrollment, secret
+grant, publication or activation occurs. Phase 4 remains open; the handoff
+records the full changed-file list, evidence and next separate release boundary.
+
 2026-11-01: ADR 0079 build-only preparation and independent artifact review PASS.
 Frozen source fef19a0 passes fresh native CI: 93 files / 473 tests, original
 coverage/build/audit gates, observed exit 0. Manifest

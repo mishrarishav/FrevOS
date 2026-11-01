@@ -185,3 +185,7 @@ and configured platform rollout with pairing/data preservation.
 [0079: Qwen live qualification and network controls](0079-qwen-live-qualification-and-agent-network-controls.md)
 records the bounded provider qualification, configurable agent limits and stable
 graph fit/pan/click behavior without expanding model authority.
+
+[0080: Paperclip read-only team bridge](0080-paperclip-read-only-team-bridge.md)
+records explicit specialist/coordinator analysis, passive private task records,
+data-sharing opt-in and separate live enrollment/activation boundaries.

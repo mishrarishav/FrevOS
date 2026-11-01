@@ -1163,6 +1163,20 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
       return reply.status(202).send(await c.service.requestRun(c.actor, request.body));
     },
   );
+  server.get<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/agents/teams"),
+    async (request) => {
+      const c = await agentContext(request);
+      return c.service.teamState(c.actor);
+    },
+  );
+  server.post<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/agents/teams"),
+    async (request, reply) => {
+      const c = await agentContext(request, true);
+      return reply.status(202).send(await c.service.requestTeam(c.actor, request.body));
+    },
+  );
   const notificationContext = async (
     request: FastifyRequest<{ Params: WorkspaceParams }>,
     write = false,

@@ -22,6 +22,7 @@ import { RecordBadge, RecordWorkspace, type RecordColumn } from "./RecordWorkspa
 import { AgentNetwork } from "./AgentNetwork.js";
 import { sealModelCredential } from "./model-seal.js";
 import { AgentNotificationsPanel } from "./AgentNotificationsPanel.js";
+import { AgentTeamsPanel } from "./AgentTeamsPanel.js";
 const blankModel = (): ModelConnectionInput => ({
   version: 1,
   expectedRevision: 0,
@@ -75,6 +76,7 @@ export function AgentsPage({
     [prompt, setPrompt] = useState(""),
     [projectId, setProjectId] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [teamsOpen, setTeamsOpen] = useState(false);
   const [testBudgets, setTestBudgets] = useState<Record<string, number>>({});
   const [notificationsOpen, setNotificationsOpen] = useState(false),
     [notificationSource, setNotificationSource] = useState<AgentRun | null>(null);
@@ -245,6 +247,9 @@ export function AgentsPage({
             <button type="button" className="button secondary" onClick={() => setHistoryOpen(true)}>
               Run history ({runs.length})
             </button>
+            <button type="button" className="button secondary" onClick={() => setTeamsOpen(true)}>
+              Team tasks
+            </button>
             <button
               type="button"
               className="button secondary"
@@ -406,6 +411,15 @@ export function AgentsPage({
             </div>
           </section>
         </WorkspaceDialog>
+      ) : null}
+      {teamsOpen ? (
+        <AgentTeamsPanel
+          api={api}
+          workspaceId={workspaceId}
+          agents={agents}
+          projects={projects}
+          onClose={() => setTeamsOpen(false)}
+        />
       ) : null}
       {notificationsOpen ? (
         <AgentNotificationsPanel

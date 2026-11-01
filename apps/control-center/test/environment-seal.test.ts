@@ -81,7 +81,15 @@ it("browser encryption interoperates with the real Windows connector, preserves 
   await expect(
     editor.save(file, {
       ...request,
-      sealed: { ...request.sealed, ciphertext: "00" + request.sealed.ciphertext.slice(2) },
+      // Always change a bit. Replacing a random byte with 00 can be a no-op,
+      // which wrongly submits the valid request and invalidates preservation.
+      sealed: {
+        ...request.sealed,
+        ciphertext:
+          (Number.parseInt(request.sealed.ciphertext.slice(0, 2), 16) ^ 1)
+            .toString(16)
+            .padStart(2, "0") + request.sealed.ciphertext.slice(2),
+      },
     }),
   ).rejects.toThrow("sealed-request-invalid");
   expect(await readFile(file, "utf8")).toBe(original);

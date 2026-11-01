@@ -339,6 +339,7 @@ it("protects account metadata and password actions, revokes sessions, preserves 
       "/models/commit",
       "/configuration",
       "/runs",
+      "/teams",
       "/notifications/draft",
       "/notifications/approve",
     ]) {
@@ -392,6 +393,40 @@ it("protects account metadata and password actions, revokes sessions, preserves 
     expect(requestedRun.statusCode).toBe(202);
     await agentService.waitForRuns();
     expect((await get(agentBase)).json().runs[0].status).toBe("succeeded");
+    const coordinator = await post(agentBase + "/configuration", {
+      version: 1,
+      expectedRevision: 0,
+      name: "Coordinator",
+      role: "Read-only synthesis",
+      parentId: null,
+      connectionId: mc,
+      skills: "Summarize evidence",
+      memory: "",
+      guardrails: defaultAgentGuardrails,
+      enabled: true,
+    });
+    expect(coordinator.statusCode).toBe(200);
+    const teamInput = {
+      version: 1,
+      requestId: "a".repeat(32),
+      coordinatorId: coordinator.json().id,
+      specialistIds: [configured.json().id],
+      prompt: "Synthetic team review",
+      shareWithPaperclip: false,
+    };
+    expect((await server.inject({ method: "GET", url: agentBase + "/teams" })).statusCode).toBe(
+      401,
+    );
+    expect((await get(agentBase + "/teams", devAuth)).statusCode).toBe(403);
+    expect((await get(agentBase.replace("ws_server20", "ws_other") + "/teams")).statusCode).toBe(
+      404,
+    );
+    expect((await post(agentBase + "/teams", { ...teamInput, command: "deploy" })).statusCode).toBe(
+      400,
+    );
+    expect((await post(agentBase + "/teams", teamInput)).statusCode).toBe(202);
+    await agentService.waitForTeams();
+    expect((await get(agentBase + "/teams")).json().tasks[0].status).toBe("succeeded");
     expect((await get(agentBase + "/notifications")).statusCode).toBe(200);
     const notificationInput = {
       version: 1,

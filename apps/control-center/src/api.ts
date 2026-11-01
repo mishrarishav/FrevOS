@@ -23,6 +23,11 @@ import {
   type AgentRun,
   type AgentRunInput,
   AgentRunSchema,
+  AgentTeamSchema,
+  AgentTeamStateSchema,
+  type AgentTeam,
+  type AgentTeamState,
+  type AgentTeamInput,
   AgentSchema,
   type AgentWorkspaceState,
   AgentWorkspaceStateSchema,
@@ -183,6 +188,8 @@ export interface ControlCenterApi {
   preparePromotion?(workspaceId: string, input: unknown): Promise<PromotionJob>;
   approvePromotion?(workspaceId: string, input: unknown): Promise<PromotionJob>;
   agentState?(workspaceId: string, signal?: AbortSignal): Promise<AgentWorkspaceState>;
+  agentTeams?(workspaceId: string, signal?: AbortSignal): Promise<AgentTeamState>;
+  runAgentTeam?(workspaceId: string, input: AgentTeamInput): Promise<AgentTeam>;
   agentNotifications?(workspaceId: string, signal?: AbortSignal): Promise<NotificationState>;
   draftNotification?(
     workspaceId: string,
@@ -477,6 +484,9 @@ export function createControlCenterApi(
       ),
     saveAgent: (ws, input) => post(`${workspacePath(ws)}/agents/configuration`, input, AgentSchema),
     runAgent: (ws, input) => post(`${workspacePath(ws)}/agents/runs`, input, AgentRunSchema),
+    agentTeams: (ws, signal) =>
+      get(`${workspacePath(ws)}/agents/teams`, AgentTeamStateSchema, signal),
+    runAgentTeam: (ws, input) => post(`${workspacePath(ws)}/agents/teams`, input, AgentTeamSchema),
     repositoryRecoveryState: (ws, signal) =>
       get(`${workspacePath(ws)}/repository-center/recovery`, RepositoryRecoveryStateSchema, signal),
     repositoryRecoveryAction: (ws, input) =>

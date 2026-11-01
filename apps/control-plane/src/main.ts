@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import type { ProjectFolderSearchJob } from "@frevos/contracts";
 import { AgentNotifications } from "./agent-notifications.js";
 import { AgentWorkspace } from "./agent-workspace.js";
+import { PrivatePaperclipTasks } from "./paperclip-bridge.js";
 import { ArtifactPromotions } from "./artifact-promotions.js";
 import { ComponentDeployments } from "./component-deployments.js";
 import { loadConfig } from "./config.js";
@@ -189,6 +190,20 @@ try {
               (!projectId || r.projectId === projectId),
           ),
         };
+      },
+      undefined,
+      undefined,
+      (actor) => {
+        const binding = config.paperclipBindings.find(
+          (b) => b.workspaceId === workspaceId && b.actor === actor,
+        );
+        return binding
+          ? new PrivatePaperclipTasks(binding, async (reference) => {
+              const value = process.env[reference.slice(4)];
+              if (!value) throw Error("paperclip-credential-unavailable");
+              return value;
+            })
+          : undefined;
       },
     );
     agentWorkspaces.set(workspaceId, service);

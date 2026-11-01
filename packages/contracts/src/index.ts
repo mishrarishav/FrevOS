@@ -18,6 +18,7 @@ export * from "./join-requests.js";
 export * from "./deployment-settings.js";
 export * from "./developer-connectors.js";
 export * from "./agent-workspace.js";
+export * from "./agent-teams.js";
 export {
   type ConnectGithubRepositoryRequest,
   ConnectGithubRepositoryRequestSchema,
