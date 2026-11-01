@@ -189,3 +189,7 @@ graph fit/pan/click behavior without expanding model authority.
 [0080: Paperclip read-only team bridge](0080-paperclip-read-only-team-bridge.md)
 records explicit specialist/coordinator analysis, passive private task records,
 data-sharing opt-in and separate live enrollment/activation boundaries.
+
+[0081: Server20 team bridge release](0081-server20-team-bridge-release.md)
+records the immediate deployment follow-up, bounded packaging/provenance repair,
+preservation baseline and separate exact-artifact activation approval.

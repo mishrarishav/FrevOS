@@ -1,5 +1,15 @@
 # DevSetu Current State
 
+2026-11-02: Owner-approved reviewed patch is committed/pushed as 26664d5 on
+codex/paperclip-agent-bridge; draft PR 43 targets main and inherits unmerged
+PR 42. Owner then requests immediate Server20 deployment. ADR 0081 scopes
+preparation and exact-artifact review. Fresh HTTP/SMB observations confirm
+baseline b0c30009 / source 074b9e5, eight pairings and five stable settings.
+Preflight adds the new Paperclip/client contract modules to explicit packaging
+and all three new source inputs to provenance. Release build and independent
+artifact review remain pending; no destination apply, new live credential or
+permanent Paperclip service enrollment is claimed.
+
 2026-11-02: ADR 0080's local read-only team/task bridge passes complete native
 CI: 95 files / 487 tests, unchanged coverage gates, build and high-severity
 dependency audit (5 low / 8 moderate remain). Backend coverage is 95.16%

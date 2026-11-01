@@ -6,7 +6,11 @@ No Server20 integration activation or permanent service is claimed.
 Repository: `mishrarishav/FrevOS`, verified provider ID `1329122983`.
 Branch: `codex/paperclip-agent-bridge`.
 Base: `738bd1831c020590ba763505a199381aff9dd126`.
-Resulting commit and PR: none; this implementation is uncommitted/unpublished.
+Implementation commit: `26664d5d80817b1f4f1e4874883894275ab589c4`.
+Owner-authorized task branch publication and draft
+[PR 43](https://github.com/mishrarishav/FrevOS/pull/43) succeed. PR targets main;
+its inherited comparison includes 235 files (+35,011/-577), distinct from the
+bounded 20-file implementation delta below.
 Predecessor PR 42 remains unmerged. Phase 4 remains open.
 
 ## Implemented behavior
@@ -139,8 +143,22 @@ untracked files are counted as complete additions; the Git index is untouched.
 <!-- changed-files:end -->
 
 The complete tracked diff and every new source/test/document are reviewed.
-No staging, commit, push, PR merge, Server20 runtime configuration, data
-migration or Production activation occurs.
+The reviewed patch is staged, index reverse-verified, committed and pushed
+after the owner's explicit approval. No PR merge, Server20 runtime configuration,
+data migration or Production activation occurs during that publication.
+
+## Immediate release follow-up
+
+The owner subsequently requests Server20 deployment now (not Server25 or a
+future scheduled run). [ADR 0081](adr/0081-server20-team-bridge-release.md)
+records that new scope. Preflight finds two new modules absent from the sealed
+copy lists: paperclip-bridge and agent-teams. The follow-up adds their compiled
+artifacts and all three new source inputs to provenance. Existing dependency
+closure checks must verify the produced package. Enrolled builder sidecars are
+refreshed only through the preserving, idle-checked updater. Fresh release CI,
+artifact integrity and exact activation approval are pending. The earlier
+487-test result applies to the implementation before this packaging follow-up;
+no activation or live private Paperclip enrollment is inferred from it.
 
 ## Preservation and next boundary
 
