@@ -5,6 +5,8 @@ Owner follow-up: task-branch publication and Server20 release-build preparation
 are now explicitly authorized. Activation remains excluded pending review of
 the exact built artifact. The qualification snapshot below predates publication;
 the appended delivery section records this new boundary separately.
+Delivery status: PASS for publication; BLOCKED for release preparation pending
+working local Docker. No exact new release artifact exists for activation review.
 Status: BLOCKED for end-to-end live DevSetu/Paperclip use. Direct owner-provider
 inference and the bounded local UI correction pass; these are separate results.
 Repository: FrevOS. Branch: `codex/qwen-live-qualification`.
@@ -259,3 +261,68 @@ Fresh GitHub connector metadata verifies repository ID 1329122983,
 `mishrarishav/FrevOS`, and task-branch push permission. The current Server20 root
 is reachable, but its new browser session requires owner sign-in. No saved
 password retry or authentication bypass is used.
+
+Implementation commit `c4085150706b7ec4d5527c3e09143290713739b6` is published to
+GitHub `codex/qwen-live-qualification`; `git push --set-upstream origin
+codex/qwen-live-qualification` exits 0 and `git ls-remote` reads back the same
+SHA. Draft [PR 42](https://github.com/mishrarishav/FrevOS/pull/42) targets main and
+inherits unmerged PR 41. The bounded implementation is 15 files, +546/-42;
+the canonical-main comparison at c408515 is 226 files, +32958/-574. No main push
+or merge is performed. The complete bounded file list is above; preceding pilot
+inventory remains in CENTRAL_GIT_SERVER20_RELEASE_HANDOFF.md.
+
+[GitHub CI 41322553954](https://github.com/mishrarishav/FrevOS/actions/runs/41322553954)
+passes c408515: governance, format, lint, types, pinned native Git, coverage,
+build, non-Production runtime image/boundary and audit. Linux reports 94 contract,
+104 frontend and 260 backend passes, with 15 Windows-specific cases skipped in
+5 files. Do not present these as 473 unskipped Linux tests. The earlier complete
+native Windows run separately establishes 473 passes. The same 5 low / 8 moderate
+advisories remain. There are no new runtime source changes after c408515.
+
+The owner signs in. Actual DevSetu Test connections reports passed for source,
+builders and destination bindings. Source remains this checkout at pipeline
+revision 4; the existing L-1770 source/builder and Server20 destination remain
+online. No configuration save/re-enrollment or Deploy all is submitted.
+
+Build-only limitation: the existing component API has deploy/rollback, not a
+build-only operation, and would queue a destination job after a successful
+build. To honor the owner's explicit pre-activation review, invoke only the
+**already enrolled NativePlatform.build method** with the unchanged protected
+builder configuration, pinned adapter, published source bundle and baseline.
+This is separately recorded operator preparation, not a fabricated authenticated
+control-plane pipeline request or an end-to-end configured deployment PASS.
+It neither adds a shell tool to the product nor calls the adapter's activate
+method. The existing SDK reference retains workspace/repository/signing scope.
+
+Attempt correlation `cj_2623b1d9ad20db381d9bb2940a915164` freezes c408515, tree
+`87ccf6bb8a6e485f82f514f370c293164a858040`. Its process is subsequently absent,
+with no native-artifact descriptor, package receipt or completed CI evidence.
+The cause of that process termination is not established and its numeric exit
+was not retained. Do not count it as a successful build. Its private source,
+plan and evidence are preserved. No SDK signing or destination activation is
+inferred from a BUILDING progress record.
+
+Retry prerequisite fails: local Docker Desktop is stopped, then startup shows
+an Inference-manager `dockerInference` socket access error. After normal Quit,
+verify only three zero-byte runtime endpoints in `Docker/run` and one in
+`docker-secrets-engine`, then rename both stopped plain directories aside and
+recreate the two runtime directories. Preserve the old endpoints; do not touch
+VM disks, volumes or settings. Docker's fresh startup instead fails on the new
+Secrets Engine `engine.sock` with the same Windows access-error class. The
+[matching Docker issue](https://github.com/docker/desktop-feedback/issues/554)
+is supporting upstream evidence, not proof of this host's kernel/root cause.
+No reset, WSL unregister, security change, SDK replacement, skipped test or
+weakened acceptance gate is used. A working Docker host/restart is requested.
+The proposed temporary retry task has not been started; no new artifact exists.
+
+The last successful fresh preservation receipt reports all eight pairing
+identities/owners/scopes/statuses/credential hashes, all five stable configuration
+files and active manifest
+`b0c300090e9423d4583dd5a386460b2bf5f1b9136bc6c8dd650331a7a3e5d24d`
+unchanged. The code path prepares only isolated source/baseline/output and the
+enrolled immutable artifact store; no destination apply, application restart,
+database migration/write, customer app change or environment edit is performed.
+No new application health/rollback acceptance is claimed.
+
+Delivery follow-up changes only CURRENT_STATE.md and this handoff (+82/-0).
+The complete bounded delta is 15 files (+628/-42) relative to d1356d1.

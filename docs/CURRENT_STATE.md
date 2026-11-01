@@ -1,5 +1,20 @@
 # DevSetu Current State
 
+2026-11-01: ADR 0079 implementation c408515 is pushed to GitHub task branch
+codex/qwen-live-qualification; draft PR 42 remains unmerged. GitHub CI
+41322553954 passes that exact source, with Linux's 458 passes / 15 Windows-only
+skips kept separate from the earlier full 473-test Windows result. Authenticated
+DevSetu source/builder/destination tests pass. Build-only preparation uses the
+existing enrolled native adapter directly because Deploy all would also queue
+activation. That operator attempt ends before an artifact; it is not a control
+plane pipeline success. A fresh retry is blocked by local Docker startup:
+Inference/Secrets Engine AF_UNIX endpoints fail with Windows access errors,
+including after preserving/recreating only the stopped runtime directories.
+No factory reset, disk/volume removal, settings change or gate bypass is used.
+Owner restart/working Docker is requested. Eight pairings, all five stable
+configuration files and active manifest b0c30009 remain unchanged in the last
+successful preservation check. No new artifact or activation is claimed.
+
 2026-11-01: The owner explicitly approves task-branch publication and DevSetu
 Server20 release-build preparation for ADR 0079, with existing pairing, data and
 environment protected. Activation is excluded until the exact built artifact
