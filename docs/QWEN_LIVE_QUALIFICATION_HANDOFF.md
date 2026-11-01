@@ -5,14 +5,15 @@ Owner follow-up: task-branch publication and Server20 release-build preparation
 are now explicitly authorized. Activation remains excluded pending review of
 the exact built artifact. The qualification snapshot below predates publication;
 the appended delivery section records this new boundary separately.
-Delivery status: PASS for publication; BLOCKED for release preparation pending
-working local Docker. No exact new release artifact exists for activation review.
+Delivery status: PASS for publication, build-only preparation and independent
+artifact review. The exact artifact is recorded below; activation is not performed.
 Status: BLOCKED for end-to-end live DevSetu/Paperclip use. Direct owner-provider
 inference and the bounded local UI correction pass; these are separate results.
 Repository: FrevOS. Branch: `codex/qwen-live-qualification`.
-Base/current commit: `d1356d1b0ef95051c00330018ff474b28c2d6732`.
-The implementation is uncommitted; no task PR, GitHub publication, merge or
-Production UI activation is performed. Predecessor draft PR 41 stays unmerged.
+Qualification base: `d1356d1b0ef95051c00330018ff474b28c2d6732`.
+The initial qualification snapshot was uncommitted. Publication/build outcomes
+are recorded in the delivery sections. No merge or Production UI activation is
+performed. Predecessor draft PR 41 stays unmerged.
 Decision: [ADR 0079](adr/0079-qwen-live-qualification-and-agent-network-controls.md).
 Phase 4 remains open.
 
@@ -324,5 +325,105 @@ enrolled immutable artifact store; no destination apply, application restart,
 database migration/write, customer app change or environment edit is performed.
 No new application health/rollback acceptance is claimed.
 
-Delivery follow-up changes only CURRENT_STATE.md and this handoff (+82/-0).
-The complete bounded delta is 15 files (+628/-42) relative to d1356d1.
+Delivery documentation at fef19a0 changes only CURRENT_STATE.md and this handoff
+(+82/-0). Its complete bounded delta is 15 files (+628/-42) relative to d1356d1.
+
+## Verified Server20 artifact: 2026-11-01
+
+Status: **PASS for build-only preparation and independent artifact review**.
+Publication remains task-branch-only in draft PR 42. Source and its GitHub CI
+are `fef19a0f2ad2b1765b79cebf383496a798b66cdc` / run 41326887613; subsequent
+delivery edits are documentation only. Phase 4 remains open. This is not a
+Production activation or complete Qwen/Paperclip acceptance claim.
+
+| Review field | Verified value |
+| --- | --- |
+| Workspace / profile | `ws_server20` / `devsetu-platform` |
+| Repository | `gitrepo_403e3e5a3cdd9ef309eec087f8369c91`; GitHub ID 1329122983 |
+| Source | `fef19a0f2ad2b1765b79cebf383496a798b66cdc` |
+| Source tree | `37c5744c62a98a7f3c2f4c99a6efcb5edf366689` |
+| Correlation | `cj_cc77400a7b25b489083fb69566f453c9` |
+| Manifest SHA-256 | `97dc1df5f2a1eaa5cc1627c2ca6664e91aa62f3e495c78f55b859eac3e1be11d` |
+| ZIP SHA-256 | `7ebbf67b8e32c9a52552fee6f7bfa1f5941cba462f7206ba63df1f6a4a8a0e89` |
+| ZIP bytes / manifest files | 131,932,897 / 4,036 |
+| Previous, still-active manifest | `b0c300090e9423d4583dd5a386460b2bf5f1b9136bc6c8dd650331a7a3e5d24d` |
+| Server20 archive | `E:\FrevOS\component-artifacts\7ebbf67b8e32c9a52552fee6f7bfa1f5941cba462f7206ba63df1f6a4a8a0e89.zip` |
+| Native CI | exit 0; 94 contracts + 104 UI + 275 backend = 473 passes, 93 files |
+| Backend coverage | statements 95.04%, branches 91.45%, functions 96.73%, lines 96.83% |
+| Android SDK job | `ab_05380fe886ff4220e38a8d09ed260718` |
+| Android APK SHA-256 | `7a7ab7801d55d8c7c2dbfd5f9211f64122fcd1eee2489dc22e639c43ae6aaef6` |
+| Retained Android certificate SHA-256 | `0d3a704822eacaef060a4560c2f800479179eed96dfbf9e94993dcf2b75cec92` |
+
+The archive/manifest are bound by SHA-256; the Android APK uses the existing
+signing certificate. Do not describe the entire platform ZIP as independently
+code-signed. No new key or credential is created. There is no new Android
+feature/phone acceptance claim: its source is unchanged and the standard
+platform recipe rebuilds its download with retained signing provenance.
+
+After the owner's restart, Docker 29.7.2 and Server20 are healthy/reachable.
+Keep the four owned local preview containers stopped during the heavy CI,
+retaining their IDs/images/mounts and restoring them afterward. The first
+scheduled retry fails one device-enrollment file; cache reports 59 backend
+files passed / that file failed. Both unchanged cases pass in a separate
+targeted coverage diagnostic; that diagnostic exits 1 because partial coverage
+does not satisfy full-suite thresholds. It is not counted as complete CI.
+The original assertion/root cause is not established. The temporary task used
+BelowNormal priority (7); the fresh retry uses Normal (6), matching foreground
+qualification, while remaining Limited. All tests/timeouts/gates stay unchanged.
+
+The next retry records actual full CI exit 0 and all 473 passes. A transparent
+operator observer retains only sanitized result lines, preserving the enrolled
+adapter, command arguments, environment, outputs/errors and test gates. Then the
+existing Server20 SDK produces the matching signed APK. Packaging alone fails:
+PowerShell Copy-Item cannot copy a real baseline file at a 262-character path.
+Node confirms that exact file exists. The same committed tree and frozen
+lockfile are installed without lifecycle scripts into short staging under the
+already enrolled release-output root. Reuse the exact signed APK and passing CI
+attestation; run only the same enrolled packaging/finalization phase again.
+The source tree and all 237 source inventory hashes match. No code, dependency
+version, SDK enrollment, target configuration or acceptance gate changes.
+
+Independent `node .local/Review-QwenArtifact.cjs` exits 0. It verifies every
+package file, both archive copies/lengths/hashes, source inventory, the actual
+packaged legacy/60-second/invalid-budget contract, retained Android/preview
+compatibility and SDK/certificate/APK provenance. The bounded scan compares
+2,645 package text files with the approved provider credential without logging
+its value: zero matches. This is not a general/exhaustive secret audit.
+Original build/audit gates pass; 5 low / 8 moderate advisories and the existing
+frontend chunk-size advisory remain.
+
+Relative to the active manifest the package adds two new hashed frontend assets,
+removes their two superseded assets and changes 17 files: compiled agent/server
+and contract modules/maps/declarations, UI index, source inventory and rebuilt
+connector/APK/picker downloads. Prerequisites are unchanged. Its only changed
+application source inputs are:
+
+- `apps/control-plane/src/server.ts`
+- `apps/control-plane/src/agent-workspace.ts`
+- `packages/contracts/src/agent-workspace.ts`
+- `apps/control-center/src/api.ts`
+- `apps/control-center/src/styles.css`
+- `apps/control-center/src/AgentsPage.tsx`
+- `apps/control-center/src/AgentNetwork.tsx`
+
+Full package delta and operator receipts stay in ignored
+`.local/qwen-artifact-review.json`, `qwen-ci-observation-cc77400a7b25b489083fb69566f453c9.json`,
+`qwen-package-resume-exit.json` and `qwen-release-preservation-after.json`.
+The local preview restoration initially rejects only differing array order;
+normalize mount ordering while retaining exact ID/image/source/destination
+comparison. All four original containers are then restored healthy. Keep that
+operator-helper error separate from application failures. Both owned temporary
+tasks are removed after exact action/working-directory/Limited checks; unrelated
+tasks are unchanged. Failed attempts and their snapshots remain retained.
+
+Final preservation checks pass for all eight pairing identities/credentials,
+all five stable configuration files and the still-active baseline manifest.
+No environment edit, database migration, application restart or destination
+apply is performed. Protected installation paths remain `config`,
+`postgres-data`, `state`, `servix`, `git`, `backups`, `maintenance`, `operator`.
+This is an operator prepare-only execution of the enrolled recipe, not an
+invented control-plane pipeline run; the deployed UI/API still has no build-only
+operation. A later activation must review this exact artifact, current target,
+fresh backup and scoped single-use approval through the independent updater.
+Qwen runtime connectivity, Paperclip streaming and post-activation health/recovery
+remain separate acceptance boundaries. No prior release approval is reused.

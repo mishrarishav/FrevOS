@@ -1,5 +1,23 @@
 # DevSetu Current State
 
+2026-11-01: ADR 0079 build-only preparation and independent artifact review PASS.
+Frozen source fef19a0 passes fresh native CI: 93 files / 473 tests, original
+coverage/build/audit gates, observed exit 0. Manifest
+97dc1df5f2a1eaa5cc1627c2ca6664e91aa62f3e495c78f55b859eac3e1be11d and archive
+7ebbf67b8e32c9a52552fee6f7bfa1f5941cba462f7206ba63df1f6a4a8a0e89 identify
+the prepared Server20 artifact (131,932,897 bytes; 4,036 files). All package
+files, 237 source inputs, both ZIP copies, packaged budget contract and retained
+Android certificate verify. Preparation uses the enrolled native adapter and
+existing Server20 SDK, separately from the absent build-only UI/API. The same
+source/lockfile/signed APK is packaged from short staging after a 262-character
+path fails PowerShell Copy-Item; no runtime/operator enrollment or test is
+changed. Earlier interrupted/failed attempts remain recorded. Four local
+preview containers are restored healthy with their identities/mounts preserved;
+both temporary tasks are removed. Eight pairings, five stable settings and
+active manifest b0c30009 remain unchanged. No activation, migration, main merge
+or end-to-end Qwen/Paperclip acceptance is claimed. The qualification handoff
+contains the exact review and the next separate activation boundary.
+
 2026-11-01: ADR 0079 implementation c408515 is pushed to GitHub task branch
 codex/qwen-live-qualification; draft PR 42 remains unmerged. GitHub CI
 41322553954 passes that exact source, with Linux's 458 passes / 15 Windows-only
