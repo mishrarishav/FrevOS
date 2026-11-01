@@ -160,6 +160,22 @@ artifact integrity and exact activation approval are pending. The earlier
 487-test result applies to the implementation before this packaging follow-up;
 no activation or live private Paperclip enrollment is inferred from it.
 
+The fresh 3633e4c native build also passes all 95 files / 487 tests and original
+build/coverage/audit gates, exit 0. SDK job ab_adcceea3cc9c9fe42123b8a478e5f164
+signs the exact source with the retained certificate. Final packaging fails
+at its delta policy before archive publication/activation: all eight compiled
+paths for the two new modules are absent from the allowed names. The failure
+receipt and partial package are retained. [ADR 0082](adr/0082-team-release-delta-policy.md)
+adds only those two names, retaining the unknown-module denial. The native
+PowerShell probe changes from 0/8 intended paths accepted to 8/8, while an
+unapproved module stays rejected. The corrected source requires a fresh build
+and exact-artifact review; the earlier CI is not relabeled as its result.
+The actual retained 4,044-file package delta also passes the corrected policy.
+Repository validation (128 Markdown files), whole-repository format check
+(278 configured files), native policy probes and diff whitespace check pass,
+observed exit 0. A preceding attempt to format only Markdown processes no files
+because Biome excludes them; the configured repository format command is used.
+
 ## Preservation and next boundary
 
 Existing pairing, model secrets, environment, applications, databases, uploads,

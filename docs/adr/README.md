@@ -193,3 +193,7 @@ data-sharing opt-in and separate live enrollment/activation boundaries.
 [0081: Server20 team bridge release](0081-server20-team-bridge-release.md)
 records the immediate deployment follow-up, bounded packaging/provenance repair,
 preservation baseline and separate exact-artifact activation approval.
+
+[0082: Team release delta policy](0082-team-release-delta-policy.md)
+records the observed final-package rejection and exact two-module correction
+without broadening other allowed paths or deployment authority.

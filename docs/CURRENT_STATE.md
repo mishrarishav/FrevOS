@@ -1,5 +1,15 @@
 # DevSetu Current State
 
+2026-11-02: Fresh frozen-source 3633e4c native CI passes all 95 files / 487
+tests, unchanged coverage/build/audit gates (5 low / 8 moderate advisories).
+The existing Server20 SDK signs the exact source with its retained certificate.
+Final packaging fails because the delta policy omits the two new team modules;
+no archive publication or activation occurs. ADR 0082 records the narrow
+paperclip-bridge / agent-teams correction. Native policy probes accept all
+eight intended compiled paths while rejecting an unapproved module. Existing
+local previews are restored with identities/mounts preserved. A new frozen
+source build, exact artifact review and activation approval remain pending.
+
 2026-11-02: Owner-approved reviewed patch is committed/pushed as 26664d5 on
 codex/paperclip-agent-bridge; draft PR 43 targets main and inherits unmerged
 PR 42. Owner then requests immediate Server20 deployment. ADR 0081 scopes
