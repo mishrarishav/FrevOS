@@ -14,5 +14,5 @@ $destination=Join-Path $directory 'consent.json';if(Test-Path -LiteralPath $dest
 $temp=Join-Path $directory ('consent-'+[guid]::NewGuid().ToString('N')+'.tmp')
 $bytes=[Text.UTF8Encoding]::new($false).GetBytes((@{version=1;deviceId=$inputValue.deviceId;inventory=$inputValue.inventory;install=$inputValue.install;approvedAt=[DateTimeOffset]::UtcNow.ToString('o')}|ConvertTo-Json -Compress))
 $stream=[IO.File]::Open($temp,[IO.FileMode]::CreateNew);try{$stream.Write($bytes,0,$bytes.Length);$stream.Flush($true)}finally{$stream.Dispose()}
-if(Test-Path -LiteralPath $destination){[IO.File]::Replace($temp,$destination,$null)}else{[IO.File]::Move($temp,$destination)}
+if(Test-Path -LiteralPath $destination){[IO.File]::Replace($temp,$destination,[NullString]::Value)}else{[IO.File]::Move($temp,$destination)}
 [Console]::Out.Write('{"saved":true}')

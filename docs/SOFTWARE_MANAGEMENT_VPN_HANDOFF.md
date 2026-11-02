@@ -58,6 +58,10 @@ This is bounded HTTP request/response, not a general TCP/UDP mesh or streaming A
 - Windows actual installed-program scan passes without persisting program names
   in this report. Actual native child demo + HTTP relay GET/POST, bootstrap replay,
   preview close, demo stop and pairing sentinel preservation pass locally.
+- Actual Windows CurrentUser DPAPI consent opt-in/revocation/different-pairing
+  denial passes while retaining encrypted pairing bytes and file permissions.
+  A PowerShell 5.1 null-string atomic-replacement issue found by this fixture is
+  fixed and retained as a committed native regression.
 - Expanded native Windows update fixture preserves all prior denial/recovery
   checks and adds the prior Git-capable runtime migration. Fixed private-preview
   operator fixtures validate v1 publication and v2 actual maintenance authority.
@@ -121,6 +125,8 @@ by current implementation/preparation. No GitHub push/self-merge is claimed.
 - apps/control-plane/src/server.ts
 - apps/control-plane/src/software-management.ts
 - apps/control-plane/test/preview-operators.test.ts
+- apps/control-plane/test/software-consent.fixture.ps1
+- apps/control-plane/test/software-consent.test.ts
 - apps/control-plane/test/software-client.test.ts
 - apps/control-plane/test/software-linux.fixture.cjs
 - apps/control-plane/test/software-linux.test.ts
