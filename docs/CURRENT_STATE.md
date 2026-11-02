@@ -1,5 +1,35 @@
 # DevSetu Current State
 
+2026-11-03 02:30 IST: Owner-approved exact simple-join release is live on Server20 through
+authenticated DevSetu maintenance: source 27f85a7, manifest 325bfd60, archive
+36520f29, correlation 99a2bebd986245f68452ccac5b7b4d51. Native Apply and
+post-verification are PASS: health/UI 200, all three served installer hashes
+match, eight pairing identities/credentials and five stable settings unchanged.
+L-1465/L-1770 report fresh Online heartbeats; admin bell/inbox renders and retains
+the historical expired requests. No new live account/pairing is created for testing.
+Existing updater remains running/integrity-verified; local previews are healthy,
+temporary build task and loopback review server cleaned up.
+The [release handoff](SIMPLE_JOIN_SERVER20_RELEASE_HANDOFF.md) records exact
+approval, commands, complete file list, known credential-proof limitation and
+private recovery backups. No schema migration, GitHub push, central source
+publication, live rollback or permanent Paperclip enrollment is claimed.
+Phone and real Linux desktop acceptance remain open; Phase 4 stays open.
+
+2026-11-03 02:20 IST preparation: Frozen simple-join source 27f85a7 passes fresh enrolled native CI
+(96 files / 494 tests) and independent review of manifest 325bfd60 / archive
+36520f29: all 4,044 files, 240 committed inputs and Windows/Linux archives
+verify; Server20 SDK signs Android with the retained certificate. Fresh native
+Plan is PASS with no database/configuration write and its temporary task removed.
+A 14-file byte-exact snapshot verifies eight pairing identities/credentials
+and five stable settings. The completed build task is removed and the existing
+independent updater is running/integrity-verified. The former exact-key session
+reference is unavailable; the final credential gate uses a verified clean-artifact
+plus qualified frozen-source/delta proof, not a repeated direct-key scan.
+The [release handoff](SIMPLE_JOIN_SERVER20_RELEASE_HANDOFF.md) records full
+digests, scope, commands and limitations. Exact artifact human approval is
+pending; active manifest remains b0c30009, no live activation or source publication
+is claimed. Phone and real Linux desktop acceptance remain open. Phase 4 stays open.
+
 2026-11-03: The owner explicitly requests the simple-join release through DevSetu
 on Server20, including all three installers and preserved pairing/data/`.env`.
 ADR 0086 authorizes frozen source commit and enrolled native preparation, with
