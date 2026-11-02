@@ -13,6 +13,14 @@ const markdown = z
   .refine((s) => !s.includes("\0"));
 export const ModelConnectionIdSchema = z.string().regex(/^mc_[a-f0-9]{32}$/);
 export const AgentIdSchema = z.string().regex(/^ag_[a-f0-9]{32}$/);
+export const defaultModelTestTimeoutSeconds = 15;
+export const ModelTestInputSchema = z
+  .object({
+    version: z.literal(1).optional(),
+    timeoutSeconds: z.number().int().min(5).max(60).optional(),
+  })
+  .strict();
+export type ModelTestInput = z.infer<typeof ModelTestInputSchema>;
 export const ModelConnectionInputSchema = z
   .object({
     version: z.literal(1),

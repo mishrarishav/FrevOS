@@ -1,6 +1,56 @@
 import { expect, it } from "vitest";
 import { createControlCenterApi } from "../src/api.js";
 import { defaultAgentGuardrails } from "@frevos/contracts";
+it("scopes team-task reads and CSRF-protected idempotent requests", async () => {
+  const calls: { url: string; init: RequestInit | undefined }[] = [];
+  const input = {
+    version: 1 as const,
+    requestId: "c".repeat(32),
+    coordinatorId: "ag_" + "a".repeat(32),
+    specialistIds: ["ag_" + "b".repeat(32)],
+    prompt: "Synthetic review",
+    shareWithPaperclip: true,
+  };
+  const task = {
+    version: 1,
+    id: "at_" + "d".repeat(32),
+    workspaceId: "ws_fixture",
+    actor: "usr_fixture",
+    createdAt: "2026-11-02T00:00:00Z",
+    request: input,
+    status: "running",
+    output: "",
+    usage: "unavailable",
+    steps: [
+      { agentId: input.specialistIds[0], agentRevision: 1, role: "specialist" },
+      { agentId: input.coordinatorId, agentRevision: 1, role: "coordinator" },
+    ],
+  };
+  const api = createControlCenterApi(
+    async (url, init) => {
+      calls.push({ url: String(url), init });
+      return new Response(
+        JSON.stringify(
+          init?.method === "POST" ? task : { version: 1, paperclip: "enrolled", tasks: [task] },
+        ),
+        {
+          headers: { "content-type": "application/json" },
+        },
+      );
+    },
+    "/frevos",
+    () => "synthetic-csrf",
+  );
+  expect((await api.agentTeams!("ws_fixture")).tasks[0]!.id).toBe(task.id);
+  expect((await api.runAgentTeam!("ws_fixture", input)).id).toBe(task.id);
+  expect(calls.every((c) => c.url === "/frevos/v1/workspaces/ws_fixture/agents/teams")).toBe(true);
+  expect(calls[1]!.init).toMatchObject({
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "x-csrf-token": "synthetic-csrf" },
+  });
+  expect(JSON.parse(String(calls[1]!.init!.body))).toEqual(input);
+});
 it("uses verified workspace routes, CSRF and strict contracts for models, agents, analysis and notification approval", async () => {
   const calls: { url: string; init: RequestInit | undefined }[] = [],
     at = "2026-10-26T00:00:00Z",
@@ -151,6 +201,9 @@ it("uses verified workspace routes, CSRF and strict contracts for models, agents
     approve: true,
   });
   await api.testModel!("ws_fixture", mc);
+  expect(JSON.parse(String(calls.at(-1)?.init?.body))).toEqual({});
+  await api.testModel!("ws_fixture", mc, { version: 1, timeoutSeconds: 60 });
+  expect(JSON.parse(String(calls.at(-1)?.init?.body))).toEqual({ version: 1, timeoutSeconds: 60 });
   await api.saveAgent!("ws_fixture", input);
   await api.runAgent!("ws_fixture", { version: 1, agentId: ag, prompt: "Status" });
   await api.draftNotification!("ws_fixture", draft);
@@ -161,7 +214,7 @@ it("uses verified workspace routes, CSRF and strict contracts for models, agents
     digest: notice.digest,
     approve: true,
   });
-  expect(calls).toHaveLength(9);
+  expect(calls).toHaveLength(10);
   expect(calls.every((c) => c.url.startsWith("/frevos/v1/workspaces/ws_fixture/agents"))).toBe(
     true,
   );

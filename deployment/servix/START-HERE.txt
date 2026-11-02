@@ -3,10 +3,15 @@ DevSetu - connect this Windows computer
 1. Extract the ZIP completely. Open Setup.cmd from the extracted folder.
 2. The setup page opens in your browser. Enter the DevSetu server URL. Keep
    your VPN connected. No administrator username or password is needed here.
-3. Optionally enable file activity, then click Connect this computer. A short
+3. If you used Request to join on the login screen, wait for manual admin
+   approval there. Enter that approved join code in setup and keep the same
+   file activity choice that was reviewed. Connect this computer; no second
+   approval or account password is needed in the installer.
+   Alternatively an administrator can register a computer directly: optionally
+   enable file activity, then click Connect this computer. A short
    code appears. On your own logged-in DevSetu browser (on this computer or
-   another computer), open Discovery > Approve connection. Enter that code,
-   check the computer name and access, then Approve this computer.
+   another computer), open Discovery > Approve connection. An administrator
+   selects the assigned user, checks the computer name and access, then approves.
 4. Wait for Connected and reporting health. Open Discovery to view your laptop.
    You can close the setup window after that; the connector runs in the background
    for your Windows user and starts again when you sign in.
@@ -41,3 +46,16 @@ This is an explicit local update; existing versions do not update themselves.
 The updated collector bounds pending work and reserves separate activity quotas;
 server segments/summaries already work with older connectors. Read-only text
 requests and connector-specific RAM metrics require the updated collector.
+
+Paired-computer login requires the updated connector running on that computer.
+With the configured HTTP flow, enter your own username/password in DevSetu,
+choose Verify for this computer and confirm on its local connector page. Keep the
+same browser; DevSetu checks both browser and connector proof before signing in.
+A normal user sees only their own Discovery
+systems. Administrators can sign in from other computers and review requests.
+Do not disable certificate checks or browser local-network security.
+
+Linux x64: extract the Linux archive and run ./install.sh as your desktop user
+(not root). It opens the same system setup without Git or a project. A working
+user systemd manager and cgroup v2 are required. Desktop notifications are not
+offered by this Linux setup. ./install.sh --project keeps explicit project setup.

@@ -42,6 +42,11 @@
         ? "Retry connection"
         : "Connect this computer";
       for (const input of el("form").querySelectorAll("input")) input.disabled = s.busy;
+      if (s.notificationsSupported === false) {
+        el("notifications").checked = false;
+        el("notifications").disabled = true;
+        el("notifications").parentElement.hidden = true;
+      }
       el("approval").hidden = s.phase !== "approval";
       if (s.code) {
         el("code").textContent = s.code;
@@ -72,6 +77,7 @@
     try {
       await call("/connect", {
         server: el("server").value.trim(),
+        joinCode: el("join-code").value.trim(),
         fileActivity: el("activity").checked,
         notifications: el("notifications").checked,
       });

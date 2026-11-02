@@ -4,6 +4,7 @@ import {
   type DeploymentSettingsInput,
   DeploymentSettingsInputSchema,
   type DeveloperConnector,
+  type PromotionState,
 } from "@frevos/contracts";
 import {
   Archive,
@@ -30,6 +31,24 @@ import { WorkspaceDialog } from "./WorkspaceDialog.js";
 export function settingsForm(profile: DeploymentSettings): DeploymentSettingsInput {
   const { revision, runner: _, updatedAt: _at, updatedBy: _by, ...fields } = profile;
   return { ...fields, expectedRevision: revision };
+}
+export function hasPromotionBinding(
+  profile: DeploymentSettings,
+  state: PromotionState | null,
+  workspaceId: string,
+) {
+  return (
+    !profile.archived &&
+    !!state?.targets.some(
+      (t) =>
+        t.workspaceId === workspaceId &&
+        t.profileId === profile.profileId &&
+        t.host === profile.destination.host &&
+        t.root === profile.destination.root &&
+        new URL(t.publicHealthUrl).origin === new URL(profile.destination.siteUrl).origin &&
+        JSON.stringify(t.preservedPaths) === JSON.stringify(profile.preservedPaths),
+    )
+  );
 }
 export function blankSettings(): DeploymentSettingsInput {
   return {
@@ -70,6 +89,7 @@ export function DeploymentSettingsPage({
   const [closeRequested, setCloseRequested] = useState(false);
   const [pathsText, setPathsText] = useState("");
   const [devices, setDevices] = useState<DeveloperConnector[]>([]);
+  const [promotions, setPromotions] = useState<PromotionState | null>(null);
   const [deviceId, setDeviceId] = useState("");
   const [owner, setOwner] = useState(false);
   const [busy, setBusy] = useState<"save" | "test" | "folder" | "archive" | "revoke" | null>(null);
@@ -145,10 +165,15 @@ export function DeploymentSettingsPage({
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
       try {
-        const items = await api.listDeveloperConnectors?.(workspaceId, controller.signal);
+        const [items, promotionState] = await Promise.all([
+          api.listDeveloperConnectors?.(workspaceId, controller.signal),
+          api.promotionState?.(workspaceId, controller.signal).catch(() => null),
+        ]);
         if (items && !controller.signal.aborted) setDevices(items);
+        if (!controller.signal.aborted) setPromotions(promotionState ?? null);
       } catch {
         if (!controller.signal.aborted) setDevices([]);
+        if (!controller.signal.aborted) setPromotions(null);
       }
       if (!controller.signal.aborted) timer = setTimeout(() => void poll(), 3000);
     };
@@ -275,7 +300,9 @@ export function DeploymentSettingsPage({
       ? "managed"
       : p.archived
         ? "archived"
-        : p.runner === "servix-development" || p.runner === "configured-components"
+        : hasPromotionBinding(p, promotions, workspaceId) ||
+            p.runner === "servix-development" ||
+            p.runner === "configured-components"
           ? "configured"
           : "pending";
   const statusBadge = (p: DeploymentSettings) => (
@@ -283,18 +310,26 @@ export function DeploymentSettingsPage({
       tone={
         p.archived
           ? "neutral"
-          : p.runner === "servix-development" || p.runner === "configured-components"
-            ? "positive"
-            : "warning"
+          : hasPromotionBinding(p, promotions, workspaceId)
+            ? promotions?.online
+              ? "positive"
+              : "warning"
+            : p.runner === "servix-development" || p.runner === "configured-components"
+              ? "positive"
+              : "warning"
       }
     >
       {p.runner === "devsetu-platform"
         ? "Managed platform"
         : p.archived
           ? "Archived"
-          : p.runner === "servix-development" || p.runner === "configured-components"
-            ? "Configured"
-            : "Destination pending"}
+          : hasPromotionBinding(p, promotions, workspaceId)
+            ? promotions?.online
+              ? "Promotion configured"
+              : "Promotion worker offline"
+            : p.runner === "servix-development" || p.runner === "configured-components"
+              ? "Configured"
+              : "Destination pending"}
     </RecordBadge>
   );
   const open = (p: DeploymentSettings, next: "view" | "edit") => {
@@ -313,6 +348,14 @@ export function DeploymentSettingsPage({
   };
   const rowActions = (p: DeploymentSettings) => (
     <div className="record-row-actions">
+      {hasPromotionBinding(p, promotions, workspaceId) ? (
+        <a
+          className="button primary"
+          href={addBasePath(`/projects/promotions?target=${encodeURIComponent(p.profileId)}`)}
+        >
+          Promote tested release
+        </a>
+      ) : null}
       <button type="button" className="button secondary" onClick={() => open(p, "view")}>
         <Eye size={14} /> View
       </button>
@@ -349,9 +392,13 @@ export function DeploymentSettingsPage({
           ? "Managed platform"
           : p.archived
             ? "Archived"
-            : p.runner === "servix-development" || p.runner === "configured-components"
-              ? "Configured"
-              : "Destination pending",
+            : hasPromotionBinding(p, promotions, workspaceId)
+              ? promotions?.online
+                ? "Promotion configured"
+                : "Promotion worker offline"
+              : p.runner === "servix-development" || p.runner === "configured-components"
+                ? "Configured"
+                : "Destination pending",
       render: statusBadge,
     },
     { id: "source", label: "Source folder", value: (p) => p.sourceFolder },
@@ -435,6 +482,11 @@ export function DeploymentSettingsPage({
             <a className="button secondary" href={addBasePath("/deployments/deploy-72")}>
               Deployments
             </a>
+            {owner ? (
+              <a className="button secondary" href={addBasePath("/projects/promotions")}>
+                Production promotion
+              </a>
+            ) : null}
             {owner ? (
               <button
                 type="button"

@@ -16,6 +16,19 @@ function put(root, file, bytes) {
 function run(name, preserved = [], success = true) {
   const runtime = path.join(fixture, name);
   put(runtime, "preserve.json", JSON.stringify(preserved));
+  put(
+    runtime,
+    "validation.json",
+    JSON.stringify({
+      version: 1,
+      status: "passed",
+      sourceHead: "a".repeat(40),
+      suites: [
+        { component: "frontend", exitCode: 0 },
+        { component: "backend", exitCode: 0 },
+      ],
+    }),
+  );
   const result = spawnSync(
     process.execPath,
     [path.join(__dirname, "Build-DevRelease.cjs"), source, runtime],
@@ -74,8 +87,19 @@ try {
   assert(!manifest.files.some((file) => /(?:\/src\/|\/uploads\/|\.env)/.test(file.path)));
   assert.equal(manifest.files.find((file) => file.path.endsWith("/server.cjs")).sha256, digest);
   assert.equal(
-    manifest.files.find((file) => file.path.endsWith("/artifact.json")).sha256,
+    manifest.files.find((file) => file.path === manifest.backendArtifact.descriptor).sha256,
     identity,
+  );
+  const frontendDefinition = JSON.parse(
+    fs.readFileSync(
+      path.join(fixture, "bundled/release/payload", manifest.frontendArtifact.descriptor),
+    ),
+  );
+  assert.equal(frontendDefinition.routing, "same-origin");
+  assert(!frontendDefinition.files.some((file) => file.path === "web.config"));
+  assert.equal(
+    frontendDefinition.files.find((file) => file.path === "index.html").sha256,
+    hash(Buffer.from("<html>fixture</html>")),
   );
   run("protected", ["backend/.releases"], false);
   put(source, "dist/servix-server/backend/.releases/" + digest + "/server.cjs", "changed bytes");
@@ -89,7 +113,7 @@ try {
   assert.equal(legacy.mode, "source-only-existing-dependencies");
   assert(legacy.files.some((file) => file.path === "backend/src/index.js"));
   console.log(
-    "PASS: immutable backend-only payload, exact descriptor and bundle digests, protected-path/tamper denial and legacy packaging",
+    "PASS: immutable compiled backend and portable frontend descriptors, protected-path/tamper denial and legacy packaging",
   );
 } finally {
   const absolute = path.resolve(fixture);

@@ -31,13 +31,39 @@ export async function registerControlCenter(
   server: FastifyInstance,
   assetsDirectory: string,
   basePath = "",
+  deviceLogin = false,
+  previewOrigins: readonly string[] = [],
 ): Promise<void> {
   const root = resolve(assetsDirectory);
   await access(join(root, INDEX_FILE));
+  if (
+    previewOrigins.some((origin) => {
+      try {
+        return new URL(origin).origin !== origin || !/^https?:\/\/[^\s;]+$/.test(origin);
+      } catch {
+        return true;
+      }
+    })
+  )
+    throw new Error("Invalid preview origin");
 
   server.addHook("onSend", async (_request, reply, payload) => {
     for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
-      reply.header(name, value);
+      if (name === "content-security-policy" && reply.hasHeader(name)) continue;
+      let header: string = value;
+      if (name === "content-security-policy") {
+        if (deviceLogin)
+          header = header.replace(
+            "connect-src 'self'",
+            "connect-src 'self' http://127.0.0.1:*/device-login",
+          );
+        if (previewOrigins.length)
+          header = header.replace(
+            "form-action 'self'",
+            "form-action 'self' " + previewOrigins.join(" "),
+          );
+      }
+      reply.header(name, header);
     }
     return payload;
   });

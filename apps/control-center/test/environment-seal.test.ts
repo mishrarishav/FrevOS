@@ -22,13 +22,20 @@ async function acl(file: string) {
         "-Command",
         "(Get-Acl -LiteralPath $env:DEVSETU_FIXTURE_ACL_FILE).Sddl",
       ],
-      { windowsHide: true, env: { ...process.env, DEVSETU_FIXTURE_ACL_FILE: file } },
+      {
+        windowsHide: true,
+        timeout: 15_000,
+        env: { ...process.env, DEVSETU_FIXTURE_ACL_FILE: file },
+      },
     )
   ).stdout;
 }
 afterEach(async () => {
   for (const dir of cleanup.splice(0)) await rm(dir, { recursive: true, force: true });
 });
+// This integration test starts native PowerShell processes; keep a bounded
+// allowance for Windows startup under concurrent CI load rather than the pure
+// JavaScript default of five seconds. All preservation/sealing assertions run.
 it("browser encryption interoperates with the real Windows connector, preserves untouched lines and never returns saved secrets", async () => {
   const root = await mkdtemp(join(tmpdir(), "devsetu-env-interop-"));
   cleanup.push(root);
@@ -74,7 +81,15 @@ it("browser encryption interoperates with the real Windows connector, preserves 
   await expect(
     editor.save(file, {
       ...request,
-      sealed: { ...request.sealed, ciphertext: "00" + request.sealed.ciphertext.slice(2) },
+      // Always change a bit. Replacing a random byte with 00 can be a no-op,
+      // which wrongly submits the valid request and invalidates preservation.
+      sealed: {
+        ...request.sealed,
+        ciphertext:
+          (Number.parseInt(request.sealed.ciphertext.slice(0, 2), 16) ^ 1)
+            .toString(16)
+            .padStart(2, "0") + request.sealed.ciphertext.slice(2),
+      },
     }),
   ).rejects.toThrow("sealed-request-invalid");
   expect(await readFile(file, "utf8")).toBe(original);
@@ -105,7 +120,7 @@ it("browser encryption interoperates with the real Windows connector, preserves 
   const changed = new EnvironmentEditor("synthetic-connector-credential");
   await expect(changed.save(file, request)).rejects.toThrow("key-changed");
   expect(context(base, editor.keyId)).toContain("arbitrary-project");
-});
+}, 30_000);
 it("preserves dotenv formatting, supports explicit empty values, and rejects ambiguous or destructive input", () => {
   expect(
     patch("\uFEFF# title\nexport A = x # note\nB=keep", [

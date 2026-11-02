@@ -40,7 +40,14 @@ async function saveIndex(file, value) {
   await fs.rename(tmp, file);
 }
 async function serve(options = {}) {
-  const directory = options.preferences || path.join(process.env.LOCALAPPDATA, "DevSetu/Setup"),
+  const directory =
+      options.preferences ||
+      path.join(
+        process.platform === "win32"
+          ? process.env.LOCALAPPDATA
+          : path.join(os.homedir(), ".local/share"),
+        "DevSetu/Setup",
+      ),
     connectionFile = path.join(directory, "connection.json"),
     pendingFile = path.join(directory, "pending.json");
   const initial = (await readIndex(connectionFile)) || (await readIndex(pendingFile));
@@ -58,6 +65,7 @@ async function serve(options = {}) {
     phase: "ready",
     message: "Connect this computer without sharing an administrator password.",
     online: false,
+    notificationsSupported: options.notificationsSupported !== false,
     defaults: initial
       ? {
           server: initial.server,
@@ -69,7 +77,7 @@ async function serve(options = {}) {
   const remoteFetch = options.fetch || fetch;
   const helper =
     options.helper ||
-    async function (name, input) {
+    (async (name, input) => {
       if (
         ![
           "Pairing-State.ps1",
@@ -122,7 +130,7 @@ async function serve(options = {}) {
         child.stdin.on("error", () => {});
         child.stdin.end(JSON.stringify(input));
       });
-    };
+    });
   async function api(server, route, body, credential) {
     const r = await remoteFetch(server + route, {
       method: "POST",
@@ -148,6 +156,11 @@ async function serve(options = {}) {
           "pairing-capacity",
           "connector-device-limit",
           "pairing-code-collision",
+          "join-code-unavailable",
+          "join-code-consumed",
+          "join-redemption-scope-denied",
+          "join-admin-required",
+          "join-account-changed",
         ].includes(code)
           ? code
           : "server-request-failed",
@@ -160,9 +173,9 @@ async function serve(options = {}) {
     if (s && s.deviceId !== config.deviceId) throw Error("connection-scope-invalid");
     return s;
   }
-  async function prepare(server, fileActivity) {
+  async function prepare(server, fileActivity, approvalCode = "") {
     const existing = await readIndex(connectionFile);
-    if (existing?.server === server && !forceNew) {
+    if (existing?.server === server && !forceNew && !approvalCode) {
       try {
         const config = await helper("Pairing-State.ps1", {
           operation: "connection",
@@ -189,9 +202,13 @@ async function serve(options = {}) {
         if (
           proposal.server === server &&
           proposal.deviceId === index.deviceId &&
-          proposal.fileActivity === fileActivity
+          proposal.fileActivity === fileActivity &&
+          (!approvalCode || proposal.code === approvalCode)
         ) {
-          if (Date.now() - Date.parse(proposal.createdAt) < 600000 || (await status(proposal)))
+          if (
+            Date.now() - Date.parse(proposal.createdAt) < (approvalCode ? 900000 : 600000) ||
+            (await status(proposal))
+          )
             return { proposal };
         }
       } catch {
@@ -199,7 +216,17 @@ async function serve(options = {}) {
       }
     }
     forceNew = false;
-    const deviceId = "fc_" + crypto.randomBytes(16).toString("hex"),
+    const invitation = approvalCode
+      ? await api(server, "/v1/connector/join/prepare", { version: 1, code: approvalCode })
+      : null;
+    if (
+      invitation &&
+      (invitation.platform !== process.platform ||
+        invitation.fileActivity !== fileActivity ||
+        !/^fc_[a-f0-9]{32}$/.test(invitation.deviceId))
+    )
+      throw Error("join-scope-mismatch");
+    const deviceId = invitation?.deviceId ?? "fc_" + crypto.randomBytes(16).toString("hex"),
       alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     const proposal = {
       version: 1,
@@ -211,7 +238,7 @@ async function serve(options = {}) {
       fileActivity,
       credential: deviceId + "." + secret(),
       pollSecret: secret(),
-      code: [...crypto.randomBytes(8)].map((b) => alphabet[b & 31]).join(""),
+      code: approvalCode || [...crypto.randomBytes(8)].map((b) => alphabet[b & 31]).join(""),
       createdAt: new Date().toISOString(),
     };
     if (options.prepare) await options.prepare(proposal);
@@ -227,6 +254,7 @@ async function serve(options = {}) {
   }
   async function connect(body) {
     try {
+      const approvalCode = (body.joinCode ?? "").toUpperCase().replace(/[\s-]/g, "");
       const server = runtime.serverOrigin(body.server);
       state.server = server;
       state.defaults = {
@@ -241,7 +269,9 @@ async function serve(options = {}) {
         pending = null;
         forceNew = true;
       }
-      let prepared = pending || (await prepare(server, body.fileActivity));
+      if (pending?.proposal && approvalCode && pending.proposal.code !== approvalCode)
+        pending = null;
+      const prepared = pending || (await prepare(server, body.fileActivity, approvalCode));
       pending = prepared;
       pending.server = server;
       let config,
@@ -284,6 +314,20 @@ async function serve(options = {}) {
         const p = prepared.proposal;
         const proof = p.deviceId + "." + p.pollSecret;
         approved = await status(p);
+        if (!approved?.ready && approvalCode) {
+          await api(server, "/v1/connector/join/redeem", {
+            version: 1,
+            code: approvalCode,
+            deviceId: p.deviceId,
+            platform: p.platform,
+            architecture: p.architecture,
+            name: p.name,
+            fileActivity: p.fileActivity,
+            credentialHash: sha(p.credential),
+            pollHash: sha(proof),
+          });
+          approved = await status(p);
+        }
         if (!approved?.ready) {
           let preview = await api(server, "/v1/connector/enrollment/start", {
             version: 1,
@@ -301,7 +345,7 @@ async function serve(options = {}) {
           state.expiresAt = preview.expiresAt;
           state.deviceName = p.name;
           state.message =
-            "On your own logged-in DevSetu browser, open Discovery → Approve connection. Enter this code and confirm the computer name. No administrator password is needed here.";
+            "Ask an administrator to open DevSetu Discovery → Approve connection, enter this code, select your account and confirm the computer name. No administrator password is needed on this computer.";
           while (!closed) {
             if (["expired", "rejected"].includes(preview.status)) {
               forceNew = true;
@@ -390,7 +434,7 @@ async function serve(options = {}) {
   }
   const client = await fs.readFile(path.join(__dirname, "DeviceEnrollmentClient.js"), "utf8");
   const html = () =>
-    `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DevSetu · Connect this computer</title><style>body{margin:0;font:16px system-ui;background:#f5f7fb;color:#17253d}main{max-width:650px;margin:4vh auto;padding:28px;background:white;border:1px solid #d8dfe9;border-radius:12px}label{display:block;margin:16px 0}input[type=url]{box-sizing:border-box;width:100%;padding:12px;border:1px solid #bac6d7;border-radius:6px}button,a{display:inline-block;padding:11px 16px;margin:8px 8px 0 0}button{border:0;border-radius:6px;background:#175ddc;color:white;cursor:pointer}button:disabled{opacity:.6;cursor:not-allowed}#code{font-size:34px;letter-spacing:4px;font-weight:700}#message{background:#eef3fc;padding:14px;white-space:pre-wrap;overflow-wrap:anywhere}small{color:#536078}@media(max-width:680px){main{margin:0;border:0;padding:20px}}</style><main><h1>Connect this computer</h1><p>No administrator password. No project or Git required.</p><form id="form"><label>DevSetu server URL<input type="url" id="server" required autocomplete="url" placeholder="Your DevSetu address"></label><label><input type="checkbox" id="activity"> Enable file activity on readable local drives</label><label><input type="checkbox" id="notifications"> Show individually approved DevSetu notifications from the account that paired this computer</label><small>Health includes CPU, RAM, operating system and drive space. File activity needs your choice here and approval in DevSetu. File contents and project execution are not included.</small><p><button id="connect">Connect this computer</button></p></form><section id="approval" hidden><h2>Approve from DevSetu</h2><p id="device"></p><p id="code"></p><button id="copy" type="button">Copy pairing code</button><a id="approve" target="_blank" rel="noopener">Open DevSetu Discovery</a><small>Use your own signed-in browser on this computer or another computer. Only approve the code shown on the computer you intend to connect.</small></section><p id="message" role="status"></p><a id="discovery" hidden target="_blank" rel="noopener">Open Discovery</a><a id="projects" hidden target="_blank" rel="noopener">Add a project later</a></main><meta name="setup-token" content="${token}"><script>${client}</script></html>`;
+    `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DevSetu · Connect this computer</title><style>body{margin:0;font:16px system-ui;background:#f5f7fb;color:#17253d}main{max-width:650px;margin:4vh auto;padding:28px;background:white;border:1px solid #d8dfe9;border-radius:12px}label{display:block;margin:16px 0}input[type=url]{box-sizing:border-box;width:100%;padding:12px;border:1px solid #bac6d7;border-radius:6px}button,a{display:inline-block;padding:11px 16px;margin:8px 8px 0 0}button{border:0;border-radius:6px;background:#175ddc;color:white;cursor:pointer}button:disabled{opacity:.6;cursor:not-allowed}#code{font-size:34px;letter-spacing:4px;font-weight:700}#message{background:#eef3fc;padding:14px;white-space:pre-wrap;overflow-wrap:anywhere}small{color:#536078}@media(max-width:680px){main{margin:0;border:0;padding:20px}}</style><main><h1>Connect this computer</h1><p>No administrator password. No project or Git required.</p><form id="form"><label>DevSetu server URL<input type="url" id="server" required autocomplete="url" placeholder="Your DevSetu address"></label><label>Approved join code (if provided)<input type="text" id="join-code" maxlength="16" autocomplete="off" placeholder="Code from Request to join approval"></label><label><input type="checkbox" id="activity"> Enable file activity on readable local drives</label><label><input type="checkbox" id="notifications"> Show individually approved DevSetu notifications from the account that paired this computer</label><small>Health includes CPU, RAM, operating system and drive space. File activity needs your choice here and approval in DevSetu. File contents and project execution are not included.</small><p><button id="connect">Connect this computer</button></p></form><section id="approval" hidden><h2>Approve from DevSetu</h2><p id="device"></p><p id="code"></p><button id="copy" type="button">Copy pairing code</button><a id="approve" target="_blank" rel="noopener">Open DevSetu Discovery</a><small>Use your own signed-in browser on this computer or another computer. Only approve the code shown on the computer you intend to connect.</small></section><p id="message" role="status"></p><a id="discovery" hidden target="_blank" rel="noopener">Open Discovery</a><a id="projects" hidden target="_blank" rel="noopener">Add a project later</a></main><meta name="setup-token" content="${token}"><script>${client}</script></html>`;
   const server = http.createServer(async (req, res) => {
     const send = (code, value) => {
       res.writeHead(code, { "content-type": "application/json", "cache-control": "no-store" });
@@ -452,10 +496,19 @@ async function serve(options = {}) {
       if (req.url === "/status" && !Object.keys(body).length) return send(200, { ...state, busy });
       if (
         req.url !== "/connect" ||
-        !["fileActivity,server", "fileActivity,notifications,server"].includes(
-          Object.keys(body).sort().join(","),
-        ) ||
+        ![
+          "fileActivity,server",
+          "fileActivity,notifications,server",
+          "fileActivity,joinCode,notifications,server",
+          "fileActivity,joinCode,server",
+        ].includes(Object.keys(body).sort().join(",")) ||
         (body.notifications !== undefined && typeof body.notifications !== "boolean") ||
+        (body.notifications === true && options.notificationsSupported === false) ||
+        (body.joinCode !== undefined &&
+          (typeof body.joinCode !== "string" ||
+            body.joinCode.length > 16 ||
+            (!/^[A-HJ-NP-Z2-9]{8}$/.test(body.joinCode.toUpperCase().replace(/[\s-]/g, "")) &&
+              body.joinCode !== ""))) ||
         typeof body.fileActivity !== "boolean" ||
         typeof body.server !== "string"
       )

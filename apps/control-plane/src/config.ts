@@ -1,6 +1,7 @@
 import { IdentityIssuerSchema } from "@frevos/contracts";
 import { z } from "zod";
 import { decodeEncryptionKey, sha256 } from "./crypto.js";
+import { paperclipBindings, type PaperclipBinding } from "./paperclip-bridge.js";
 
 const EnvironmentSchema = z
   .object({
@@ -18,6 +19,7 @@ const EnvironmentSchema = z
     FREVOS_TRACKGRN_AGENT_TOKEN: z.string().min(32).max(256).optional(),
     FREVOS_SERVIX_DEPLOYMENT_ROOT: z.string().min(1).max(500).optional(),
     DEVSETU_GIT_EXECUTABLE: z.string().min(1).max(500).default("git"),
+    DEVSETU_PAPERCLIP_BINDINGS: z.string().max(100000).optional(),
 
     FREVOS_BASE_PATH: z
       .string()
@@ -37,6 +39,7 @@ interface BaseControlPlaneConfig {
   readonly trackGrnAgentTokenHash?: Buffer;
   readonly servixRoot?: string;
   readonly componentGitExecutable: string;
+  readonly paperclipBindings: PaperclipBinding[];
 }
 
 export type ControlPlaneConfig = BaseControlPlaneConfig &
@@ -85,6 +88,7 @@ export function loadConfig(environment: NodeJS.ProcessEnv): ControlPlaneConfig {
   }
 
   const base = {
+    paperclipBindings: paperclipBindings(parsed.DEVSETU_PAPERCLIP_BINDINGS),
     componentGitExecutable: parsed.DEVSETU_GIT_EXECUTABLE,
     databaseUrl: parsed.DATABASE_URL,
     publicOrigin: publicOrigin.origin,

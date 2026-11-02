@@ -199,6 +199,31 @@ it("requires scoped single-use approval and interoperable browser sealing withou
     f.store.commitModel("usr_alice", sealModelCredential(expired, "SYNTHETIC_MODEL_CREDENTIAL")),
   ).rejects.toThrow();
 });
+it("bounds configured test budgets, retains legacy requests and never bypasses readiness", async () => {
+  const f = await fixture(),
+    c = await f.connect();
+  const agent = await f.store.saveAgent("usr_alice", f.agent(c));
+  await expect(
+    f.store.requestRun("usr_alice", { version: 1, agentId: agent.id, prompt: "Review" }),
+  ).rejects.toThrow("agent-model-not-ready");
+  expect(
+    (await f.store.testModel("usr_alice", c.id, { version: 1, timeoutSeconds: 60 })).status,
+  ).toBe("ready");
+  expect(f.calls.at(-1)).toMatchObject({ timeoutSeconds: 60, maxOutputTokens: 16 });
+  for (const timeoutSeconds of [4, 61]) {
+    await expect(f.store.testModel("usr_alice", c.id, { timeoutSeconds })).rejects.toThrow();
+  }
+  expect(f.calls).toHaveLength(1);
+  f.setFailure(new ModelGatewayError("model-timeout"));
+  expect((await f.store.testModel("usr_alice", c.id)).status).toBe("timeout");
+  expect(f.calls.at(-1)?.timeoutSeconds).toBe(15);
+  await expect(
+    f.store.requestRun("usr_alice", { version: 1, agentId: agent.id, prompt: "Review" }),
+  ).rejects.toThrow("agent-model-not-ready");
+  expect((await f.store.state("usr_alice")).connections[0]?.secretReference).toBe(
+    c.secretReference,
+  );
+});
 it("preserves connection revisions, requires a new credential for a new destination and retests updated configuration", async () => {
   const f = await fixture(),
     c = await f.connect();
