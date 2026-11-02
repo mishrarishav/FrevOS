@@ -5,7 +5,7 @@ const fs = require("node:fs/promises"),
   { createHash, randomBytes } = require("node:crypto");
 const { run } = require("./SystemPrerequisites.cjs");
 const { serverOrigin } = require("./SystemEnrollment.cjs");
-const runtimeFiles = [
+const legacyRuntimeFiles = [
   "Connector.cjs",
   "Preservation.cjs",
   "SystemDiscovery.cjs",
@@ -14,6 +14,15 @@ const runtimeFiles = [
   "FolderBrowse.cjs",
   "Browse-Folders.py",
   "runtime/bin/node",
+];
+const runtimeFiles = [
+  ...legacyRuntimeFiles,
+  "SoftwareClient.cjs",
+  "SoftwareNative.cjs",
+  "SoftwareNative.ps1",
+  "SoftwareProtocol.cjs",
+  "DemoApi.cjs",
+  "PreviewRelay.cjs",
 ];
 const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
 function statusLauncher(folder, credentialFile) {
@@ -217,10 +226,11 @@ function context(options = {}) {
       manifest = JSON.parse(bytes);
     if (
       sha(bytes) !== config.runtimeManifestSha256 ||
-      Object.keys(manifest.files).sort().join() !== [...runtimeFiles].sort().join()
+      (Object.keys(manifest.files).sort().join() !== [...runtimeFiles].sort().join() &&
+        Object.keys(manifest.files).sort().join() !== [...legacyRuntimeFiles].sort().join())
     )
       throw Error("linux-installed-files-changed");
-    for (const name of runtimeFiles) {
+    for (const name of Object.keys(manifest.files)) {
       const file = path.join(folder, name);
       await plain(file);
       if (sha(await fs.readFile(file)) !== manifest.files[name])
@@ -342,8 +352,27 @@ function context(options = {}) {
     if ((await fs.readdir(updates)).length >= 3) throw Error("linux-update-recovery-capacity");
     const revision = path.join(updates, randomBytes(16).toString("hex"));
     await privateDirectory(revision);
-    const before = new Map();
-    for (const name of [...runtimeFiles, "system-runtime-manifest.json", "device.json"]) {
+    const before = new Map(),
+      oldRuntime = JSON.parse(
+        await fs.readFile(path.join(folder, "system-runtime-manifest.json"), "utf8"),
+      ),
+      added = [];
+    for (const name of runtimeFiles.filter((n) => !Object.keys(oldRuntime.files).includes(n))) {
+      const file = path.join(folder, name);
+      await plain(path.dirname(file));
+      try {
+        await plain(file);
+        throw Error("linux-unpinned-runtime-addition");
+      } catch (e) {
+        if (e.code !== "ENOENT") throw e;
+      }
+      added.push(name);
+    }
+    for (const name of [
+      ...Object.keys(oldRuntime.files),
+      "system-runtime-manifest.json",
+      "device.json",
+    ]) {
       const file = path.join(folder, name);
       await plain(file);
       const bytes = await fs.readFile(file);
@@ -372,7 +401,13 @@ function context(options = {}) {
     async function replace(name, bytes) {
       const target = path.join(folder, name),
         temporary = target + "." + randomBytes(8).toString("hex");
-      await plain(target);
+      await plain(path.dirname(target));
+      try {
+        await plain(target);
+        if (added.includes(name)) throw Error("linux-unpinned-runtime-addition");
+      } catch (e) {
+        if (e.code !== "ENOENT" || !added.includes(name)) throw e;
+      }
       const file = await fs.open(temporary, "wx", name === "runtime/bin/node" ? 0o700 : 0o600);
       try {
         await file.writeFile(bytes);
@@ -407,6 +442,19 @@ function context(options = {}) {
     } catch {
       await execute("/usr/bin/systemctl", ["--user", "stop", unit(config.deviceId)], 30000);
       for (const [name, bytes] of before) await replace(name, bytes);
+      for (const name of added) {
+        const file = path.join(folder, name);
+        await plain(path.dirname(file));
+        try {
+          await plain(file);
+          const bytes = await fs.readFile(file);
+          if (sha(bytes) !== sha(packaged.files.get(name)))
+            throw Error("linux-new-runtime-recovery-differs");
+          await fs.unlink(file);
+        } catch (e) {
+          if (e.code !== "ENOENT") throw e;
+        }
+      }
       await installed(await connection(config.deviceId));
       await execute("/usr/bin/systemctl", ["--user", "start", unit(config.deviceId)], 30000);
       throw Error("linux-update-recovered-previous-runtime");
@@ -414,6 +462,31 @@ function context(options = {}) {
   }
   return {
     preflight,
+    softwareConsent: async (input) => {
+      const config = await connection(input.deviceId);
+      if (
+        !config ||
+        config.server !== input.server ||
+        config.accountName !== input.username ||
+        typeof input.inventory !== "boolean" ||
+        typeof input.install !== "boolean"
+      )
+        throw Error("linux-software-consent-denied");
+      await installed(config);
+      const folder = path.join(directory(input.deviceId), "state", "software");
+      await privateDirectory(folder);
+      await writePrivate(
+        path.join(folder, "consent.json"),
+        {
+          version: 1,
+          deviceId: input.deviceId,
+          inventory: input.inventory,
+          install: input.install,
+          approvedAt: new Date().toISOString(),
+        },
+        false,
+      );
+    },
     install,
     resume,
     update,

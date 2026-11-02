@@ -1,7 +1,6 @@
 import {
   type ActivitySettings,
   ActivitySettingsInputSchema,
-  defaultActivitySettings,
   type ContentPreviewJob,
   type DeliveryPlanInput,
   DeliveryPlanInputSchema,
@@ -9,6 +8,7 @@ import {
   type DiscoveryPolicy,
   DiscoveryPolicyInputSchema,
   type DiscoveryState,
+  defaultActivitySettings,
   defaultDiscoveryPolicy,
 } from "@frevos/contracts";
 import { X } from "lucide-react";
@@ -16,12 +16,13 @@ import { useEffect, useState } from "react";
 import type { ControlCenterApi } from "./api.js";
 import { type DiscoverySystem, discoverySystems, lastSeenLabel } from "./discovery-systems.js";
 import { FolderBrowser } from "./FolderBrowser.js";
-import { SystemPairingDialog } from "./SystemPairingDialog.js";
-import { RecordBadge, type RecordColumn, RecordWorkspace } from "./RecordWorkspace.js";
-import { addBasePath } from "./routing.js";
-import { WorkspaceDialog } from "./WorkspaceDialog.js";
 import { HealthGraphs } from "./HealthGraphs.js";
 import { JoinRequestsInbox } from "./JoinRequestsInbox.js";
+import { RecordBadge, type RecordColumn, RecordWorkspace } from "./RecordWorkspace.js";
+import { addBasePath } from "./routing.js";
+import { SoftwarePanel } from "./SoftwarePanel.js";
+import { SystemPairingDialog } from "./SystemPairingDialog.js";
+import { WorkspaceDialog } from "./WorkspaceDialog.js";
 
 type System = DiscoveryState["systems"][number];
 const bytes = (n: number) => `${(n / 1073741824).toFixed(1)} GB`;
@@ -62,6 +63,7 @@ export function DiscoveryPage({
 }) {
   const [state, setState] = useState<DiscoveryState>({ systems: [], reports: [] });
   const [pairing, setPairing] = useState(false);
+  const [software, setSoftware] = useState<{ deviceId: string; name: string } | null>(null);
   const [userId, setUserId] = useState(""),
     [tab, setTab] = useState<"systems" | "reports" | "requests">("systems");
   const [loading, setLoading] = useState(true),
@@ -319,6 +321,20 @@ export function DiscoveryPage({
       <button type="button" className="button secondary" onClick={() => openActivity(s.deviceId)}>
         Activity &amp; health
       </button>
+      {s.platform !== "android" && s.observation?.system.platform !== "android" ? (
+        <button
+          type="button"
+          className="button secondary"
+          onClick={() =>
+            setSoftware({
+              deviceId: s.bindings.find((b) => !b.profileId)?.deviceId ?? s.deviceId,
+              name: s.name,
+            })
+          }
+        >
+          Software
+        </button>
+      ) : null}
       {canManageSystem(s) ? (
         <>
           <button
@@ -864,6 +880,15 @@ export function DiscoveryPage({
                 </section>
               ) : (
                 <>
+                  <button
+                    type="button"
+                    className="button secondary"
+                    onClick={() =>
+                      setSoftware({ deviceId: selected.deviceId, name: selected.name })
+                    }
+                  >
+                    Software inventory and installs
+                  </button>
                   <h3>Tools</h3>
                   {selected.observation?.system.tools.map((t) => (
                     <p key={`${t.id}:${t.required}`}>
@@ -1614,6 +1639,16 @@ export function DiscoveryPage({
             </div>
           </section>
         </WorkspaceDialog>
+      ) : null}
+      {software ? (
+        <SoftwarePanel
+          api={api}
+          workspaceId={workspaceId}
+          userId={userId}
+          deviceId={software.deviceId}
+          name={software.name}
+          onClose={() => setSoftware(null)}
+        />
       ) : null}
     </div>
   );

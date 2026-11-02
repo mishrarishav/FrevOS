@@ -5,7 +5,8 @@ $text=[Console]::In.ReadToEnd();if($text.Length -gt 8192){throw 'Update input ca
 if((@($request.PSObject.Properties.Name|Sort-Object)-join ',') -cne 'bundle,deviceId,manifestSha256,server,username' -or $request.deviceId -cnotmatch '^fc_[a-f0-9]{32}$' -or $request.manifestSha256 -cnotmatch '^[a-f0-9]{64}$'){throw 'Update scope differs'}
 $root=Join-Path $env:LOCALAPPDATA ('FrevOS\Connector\'+$request.deviceId)
 $legacyNames=@('node.exe','Connector.cjs','Preservation.cjs','SystemDiscovery.cjs','DiscoverySafety.cjs','FileAudit.cjs','Read-WindowsFileAudit.ps1','FolderBrowse.cjs','Browse-Folders.ps1','Run-Connector.ps1','BuildProcess.psm1','Install-SystemConnector.ps1')
-$names=@($legacyNames)+@('GitDesktop.cjs','FrevOS.FolderPicker.exe')
+$priorNames=@($legacyNames)+@('GitDesktop.cjs','FrevOS.FolderPicker.exe')
+$names=@($priorNames)+@('SoftwareClient.cjs','SoftwareNative.cjs','SoftwareNative.ps1','SoftwareProtocol.cjs','DemoApi.cjs','PreviewRelay.cjs')
 function Assert-Plain([string]$file){for($p=[IO.Path]::GetFullPath($file);;){$item=Get-Item -LiteralPath $p -Force;if($item.Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'Linked update path'};$parent=[IO.Path]::GetDirectoryName($p);if(-not $parent -or $parent -ceq $p){break};$p=$parent}}
 function Read-Config([string]$file){Assert-Plain $file;$clear=[Security.Cryptography.ProtectedData]::Unprotect([IO.File]::ReadAllBytes($file),$null,[Security.Cryptography.DataProtectionScope]::CurrentUser);try{$c=[Text.Encoding]::UTF8.GetString($clear)|ConvertFrom-Json;if($c.mode -cne 'system' -or $c.deviceId -cne $request.deviceId -or $c.server -cne $request.server -or $c.accountName -cne $request.username -or $c.stateRoot -ine (Join-Path $root 'state')){throw 'Protected update scope differs'};return $c}finally{[Array]::Clear($clear,0,$clear.Length)}}
 function Verify-Runtime([string]$folder,[string]$hash,[switch]$RequireCurrent){
@@ -13,7 +14,7 @@ function Verify-Runtime([string]$folder,[string]$hash,[switch]$RequireCurrent){
  if((Get-Item -LiteralPath $manifest).Length -gt 16384 -or (Get-FileHash -LiteralPath $manifest -Algorithm SHA256).Hash.ToLowerInvariant() -cne $hash){throw 'Update manifest differs'}
  $m=Get-Content -LiteralPath $manifest -Encoding UTF8 -Raw|ConvertFrom-Json
  $actual=@($m.files.PSObject.Properties.Name|Sort-Object)-join ','
- if($m.version -ne 1 -or ($actual -cne (@($names|Sort-Object)-join ',') -and ($RequireCurrent -or $actual -cne (@($legacyNames|Sort-Object)-join ',')))){throw 'Update file set differs'}
+ if($m.version -ne 1 -or ($actual -cne (@($names|Sort-Object)-join ',') -and ($RequireCurrent -or ($actual -cne (@($legacyNames|Sort-Object)-join ',') -and $actual -cne (@($priorNames|Sort-Object)-join ','))))){throw 'Update file set differs'}
  foreach($n in $m.files.PSObject.Properties.Name){$file=Join-Path $folder $n;Assert-Plain $file;if($m.files.$n -cnotmatch '^[a-f0-9]{64}$' -or (Get-Item -LiteralPath $file).Length -gt 150000000 -or (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant() -cne $m.files.$n){throw 'Update file integrity differs'}}
 }
 function Replace-Owned([string]$source,[string]$target){

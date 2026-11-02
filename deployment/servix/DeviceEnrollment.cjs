@@ -73,6 +73,7 @@ async function serve(options = {}) {
           server: initial.server,
           fileActivity: initial.fileActivity === true,
           notifications: initial.notifications === true,
+          software: initial.software,
         }
       : undefined,
   };
@@ -86,6 +87,7 @@ async function serve(options = {}) {
           "Resume-SystemConnector.ps1",
           "Update-SystemConnector.ps1",
           "Notification-Consent.ps1",
+          "Software-Consent.ps1",
         ].includes(name)
       )
         throw Error("setup-operation-denied");
@@ -482,12 +484,21 @@ async function serve(options = {}) {
           server,
           enabled: body.notifications === true,
         });
+      if (body.software)
+        await (options.softwareConsent || ((r) => helper("Software-Consent.ps1", r)))({
+          deviceId: config.deviceId,
+          server,
+          username: config.accountName,
+          inventory: body.software.inventory,
+          install: body.software.install,
+        });
       await saveIndex(connectionFile, {
         server,
         deviceId: config.deviceId,
         username: config.accountName,
         fileActivity: body.fileActivity,
         notifications: body.notifications === true,
+        ...(body.software ? { software: body.software } : {}),
       });
       state.phase = "waiting";
       state.message = "Connector started. Waiting for an authenticated health report…";
@@ -537,7 +548,7 @@ async function serve(options = {}) {
   }
   const client = await fs.readFile(path.join(__dirname, "DeviceEnrollmentClient.js"), "utf8");
   const html = () =>
-    `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DevSetu · Connect this computer</title><style>[hidden]{display:none!important}input:not([type=checkbox]),select{box-sizing:border-box;width:100%;padding:12px;border:1px solid #bac6d7;border-radius:6px}body{margin:0;font:16px system-ui;background:#f5f7fb;color:#17253d}main{max-width:650px;margin:4vh auto;padding:28px;background:white;border:1px solid #d8dfe9;border-radius:12px}label{display:block;margin:16px 0}input[type=url]{box-sizing:border-box;width:100%;padding:12px;border:1px solid #bac6d7;border-radius:6px}button,a{display:inline-block;padding:11px 16px;margin:8px 8px 0 0}button{border:0;border-radius:6px;background:#175ddc;color:white;cursor:pointer}button:disabled{opacity:.6;cursor:not-allowed}#code{font-size:34px;letter-spacing:4px;font-weight:700}#message{background:#eef3fc;padding:14px;white-space:pre-wrap;overflow-wrap:anywhere}small{color:#536078}@media(max-width:680px){main{margin:0;border:0;padding:20px}}</style><main><h1>Connect this computer</h1><p>Request access → administrator approves → this computer connects automatically.</p><form id="form"><label>DevSetu server URL<input type="url" id="server" required autocomplete="url" placeholder="Your DevSetu address"></label><label>Account<select id="request-mode"><option value="existing">Use my existing account</option><option value="new">Create my account</option><option value="legacy">Advanced: update existing connection / legacy code</option></select></label><div id="account-fields"><label>Username<input id="join-username" autocomplete="username" maxlength="64"></label><label>Your password<input id="join-password" type="password" autocomplete="current-password" maxlength="128"></label><label id="new-name" hidden>Your name<input id="join-name" maxlength="120" autocomplete="name"></label><small>Your own account only. No administrator password is needed.</small></div><div id="legacy-fields" hidden><label>Approved join code (legacy requests only)<input type="text" id="join-code" maxlength="16" autocomplete="off" placeholder="Code from an older request"></label></div><label><input type="checkbox" id="activity"> Enable file activity on readable local drives</label><label><input type="checkbox" id="notifications"> Show individually approved DevSetu notifications from the account that paired this computer</label><small>Health includes CPU, RAM, operating system and drive space. File activity needs your choice here and approval in DevSetu. File contents and project execution are not included.</small><p><button id="connect">Request access</button></p></form><section id="approval" hidden><h2>Approve from DevSetu</h2><p id="device"></p><p id="code"></p><button id="copy" type="button">Copy pairing code</button><a id="approve" target="_blank" rel="noopener">Open DevSetu Discovery</a><small>Use your own signed-in browser on this computer or another computer. Only approve the code shown on the computer you intend to connect.</small></section><button id="connection-result" disabled hidden>Connected ✓</button><p id="message" role="status"></p><a id="discovery" hidden target="_blank" rel="noopener">Open Discovery</a><a id="projects" hidden target="_blank" rel="noopener">Add a project</a></main><meta name="setup-token" content="${token}"><script>${client}</script></html>`;
+    `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DevSetu · Connect this computer</title><style>[hidden]{display:none!important}input:not([type=checkbox]),select{box-sizing:border-box;width:100%;padding:12px;border:1px solid #bac6d7;border-radius:6px}body{margin:0;font:16px system-ui;background:#f5f7fb;color:#17253d}main{max-width:650px;margin:4vh auto;padding:28px;background:white;border:1px solid #d8dfe9;border-radius:12px}label{display:block;margin:16px 0}input[type=url]{box-sizing:border-box;width:100%;padding:12px;border:1px solid #bac6d7;border-radius:6px}button,a{display:inline-block;padding:11px 16px;margin:8px 8px 0 0}button{border:0;border-radius:6px;background:#175ddc;color:white;cursor:pointer}button:disabled{opacity:.6;cursor:not-allowed}#code{font-size:34px;letter-spacing:4px;font-weight:700}#message{background:#eef3fc;padding:14px;white-space:pre-wrap;overflow-wrap:anywhere}small{color:#536078}@media(max-width:680px){main{margin:0;border:0;padding:20px}}</style><main><h1>Connect this computer</h1><p>Request access → administrator approves → this computer connects automatically.</p><form id="form"><label>DevSetu server URL<input type="url" id="server" required autocomplete="url" placeholder="Your DevSetu address"></label><label>Account<select id="request-mode"><option value="existing">Use my existing account</option><option value="new">Create my account</option><option value="legacy">Advanced: update existing connection / legacy code</option></select></label><div id="account-fields"><label>Username<input id="join-username" autocomplete="username" maxlength="64"></label><label>Your password<input id="join-password" type="password" autocomplete="current-password" maxlength="128"></label><label id="new-name" hidden>Your name<input id="join-name" maxlength="120" autocomplete="name"></label><small>Your own account only. No administrator password is needed.</small></div><div id="legacy-fields" hidden><label>Approved join code (legacy requests only)<input type="text" id="join-code" maxlength="16" autocomplete="off" placeholder="Code from an older request"></label></div><label><input type="checkbox" id="activity"> Enable file activity on readable local drives</label><label><input type="checkbox" id="notifications"> Show individually approved DevSetu notifications from the account that paired this computer</label><label><input type="checkbox" id="software-inventory"> Share installed-program inventory</label><label><input type="checkbox" id="software-install"> Trust administrator-approved software catalogue installs and temporary API services (one-time permission)</label><small>Native OS installer authorization may still be needed. You can change these software permissions from the desktop connection-status icon.</small><small>Health includes CPU, RAM, operating system and drive space. File activity needs your choice here and approval in DevSetu. File contents and project execution are not included.</small><p><button id="connect">Request access</button></p></form><section id="approval" hidden><h2>Approve from DevSetu</h2><p id="device"></p><p id="code"></p><button id="copy" type="button">Copy pairing code</button><a id="approve" target="_blank" rel="noopener">Open DevSetu Discovery</a><small>Use your own signed-in browser on this computer or another computer. Only approve the code shown on the computer you intend to connect.</small></section><button id="connection-result" disabled hidden>Connected ✓</button><p id="message" role="status"></p><a id="discovery" hidden target="_blank" rel="noopener">Open Discovery</a><a id="projects" hidden target="_blank" rel="noopener">Add a project</a></main><meta name="setup-token" content="${token}"><script>${client}</script></html>`;
   const server = http.createServer(async (req, res) => {
     const send = (code, value) => {
       res.writeHead(code, { "content-type": "application/json", "cache-control": "no-store" });
@@ -620,7 +631,12 @@ async function serve(options = {}) {
           "fileActivity,joinCode,notifications,server",
           "fileActivity,joinCode,server",
           "account,fileActivity,notifications,server",
-        ].includes(Object.keys(body).sort().join(",")) ||
+        ].includes(
+          Object.keys(body)
+            .filter((k) => k !== "software")
+            .sort()
+            .join(","),
+        ) ||
         (body.notifications !== undefined && typeof body.notifications !== "boolean") ||
         (body.notifications === true && options.notificationsSupported === false) ||
         (body.joinCode !== undefined &&
@@ -628,6 +644,11 @@ async function serve(options = {}) {
             body.joinCode.length > 16 ||
             (!/^[A-HJ-NP-Z2-9]{8}$/.test(body.joinCode.toUpperCase().replace(/[\s-]/g, "")) &&
               body.joinCode !== ""))) ||
+        (body.software !== undefined &&
+          (!body.software ||
+            Object.keys(body.software).sort().join() !== "install,inventory" ||
+            typeof body.software.install !== "boolean" ||
+            typeof body.software.inventory !== "boolean")) ||
         typeof body.fileActivity !== "boolean" ||
         typeof body.server !== "string"
       )

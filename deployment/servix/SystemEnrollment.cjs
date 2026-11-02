@@ -7,6 +7,12 @@ const fs = require("node:fs/promises"),
   { spawn } = require("node:child_process");
 const sessionHelper = require("./SetupSession.cjs");
 const runtimeFiles = [
+  "SoftwareClient.cjs",
+  "SoftwareNative.cjs",
+  "SoftwareNative.ps1",
+  "SoftwareProtocol.cjs",
+  "DemoApi.cjs",
+  "PreviewRelay.cjs",
   "node.exe",
   "Connector.cjs",
   "GitDesktop.cjs",

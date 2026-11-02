@@ -10,7 +10,7 @@ if($scope.PSObject.Properties['mode'] -and $scope.mode -ceq 'system'){
  $manifestFile=Join-Path $PSScriptRoot 'system-runtime-manifest.json'
  if((Get-FileHash -LiteralPath $manifestFile -Algorithm SHA256).Hash.ToLowerInvariant() -cne $scope.runtimeManifestSha256){throw 'Installed system runtime changed'}
  $manifest=Get-Content -LiteralPath $manifestFile -Encoding UTF8 -Raw|ConvertFrom-Json
- if($manifest.version -ne 1 -or @($manifest.files.PSObject.Properties).Count -gt 16){throw 'Installed runtime manifest differs'}
+ if($manifest.version -ne 1 -or @($manifest.files.PSObject.Properties).Count -gt 32){throw 'Installed runtime manifest differs'}
  foreach($file in $manifest.files.PSObject.Properties){if($file.Name -cnotmatch '^[A-Za-z0-9][A-Za-z0-9.-]+$' -or $file.Value -cnotmatch '^[a-f0-9]{64}$' -or (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot $file.Name) -Algorithm SHA256).Hash.ToLowerInvariant() -cne $file.Value){throw 'Installed system runtime changed'}}
 }
 if($ConnectionStatus -or $CreateStatusShortcut){

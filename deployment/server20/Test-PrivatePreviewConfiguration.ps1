@@ -16,9 +16,9 @@ function Fixture {
  if(-not(Test-Path -LiteralPath $module)){throw 'Build the actual control plane before this fixture'}
  $validator=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Validate-PreviewConfig.mjs')).Replace('../../apps/control-plane/dist/preview-relay.js',([uri]$module).AbsoluteUri)
  $files=@()
- foreach($name in @('deployment/server20/Validate-PreviewConfig.mjs','deployment/server20/Verify-AndroidCompatibility.ps1','apps/control-plane/dist/preview-relay.js','deployment/server20/Start-Server20.ps1')){
+ foreach($name in @('deployment/servix/DiscoveryAccessPolicy.json','deployment/server20/Validate-PreviewConfig.mjs','deployment/server20/Verify-AndroidCompatibility.ps1','apps/control-plane/dist/preview-relay.js','deployment/server20/Start-Server20.ps1')){
   $file=Join-Path $candidate ($name.Replace('/','\'));[void][IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($file))
-  if($name.EndsWith('Validate-PreviewConfig.mjs')){[IO.File]::WriteAllText($file,$validator,[Text.UTF8Encoding]::new($false))}elseif($name.EndsWith('preview-relay.js')){[IO.File]::Copy($module,$file,$false)}elseif($name.EndsWith('Verify-AndroidCompatibility.ps1')){[IO.File]::Copy((Join-Path $PSScriptRoot 'Verify-AndroidCompatibility.ps1'),$file,$false)}else{[IO.File]::WriteAllText($file,'# Synthetic fixture; no native task is registered',[Text.UTF8Encoding]::new($false))}
+  if($name.EndsWith('DiscoveryAccessPolicy.json')){Json $file @{workspaceId='ws_fixture'}}elseif($name.EndsWith('Validate-PreviewConfig.mjs')){[IO.File]::WriteAllText($file,$validator,[Text.UTF8Encoding]::new($false))}elseif($name.EndsWith('preview-relay.js')){[IO.File]::Copy($module,$file,$false)}elseif($name.EndsWith('Verify-AndroidCompatibility.ps1')){[IO.File]::Copy((Join-Path $PSScriptRoot 'Verify-AndroidCompatibility.ps1'),$file,$false)}else{[IO.File]::WriteAllText($file,'# Synthetic fixture; no native task is registered',[Text.UTF8Encoding]::new($false))}
   $files+=@{path=$name;sha256=(Hash $file)}
  }
  Json (Join-Path $candidate 'release-manifest.json') @{applicationSource=('b'*40);files=$files};$digest=Hash (Join-Path $candidate 'release-manifest.json')
@@ -48,7 +48,18 @@ try{
  $xml=Export-ScheduledTask 'fixture';$legacy.plan.taskXmlSha256=[BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($xml))).Replace('-','').ToLowerInvariant();Json $legacy.reference $legacy.plan
  $result=& (Join-Path $PSScriptRoot 'Configure-PrivatePreview.ps1') -PlanReference $legacy.reference|ConvertFrom-Json
  Assert ($result.status -ceq 'PASS' -and $global:PreviewConfigArguments -cnotmatch 'ExecutionPolicy') 'Legacy default-policy launcher changed'
- @{status='PASS';checks=6;realConfigValidationAndFiles=$true;taskAndHealthTransport='fixed-fixture-functions';nativeLiveAcceptance=$false;runtimePreserved=$true;failedStartRestored=$true;publicationActorBound=$true;legacyLauncherPreserved=$true}|ConvertTo-Json -Compress
+ $v=Fixture;$v.plan.version=2;$v.plan.action='devsetu.private-preview.configure.v2';$v.plan.Remove('deploymentRunId');$v.plan.candidateId=[guid]::NewGuid().ToString('N');$v.plan.activationRequestId='su_'+[guid]::NewGuid().ToString('N')
+ $activation=@{version=1;requestId=$v.plan.activationRequestId;candidateId=$v.plan.candidateId;manifestSha256=$v.plan.manifestSha256;previousManifestSha256=('a'*64);actor='usr_fixture';issuedAt=[DateTimeOffset]::UtcNow.ToString('o')}
+ Json (Join-Path $v.root ('maintenance\requests\'+$v.plan.candidateId+'.json')) $activation
+ Json (Join-Path $v.root ('maintenance\results\'+$v.plan.activationRequestId+'.json')) @{requestId=$activation.requestId;candidateId=$activation.candidateId;manifestSha256=$activation.manifestSha256;status='succeeded'}
+ Json (Join-Path $v.root ('maintenance\private\'+$v.plan.candidateId+'.json')) @{manifestSha256=$activation.manifestSha256;previousManifestSha256=$activation.previousManifestSha256}
+ Json (Join-Path $v.root ('maintenance\private\claim-'+$v.plan.candidateId)) @{}
+ Json (Join-Path $v.root ('operator\servix-dashboard-'+$v.plan.candidateId+'\result-apply.json')) @{status='PASS';manifestSha256=$activation.manifestSha256}
+ Json $v.reference $v.plan;$ready=& (Join-Path $PSScriptRoot 'Configure-PrivatePreview.ps1') -PlanReference $v.reference -PlanOnly|ConvertFrom-Json;Assert ($ready.status -ceq 'READY') 'Maintenance authority not verified'
+ $v.plan.activationRequestId='su_'+[guid]::NewGuid().ToString('N');Json $v.reference $v.plan;$denied=$false;try{& (Join-Path $PSScriptRoot 'Configure-PrivatePreview.ps1') -PlanReference $v.reference -PlanOnly|Out-Null}catch{$denied=$true};Assert $denied 'Different maintenance request accepted'
+ $v.plan.activationRequestId=$activation.requestId;$v.plan.requestedBy='usr_other';Json $v.reference $v.plan;$denied=$false;try{& (Join-Path $PSScriptRoot 'Configure-PrivatePreview.ps1') -PlanReference $v.reference -PlanOnly|Out-Null}catch{$denied=$true};Assert $denied 'Other maintenance actor accepted'
+ $v.plan.requestedBy=$activation.actor;Json $v.reference $v.plan;Json (Join-Path $v.root ('operator\servix-dashboard-'+$v.plan.candidateId+'\result-apply.json')) @{status='PASS';manifestSha256=('f'*64)};$denied=$false;try{& (Join-Path $PSScriptRoot 'Configure-PrivatePreview.ps1') -PlanReference $v.reference -PlanOnly|Out-Null}catch{$denied=$true};Assert $denied 'Other native artifact accepted'
+ @{status='PASS';checks=10;realConfigValidationAndFiles=$true;taskAndHealthTransport='fixed-fixture-functions';nativeLiveAcceptance=$false;runtimePreserved=$true;failedStartRestored=$true;publicationActorBound=$true;legacyLauncherPreserved=$true}|ConvertTo-Json -Compress
 }finally{
  $resolved=[IO.Path]::GetFullPath($temporary)
  if([IO.Path]::GetDirectoryName($resolved) -cne $parent -or [IO.Path]::GetFileName($resolved) -cnotmatch '^dvpconfig-[a-f0-9]{32}$'){throw 'Private preview fixture cleanup escaped owned target'}

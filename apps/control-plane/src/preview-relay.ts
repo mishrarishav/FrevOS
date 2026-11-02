@@ -1,20 +1,21 @@
 import { createHash, randomBytes } from "node:crypto";
 import { lookup } from "node:dns/promises";
-import { lstat, mkdir, open, readFile, readdir } from "node:fs/promises";
+import { lstat, mkdir, open, readdir, readFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { join, dirname } from "node:path";
+import { dirname, join } from "node:path";
 import {
-  PreviewJobSchema,
-  PreviewResultSchema,
   type PreviewJob,
-  type PreviewResult,
+  PreviewJobSchema,
   PreviewOpenSchema,
+  type PreviewResult,
+  PreviewResultSchema,
   WorkspaceIdSchema,
 } from "@frevos/contracts";
 import { z } from "zod";
 import type { DeveloperConnectorStore } from "./developer-connectors.js";
 import type { LocalDevelopment } from "./local-development.js";
 import { ServixDeploymentError } from "./servix-deployment.js";
+import type { SoftwareManagement } from "./software-management.js";
 
 function fail(code: string, status = 403): never {
   throw new ServixDeploymentError("preview-" + code, status);
@@ -30,6 +31,7 @@ export const PreviewConfigSchema = z
         PreviewOpenSchema.extend({
           profileId: z.string().regex(/^[a-z0-9][a-z0-9-]{0,79}$/),
           origin: z.url(),
+          kind: z.enum(["project", "software"]).default("project"),
         }),
       )
       .min(1)
@@ -180,6 +182,7 @@ export class PreviewRelay {
     private local: LocalDevelopment,
     private connectors: DeveloperConnectorStore,
     private now = () => Date.now(),
+    private software?: SoftwareManagement,
   ) {
     this.server.requestTimeout = config.timeoutMs + 5000;
     this.server.headersTimeout = 10000;
@@ -218,10 +221,20 @@ export class PreviewRelay {
       await file.close();
     }
   }
+  private async target(actor: string, workspaceId: string, deviceId: string, serviceId: string) {
+    const configured = this.config.targets.find(
+      (t) => t.deviceId === deviceId && t.serviceId === serviceId,
+    );
+    if (configured?.kind === "software") {
+      if (!this.software) fail("software-unavailable", 503);
+      return this.software.previewTarget(actor, workspaceId, deviceId, serviceId);
+    }
+    return this.local.previewTarget(actor, workspaceId, deviceId, serviceId);
+  }
   private async check(lease: Lease) {
     if (this.closed || lease.expires <= this.now()) fail("session-expired", 401);
     await lease.authorize();
-    const target = await this.local.previewTarget(
+    const target = await this.target(
       lease.actor,
       this.config.workspaceId,
       lease.deviceId,
@@ -239,12 +252,7 @@ export class PreviewRelay {
     if (workspaceId !== this.config.workspaceId || this.closed) fail("workspace-denied");
     const request = PreviewOpenSchema.parse(input);
     await authorize();
-    const target = await this.local.previewTarget(
-      actor,
-      workspaceId,
-      request.deviceId,
-      request.serviceId,
-    );
+    const target = await this.target(actor, workspaceId, request.deviceId, request.serviceId);
     const configured = this.config.targets.find(
       (t) =>
         t.deviceId === request.deviceId &&
@@ -277,17 +285,29 @@ export class PreviewRelay {
     }
     return { action: lease.origin + "/.__devsetu/open", ticket };
   }
-  async claim(credential: string) {
+  async claim(credential: string, kind: "project" | "software" = "project") {
     const device = await this.connectors.checkCredential(credential);
-    if (device.workspaceId !== this.config.workspaceId || device.mode === "system")
-      fail("connector-denied");
-    if (this.polling.has(device.deviceId)) fail("poll-in-progress", 429);
-    this.polling.add(device.deviceId);
+    if (device.workspaceId !== this.config.workspaceId) fail("connector-denied");
+    if (device.mode === "system" && kind !== "software") fail("connector-denied");
+    if (kind === "software") {
+      if (
+        !this.software ||
+        !this.config.targets.some((t) => t.deviceId === device.deviceId && t.kind === "software")
+      )
+        fail("connector-denied");
+      await this.software.connectorIdentity(credential);
+    }
+    const pollingKey = device.deviceId + ":" + kind;
+    if (this.polling.has(pollingKey)) fail("poll-in-progress", 429);
+    this.polling.add(pollingKey);
     try {
       const deadline = Date.now() + 4000;
       do {
         const found = [...this.pending.values()].filter(
-          (p) => !p.claimed && p.job.deviceId === device.deviceId,
+          (p) =>
+            !p.claimed &&
+            p.job.deviceId === device.deviceId &&
+            this.config.targets.some((t) => t.origin === p.lease.origin && t.kind === kind),
         );
         const jobs: PreviewJob[] = [];
         for (const pending of found.slice(0, 8)) {
@@ -301,7 +321,7 @@ export class PreviewRelay {
       } while (Date.now() < deadline);
       return { jobs: [] };
     } finally {
-      this.polling.delete(device.deviceId);
+      this.polling.delete(pollingKey);
     }
   }
   async end(actor: string, workspaceId: string, input: unknown) {

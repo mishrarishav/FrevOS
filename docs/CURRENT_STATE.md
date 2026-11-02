@@ -1,5 +1,28 @@
 # DevSetu Current State
 
+2026-11-03: Software inventory/trusted catalogue installation and the temporary
+VPN demo implementation pass clean-environment diagnostic CI (520 tests) and
+separate Linux migration/runtime qualification. ADR 0089 adds actual maintenance
+receipt authority to the private configuration operator. The enrolled builder
+sidecar update preserves enrollment/task/permissions. Final frozen-source build,
+exact release approval, L-1465 connector update/consent and real cross-laptop
+acceptance remain pending. See [the implementation handoff](SOFTWARE_MANAGEMENT_VPN_HANDOFF.md).
+
+2026-11-03: The owner clarifies that trusted administrator software operations
+should not repeat DevSetu permission prompts. ADR 0088 supersedes the per-job
+local confirmation in ADR 0087: one-time local opt-in, explicit one-action admin
+Install bound to the reviewed package digest, ordinary-user approval requests,
+revocation checks and durable consumed receipts. No unrestricted remote shell
+or automatic OS privilege expansion is introduced. Implementation remains pending.
+
+2026-11-03: The owner requests software inventory, approved package installation
+and a live cross-laptop VPN preview test, selecting a separate temporary demo
+API and excluding existing projects. ADR 0087 scopes this bounded Phase 4 stack
+on delivery 79b5a20 / deployed source 27f85a7. Existing L-1465 is monitoring-only;
+the live private preview configuration is absent. Implementation, connector
+update/consent, exact artifact approval and actual two-laptop acceptance remain
+pending. No existing pairing/data or live configuration is changed by this decision.
+
 2026-11-03 02:30 IST: Owner-approved exact simple-join release is live on Server20 through
 authenticated DevSetu maintenance: source 27f85a7, manifest 325bfd60, archive
 36520f29, correlation 99a2bebd986245f68452ccac5b7b4d51. Native Apply and

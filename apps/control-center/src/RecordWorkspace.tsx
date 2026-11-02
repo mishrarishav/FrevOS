@@ -76,6 +76,9 @@ export function RecordWorkspace<T>({
   renderSurface,
   actions,
   defaultView = "cards",
+  pageSize,
+  emptyDescription,
+  emptyTitle,
   notice,
   loading,
   error,
@@ -98,23 +101,29 @@ export function RecordWorkspace<T>({
   renderSurface?: ((records: T[]) => ReactNode) | undefined;
   actions?: ReactNode;
   defaultView?: Preferences["view"];
+  pageSize?: number;
+  emptyDescription?: string;
+  emptyTitle?: string;
   notice?: string;
   loading?: boolean;
   error?: string;
   onRetry?: () => void;
-  noun?: "projects" | "systems" | "agents" | "requests" | "repositories" | "folders";
+  noun?: "projects" | "systems" | "agents" | "requests" | "repositories" | "folders" | "software";
 }) {
   const key = `frevos:${userId}:${workspaceId}:${page}:records:v1`;
   const listLabel =
-    noun === "systems"
-      ? "System list"
-      : noun === "agents"
-        ? "Agent list"
-        : noun === "requests"
-          ? "Join request list"
-          : "Project list";
+    noun === "software"
+      ? "Software list"
+      : noun === "systems"
+        ? "System list"
+        : noun === "agents"
+          ? "Agent list"
+          : noun === "requests"
+            ? "Join request list"
+            : "Project list";
   const [preferences, setPreferences] = useState(() => readPreferences(key, defaultView));
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [pageIndex, setPageIndex] = useState(0);
   useEffect(() => {
     try {
       sessionStorage.setItem(key, JSON.stringify(preferences));
@@ -122,7 +131,10 @@ export function RecordWorkspace<T>({
       /* Private browsing may disable preference storage. */
     }
   }, [key, preferences]);
-  const update = (patch: Partial<Preferences>) => setPreferences((p) => ({ ...p, ...patch }));
+  const update = (patch: Partial<Preferences>) => {
+    setPageIndex(0);
+    setPreferences((p) => ({ ...p, ...patch }));
+  };
   const cards = preferences.view === "cards";
   const matches = (value: string, query: string) =>
     value.toLocaleLowerCase().includes(query.toLocaleLowerCase());
@@ -139,6 +151,10 @@ export function RecordWorkspace<T>({
       (sort?.value(a) ?? "").localeCompare(sort?.value(b) ?? "", undefined, { numeric: true }) *
       (preferences.descending ? -1 : 1),
   );
+  const size = pageSize && Number.isInteger(pageSize) && pageSize > 0 ? pageSize : rows.length || 1;
+  const pages = Math.max(1, Math.ceil(rows.length / size)),
+    currentPage = Math.min(pageIndex, pages - 1);
+  const visibleRows = pageSize ? rows.slice(currentPage * size, (currentPage + 1) * size) : rows;
   const filterPanel = (
     <>
       <div className="record-filter-heading">
@@ -217,7 +233,10 @@ export function RecordWorkspace<T>({
       ) : null}
       <div className="record-surface">
         {cards ? (
-          <section className="record-summary" aria-label="Project status summary">
+          <section
+            className="record-summary"
+            aria-label={noun === "software" ? "Software status summary" : "Project status summary"}
+          >
             {[{ id: "all", label: `All ${noun}` }, ...statuses].map((s) => (
               <button
                 key={s.id}
@@ -242,11 +261,13 @@ export function RecordWorkspace<T>({
               value={preferences.search}
               onChange={(e) => update({ search: e.target.value })}
               placeholder={
-                noun === "agents"
-                  ? "Search agent, role or model…"
-                  : noun === "requests"
-                    ? "Search account or request ID…"
-                    : "Search project, source folder or server…"
+                noun === "software"
+                  ? "Search software, version or publisher…"
+                  : noun === "agents"
+                    ? "Search agent, role or model…"
+                    : noun === "requests"
+                      ? "Search account or request ID…"
+                      : "Search project, source folder or server…"
               }
             />
           </label>
@@ -279,6 +300,29 @@ export function RecordWorkspace<T>({
             </>
           ) : null}
         </div>
+        {pageSize ? (
+          <nav aria-label="Record pages" className="record-toolbar">
+            <button
+              type="button"
+              className="button secondary"
+              disabled={currentPage === 0}
+              onClick={() => setPageIndex(currentPage - 1)}
+            >
+              Previous
+            </button>
+            <span>
+              Page {currentPage + 1} of {pages} · {rows.length} matching
+            </span>
+            <button
+              type="button"
+              className="button secondary"
+              disabled={currentPage >= pages - 1}
+              onClick={() => setPageIndex(currentPage + 1)}
+            >
+              Next
+            </button>
+          </nav>
+        ) : null}
         {loading ? (
           <div className="record-empty" role="status">
             Loading {noun}…
@@ -297,24 +341,29 @@ export function RecordWorkspace<T>({
             <section className="record-scroll" aria-label={listLabel} tabIndex={0}>
               {rows.length === 0 ? (
                 <div className="record-empty">
-                  <h2>{records.length ? `No matching ${noun}` : `No ${noun} configured`}</h2>
-                  <p>
+                  <h2>
                     {records.length
-                      ? `Adjust search or filters to see your ${noun}.`
-                      : noun === "agents"
-                        ? "Add a model connection and configure an agent."
-                        : noun === "systems"
-                          ? "Install and pair a system connector for a configured project."
-                          : noun === "repositories" || noun === "folders"
-                            ? "Connect your system, choose a folder, or ask for repository access."
-                            : "Add a project from Projects to connect its source and destination."}
+                      ? `No matching ${noun}`
+                      : (emptyTitle ?? `No ${noun} configured`)}
+                  </h2>
+                  <p>
+                    {emptyDescription ??
+                      (records.length
+                        ? `Adjust search or filters to see your ${noun}.`
+                        : noun === "agents"
+                          ? "Add a model connection and configure an agent."
+                          : noun === "systems"
+                            ? "Install and pair a system connector for a configured project."
+                            : noun === "repositories" || noun === "folders"
+                              ? "Connect your system, choose a folder, or ask for repository access."
+                              : "Add a project from Projects to connect its source and destination.")}
                   </p>
                 </div>
               ) : renderSurface ? (
                 renderSurface(rows)
               ) : cards ? (
                 <div className="record-cards">
-                  {rows.map((r) => (
+                  {visibleRows.map((r) => (
                     <div key={identify(r)}>{renderCard(r)}</div>
                   ))}
                 </div>
@@ -367,7 +416,7 @@ export function RecordWorkspace<T>({
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((r) => (
+                    {visibleRows.map((r) => (
                       <tr key={identify(r)}>
                         {columns.map((c) => (
                           <td key={c.id} data-column={c.id}>
@@ -390,7 +439,10 @@ export function RecordWorkspace<T>({
         )}
       </div>
       {cards && filtersOpen ? (
-        <WorkspaceDialog label="Project filters" onClose={() => setFiltersOpen(false)}>
+        <WorkspaceDialog
+          label={noun === "software" ? "Software filters" : "Project filters"}
+          onClose={() => setFiltersOpen(false)}
+        >
           <section className="record-filter-drawer">{filterPanel}</section>
         </WorkspaceDialog>
       ) : null}

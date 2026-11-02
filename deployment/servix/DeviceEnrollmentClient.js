@@ -4,6 +4,7 @@
   marker.remove();
   history.replaceState(null, "", "/");
   const el = (id) => document.getElementById(id);
+  let softwareConfigured = false;
   let loaded = false,
     edited = false,
     error,
@@ -48,6 +49,11 @@
           el("server").value = s.defaults.server;
           el("activity").checked = s.defaults.fileActivity;
           el("notifications").checked = s.defaults.notifications === true;
+          softwareConfigured = !!s.defaults.software;
+          if (el("software-inventory"))
+            el("software-inventory").checked = s.defaults.software?.inventory === true;
+          if (el("software-install"))
+            el("software-install").checked = s.defaults.software?.install === true;
         }
       }
       el("message").textContent = error || s.message;
@@ -101,6 +107,15 @@
         fileActivity: el("activity").checked,
         notifications: el("notifications").checked,
       };
+      if (
+        softwareConfigured ||
+        el("software-inventory")?.checked ||
+        el("software-install")?.checked
+      )
+        body.software = {
+          inventory: el("software-inventory")?.checked === true,
+          install: el("software-install")?.checked === true,
+        };
       if (accountMode()) {
         body.account = {
           mode: el("request-mode").value,

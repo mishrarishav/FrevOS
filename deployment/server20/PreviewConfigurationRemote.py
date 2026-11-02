@@ -69,7 +69,9 @@ try:
 
     bounded(relative + "\\" + script_name, config["scriptSha256"])
     plan = json.loads(bounded(relative + "\\plan.json", config["planSha256"]).decode("utf-8-sig"))
-    expected_action = "devsetu.private-preview.configure.v1" if kind == "configuration" else "devsetu.preview.executor-update.v1"
+    if kind == "configuration" and plan.get("version") not in (1, 2):
+        raise ValueError("version")
+    expected_action = ("devsetu.private-preview.configure.v" + str(plan["version"])) if kind == "configuration" else "devsetu.preview.executor-update.v1"
     if (plan["id"] != identifier or plan["installationRoot" if kind == "configuration" else "platformRoot"] != root
             or plan["executionSid"] != "S-1-5-18"
             or plan["action"] != expected_action

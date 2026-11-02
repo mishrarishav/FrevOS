@@ -1,5 +1,5 @@
-import { createReadStream } from "node:fs";
 import { randomBytes } from "node:crypto";
+import { createReadStream } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import cookie from "@fastify/cookie";
@@ -39,14 +39,18 @@ import type { ComponentDeployments } from "./component-deployments.js";
 import { hashesMatch, type OidcTransaction, type OidcTransactionCodec } from "./crypto.js";
 import type { DeploymentSettingsStore } from "./deployment-settings.js";
 import { type DeveloperConnectorStore, SystemPairings } from "./developer-connectors.js";
+import type { DeviceLogins } from "./device-logins.js";
+import type { GitDesktop } from "./git-desktop.js";
 import {
   type GithubOnboardingStore,
   PERSONAL_AGENT_WORKSPACE_ID,
   WINDOWS_GITHUB_AGENT_ID,
 } from "./github-onboarding.js";
+import type { JoinRequests } from "./join-requests.js";
 import { AccountActionError, type LocalAccounts } from "./local-accounts.js";
 import type { LocalDevelopment } from "./local-development.js";
 import { type AuthenticatedIdentity, createOidcTransaction, type OidcProvider } from "./oidc.js";
+import type { PreviewRelay } from "./preview-relay.js";
 import { type ProjectAutomationStore, TRACKGRN_AGENT_ID } from "./project-automation.js";
 import type {
   AuthenticatedSession,
@@ -54,6 +58,7 @@ import type {
   WorkspaceEvidence,
   WorkspaceRepository,
 } from "./repositories.js";
+import type { RepositoryCenter } from "./repository-center.js";
 import {
   type SelfUpdates,
   selfUpdateHtml,
@@ -61,12 +66,8 @@ import {
   selfUpdateStyle,
 } from "./self-updates.js";
 import { ServixDeploymentError, type ServixDeploymentStore } from "./servix-deployment.js";
+import type { SoftwareManagement } from "./software-management.js";
 import type { SystemDiscovery } from "./system-discovery.js";
-import type { DeviceLogins } from "./device-logins.js";
-import type { JoinRequests } from "./join-requests.js";
-import type { PreviewRelay } from "./preview-relay.js";
-import type { RepositoryCenter } from "./repository-center.js";
-import type { GitDesktop } from "./git-desktop.js";
 
 export const SESSION_COOKIE = "__Host-frevos-session";
 export const CSRF_COOKIE = "__Host-frevos-csrf";
@@ -150,6 +151,7 @@ const LocalLoginBodySchema = z
 const EmptyBodySchema = z.object({}).strict();
 
 interface BuildServerOptions {
+  readonly software?: SoftwareManagement;
   readonly repositoryCenter?: RepositoryCenter;
   readonly gitDesktop?: GitDesktop;
   readonly previewRelay?: PreviewRelay;
@@ -1248,6 +1250,51 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
       );
     return evidence.session.session.context.userId;
   };
+  server.get<{
+    Params: WorkspaceParams & { deviceId: string };
+    Querystring: { inventorySince?: string };
+  }>(route("/v1/workspaces/:workspaceId/software/:deviceId"), async (request) => {
+    const actor = await connectorActor(request);
+    if (!options.software) throw new HttpError(503, "software-unavailable");
+    return options.software.state(
+      actor,
+      request.params.workspaceId,
+      request.params.deviceId,
+      request.query.inventorySince,
+    );
+  });
+  for (const action of ["catalog", "requests", "decisions"] as const)
+    server.post<{ Params: WorkspaceParams }>(
+      route("/v1/workspaces/:workspaceId/software/" + action),
+      async (request) => {
+        const actor = await connectorActor(request, true);
+        if (!options.software) throw new HttpError(503, "software-unavailable");
+        return action === "catalog"
+          ? options.software.saveCatalog(actor, request.params.workspaceId, request.body)
+          : action === "requests"
+            ? options.software.request(actor, request.params.workspaceId, request.body)
+            : options.software.decide(actor, request.params.workspaceId, request.body);
+      },
+    );
+  for (const action of ["identity", "observe", "claim", "authorize", "complete"] as const)
+    server.post(
+      route("/v1/connector/software/" + action),
+      { bodyLimit: 3000000 },
+      async (request) => {
+        if (!options.software) throw new HttpError(503, "software-unavailable");
+        const credential = connectorCredential(request);
+        if (action === "identity" || action === "claim") EmptyBodySchema.parse(request.body);
+        return action === "identity"
+          ? options.software.identity(credential)
+          : action === "observe"
+            ? options.software.observe(credential, request.body)
+            : action === "claim"
+              ? options.software.claim(credential)
+              : action === "authorize"
+                ? options.software.authorize(credential, request.body)
+                : options.software.complete(credential, request.body);
+      },
+    );
   server.get<{ Params: WorkspaceParams }>(
     route("/v1/workspaces/:workspaceId/git-desktop"),
     async (request) => {
@@ -1464,11 +1511,20 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
   }
   server.post(route("/v1/connector/preview/identity"), async (request) => {
     if (!options.localDevelopment) throw new HttpError(503, "preview-source-identity-unavailable");
-    return options.localDevelopment.connectorIdentity(connectorCredential(request));
+    const credential = connectorCredential(request);
+    const device = await options.developerConnectors?.checkCredential(credential);
+    return device?.mode === "system" && options.software
+      ? options.software.connectorIdentity(credential)
+      : options.localDevelopment.connectorIdentity(credential);
   });
   server.post(route("/v1/connector/preview/claim"), async (request) => {
     if (!options.previewRelay) throw new HttpError(503, "preview-not-configured");
     return options.previewRelay.claim(connectorCredential(request));
+  });
+  server.post(route("/v1/connector/software-preview/claim"), async (request) => {
+    if (!options.previewRelay) throw new HttpError(503, "preview-not-configured");
+    EmptyBodySchema.parse(request.body);
+    return options.previewRelay.claim(connectorCredential(request), "software");
   });
   server.post(
     route("/v1/connector/preview/complete"),

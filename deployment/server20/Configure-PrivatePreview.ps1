@@ -11,7 +11,8 @@ function Plain([string]$File){for($cursor=[IO.Path]::GetFullPath($File);;$cursor
 Plain $PlanReference;if((Get-Item -LiteralPath $PlanReference).Length -gt 32768){throw 'Private preview intent capacity'}
 $plan=Get-Content -LiteralPath $PlanReference -Raw|ConvertFrom-Json
 $properties='action,approvedBy,config,configBeforeSha256,controlTask,createdAt,deploymentRunId,executionSid,executorId,executorRoot,expiresAt,guardBeforeSha256,id,installationRoot,manifestSha256,nodeExecutable,nodeSha256,requestedBy,taskXmlSha256,version,workspaceId'
-if((@($plan.PSObject.Properties.Name|Sort-Object)-join ',') -cne $properties -or $plan.version -ne 1 -or $plan.action -cne 'devsetu.private-preview.configure.v1' -or $plan.id -cnotmatch '^pvc_[a-f0-9]{32}$' -or $plan.executionSid -cne [Security.Principal.WindowsIdentity]::GetCurrent().User.Value -or $plan.approvedBy.Length -lt 10 -or $plan.approvedBy.Length -gt 160 -or $plan.config.workspaceId -cne $plan.workspaceId -or $plan.executorId -cnotmatch '^ex_[a-f0-9]{32}$'){throw 'Private preview intent scope differs'}
+if($plan.version -eq 2){$properties=$properties.Replace('action,','action,activationRequestId,').Replace('createdAt,deploymentRunId,','createdAt,').Replace('config,','candidateId,config,')}
+if((@($plan.PSObject.Properties.Name|Sort-Object)-join ',') -cne $properties -or $plan.version -notin @(1,2) -or $plan.action -cne ('devsetu.private-preview.configure.v'+$plan.version) -or $plan.id -cnotmatch '^pvc_[a-f0-9]{32}$' -or $plan.executionSid -cne [Security.Principal.WindowsIdentity]::GetCurrent().User.Value -or $plan.approvedBy.Length -lt 10 -or $plan.approvedBy.Length -gt 160 -or $plan.config.workspaceId -cne $plan.workspaceId -or $plan.executorId -cnotmatch '^ex_[a-f0-9]{32}$'){throw 'Private preview intent scope differs'}
 $now=[DateTimeOffset]::UtcNow
 if(([DateTimeOffset]$plan.createdAt) -gt $now -or ([DateTimeOffset]$plan.expiresAt) -le $now -or (([DateTimeOffset]$plan.expiresAt)-([DateTimeOffset]$plan.createdAt)).TotalSeconds -gt 600){throw 'Private preview approval expired'}
 $root=[IO.Path]::GetFullPath($plan.installationRoot);Plain $root
@@ -21,9 +22,20 @@ if($active.manifestSha256 -cne $plan.manifestSha256){throw 'Private preview acti
 $release=Join-Path $root ('releases\'+$plan.manifestSha256);Plain $release;$manifestFile=Join-Path $release 'release-manifest.json'
 if((Hash $manifestFile) -cne $plan.manifestSha256){throw 'Private preview manifest identity differs'}
 $manifest=Get-Content -LiteralPath $manifestFile -Raw|ConvertFrom-Json
-if($plan.deploymentRunId -cnotmatch '^pr_[a-f0-9]{32}$' -or $plan.requestedBy -cnotmatch '^usr_[A-Za-z0-9_-]+$'){throw 'Private preview publication reference differs'}
+if($plan.requestedBy -cnotmatch '^usr_[A-Za-z0-9_-]+$'){throw 'Private preview requester differs'}
+if($plan.version -eq 1){
+if($plan.deploymentRunId -cnotmatch '^pr_[a-f0-9]{32}$'){throw 'Private preview publication reference differs'}
 $run=Get-Content -LiteralPath (Join-Path $root ('servix\jobs\components\run-'+$plan.deploymentRunId+'.json')) -Raw|ConvertFrom-Json
 if($run.status -cne 'succeeded' -or $run.workspaceId -cne $plan.workspaceId -or $run.requestedBy -cne $plan.requestedBy -or $run.sourceHead -cne $manifest.applicationSource){throw 'Private preview publication authority differs'}
+}else{
+ $policyFile=Join-Path $release 'deployment\servix\DiscoveryAccessPolicy.json';Plain $policyFile;$policyEntry=@($manifest.files|Where-Object path -CEQ 'deployment/servix/DiscoveryAccessPolicy.json')
+ if($policyEntry.Count -ne 1 -or (Hash $policyFile) -cne $policyEntry[0].sha256 -or (Get-Content -LiteralPath $policyFile -Raw|ConvertFrom-Json).workspaceId -cne $plan.workspaceId){throw 'Private preview activation workspace differs'}
+ if($plan.candidateId -cnotmatch '^[a-f0-9]{32}$' -or $plan.activationRequestId -cnotmatch '^su_[a-f0-9]{32}$'){throw 'Private preview activation reference differs'}
+ $requestFile=Join-Path $root ('maintenance\requests\'+$plan.candidateId+'.json');$resultFile=Join-Path $root ('maintenance\results\'+$plan.activationRequestId+'.json');$claimFile=Join-Path $root ('maintenance\private\claim-'+$plan.candidateId);$approvalFile=Join-Path $root ('maintenance\private\'+$plan.candidateId+'.json');$receiptFile=Join-Path $root ('operator\servix-dashboard-'+$plan.candidateId+'\result-apply.json')
+ foreach($file in @($requestFile,$resultFile,$claimFile,$approvalFile,$receiptFile)){Plain $file;if((Get-Item -LiteralPath $file).Length -gt 32768){throw 'Private preview activation receipt capacity'}}
+ $request=Get-Content -LiteralPath $requestFile -Raw|ConvertFrom-Json;$result=Get-Content -LiteralPath $resultFile -Raw|ConvertFrom-Json;$approval=Get-Content -LiteralPath $approvalFile -Raw|ConvertFrom-Json;$receipt=Get-Content -LiteralPath $receiptFile -Raw|ConvertFrom-Json
+ if($request.version -ne 1 -or $request.actor -cne $plan.requestedBy -or $request.requestId -cne $plan.activationRequestId -or $request.candidateId -cne $plan.candidateId -or $request.manifestSha256 -cne $plan.manifestSha256 -or $result.requestId -cne $request.requestId -or $result.candidateId -cne $request.candidateId -or $result.manifestSha256 -cne $request.manifestSha256 -or $result.status -cne 'succeeded' -or $approval.manifestSha256 -cne $request.manifestSha256 -or $approval.previousManifestSha256 -cne $request.previousManifestSha256 -or $receipt.status -cne 'PASS' -or $receipt.manifestSha256 -cne $request.manifestSha256){throw 'Private preview activation authority differs'}
+}
 foreach($name in @('deployment/server20/Validate-PreviewConfig.mjs','deployment/server20/Verify-AndroidCompatibility.ps1','apps/control-plane/dist/preview-relay.js','deployment/server20/Start-Server20.ps1')){
  $entry=@($manifest.files|Where-Object path -CEQ $name);$file=Join-Path $release ($name.Replace('/','\'));Plain $file
  if($entry.Count -ne 1 -or (Hash $file) -cne $entry[0].sha256){throw 'Private preview release code differs'}

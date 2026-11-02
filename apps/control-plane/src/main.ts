@@ -1,9 +1,10 @@
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ProjectFolderSearchJob } from "@frevos/contracts";
 import { AgentNotifications } from "./agent-notifications.js";
 import { AgentWorkspace } from "./agent-workspace.js";
-import { PrivatePaperclipTasks } from "./paperclip-bridge.js";
 import { ArtifactPromotions } from "./artifact-promotions.js";
 import { ComponentDeployments } from "./component-deployments.js";
 import { loadConfig } from "./config.js";
@@ -12,32 +13,34 @@ import { OidcTransactionCodec } from "./crypto.js";
 import { createDatabasePool, verifyApplicationRole, verifyDatabaseReadiness } from "./database.js";
 import { DeploymentSettingsStore } from "./deployment-settings.js";
 import { DeveloperConnectorStore } from "./developer-connectors.js";
-import { GithubOnboardingRepository } from "./github-onboarding.js";
-import { LocalAccounts } from "./local-accounts.js";
-import { LocalDevelopment } from "./local-development.js";
-import { ProtectedModelSecrets } from "./model-secrets.js";
-import { OpenIdClientProvider } from "./oidc.js";
-import { ProjectAutomationRepository } from "./project-automation.js";
-import { IdentitySessionRepository, WorkspaceRepository } from "./repositories.js";
-import { SelfUpdates } from "./self-updates.js";
-import { buildServer } from "./server.js";
-import {
-  ServixDeploymentError,
-  ServixDeploymentStore,
-  loadServixExecutionProfile,
-  servixExecution,
-} from "./servix-deployment.js";
-import { SystemDiscovery } from "./system-discovery.js";
+import { DeviceLogins } from "./device-logins.js";
 import {
   isDiscoveryAdministrator,
   loadDiscoveryAccessPolicy,
   requireDeviceLoginOrigin,
 } from "./discovery-access.js";
-import { DeviceLogins } from "./device-logins.js";
-import { JoinRequests } from "./join-requests.js";
-import { loadPreviewConfig, PreviewRelay } from "./preview-relay.js";
-import { loadRepositoryHosting, RepositoryCenter } from "./repository-center.js";
 import { GitDesktop } from "./git-desktop.js";
+import { GithubOnboardingRepository } from "./github-onboarding.js";
+import { JoinRequests } from "./join-requests.js";
+import { LocalAccounts } from "./local-accounts.js";
+import { LocalDevelopment } from "./local-development.js";
+import { ProtectedModelSecrets } from "./model-secrets.js";
+import { OpenIdClientProvider } from "./oidc.js";
+import { PrivatePaperclipTasks } from "./paperclip-bridge.js";
+import { loadPreviewConfig, PreviewRelay } from "./preview-relay.js";
+import { ProjectAutomationRepository } from "./project-automation.js";
+import { IdentitySessionRepository, WorkspaceRepository } from "./repositories.js";
+import { loadRepositoryHosting, RepositoryCenter } from "./repository-center.js";
+import { SelfUpdates } from "./self-updates.js";
+import { buildServer } from "./server.js";
+import {
+  loadServixExecutionProfile,
+  ServixDeploymentError,
+  ServixDeploymentStore,
+  servixExecution,
+} from "./servix-deployment.js";
+import { SoftwareManagement } from "./software-management.js";
+import { SystemDiscovery } from "./system-discovery.js";
 
 const config = loadConfig(process.env);
 const pool = createDatabasePool(config.databaseUrl);
@@ -49,6 +52,7 @@ try {
   let deploymentSettings: DeploymentSettingsStore | undefined;
   let componentDeployments: ComponentDeployments | undefined;
   let localDevelopment: LocalDevelopment | undefined;
+  let software: SoftwareManagement | undefined;
   let systemDiscovery: SystemDiscovery | undefined;
   let deviceLogins: DeviceLogins | undefined;
   let joinRequests: JoinRequests | undefined;
@@ -290,6 +294,20 @@ try {
       join(config.servixRoot, "jobs", "local-development"),
       developerConnectors,
     );
+    software = new SoftwareManagement(
+      join(config.servixRoot, "jobs", "software"),
+      discoveryPolicy.workspaceId,
+      developerConnectors,
+      discoveryAdministrator,
+      undefined,
+      createHash("sha256")
+        .update(
+          await readFile(
+            fileURLToPath(new URL("../../../deployment/servix/DemoApi.cjs", import.meta.url)),
+          ),
+        )
+        .digest("hex"),
+    );
     const hosting = await loadRepositoryHosting(
       join(config.servixRoot, "config", "repository-hosting.json"),
     );
@@ -317,6 +335,8 @@ try {
         join(config.servixRoot, "jobs", "local-development", "preview-audit"),
         localDevelopment,
         developerConnectors,
+        undefined,
+        software,
       );
     }
     systemDiscovery = new SystemDiscovery(
@@ -392,6 +412,7 @@ try {
     ...(deploymentSettings === undefined ? {} : { deploymentSettings }),
     ...(componentDeployments === undefined ? {} : { componentDeployments }),
     ...(localDevelopment === undefined ? {} : { localDevelopment }),
+    ...(software === undefined ? {} : { software }),
     ...(previewRelay === undefined ? {} : { previewRelay }),
     ...(repositoryCenter === undefined ? {} : { repositoryCenter }),
     ...(gitDesktop === undefined ? {} : { gitDesktop }),

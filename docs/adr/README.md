@@ -1,5 +1,14 @@
 # Architecture Decision Records
 
+[0088: Trusted software enrollment](0088-trusted-software-enrollment.md)
+records one-time local opt-in and one-action administrator catalogue installs,
+superseding repeated DevSetu confirmation while retaining exact authorization.
+
+[0087: Approved software management and private demo API](0087-approved-software-and-private-demo-api.md)
+scopes the owner's configurable desktop inventory/install and separate temporary
+cross-laptop HTTP demo, retaining exact approval, local consent and pairing/data
+preservation. Phase 4 remains open.
+
 Architecture Decision Records (ADRs) preserve why consequential FrevOS choices
 were made. Accepted records are immutable historical evidence. A changed
 decision receives a new ADR that names the record it supersedes.
@@ -213,3 +222,6 @@ retaining OS consent, health-only Android scope and truthful online status.
 [0086: Simple join Server20 release](0086-simple-join-server20-release.md)
 records the owner's deployment follow-up, new exact-source candidate and
 installer qualification with preserved pairing/data and separate final activation.
+
+[0089: Maintenance-bound private preview configuration](0089-maintenance-bound-private-preview-configuration.md)
+records strict actual activation receipt authority without inventing component publication.

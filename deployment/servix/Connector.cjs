@@ -606,7 +606,7 @@ async function chooseRepository(config, selection) {
   };
 }
 
-async function startDeviceLoginProof(origin, attest, connectionStatus) {
+async function startDeviceLoginProof(origin, attest, connectionStatus, softwareUrl) {
   const http = require("node:http");
   const crypto = require("node:crypto"),
     pages = new Map();
@@ -631,7 +631,7 @@ async function startDeviceLoginProof(origin, attest, connectionStatus) {
         "content-security-policy": `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'`,
       });
       response.end(
-        `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DevSetu · Connection status</title><style>body{font:16px system-ui;background:#10171d;color:#edf6f8;margin:0;padding:24px}main{max-width:520px;margin:10vh auto}b{display:inline-block;background:#00cbd0;color:#10171d;padding:12px;border-radius:12px}h1{font-size:26px}[data-online=true]{color:#51dfa4}[data-online=false]{color:#ffba72}</style><main><b>D · DevSetu</b><h1 id="state">Checking this computer…</h1><p id="time"></p><p>The connector runs in the background. Keep VPN connected to reach your configured DevSetu server.</p></main><script nonce="${nonce}">const state=document.getElementById('state'),time=document.getElementById('time');async function check(){try{const r=await fetch('/connection-status/check',{cache:'no-store',signal:AbortSignal.timeout(10000)});if(!r.ok)throw Error();const s=await r.json();state.dataset.online=String(s.online===true);state.textContent=s.online?'This system is connected ✓':'Offline · Check VPN and connector';time.textContent='Checked: '+new Date(s.checkedAt).toLocaleString()}catch{state.dataset.online='false';state.textContent='Connection status unavailable';time.textContent='The connector or VPN may be offline.'}}check();setInterval(check,10000)</script>`,
+        `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DevSetu · Connection status</title><style>body{font:16px system-ui;background:#10171d;color:#edf6f8;margin:0;padding:24px}main{max-width:520px;margin:10vh auto}b{display:inline-block;background:#00cbd0;color:#10171d;padding:12px;border-radius:12px}h1{font-size:26px}[data-online=true]{color:#51dfa4}[data-online=false]{color:#ffba72}</style><main><b>D · DevSetu</b><h1 id="state">Checking this computer…</h1><p id="time"></p><p>The connector runs in the background. Keep VPN connected to reach your configured DevSetu server.</p>${softwareUrl ? `<p><a href="${softwareUrl}" target="_blank" rel="noopener" style="color:#51dfa4">Software inventory and management permissions</a></p>` : ""}</main><script nonce="${nonce}">const state=document.getElementById('state'),time=document.getElementById('time');async function check(){try{const r=await fetch('/connection-status/check',{cache:'no-store',signal:AbortSignal.timeout(10000)});if(!r.ok)throw Error();const s=await r.json();state.dataset.online=String(s.online===true);state.textContent=s.online?'This system is connected ✓':'Offline · Check VPN and connector';time.textContent='Checked: '+new Date(s.checkedAt).toLocaleString()}catch{state.dataset.online='false';state.textContent='Connection status unavailable';time.textContent='The connector or VPN may be offline.'}}check();setInterval(check,10000)</script>`,
       );
       return;
     }
@@ -781,7 +781,10 @@ async function connector(config) {
       !path.isAbsolute(config.monitoringRoot || "")
     )
       throw Error("system-enrollment-scope");
-    const gitDesktop = require("./GitDesktop.cjs").start(config, api);
+    const software = await require("./SoftwareClient.cjs").start(config, api);
+    // Linux monitoring runtimes do not include the Windows Git desktop sidecar.
+    const gitDesktop =
+      process.platform === "linux" ? { stop() {} } : require("./GitDesktop.cjs").start(config, api);
     const loginProof = await startDeviceLoginProof(
       server.origin,
       (body) => api("/v1/connector/login-proof", body),
@@ -800,6 +803,7 @@ async function connector(config) {
         const value = await r.json();
         return value.deviceId === config.deviceId && value.ready === true && value.online === true;
       },
+      software.url,
     );
     const statusFile = path.join(config.stateRoot, "connection-status.json");
     try {
@@ -831,11 +835,22 @@ async function connector(config) {
       ...collector,
       stop: async () => {
         gitDesktop.stop();
+        await software.stop();
         await collector.stop();
       },
     };
   }
   require("./GitDesktop.cjs").start(config, api);
+  // Older project sidecar updates may replace Connector without enrolling the
+  // new optional software capability. Preserve their existing project runtime.
+  let softwareAvailable = false;
+  try {
+    await fs.access(path.join(__dirname, "SoftwareClient.cjs"));
+    softwareAvailable = true;
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  if (softwareAvailable) await require("./SoftwareClient.cjs").start(config, api);
   const development = require("./LocalDevelopment.cjs").start(config, inspectRepository, api);
   require("./SystemDiscovery.cjs").start(config, api, () => inspectRepository(config));
   let heartbeatPending = false;

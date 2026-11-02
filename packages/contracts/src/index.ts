@@ -1,3 +1,5 @@
+export * from "./agent-teams.js";
+export * from "./agent-workspace.js";
 export {
   type ApprovalGrant,
   ApprovalGrantSchema,
@@ -10,15 +12,14 @@ export {
   type TargetReference,
   TargetReferenceSchema,
 } from "./approvals.js";
+export * from "./artifact-promotions.js";
 export { type AuthCookiePolicy, authCookiePolicy } from "./auth-cookies.js";
 export * from "./component-deployments.js";
 export * from "./deployment-change.js";
-export * from "./device-login.js";
-export * from "./join-requests.js";
 export * from "./deployment-settings.js";
 export * from "./developer-connectors.js";
-export * from "./agent-workspace.js";
-export * from "./agent-teams.js";
+export * from "./device-login.js";
+export * from "./git-desktop.js";
 export {
   type ConnectGithubRepositoryRequest,
   ConnectGithubRepositoryRequestSchema,
@@ -83,12 +84,10 @@ export {
   type SessionSummary,
   SessionSummarySchema,
 } from "./identity.js";
+export * from "./join-requests.js";
 export { contractJsonSchemas } from "./json-schemas.js";
 export * from "./local-accounts.js";
 export * from "./local-development.js";
-export * from "./preview-relay.js";
-export * from "./repository-center.js";
-export * from "./git-desktop.js";
 export {
   type PermissionScope,
   PermissionScopeSchema,
@@ -99,6 +98,7 @@ export {
   type WorkspaceScope,
   WorkspaceScopeSchema,
 } from "./permissions.js";
+export * from "./preview-relay.js";
 export {
   type AgentOperationCompletion,
   AgentOperationCompletionSchema,
@@ -113,9 +113,10 @@ export {
   type ProjectAutomationStatus,
   ProjectAutomationStatusSchema,
 } from "./project-automation.js";
+export * from "./repository-center.js";
 export * from "./servix-deployment.js";
+export * from "./software-management.js";
 export * from "./system-discovery.js";
-export * from "./artifact-promotions.js";
 export {
   type ContractIssue,
   type ContractValidationResult,
