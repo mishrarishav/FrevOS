@@ -3,6 +3,11 @@
 Status: PASS for the bounded local implementation and synthetic task bridge.
 No Server20 integration activation or permanent service is claimed.
 
+The [Server20 release review](PAPERCLIP_SERVER20_RELEASE_HANDOFF.md) records
+the later frozen db64e3e source, 489-test native pass, immutable artifact,
+protected snapshot and native Plan. Exact-artifact human approval and live
+Apply remain pending; the implementation result does not imply activation.
+
 Repository: `mishrarishav/FrevOS`, verified provider ID `1329122983`.
 Branch: `codex/paperclip-agent-bridge`.
 Base: `738bd1831c020590ba763505a199381aff9dd126`.

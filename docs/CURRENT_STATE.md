@@ -1,5 +1,18 @@
 # DevSetu Current State
 
+2026-11-02: Frozen db64e3e passes full native CI (95 files / 489 tests), original
+coverage/build/audit gates and GitHub CI 41360983325. Server20 SDK signs the same
+source with the existing certificate. Prepared manifest a28b9f4a / archive
+9a7470ec contains 4,044 files; all 240 source inputs, both archives, packaged
+contracts/module closure and Android compatibility independently verify.
+Fourteen selected snapshot files preserve eight pairing identities/credentials
+and five stable settings; native Plan is PASS with no configuration/database
+write and its temporary task removed. The independent updater is running and
+integrity-verified. Four local previews are restored healthy and the completed
+preparation task removed. Exact-artifact human approval and live Apply remain
+pending. The [release handoff](PAPERCLIP_SERVER20_RELEASE_HANDOFF.md) records
+full digests, failures, scope and remaining checks; active manifest stays b0c30009.
+
 2026-11-02: Three aca3aa6 full native attempts fail installer polling and/or
 native Git creation; release packaging and activation stay blocked by those
 gates. Both unchanged targeted fixtures pass. ADR 0083 records a reproducible
