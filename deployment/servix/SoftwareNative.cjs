@@ -138,7 +138,18 @@ async function inventory(options = {}) {
     }
     result.observedAt = new Date(result.observedAt).toISOString();
     result.platform = platform;
-    result.items = [...unique.values()].sort((a, b) => a.name.localeCompare(b.name));
+    const sorted = [...unique.values()].sort((a, b) => a.name.localeCompare(b.name));
+    result.items = [];
+    let payloadBytes = 1024;
+    for (const item of sorted) {
+      payloadBytes += Buffer.byteLength(JSON.stringify(item)) + 1;
+      if (payloadBytes > 2500000) {
+        result.status = "partial";
+        result.truncated = true;
+        break;
+      }
+      result.items.push(item);
+    }
     return result;
   } catch {
     return {

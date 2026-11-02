@@ -36,6 +36,10 @@ are bounded (2,000 jobs, 10,000 audit records, 256 local receipts, 32 cache entr
 500 MiB cache, 250 MiB per installer); capacity failures stop new work and require
 operator maintenance of retained application records, without automatic deletion
 of user files. Existing work/install interruptions are never automatically retried.
+Native metadata is also limited to 2.5 MB before upload, reporting partial and
+truncated when needed. Every durable record write enforces its matching read
+quota; an oversized catalogue revision cannot replace the last valid catalogue.
+Both large-Unicode-inventory and oversized-catalogue regressions pass locally.
 
 Supported fixed recipes are Windows MSI, Linux DEB/RPM and the bundled demo.
 Catalogue installers use HTTPS, exact bytes/SHA-256 and an optional Windows signer

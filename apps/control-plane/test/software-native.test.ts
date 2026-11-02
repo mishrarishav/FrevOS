@@ -59,6 +59,26 @@ describe("bounded native software adapters", () => {
     });
     expect(rpm.items[0].source).toBe("rpm");
   });
+  it("truncates large inventory metadata before upload so receipt recovery cannot repeat oversized scans", async () => {
+    const output = Array.from(
+      { length: 5000 },
+      (_, i) =>
+        "package-" +
+        i +
+        "漢".repeat(165) +
+        "\t" +
+        "版".repeat(175) +
+        "\t" +
+        "社".repeat(175) +
+        "\n",
+    ).join("");
+    const result = await native.inventory({ platform: "linux", run: async () => ({ output }) });
+    expect(result.status).toBe("partial");
+    expect(result.truncated).toBe(true);
+    expect(result.items.length).toBeGreaterThan(0);
+    expect(result.items.length).toBeLessThan(5000);
+    expect(Buffer.byteLength(JSON.stringify(result))).toBeLessThan(2500000);
+  });
   it("verifies complete installer bytes and reauthorizes before any fixed OS installation", async () => {
     const cache = await root(),
       body = Buffer.from("synthetic installer fixture; never executable"),

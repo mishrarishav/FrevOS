@@ -87,13 +87,19 @@ export class SoftwareManagement {
     }
   }
   private async write(name: string, value: unknown) {
+    const bytes = JSON.stringify(value);
+    if (
+      Buffer.byteLength(bytes) >
+      (name === "catalog.json" ? 262144 : name.startsWith("inventory-") ? 3000000 : 32768)
+    )
+      this.fail("storage-capacity", 503);
     await this.directory();
     const file = join(this.root, name);
     await assertPlainPath(file);
     const temp = file + "." + randomBytes(16).toString("hex") + ".tmp";
     const handle = await open(temp, "wx", 0o600);
     try {
-      await handle.writeFile(JSON.stringify(value));
+      await handle.writeFile(bytes);
       await handle.sync();
     } finally {
       await handle.close();

@@ -251,6 +251,27 @@ describe("workspace and artifact bound approved software", () => {
     await writeFile(join(f.root, "device-" + a + ".json"), Buffer.alloc(40000));
     await expect(f.store.state(alice, workspace, a)).rejects.toThrow("storage-unavailable");
   });
+  it("preserves the prior catalogue when bounded storage rejects an oversized revision", async () => {
+    const f = await fixture(),
+      catalog = await f.store.catalog();
+    const example = catalog.packages.find((p) => p.recipe === "windows-msi")!;
+    if (example.recipe !== "windows-msi") throw Error("fixture package");
+    await expect(
+      f.store.saveCatalog(admin, workspace, {
+        version: 1,
+        expectedRevision: catalog.revision,
+        packages: Array.from({ length: 128 }, (_, i) => ({
+          ...example,
+          id: "package-" + i,
+          name: "漢".repeat(175),
+          version: "版".repeat(175),
+          publisher: "社".repeat(175),
+          asset: { ...example.asset, url: "https://example.org/" + "p".repeat(1800) },
+        })),
+      }),
+    ).rejects.toThrow("storage-capacity");
+    expect(await f.store.catalog()).toEqual(catalog);
+  });
   it("keeps ordinary users scoped to their devices and reserves catalogue edits/decisions for administrators", async () => {
     const f = await fixture();
     expect((await f.store.state(alice, workspace, a)).administrator).toBe(false);
