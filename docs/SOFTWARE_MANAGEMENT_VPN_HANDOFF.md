@@ -45,6 +45,9 @@ Supported fixed recipes are Windows MSI, Linux DEB/RPM and the bundled demo.
 Catalogue installers use HTTPS, exact bytes/SHA-256 and an optional Windows signer
 pin. There is no arbitrary command, arguments, executable path, remote host or
 service selector. Linux package dependencies/privilege remain native concerns.
+Actual MSI/DEB/RPM installation and privileged Linux desktop/systemd interaction
+are not live-qualified here. The existing Linux unit retains NoNewPrivileges;
+this task adds no privileged broker and OS hardening may refuse an install.
 The demo uses an editable unprivileged loopback port and 1–30 minute lifetime,
 reads no project files and stops through its owned IPC child. Preview has a
 separate software claim channel, preserving ordinary project preview restrictions.
@@ -76,6 +79,10 @@ This is bounded HTTP request/response, not a general TCP/UDP mesh or streaming A
   actual migration/files/credential/history, failed-start recovery, local consent,
   actual Linux inventory and installed connector heartbeat/software capability.
   systemctl is stubbed; real systemd/Linux desktop/RHEL acceptance is not claimed.
+- Independent real Linux download archive review finds and fixes a stale
+  installer source list. The archive and installed runtime now share one file
+  inventory. Fresh tarball review passes 2,478 entries, all 14 pinned runtime
+  entries and actual source hashes, without extracting or running archive content.
 - Actual React/CSS synthetic UI: 135 rows, last-page reachability, search reset,
   Card/Table, mobile filter drawer, immutable edited ID, invalid-port denial,
   one-action admin queue, and desktop/tablet/mobile widths. The mobile editor
@@ -145,6 +152,7 @@ by current implementation/preparation. No GitHub push/self-merge is claimed.
 - deployment/servix/New-ConnectorDownload.ps1
 - deployment/servix/Run-Connector.ps1
 - deployment/servix/Setup-Connector.ps1
+- deployment/servix/Setup-Linux.cjs
 - deployment/servix/Software-Consent.ps1
 - deployment/servix/SoftwareClient.cjs
 - deployment/servix/SoftwareNative.cjs

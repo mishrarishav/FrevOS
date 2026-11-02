@@ -3,6 +3,14 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { expect, it } from "vitest";
+it("ships every declared Linux monitoring runtime file in the installer source inventory", () => {
+  const require = createRequire(import.meta.url);
+  const { sourceFiles } = require("../../../deployment/servix/Setup-Linux.cjs");
+  const { runtimeFiles } = require("../../../deployment/servix/SystemLinuxInstaller.cjs");
+  expect(new Set(sourceFiles).size).toBe(sourceFiles.length);
+  for (const file of runtimeFiles.filter((file: string) => !file.startsWith("runtime/")))
+    expect(sourceFiles).toContain(file);
+});
 it("migrates and recovers actual Linux files, retains credentials and starts the installed monitoring/software connector", async () => {
   const env = createRequire(import.meta.url)(
     "../../../deployment/servix/NativePlatform.cjs",
