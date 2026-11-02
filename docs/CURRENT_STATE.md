@@ -1,5 +1,14 @@
 # DevSetu Current State
 
+2026-11-03: Frozen software-management source d0f03f5 passes enrolled native CI
+(104 files / 525 tests), full artifact/installers review and actual read-only
+Server20 Plan. Manifest f8dd3726 / archive a01579c5 is staged with a 14-file
+selected snapshot verifying eight pairing identities/credentials and five settings.
+The stopped SDK worker is recovered with configuration/private signing files
+unchanged. Exact artifact approval, activation, L-1465 one-time update/opt-in and
+actual cross-laptop acceptance remain pending. No Production activation or GitHub
+publication is claimed. See [the release handoff](SOFTWARE_MANAGEMENT_SERVER20_RELEASE.md).
+
 2026-11-03: Software inventory/trusted catalogue installation and the temporary
 VPN demo implementation pass clean-environment diagnostic CI (520 tests) and
 separate Linux migration/runtime qualification. ADR 0089 adds actual maintenance
