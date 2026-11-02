@@ -72,7 +72,9 @@ export function JoinRequestsInbox({
       setRecords((prior) => prior.map((record) => (record.id === next.id ? next : record)));
       setNotice(
         decision === "approve"
-          ? "Approved. The requester can now see their one-use code and installer."
+          ? next.connectionMode === "automatic"
+            ? "Approved. The requesting computer will connect automatically while its setup is running."
+            : "Approved. This older browser request still needs its connector registration."
           : "Request rejected. No account or computer access was granted.",
       );
       setReview(null);
@@ -115,7 +117,8 @@ export function JoinRequestsInbox({
           {
             id: "platform",
             label: "Computer",
-            value: (record) => connectorPlatform[record.platform].name,
+            value: (record) =>
+              `${record.computerName ?? "Computer not attached"} · ${connectorPlatform[record.platform].name}`,
           },
           { id: "status", label: "Status", value: (record) => record.status },
           {
@@ -151,6 +154,7 @@ export function JoinRequestsInbox({
             <h2>{record.displayName}</h2>
             <p>
               {record.username} · {record.mode === "new" ? "New user" : "Existing user"} ·{" "}
+              {record.computerName ? `${record.computerName} · ` : ""}
               {connectorPlatform[record.platform].name}
             </p>
             <p>
@@ -186,7 +190,7 @@ export function JoinRequestsInbox({
               </dd>
               <dt>System</dt>
               <dd>
-                {review.deviceId} · {connectorPlatform[review.platform].name}
+                {review.computerName ?? review.deviceId} · {connectorPlatform[review.platform].name}
               </dd>
               <dt>Monitoring</dt>
               <dd>
@@ -199,8 +203,10 @@ export function JoinRequestsInbox({
             </dl>
             <p>
               This grants no administrator role or cross-owner file-content access. Existing
-              workspace permissions still apply. Approval allows one computer registration; the code
-              expires 15 minutes after approval.
+              workspace permissions still apply.{" "}
+              {review.connectionMode === "automatic"
+                ? "Approval is for this account and computer only. Keep its connector open; it connects automatically."
+                : "Approval allows one computer registration; the legacy code expires 15 minutes after approval."}
             </p>
             <label>
               <input

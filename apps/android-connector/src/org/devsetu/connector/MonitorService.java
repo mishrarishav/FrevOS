@@ -26,6 +26,7 @@ public final class MonitorService extends Service {
         manager.createNotificationChannel(new NotificationChannel(CHANNEL,"DevSetu monitoring",NotificationManager.IMPORTANCE_LOW));
         if (Build.VERSION.SDK_INT>=34) startForeground(ID,notification("Starting monitoring"),ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
         else startForeground(ID,notification("Starting monitoring"));
+        status("Starting monitoring");
         worker.execute(() -> {
             try {
                 JSONObject saved=state.read();
@@ -49,7 +50,8 @@ public final class MonitorService extends Service {
                 .addAction(new Notification.Action.Builder(null,"Stop",stop).build()).build();
     }
     private void status(String message) {
-        getSharedPreferences("monitor-status",MODE_PRIVATE).edit().putString("message",message).apply();
+        getSharedPreferences("monitor-status",MODE_PRIVATE).edit().putString("message",message)
+            .putBoolean("online",message.startsWith("Online")).putLong("checkedAt",System.currentTimeMillis()).apply();
         if (!stopping) getSystemService(NotificationManager.class).notify(ID,notification(message));
     }
     private void tick() {
@@ -98,6 +100,7 @@ public final class MonitorService extends Service {
                 .put("coverage",coverage).put("events",new JSONArray());
     }
     @Override public void onDestroy() {
+        getSharedPreferences("monitor-status",MODE_PRIVATE).edit().putBoolean("online",false).apply();
         stopping=true; worker.shutdownNow(); if(proof!=null) proof.close(); stopForeground(STOP_FOREGROUND_REMOVE); super.onDestroy();
     }
     @Override public IBinder onBind(Intent intent) { return null; }

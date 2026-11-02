@@ -201,3 +201,15 @@ without broadening other allowed paths or deployment authority.
 [0083: Native provider budgets and pairing fixture](0083-native-provider-budgets-and-pairing-fixture.md)
 records the observed native failures, production-cadence fixture correction,
 bounded connection budgets and unchanged security/recovery qualification gates.
+
+[0084: Code-free desktop join and admin inbox](0084-code-free-desktop-join-and-admin-inbox.md)
+records connector-bound automatic redemption after one admin approval, desktop
+onboarding guidance and live role-scoped bell/dashboard approval notifications.
+
+[0085: Android/Linux simple connection status](0085-android-and-linux-simple-connection-status.md)
+extends the approved pattern to native Android and per-user Linux launchers,
+retaining OS consent, health-only Android scope and truthful online status.
+
+[0086: Simple join Server20 release](0086-simple-join-server20-release.md)
+records the owner's deployment follow-up, new exact-source candidate and
+installer qualification with preserved pairing/data and separate final activation.

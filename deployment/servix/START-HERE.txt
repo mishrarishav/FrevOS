@@ -1,18 +1,26 @@
 DevSetu - connect this Windows computer
 
 1. Extract the ZIP completely. Open Setup.cmd from the extracted folder.
-2. The setup page opens in your browser. Enter the DevSetu server URL. Keep
-   your VPN connected. No administrator username or password is needed here.
-3. If you used Request to join on the login screen, wait for manual admin
-   approval there. Enter that approved join code in setup and keep the same
-   file activity choice that was reviewed. Connect this computer; no second
-   approval or account password is needed in the installer.
+2. Enter the DevSetu server URL and select your own existing account or Create
+   my account. Enter YOUR username/password and choose monitoring consent.
+   Keep VPN connected. No administrator password, project or Git is required.
+3. Click Request access. An administrator sees your account AND computer in
+   Discovery > Join requests, the notification bell and dashboard. When they
+   approve, this same connector connects automatically. No code to copy.
+4. Wait for Connected. Open Discovery and sign in with your own account, then
+   use Verify this computer in the same browser. Monitoring keeps running
+   after you close setup. A DevSetu Connection Status desktop shortcut shows
+   fresh connection health, or Offline when the connector/VPN is unavailable.
+
+Older browser requests and explicit administration:
+   Select Advanced: update existing connection / legacy code. An older
+   approved join code can still be entered with its reviewed activity choice.
    Alternatively an administrator can register a computer directly: optionally
    enable file activity, then click Connect this computer. A short
    code appears. On your own logged-in DevSetu browser (on this computer or
    another computer), open Discovery > Approve connection. An administrator
    selects the assigned user, checks the computer name and access, then approves.
-4. Wait for Connected and reporting health. Open Discovery to view your laptop.
+   Wait for Connected and reporting health. Open Discovery to view your laptop.
    You can close the setup window after that; the connector runs in the background
    for your Windows user and starts again when you sign in.
 
@@ -32,11 +40,11 @@ Existing files do not need to be deleted or moved for system monitoring.
 If connection fails, the page shows its stage and a safe error code. Correct the
 VPN/account issue and use Retry connection. Keep the launcher open during setup.
 After a successful installation, reopening Setup.cmd reuses its protected
-connection without asking for the administrator password. Setup-Account.cmd
+connection in Advanced update mode without asking for an administrator password. Setup-Account.cmd
 keeps the older account-login setup for explicit compatibility use.
 
 Updating an already paired system: download the current ZIP from your trusted
-DevSetu server, extract it and open its Setup.cmd. Click Connect this computer
+DevSetu server, extract it and open its Setup.cmd. Select Advanced update mode and click Connect this computer
 with the saved server. Setup verifies and updates only this user's existing
 connector, preserving its device identity, credential, task and monitoring data.
 No uninstall, account password or new pairing approval is required. The previous
@@ -56,6 +64,11 @@ systems. Administrators can sign in from other computers and review requests.
 Do not disable certificate checks or browser local-network security.
 
 Linux x64: extract the Linux archive and run ./install.sh as your desktop user
-(not root). It opens the same system setup without Git or a project. A working
+(not root). It opens the same code-free account request without Git or a project. A working
 user systemd manager and cgroup v2 are required. Desktop notifications are not
 offered by this Linux setup. ./install.sh --project keeps explicit project setup.
+The per-user application menu includes DevSetu Connection Status.
+Android: install/open the APK, enter your own account, choose health consent and
+Request access. Approval connects this device automatically. Android may require
+its notification permission before foreground monitoring starts. Its app and
+ongoing notification show Connected only after a fresh successful sync.

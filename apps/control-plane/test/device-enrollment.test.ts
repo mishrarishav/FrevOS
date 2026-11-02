@@ -32,7 +32,7 @@ async function page(wizard: { pageUrl: string; origin: string }) {
       }),
   };
 }
-it("pairs with an approved target code, never requests an account password, survives refresh and resumes the same protected device", async () => {
+it("preserves explicit legacy-code pairing and protected resume alongside the requester-account flow", async () => {
   const root = await mkdtemp(join(tmpdir(), "devsetu-code-setup-")),
     connectors = new DeveloperConnectorStore(
       join(root, "records"),
@@ -102,7 +102,8 @@ it("pairs with an approved target code, never requests an account password, surv
   let wizard = await client.serve(options);
   try {
     const p = await page(wizard);
-    expect(p.html).not.toMatch(/type="password"|id="username"/);
+    expect(p.html).toContain("Your own account only");
+    expect(p.html).not.toMatch(/id="admin-password"|id="admin-username"/);
     const body = { server: "https://synthetic.invalid", fileActivity: false };
     expect((await p.call("/connect", { ...body, password: "forbidden" })).status).toBe(400);
     expect((await p.call("/connect", body, { origin: "https://foreign.invalid" })).status).toBe(

@@ -7,11 +7,21 @@
   let loaded = false,
     edited = false,
     error,
+    correctedAccount,
     pending = false,
     timer;
   el("form").oninput = () => {
     edited = true;
     error = undefined;
+  };
+  const accountMode = () => el("request-mode").value !== "legacy";
+  el("request-mode").onchange = () => {
+    el("account-fields").hidden = !accountMode();
+    el("legacy-fields").hidden = accountMode();
+    el("new-name").hidden = el("request-mode").value !== "new";
+    el("join-password").autocomplete =
+      el("request-mode").value === "new" ? "new-password" : "current-password";
+    el("connect").textContent = accountMode() ? "Request access" : "Connect this computer";
   };
   async function call(route, body) {
     const r = await fetch(route, {
@@ -27,6 +37,11 @@
   async function update() {
     try {
       const s = await call("/status", {});
+      if (s.existingAccountRequired && correctedAccount !== s.account) {
+        el("request-mode").value = "existing";
+        el("request-mode").onchange();
+        correctedAccount = s.account;
+      }
       if (!loaded) {
         loaded = true;
         if (s.defaults && !edited) {
@@ -36,18 +51,25 @@
         }
       }
       el("message").textContent = error || s.message;
-      el("form").hidden = s.online;
-      el("connect").disabled = s.busy || pending;
-      el("connect").textContent = ["failed", "waiting"].includes(s.phase)
-        ? "Retry connection"
-        : "Connect this computer";
+      const installed = ["connected", "offline"].includes(s.phase);
+      el("form").hidden = installed;
+      el("connection-result").hidden = !installed;
+      el("connection-result").textContent = s.online ? "Connected ✓" : "Offline";
+      el("connect").disabled = s.online || s.busy || pending;
+      el("connect").textContent = s.online
+        ? "Connected ✓"
+        : ["failed", "waiting"].includes(s.phase)
+          ? "Retry connection"
+          : accountMode()
+            ? "Request access"
+            : "Connect this computer";
       for (const input of el("form").querySelectorAll("input")) input.disabled = s.busy;
       if (s.notificationsSupported === false) {
         el("notifications").checked = false;
         el("notifications").disabled = true;
         el("notifications").parentElement.hidden = true;
       }
-      el("approval").hidden = s.phase !== "approval";
+      el("approval").hidden = s.phase !== "approval" || !s.code;
       if (s.code) {
         el("code").textContent = s.code;
         el("device").textContent =
@@ -61,9 +83,8 @@
         el("discovery").href = s.server + "/systems/discovery";
         el("projects").href = s.server + "/projects/components";
         el("discovery").hidden = !s.online;
-        el("projects").hidden = !s.online;
+        el("projects").hidden = true;
       }
-      if (s.online) clearInterval(timer);
     } catch {
       el("message").textContent = "Local setup is unavailable. Keep the launcher open and retry.";
     }
@@ -75,15 +96,24 @@
     error = undefined;
     el("connect").disabled = true;
     try {
-      await call("/connect", {
+      const body = {
         server: el("server").value.trim(),
-        joinCode: el("join-code").value.trim(),
         fileActivity: el("activity").checked,
         notifications: el("notifications").checked,
-      });
+      };
+      if (accountMode()) {
+        body.account = {
+          mode: el("request-mode").value,
+          username: el("join-username").value.trim().toLowerCase(),
+          password: el("join-password").value,
+          displayName: el("join-name").value.trim(),
+        };
+      } else body.joinCode = el("join-code").value.trim();
+      await call("/connect", body);
     } catch (e) {
       error = e.message;
     } finally {
+      el("join-password").value = "";
       pending = false;
       await update();
     }

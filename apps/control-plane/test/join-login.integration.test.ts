@@ -1,11 +1,12 @@
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm, writeFile, symlink } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile, symlink } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { authCookiePolicy } from "@frevos/contracts";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { Pool } from "pg";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { prepareApplicationLoginRole, runMigrations } from "../src/database.js";
 import { DeveloperConnectorStore } from "../src/developer-connectors.js";
 import { DeviceLogins } from "../src/device-logins.js";
@@ -840,6 +841,241 @@ it("approves new/existing user requests manually, redeems only the reviewed comp
     expect(owners.json().some((owner: { userId: string }) => owner.userId === alice.userId)).toBe(
       true,
     );
+    // A real local setup request, real HTTP routes and real PostgreSQL identity:
+    // the connector owns its proof before approval; no code is carried by the user.
+    const nativeClient = createRequire(import.meta.url)(
+      "../../../deployment/servix/DeviceEnrollment.cjs",
+    );
+    const preferences = join(root, "native-preferences");
+    await mkdir(preferences);
+    await writeFile(
+      join(preferences, "connection.json"),
+      JSON.stringify({
+        server: origin,
+        deviceId: registeredId,
+        fileActivity: false,
+        username: "older-other-account",
+      }),
+    );
+    let proposal: Record<"credential" | "deviceId" | "name" | "code" | "pollSecret", string>,
+      installed:
+        | Record<"credential" | "deviceId" | "name" | "code" | "pollSecret", string>
+        | undefined,
+      connectionReads = 0,
+      nativeRequests = 0;
+    const wizard = await nativeClient.serve({
+      noOpen: true,
+      preferences,
+      notificationConsent: async () => {},
+      prepare: async (
+        value: Record<"credential" | "deviceId" | "name" | "code" | "pollSecret", string>,
+      ) => {
+        proposal = value;
+      },
+      helper: async () => {
+        connectionReads++;
+        throw Error("Must not reuse a different account");
+      },
+      install: async (
+        value: Record<"credential" | "deviceId" | "name" | "code" | "pollSecret", string>,
+      ) => {
+        installed = value;
+        expect((await connectors!.checkCredential(value.credential!)).userId).toBe(alice.userId);
+        await connectors!.heartbeat(value.credential!, { loginProofPort: 55124 });
+        await discovery.observe(value.credential!, {
+          version: 1,
+          deviceId: value.deviceId,
+          profileId: null,
+          bootId: "01234567-1234-4567-8123-123456789abc",
+          at: now().toISOString(),
+          policyRevision: 0,
+          system: {
+            systemName: "Native fixture",
+            platform: process.platform,
+            os: "Fixture",
+            architecture: "x64",
+            cpuPercent: 1,
+            cpuCount: 2,
+            memoryTotal: 100,
+            memoryAvailable: 50,
+            uptimeSeconds: 10,
+            disks: [],
+            tools: [],
+          },
+          coverage: {
+            status: "disabled",
+            roots: [],
+            watchedDirectories: 0,
+            gaps: [],
+            attribution: "unavailable",
+            droppedEvents: 0,
+          },
+          events: [],
+        });
+      },
+      fetch: async (url: string, init: RequestInit) => {
+        if (url.endsWith("/join/request")) nativeRequests++;
+        const response = await server!.inject({
+          method: "POST",
+          url: new URL(url).pathname,
+          headers: init.headers as Record<
+            "credential" | "deviceId" | "name" | "code" | "pollSecret",
+            string
+          >,
+          payload: String(init.body),
+        });
+        return new Response(response.body, {
+          status: response.statusCode,
+          headers: { "content-type": "application/json" },
+        });
+      },
+    });
+    try {
+      const entry = await readFile(new URL(wizard.pageUrl), "utf8"),
+        token = entry.match(/name="session" value="([A-Za-z0-9_-]+)"/)![1]!;
+      const bootstrap = await fetch(wizard.origin + "/bootstrap", {
+        method: "POST",
+        headers: { origin: "null", "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ session: token }),
+      });
+      expect(bootstrap.status).toBe(200);
+      const localHeaders = {
+        origin: wizard.origin,
+        cookie: bootstrap.headers.getSetCookie()[0]!.split(";")[0]!,
+        "content-type": "application/json",
+        "x-devsetu-setup": token,
+      };
+      const localCall = (path: string, body: unknown) =>
+        fetch(wizard.origin + path, {
+          method: "POST",
+          headers: localHeaders,
+          body: JSON.stringify(body),
+        });
+      expect(
+        (
+          await localCall("/connect", {
+            server: origin,
+            fileActivity: false,
+            notifications: false,
+            account: {
+              mode: "existing",
+              username: "alice.user",
+              password: "synthetic-rotated-alice-password",
+            },
+          })
+        ).status,
+      ).toBe(202);
+      await vi.waitFor(() => expect(wizard.state.phase, wizard.state.errorCode).toBe("approval"), {
+        timeout: 10000,
+      });
+      expect(installed).toBeUndefined();
+      expect(connectionReads).toBe(0);
+      expect(wizard.state.code).toBeUndefined();
+      const native = (await joins.list(admin.userId)).find(
+        (r) => r.connectionMode === "automatic",
+      )!;
+      expect(native.computerName).toBeTruthy();
+      expect(native).not.toHaveProperty("autoConnection");
+      expect(native).not.toHaveProperty("password");
+      expect(
+        (
+          await server.inject({
+            method: "POST",
+            url: "/v1/connector/join/poll",
+            headers: { authorization: "Bearer wrong" },
+            payload: { version: 1, deviceId: native.deviceId },
+          })
+        ).statusCode,
+      ).toBe(404);
+      expect(
+        (
+          await server.inject({
+            method: "POST",
+            url: inbox + "/decision",
+            headers: adminHeaders,
+            payload: { ...decision, requestId: native.id, digest: native.digest },
+          })
+        ).statusCode,
+      ).toBe(200);
+      await vi.waitFor(() => expect(wizard.state.phase, wizard.state.errorCode).toBe("connected"), {
+        timeout: 10000,
+      });
+      expect(nativeRequests).toBe(1);
+      expect(installed?.deviceId).toBe(native.deviceId);
+      expect(installed?.deviceId).not.toBe(registeredId);
+      expect((await joins.list(admin.userId)).find((r) => r.id === native.id)?.status).toBe(
+        "paired",
+      );
+      await expect(
+        joins.redeem({
+          version: 1,
+          code: proposal!.code,
+          deviceId: proposal!.deviceId,
+          platform: process.platform,
+          architecture: "x64",
+          name: proposal!.name,
+          fileActivity: false,
+          credentialHash: "0".repeat(64),
+          pollHash: hash(proposal!.deviceId + "." + proposal!.pollSecret),
+        }),
+      ).rejects.toMatchObject({ statusCode: 403 });
+      const safeState = await (await localCall("/status", {})).text();
+      expect(safeState).not.toContain("synthetic-rotated-alice-password");
+      expect(safeState).not.toContain(proposal!.credential);
+      expect(safeState).not.toContain(proposal!.pollSecret);
+      expect(await connectors.checkCredential(registeredCredential)).toMatchObject({
+        userId: alice.userId,
+      });
+    } finally {
+      await wizard.close();
+    }
+    for (const platform of ["linux", "android"] as const) {
+      const id = "fc_" + hash("automatic-fixture-" + platform).slice(0, 32);
+      const nativeCode = platform === "linux" ? "MNPRSTUV" : "NPRSTUVW";
+      const credential = id + "." + "v".repeat(43),
+        poll = id + "." + "w".repeat(43);
+      const architecture = platform === "android" ? "arm64" : "x64";
+      const native = await joins.nativeRequest(
+        {
+          ...input,
+          mode: "existing",
+          username: "alice.user",
+          password: "synthetic-rotated-alice-password",
+          platform,
+          deviceId: id,
+          codeHash: hash(nativeCode),
+          autoConnection: {
+            name: platform + " fixture",
+            architecture,
+            credentialHash: hash(credential),
+            pollHash: hash(poll),
+          },
+        },
+        poll,
+      );
+      expect(native.record.connectionMode).toBe("automatic");
+      await expect(
+        joins.nativeStatus({ version: 1, deviceId: id }, credential),
+      ).rejects.toMatchObject({ statusCode: 404 });
+      await joins.decide(admin.userId, {
+        ...decision,
+        requestId: native.record.id,
+        digest: native.record.digest,
+      });
+      await joins.redeem({
+        version: 1,
+        code: nativeCode,
+        deviceId: id,
+        platform,
+        architecture,
+        name: platform + " fixture",
+        fileActivity: false,
+        credentialHash: hash(credential),
+        pollHash: hash(poll),
+      });
+      expect((await joins.nativeStatus({ version: 1, deviceId: id }, poll)).status).toBe("paired");
+      expect((await connectors.checkCredential(credential)).userId).toBe(alice.userId);
+    }
     timestamp += 900001;
     expect(() => joins.rate("synthetic-rate-client", 1)).not.toThrow();
     expect((await codeRequest("prepare", { version: 1, code })).statusCode).toBe(403);

@@ -340,6 +340,17 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
           .header("cache-control", "no-store")
           .send(await options.joinRequests[action](request.body));
       });
+    for (const action of ["request", "poll"] as const)
+      server.post(route("/v1/connector/join/" + action), async (request, reply) => {
+        if (!options.joinRequests) throw new HttpError(503, "join-unavailable");
+        options.joinRequests.rate(request.ip + ":native-" + action, action === "poll" ? 4000 : 5);
+        const proof = request.headers.authorization?.replace(/^Bearer /, "") ?? "";
+        const value =
+          action === "request"
+            ? await options.joinRequests.nativeRequest(request.body, proof)
+            : await options.joinRequests.nativeStatus(request.body, proof);
+        return reply.header("cache-control", "no-store").send(value);
+      });
     server.post(
       route("/auth/login"),
       {

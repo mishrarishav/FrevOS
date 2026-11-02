@@ -3963,6 +3963,43 @@ kbd,
 .git-folder-chooser .discovery-scroll {
   padding: 12px 20px 20px;
 }
+.join-notifications {
+  position: relative;
+}
+.join-notifications > .top-action {
+  display: inline-flex;
+}
+.join-count {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  border-radius: 999px;
+  background: var(--accent, #00cad1);
+  color: #071315;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.join-notification-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 80;
+  width: min(340px, calc(100vw - 24px));
+  max-height: 60vh;
+  overflow: auto;
+  padding: 16px;
+  background: var(--surface, #10161b);
+  border: 1px solid var(--border, #34414c);
+  border-radius: 12px;
+  box-shadow: 0 16px 40px #0006;
+}
+.join-notification-popover h2 {
+  font-size: 16px;
+}
+.join-notification-popover p {
+  overflow-wrap: anywhere;
+}
 .discovery-form .git-file-choice {
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr);

@@ -16,6 +16,34 @@ const runtimeFiles = [
   "runtime/bin/node",
 ];
 const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
+function statusLauncher(folder, credentialFile) {
+  const values = [
+    path.posix.join(folder, "runtime/bin/node"),
+    path.posix.join(folder, "Connector.cjs"),
+    credentialFile,
+  ];
+  if (
+    values.some(
+      (value) =>
+        !path.posix.isAbsolute(value) ||
+        value.includes("\\") ||
+        [...value].some(
+          (character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127,
+        ),
+    )
+  )
+    throw Error("linux-status-launcher-path-invalid");
+  const quote = (value) => '"' + value.replaceAll('"', '\\"').replaceAll("%", "%%") + '"';
+  return (
+    "[Desktop Entry]\nType=Application\nName=DevSetu Connection Status\nComment=Check this computer connection\nTerminal=false\nIcon=" +
+    path.posix.join(folder, "devsetu-status.svg") +
+    "\nExec=" +
+    values.slice(0, 2).map(quote).join(" ") +
+    " --connection-status " +
+    quote(credentialFile) +
+    "\n"
+  );
+}
 async function plain(file, uid = process.getuid()) {
   for (let current = path.resolve(file); ; current = path.dirname(current)) {
     const info = await fs.lstat(current);
@@ -81,6 +109,61 @@ function context(options = {}) {
     directory(id);
     return `devsetu-connector-${id}.service`;
   };
+  async function createStatusLauncher(config) {
+    const applications = path.join(home, ".local/share/applications");
+    await plain(path.dirname(applications));
+    await fs.mkdir(applications, { recursive: true, mode: 0o700 });
+    await plain(applications);
+    const offlineFile = path.join(directory(config.deviceId), "connection-offline.html");
+    const offline = require("./Connector.cjs").connectionOfflinePage;
+    try {
+      await fs.writeFile(offlineFile, offline, { flag: "wx", mode: 0o600 });
+    } catch (error) {
+      if (error.code !== "EEXIST") throw error;
+      await plain(offlineFile);
+      if ((await fs.readFile(offlineFile, "utf8")) !== offline)
+        throw Error("linux-existing-status-page-changed");
+    }
+    const iconFile = path.join(directory(config.deviceId), "devsetu-status.svg");
+    const icon =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="#0d191f"/><text x="14" y="47" font-family="sans-serif" font-weight="700" font-size="44" fill="#00d2d8">D</text></svg>';
+    try {
+      await fs.writeFile(iconFile, icon, { flag: "wx", mode: 0o600 });
+    } catch (error) {
+      if (error.code !== "EEXIST") throw error;
+      await plain(iconFile);
+      if ((await fs.readFile(iconFile, "utf8")) !== icon)
+        throw Error("linux-existing-status-icon-changed");
+    }
+    const entry = path.join(applications, "devsetu-status-" + config.deviceId + ".desktop");
+    const text = statusLauncher(
+      directory(config.deviceId),
+      path.join(directory(config.deviceId), "device.json"),
+    );
+    try {
+      await fs.writeFile(entry, text, { flag: "wx", mode: 0o600 });
+    } catch (error) {
+      if (error.code !== "EEXIST") throw error;
+      await plain(entry);
+      if ((await fs.readFile(entry, "utf8")) !== text)
+        throw Error("linux-existing-launcher-changed");
+    }
+    const desktop = path.join(home, "Desktop");
+    try {
+      await plain(desktop);
+      const desktopEntry = path.join(desktop, path.basename(entry));
+      try {
+        await fs.writeFile(desktopEntry, text, { flag: "wx", mode: 0o700 });
+      } catch (error) {
+        if (error.code !== "EEXIST") throw error;
+        await plain(desktopEntry);
+        if ((await fs.readFile(desktopEntry, "utf8")) !== text)
+          throw Error("linux-existing-desktop-entry-changed");
+      }
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+  }
   async function preflight() {
     await plain(home);
     await execute("/usr/bin/systemctl", ["--user", "show-environment"]);
@@ -158,6 +241,7 @@ function context(options = {}) {
     });
     await execute("/usr/bin/systemctl", ["--user", "start", unit(config.deviceId)], 30000);
     await execute("/usr/bin/systemctl", ["--user", "is-active", unit(config.deviceId)]);
+    await createStatusLauncher(config);
   }
   async function install(config) {
     await preflight();
@@ -238,6 +322,7 @@ function context(options = {}) {
       30000,
     );
     await execute("/usr/bin/systemctl", ["--user", "is-active", unit(config.deviceId)]);
+    await createStatusLauncher(config);
   }
   async function update(input) {
     await preflight();
@@ -346,4 +431,4 @@ function context(options = {}) {
     },
   };
 }
-module.exports = { context, runtimeFiles };
+module.exports = { context, runtimeFiles, statusLauncher };

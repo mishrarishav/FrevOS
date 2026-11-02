@@ -17,9 +17,22 @@ export const JoinRequestInputSchema = z
     deviceId: ConnectorIdSchema,
     codeHash: hex,
     fileActivity: z.boolean(),
+    autoConnection: z
+      .object({
+        name: z.string().trim().min(1).max(80),
+        architecture: z.enum(["x64", "arm64"]),
+        credentialHash: hex,
+        pollHash: hex,
+      })
+      .strict()
+      .optional(),
   })
   .strict();
-export const JoinRequestSchema = JoinRequestInputSchema.omit({ password: true, codeHash: true })
+export const JoinRequestSchema = JoinRequestInputSchema.omit({
+  password: true,
+  codeHash: true,
+  autoConnection: true,
+})
   .extend({
     id: z.string().regex(/^jr_[a-f0-9]{32}$/),
     ownerUserId: UserIdSchema,
@@ -37,6 +50,8 @@ export const JoinRequestSchema = JoinRequestInputSchema.omit({ password: true, c
     expiresAt: z.iso.datetime(),
     approvedBy: UserIdSchema.optional(),
     approvedUntil: z.iso.datetime().optional(),
+    connectionMode: z.literal("automatic").optional(),
+    computerName: z.string().min(1).max(80).optional(),
   })
   .strict();
 export type JoinRequest = z.infer<typeof JoinRequestSchema>;

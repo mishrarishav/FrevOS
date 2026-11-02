@@ -22,4 +22,6 @@ if($changed){
  $config.fileActivity=$request.fileActivity;$bytes=[Text.UTF8Encoding]::new($false).GetBytes(($config|ConvertTo-Json -Compress));try{$encrypted=[Security.Cryptography.ProtectedData]::Protect($bytes,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser);$temporary=$file+'.'+[guid]::NewGuid().ToString('N');[IO.File]::WriteAllBytes($temporary,$encrypted);[IO.File]::Replace($temporary,$file,(Join-Path $root ('state\enrollment-'+[guid]::NewGuid().ToString('N')+'.dpapi')))}finally{[Array]::Clear($bytes,0,$bytes.Length)}
  [IO.File]::WriteAllText((Join-Path $root 'state\discovery-consent.json'),(@{version=1;deviceId=$request.deviceId;metadata=$request.fileActivity;approvedAt=[DateTimeOffset]::UtcNow.ToString('o')}|ConvertTo-Json -Compress),[Text.UTF8Encoding]::new($false))
 }
-if((Get-ScheduledTask -TaskName $name).State -cne 'Running'){Start-ScheduledTask -TaskName $name};$config=$null
+if((Get-ScheduledTask -TaskName $name).State -cne 'Running'){Start-ScheduledTask -TaskName $name}
+& (Join-Path $root 'Run-Connector.ps1') -CreateStatusShortcut
+$config=$null

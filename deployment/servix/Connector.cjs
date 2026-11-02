@@ -6,6 +6,8 @@ const { promisify } = require("node:util");
 const { execFile } = require("node:child_process");
 const run = promisify(execFile);
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+const connectionOfflinePage =
+  '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DevSetu connection status</title><style>body{font:18px system-ui;background:#10171d;color:#eef6f8;padding:30px}b{color:#00cbd0}</style><b>D · DevSetu</b><h1>Connector is offline</h1><p>Keep your user session signed in. Open DevSetu setup to resume the saved connection. Pairing and monitoring data are preserved.</p>';
 const headPattern = /^[a-f0-9]{40}$/;
 const repositoryPath = (value) =>
   process.platform === "win32" ? value.replaceAll("\\", "/").toLowerCase() : value;
@@ -604,7 +606,7 @@ async function chooseRepository(config, selection) {
   };
 }
 
-async function startDeviceLoginProof(origin, attest) {
+async function startDeviceLoginProof(origin, attest, connectionStatus) {
   const http = require("node:http");
   const crypto = require("node:crypto"),
     pages = new Map();
@@ -621,6 +623,47 @@ async function startDeviceLoginProof(origin, attest) {
     )
       return reject(403);
     const localOrigin = "http://127.0.0.1:" + port;
+    if (request.method === "GET" && request.url === "/connection-status" && connectionStatus) {
+      const nonce = crypto.randomBytes(24).toString("base64url");
+      response.writeHead(200, {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store",
+        "content-security-policy": `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'`,
+      });
+      response.end(
+        `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DevSetu · Connection status</title><style>body{font:16px system-ui;background:#10171d;color:#edf6f8;margin:0;padding:24px}main{max-width:520px;margin:10vh auto}b{display:inline-block;background:#00cbd0;color:#10171d;padding:12px;border-radius:12px}h1{font-size:26px}[data-online=true]{color:#51dfa4}[data-online=false]{color:#ffba72}</style><main><b>D · DevSetu</b><h1 id="state">Checking this computer…</h1><p id="time"></p><p>The connector runs in the background. Keep VPN connected to reach your configured DevSetu server.</p></main><script nonce="${nonce}">const state=document.getElementById('state'),time=document.getElementById('time');async function check(){try{const r=await fetch('/connection-status/check',{cache:'no-store',signal:AbortSignal.timeout(10000)});if(!r.ok)throw Error();const s=await r.json();state.dataset.online=String(s.online===true);state.textContent=s.online?'This system is connected ✓':'Offline · Check VPN and connector';time.textContent='Checked: '+new Date(s.checkedAt).toLocaleString()}catch{state.dataset.online='false';state.textContent='Connection status unavailable';time.textContent='The connector or VPN may be offline.'}}check();setInterval(check,10000)</script>`,
+      );
+      return;
+    }
+    if (
+      request.method === "GET" &&
+      request.url === "/connection-status/check" &&
+      connectionStatus
+    ) {
+      if (
+        (request.headers.origin && request.headers.origin !== localOrigin) ||
+        request.headers["sec-fetch-site"] === "cross-site"
+      )
+        return reject(403);
+      if (active >= 4) return reject(429);
+      active++;
+      try {
+        const online = await connectionStatus();
+        response.writeHead(200, {
+          "content-type": "application/json",
+          "cache-control": "no-store",
+        });
+        response.end(
+          JSON.stringify({ online: online === true, checkedAt: new Date().toISOString() }),
+        );
+      } catch {
+        response.writeHead(503, { "cache-control": "no-store" });
+        response.end();
+      } finally {
+        active--;
+      }
+      return;
+    }
     for (const [key, expiry] of pages) if (expiry <= Date.now()) pages.delete(key);
     if (request.method === "GET" && request.url === "/device-login/start") {
       if (pages.size >= 32) return reject(429);
@@ -739,8 +782,40 @@ async function connector(config) {
     )
       throw Error("system-enrollment-scope");
     const gitDesktop = require("./GitDesktop.cjs").start(config, api);
-    const loginProof = await startDeviceLoginProof(server.origin, (body) =>
-      api("/v1/connector/login-proof", body),
+    const loginProof = await startDeviceLoginProof(
+      server.origin,
+      (body) => api("/v1/connector/login-proof", body),
+      async () => {
+        const r = await fetch(new URL("/v1/connector/system-status", server), {
+          method: "POST",
+          headers: {
+            authorization: "Bearer " + config.credential,
+            "content-type": "application/json",
+          },
+          body: "{}",
+          redirect: "error",
+          signal: AbortSignal.timeout(8000),
+        });
+        if (!r.ok) return false;
+        const value = await r.json();
+        return value.deviceId === config.deviceId && value.ready === true && value.online === true;
+      },
+    );
+    const statusFile = path.join(config.stateRoot, "connection-status.json");
+    try {
+      if ((await fs.lstat(statusFile)).isSymbolicLink()) throw Error("linked-status-path");
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+    await fs.writeFile(
+      statusFile,
+      JSON.stringify({
+        version: 1,
+        deviceId: config.deviceId,
+        port: loginProof.port,
+        pid: process.pid,
+      }),
+      { mode: 0o600 },
     );
     const collector = require("./SystemDiscovery.cjs").start(config, api);
     const beat = async () => {
@@ -929,6 +1004,7 @@ async function completeDeviceLogin(server, response, fetcher = fetch) {
   throw Error("paired-system-required");
 }
 module.exports = {
+  connectionOfflinePage,
   completeDeviceLogin,
   startDeviceLoginProof,
   publishWorkingTree,
@@ -941,6 +1017,76 @@ module.exports = {
 };
 if (require.main === module) {
   (async () => {
+    if (process.argv[2] === "--connection-status") {
+      if (process.platform !== "linux" || process.argv.length !== 4)
+        throw Error("status-scope-invalid");
+      const file = path.resolve(process.argv[3]);
+      const id = path.basename(path.dirname(file));
+      const expected = path.join(
+        require("node:os").homedir(),
+        ".local/share/FrevOS/Connector",
+        id,
+        "device.json",
+      );
+      if (!/^fc_[a-f0-9]{32}$/.test(id) || file !== expected) throw Error("status-scope-invalid");
+      for (let cursor = path.dirname(file); ; cursor = path.dirname(cursor)) {
+        const info = await fs.lstat(cursor);
+        if (info.isSymbolicLink()) throw Error("linked-status-path");
+        if (cursor === path.dirname(file) && info.uid !== process.getuid())
+          throw Error("status-owner-invalid");
+        if (cursor === path.dirname(cursor)) break;
+      }
+      let status;
+      try {
+        const statusDirectory = path.join(path.dirname(file), "state");
+        if ((await fs.lstat(statusDirectory)).isSymbolicLink()) throw Error("linked-status-path");
+        const statusFile = path.join(statusDirectory, "connection-status.json"),
+          info = await fs.lstat(statusFile);
+        if (
+          !info.isFile() ||
+          info.isSymbolicLink() ||
+          info.size > 512 ||
+          info.uid !== process.getuid()
+        )
+          throw Error("status-scope-invalid");
+        status = JSON.parse(await fs.readFile(statusFile, "utf8"));
+        if (
+          status.version !== 1 ||
+          status.deviceId !== id ||
+          !Number.isInteger(status.port) ||
+          status.port < 1024 ||
+          status.port > 65535 ||
+          !Number.isInteger(status.pid) ||
+          status.pid < 1
+        )
+          throw Error("status-scope-invalid");
+        if (
+          (await fs.stat("/proc/" + status.pid)).uid !== process.getuid() ||
+          (await fs.realpath("/proc/" + status.pid + "/exe")) !==
+            path.join(path.dirname(file), "runtime/bin/node")
+        )
+          throw Error("connector-offline");
+      } catch {
+        const offlineFile = path.join(path.dirname(file), "connection-offline.html"),
+          info = await fs.lstat(offlineFile);
+        if (
+          !info.isFile() ||
+          info.isSymbolicLink() ||
+          info.size > 4096 ||
+          info.uid !== process.getuid() ||
+          (await fs.readFile(offlineFile, "utf8")) !== connectionOfflinePage
+        )
+          throw Error("status-scope-invalid");
+        await run("/usr/bin/xdg-open", [require("node:url").pathToFileURL(offlineFile).href], {
+          timeout: 15000,
+        });
+        return;
+      }
+      await run("/usr/bin/xdg-open", ["http://127.0.0.1:" + status.port + "/connection-status"], {
+        timeout: 15000,
+      });
+      return;
+    }
     let input = "";
     for await (const chunk of process.stdin) {
       input += chunk;

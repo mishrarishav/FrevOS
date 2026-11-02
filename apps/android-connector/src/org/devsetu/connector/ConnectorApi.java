@@ -59,6 +59,7 @@ final class ConnectorApi {
             try (java.io.OutputStream output = connection.getOutputStream()) { output.write(request); }
             int status = connection.getResponseCode();
             if (status < 200 || status >= 300) {
+                if (status == 404) throw new RequestNotFound();
                 if (status == 401 || status == 403) throw new AccessDenied();
                 throw new Exception("Server did not accept the request (HTTP " + status + "). Check the code, approval and VPN.");
             }
@@ -76,5 +77,8 @@ final class ConnectorApi {
     }
     static final class AccessDenied extends Exception {
         AccessDenied() { super("Connection is not authorized. Check approval or contact your administrator."); }
+    }
+    static final class RequestNotFound extends Exception {
+        RequestNotFound() { super("This request is unavailable. Reopen Request access after checking the DevSetu server version."); }
     }
 }

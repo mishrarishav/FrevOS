@@ -124,107 +124,141 @@ export function JoinRequestForm({ api, onClose }: { api: ControlCenterApi; onClo
         access only.
       </p>
       {!saved ? (
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            void submit();
-          }}
-        >
-          <label>
-            Request type
-            <select
-              value={mode}
-              disabled={busy}
-              onChange={(event) => setMode(event.target.value as "new" | "existing")}
+        <>
+          {
+            <section aria-label="Connect without pairing codes">
+              <p>
+                Install and open the connector on this computer, choose your own new or existing
+                account, and submit Request access. Once an administrator approves, it connects
+                automatically. No pairing code or administrator password is needed.
+              </p>
+              <p>
+                {["win32", "linux", "android"]
+                  .filter((value) => platform === "unknown" || platform === value)
+                  .map((value) => {
+                    const choice = connectorPlatform[value as "win32" | "linux" | "android"];
+                    return (
+                      <a key={value} className="button primary" href={addBasePath(choice.download)}>
+                        Download {choice.name} installer
+                      </a>
+                    );
+                  })}
+              </p>
+              <p>
+                Windows: extract and open Setup.cmd. Linux: extract and run install.sh. Android:
+                install and open the APK.
+              </p>
+            </section>
+          }
+          <details>
+            <summary>Advanced: older browser or installer requests</summary>
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                void submit();
+              }}
             >
-              <option value="new">Create my user account and register this computer</option>
-              <option value="existing">Register another computer for my existing account</option>
-            </select>
-          </label>
-          <label>
-            Username
-            <input
-              autoComplete="username"
-              required
-              maxLength={64}
-              value={username}
-              disabled={busy}
-              onChange={(event) => setUsername(event.target.value)}
-            />
-          </label>
-          {mode === "new" ? (
-            <label>
-              Your name
-              <input
-                required
-                maxLength={120}
-                value={name}
-                disabled={busy}
-                onChange={(event) => setName(event.target.value)}
-              />
-            </label>
-          ) : null}
-          <label>
-            {mode === "new" ? "Choose your password" : "Your current password"}
-            <input
-              type="password"
-              autoComplete={mode === "new" ? "new-password" : "current-password"}
-              required
-              minLength={mode === "new" ? 8 : 1}
-              maxLength={128}
-              value={password}
-              disabled={busy}
-              onChange={(event) => setPassword(event.target.value)}
-            />
-          </label>
-          {mode === "new" ? (
-            <label>
-              Confirm password
-              <input
-                type="password"
-                autoComplete="new-password"
-                required
-                maxLength={128}
-                value={confirm}
-                disabled={busy}
-                onChange={(event) => setConfirm(event.target.value)}
-              />
-            </label>
-          ) : null}
-          <label>
-            This device
-            <select
-              value={platform}
-              disabled={busy}
-              onChange={(event) => setPlatform(event.target.value as "win32" | "linux" | "android")}
-            >
-              <option value="unknown">Choose operating system</option>
-              <option value="win32">Windows · x64</option>
-              <option value="linux">Linux · x64</option>
-              <option value="android">Android · ARM64 / x64</option>
-            </select>
-          </label>
-          <small>
-            Suggested from this browser. Change it if needed. Android supports system health;
-            Windows/Linux downloads are x64. macOS is not included.
-          </small>
-          <label>
-            <input
-              type="checkbox"
-              checked={platform !== "android" && fileActivity}
-              disabled={busy || platform === "android"}
-              onChange={(event) => setFileActivity(event.target.checked)}
-            />{" "}
-            Request file activity monitoring as well as basic system health
-          </label>
-          <button
-            className="button primary"
-            type="submit"
-            disabled={busy || platform === "unknown"}
-          >
-            {busy ? "Submitting request…" : "Submit request to administrator"}
-          </button>
-        </form>
+              <label>
+                Request type
+                <select
+                  value={mode}
+                  disabled={busy}
+                  onChange={(event) => setMode(event.target.value as "new" | "existing")}
+                >
+                  <option value="new">Create my user account and register this computer</option>
+                  <option value="existing">
+                    Register another computer for my existing account
+                  </option>
+                </select>
+              </label>
+              <label>
+                Username
+                <input
+                  autoComplete="username"
+                  required
+                  maxLength={64}
+                  value={username}
+                  disabled={busy}
+                  onChange={(event) => setUsername(event.target.value)}
+                />
+              </label>
+              {mode === "new" ? (
+                <label>
+                  Your name
+                  <input
+                    required
+                    maxLength={120}
+                    value={name}
+                    disabled={busy}
+                    onChange={(event) => setName(event.target.value)}
+                  />
+                </label>
+              ) : null}
+              <label>
+                {mode === "new" ? "Choose your password" : "Your current password"}
+                <input
+                  type="password"
+                  autoComplete={mode === "new" ? "new-password" : "current-password"}
+                  required
+                  minLength={mode === "new" ? 8 : 1}
+                  maxLength={128}
+                  value={password}
+                  disabled={busy}
+                  onChange={(event) => setPassword(event.target.value)}
+                />
+              </label>
+              {mode === "new" ? (
+                <label>
+                  Confirm password
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    required
+                    maxLength={128}
+                    value={confirm}
+                    disabled={busy}
+                    onChange={(event) => setConfirm(event.target.value)}
+                  />
+                </label>
+              ) : null}
+              <label>
+                This device
+                <select
+                  value={platform}
+                  disabled={busy}
+                  onChange={(event) =>
+                    setPlatform(event.target.value as "win32" | "linux" | "android")
+                  }
+                >
+                  <option value="unknown">Choose operating system</option>
+                  <option value="win32">Windows · x64</option>
+                  <option value="linux">Linux · x64</option>
+                  <option value="android">Android · ARM64 / x64</option>
+                </select>
+              </label>
+              <small>
+                Suggested from this browser. Change it if needed. Android supports system health;
+                Windows/Linux downloads are x64. macOS is not included.
+              </small>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={platform !== "android" && fileActivity}
+                  disabled={busy || platform === "android"}
+                  onChange={(event) => setFileActivity(event.target.checked)}
+                />{" "}
+                Request file activity monitoring as well as basic system health
+              </label>
+              <button
+                className="button primary"
+                type="submit"
+                disabled={busy || platform === "unknown"}
+              >
+                {busy ? "Submitting request…" : "Submit request to administrator"}
+              </button>
+            </form>
+          </details>
+        </>
       ) : (
         <section>
           <p role="status">Request: {record?.status ?? "Checking status"}</p>
@@ -283,6 +317,7 @@ export function JoinRequestForm({ api, onClose }: { api: ControlCenterApi; onClo
                 type="button"
                 className="button secondary"
                 onClick={() => {
+                  if (record?.approvedBy) setMode("existing");
                   sessionStorage.removeItem(storageKey);
                   setSaved(null);
                   setRecord(null);

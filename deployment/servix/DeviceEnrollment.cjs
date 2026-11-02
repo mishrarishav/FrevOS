@@ -61,6 +61,8 @@ async function serve(options = {}) {
     busy = false,
     pending,
     forceNew = false;
+  let connectedConfig,
+    checkedAt = 0;
   const state = {
     phase: "ready",
     message: "Connect this computer without sharing an administrator password.",
@@ -161,6 +163,10 @@ async function serve(options = {}) {
           "join-redemption-scope-denied",
           "join-admin-required",
           "join-account-changed",
+          "join-request-unavailable",
+          "join-device-already-requested",
+          "invalid-credentials",
+          "join-username-already-exists",
         ].includes(code)
           ? code
           : "server-request-failed",
@@ -173,9 +179,9 @@ async function serve(options = {}) {
     if (s && s.deviceId !== config.deviceId) throw Error("connection-scope-invalid");
     return s;
   }
-  async function prepare(server, fileActivity, approvalCode = "") {
+  async function prepare(server, fileActivity, approvalCode = "", joinUsername = "") {
     const existing = await readIndex(connectionFile);
-    if (existing?.server === server && !forceNew && !approvalCode) {
+    if (existing?.server === server && !forceNew && !approvalCode && !joinUsername) {
       try {
         const config = await helper("Pairing-State.ps1", {
           operation: "connection",
@@ -193,7 +199,11 @@ async function serve(options = {}) {
       }
     }
     const index = await readIndex(pendingFile);
-    if (!forceNew && index?.server === server) {
+    if (
+      !forceNew &&
+      index?.server === server &&
+      (!joinUsername || index.joinUsername === joinUsername)
+    ) {
       try {
         const proposal = await helper("Pairing-State.ps1", {
           operation: "pending",
@@ -206,6 +216,7 @@ async function serve(options = {}) {
           (!approvalCode || proposal.code === approvalCode)
         ) {
           if (
+            joinUsername ||
             Date.now() - Date.parse(proposal.createdAt) < (approvalCode ? 900000 : 600000) ||
             (await status(proposal))
           )
@@ -249,7 +260,12 @@ async function serve(options = {}) {
       await sessions.protect(root, true);
       await helper("Pairing-State.ps1", { operation: "prepare", deviceId, state: proposal });
     }
-    await saveIndex(pendingFile, { server, deviceId, fileActivity });
+    await saveIndex(pendingFile, {
+      server,
+      deviceId,
+      fileActivity,
+      ...(joinUsername ? { joinUsername } : {}),
+    });
     return { proposal };
   }
   async function connect(body) {
@@ -263,6 +279,8 @@ async function serve(options = {}) {
         notifications: body.notifications === true,
       };
       state.phase = "checking";
+      delete state.code;
+      delete state.existingAccountRequired;
       state.message = "Checking this computer's protected connection…";
       if (pending && pending.server !== server) pending = null;
       if (pending?.proposal && pending.proposal.fileActivity !== body.fileActivity) {
@@ -271,9 +289,12 @@ async function serve(options = {}) {
       }
       if (pending?.proposal && approvalCode && pending.proposal.code !== approvalCode)
         pending = null;
-      const prepared = pending || (await prepare(server, body.fileActivity, approvalCode));
+      if (pending && pending.joinUsername !== body.account?.username) pending = null;
+      const prepared =
+        pending || (await prepare(server, body.fileActivity, approvalCode, body.account?.username));
       pending = prepared;
       pending.server = server;
+      pending.joinUsername = body.account?.username;
       let config,
         approved,
         freshAfter = 0;
@@ -313,7 +334,82 @@ async function serve(options = {}) {
       } else {
         const p = prepared.proposal;
         const proof = p.deviceId + "." + p.pollSecret;
-        approved = await status(p);
+        if (body.account) {
+          let join;
+          try {
+            join = await api(
+              server,
+              "/v1/connector/join/poll",
+              { version: 1, deviceId: p.deviceId },
+              proof,
+            );
+          } catch (error) {
+            if (error.message !== "join-request-unavailable") throw error;
+            const result = await api(
+              server,
+              "/v1/connector/join/request",
+              {
+                version: 1,
+                mode: body.account.mode,
+                username: body.account.username,
+                password: body.account.password,
+                displayName: body.account.displayName || body.account.username,
+                deviceId: p.deviceId,
+                platform: p.platform,
+                codeHash: sha(p.code),
+                fileActivity: p.fileActivity,
+                autoConnection: {
+                  name: p.name,
+                  architecture: p.architecture,
+                  credentialHash: sha(p.credential),
+                  pollHash: sha(proof),
+                },
+              },
+              proof,
+            );
+            join = result.record;
+          } finally {
+            body.account.password = "";
+          }
+          state.phase = "approval";
+          state.account = body.account.username;
+          state.deviceName = p.name;
+          state.message =
+            "Request submitted for " +
+            body.account.username +
+            " on " +
+            p.name +
+            ". Waiting for administrator approval. Keep setup open; this computer will connect automatically.";
+          while (!closed && ["pending", "approving"].includes(join.status)) {
+            await new Promise((r) => setTimeout(r, options.pollDelay ?? 2000));
+            join = await api(
+              server,
+              "/v1/connector/join/poll",
+              { version: 1, deviceId: p.deviceId },
+              proof,
+            );
+          }
+          if (closed) throw Error("setup-closed");
+          if (!["approved", "redeeming", "paired"].includes(join.status)) {
+            state.existingAccountRequired = !!join.approvedBy;
+            pending = null;
+            forceNew = true;
+            throw Error("join-" + join.status);
+          }
+          if (join.status !== "paired")
+            await api(server, "/v1/connector/join/redeem", {
+              version: 1,
+              code: p.code,
+              deviceId: p.deviceId,
+              platform: p.platform,
+              architecture: p.architecture,
+              name: p.name,
+              fileActivity: p.fileActivity,
+              credentialHash: sha(p.credential),
+              pollHash: sha(proof),
+            });
+          approved = await status(p);
+        } else approved = await status(p);
         if (!approved?.ready && approvalCode) {
           await api(server, "/v1/connector/join/redeem", {
             version: 1,
@@ -406,8 +502,11 @@ async function serve(options = {}) {
         ) {
           state.phase = "connected";
           state.online = true;
+          connectedConfig = config;
           state.message =
-            "Connected and reporting health. Monitoring continues after you close setup. Add projects separately when ready.";
+            "Connected ✓ · This computer is reporting health" +
+            (state.account ? " for " + state.account : "") +
+            ". Monitoring continues after closing setup. Sign in to view this computer.";
           pending = null;
           return;
         }
@@ -425,16 +524,20 @@ async function serve(options = {}) {
         ? e.message
         : "connection-unavailable";
       state.message =
+        (state.errorCode === "invalid-credentials"
+          ? "Check your own existing account username and password. "
+          : "") +
         "Connection did not complete: " +
         state.errorCode +
         ". Correct the issue and retry. No administrator password is required.";
     } finally {
+      if (body.account) body.account.password = "";
       busy = false;
     }
   }
   const client = await fs.readFile(path.join(__dirname, "DeviceEnrollmentClient.js"), "utf8");
   const html = () =>
-    `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DevSetu · Connect this computer</title><style>body{margin:0;font:16px system-ui;background:#f5f7fb;color:#17253d}main{max-width:650px;margin:4vh auto;padding:28px;background:white;border:1px solid #d8dfe9;border-radius:12px}label{display:block;margin:16px 0}input[type=url]{box-sizing:border-box;width:100%;padding:12px;border:1px solid #bac6d7;border-radius:6px}button,a{display:inline-block;padding:11px 16px;margin:8px 8px 0 0}button{border:0;border-radius:6px;background:#175ddc;color:white;cursor:pointer}button:disabled{opacity:.6;cursor:not-allowed}#code{font-size:34px;letter-spacing:4px;font-weight:700}#message{background:#eef3fc;padding:14px;white-space:pre-wrap;overflow-wrap:anywhere}small{color:#536078}@media(max-width:680px){main{margin:0;border:0;padding:20px}}</style><main><h1>Connect this computer</h1><p>No administrator password. No project or Git required.</p><form id="form"><label>DevSetu server URL<input type="url" id="server" required autocomplete="url" placeholder="Your DevSetu address"></label><label>Approved join code (if provided)<input type="text" id="join-code" maxlength="16" autocomplete="off" placeholder="Code from Request to join approval"></label><label><input type="checkbox" id="activity"> Enable file activity on readable local drives</label><label><input type="checkbox" id="notifications"> Show individually approved DevSetu notifications from the account that paired this computer</label><small>Health includes CPU, RAM, operating system and drive space. File activity needs your choice here and approval in DevSetu. File contents and project execution are not included.</small><p><button id="connect">Connect this computer</button></p></form><section id="approval" hidden><h2>Approve from DevSetu</h2><p id="device"></p><p id="code"></p><button id="copy" type="button">Copy pairing code</button><a id="approve" target="_blank" rel="noopener">Open DevSetu Discovery</a><small>Use your own signed-in browser on this computer or another computer. Only approve the code shown on the computer you intend to connect.</small></section><p id="message" role="status"></p><a id="discovery" hidden target="_blank" rel="noopener">Open Discovery</a><a id="projects" hidden target="_blank" rel="noopener">Add a project later</a></main><meta name="setup-token" content="${token}"><script>${client}</script></html>`;
+    `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DevSetu · Connect this computer</title><style>[hidden]{display:none!important}input:not([type=checkbox]),select{box-sizing:border-box;width:100%;padding:12px;border:1px solid #bac6d7;border-radius:6px}body{margin:0;font:16px system-ui;background:#f5f7fb;color:#17253d}main{max-width:650px;margin:4vh auto;padding:28px;background:white;border:1px solid #d8dfe9;border-radius:12px}label{display:block;margin:16px 0}input[type=url]{box-sizing:border-box;width:100%;padding:12px;border:1px solid #bac6d7;border-radius:6px}button,a{display:inline-block;padding:11px 16px;margin:8px 8px 0 0}button{border:0;border-radius:6px;background:#175ddc;color:white;cursor:pointer}button:disabled{opacity:.6;cursor:not-allowed}#code{font-size:34px;letter-spacing:4px;font-weight:700}#message{background:#eef3fc;padding:14px;white-space:pre-wrap;overflow-wrap:anywhere}small{color:#536078}@media(max-width:680px){main{margin:0;border:0;padding:20px}}</style><main><h1>Connect this computer</h1><p>Request access → administrator approves → this computer connects automatically.</p><form id="form"><label>DevSetu server URL<input type="url" id="server" required autocomplete="url" placeholder="Your DevSetu address"></label><label>Account<select id="request-mode"><option value="existing">Use my existing account</option><option value="new">Create my account</option><option value="legacy">Advanced: update existing connection / legacy code</option></select></label><div id="account-fields"><label>Username<input id="join-username" autocomplete="username" maxlength="64"></label><label>Your password<input id="join-password" type="password" autocomplete="current-password" maxlength="128"></label><label id="new-name" hidden>Your name<input id="join-name" maxlength="120" autocomplete="name"></label><small>Your own account only. No administrator password is needed.</small></div><div id="legacy-fields" hidden><label>Approved join code (legacy requests only)<input type="text" id="join-code" maxlength="16" autocomplete="off" placeholder="Code from an older request"></label></div><label><input type="checkbox" id="activity"> Enable file activity on readable local drives</label><label><input type="checkbox" id="notifications"> Show individually approved DevSetu notifications from the account that paired this computer</label><small>Health includes CPU, RAM, operating system and drive space. File activity needs your choice here and approval in DevSetu. File contents and project execution are not included.</small><p><button id="connect">Request access</button></p></form><section id="approval" hidden><h2>Approve from DevSetu</h2><p id="device"></p><p id="code"></p><button id="copy" type="button">Copy pairing code</button><a id="approve" target="_blank" rel="noopener">Open DevSetu Discovery</a><small>Use your own signed-in browser on this computer or another computer. Only approve the code shown on the computer you intend to connect.</small></section><button id="connection-result" disabled hidden>Connected ✓</button><p id="message" role="status"></p><a id="discovery" hidden target="_blank" rel="noopener">Open Discovery</a><a id="projects" hidden target="_blank" rel="noopener">Add a project</a></main><meta name="setup-token" content="${token}"><script>${client}</script></html>`;
   const server = http.createServer(async (req, res) => {
     const send = (code, value) => {
       res.writeHead(code, { "content-type": "application/json", "cache-control": "no-store" });
@@ -493,7 +596,22 @@ async function serve(options = {}) {
       )
         return send(403, { error: "setup-request-denied" });
       const body = JSON.parse(input);
-      if (req.url === "/status" && !Object.keys(body).length) return send(200, { ...state, busy });
+      if (req.url === "/status" && !Object.keys(body).length) {
+        if (connectedConfig && Date.now() - checkedAt > 10000) {
+          checkedAt = Date.now();
+          try {
+            const live = await status(connectedConfig);
+            state.online = live?.ready === true && live.online === true;
+          } catch {
+            state.online = false;
+          }
+          state.phase = state.online ? "connected" : "offline";
+          state.message = state.online
+            ? "Connected ✓ · This computer is reporting health. Sign in to view your systems."
+            : "Offline · The connection is saved. Check VPN and keep the connector running.";
+        }
+        return send(200, { ...state, busy });
+      }
       if (
         req.url !== "/connect" ||
         ![
@@ -501,6 +619,7 @@ async function serve(options = {}) {
           "fileActivity,notifications,server",
           "fileActivity,joinCode,notifications,server",
           "fileActivity,joinCode,server",
+          "account,fileActivity,notifications,server",
         ].includes(Object.keys(body).sort().join(",")) ||
         (body.notifications !== undefined && typeof body.notifications !== "boolean") ||
         (body.notifications === true && options.notificationsSupported === false) ||
@@ -513,6 +632,22 @@ async function serve(options = {}) {
         typeof body.server !== "string"
       )
         return send(400, { error: "setup-input-invalid" });
+      if (
+        body.account &&
+        (!["displayName,mode,password,username", "mode,password,username"].includes(
+          Object.keys(body.account).sort().join(","),
+        ) ||
+          !["new", "existing"].includes(body.account.mode) ||
+          typeof body.account.username !== "string" ||
+          !/^[a-z0-9][a-z0-9._-]{2,63}$/.test(body.account.username) ||
+          typeof body.account.password !== "string" ||
+          body.account.password.length < (body.account.mode === "new" ? 8 : 1) ||
+          body.account.password.length > 128 ||
+          (body.account.displayName !== undefined &&
+            (typeof body.account.displayName !== "string" ||
+              body.account.displayName.length > 120)))
+      )
+        return send(400, { error: "setup-account-invalid" });
       if (busy || state.online) return send(409, { error: "connection-already-running" });
       runtime.serverOrigin(body.server);
       busy = true;

@@ -7,6 +7,7 @@ import type {
   ProjectAutomationOperation,
   ProjectAutomationRequest,
   ProjectRepositoryConnection,
+  JoinRequest,
   Workspace,
 } from "@frevos/contracts";
 import {
@@ -185,6 +186,46 @@ export function App({
   const [receipt, setReceipt] = useState<string | null>(null);
   const initialRequest = useRef<AbortController | null>(null);
   const selectionRequest = useRef<AbortController | null>(null);
+  const inboxScope =
+    experience.kind === "ready"
+      ? experience.session.userId +
+        ":" +
+        experience.workspace.workspaceId +
+        ":" +
+        experience.session.sessionId
+      : "";
+  const inboxWorkspace = experience.kind === "ready" ? experience.workspace.workspaceId : "";
+  const [joinInbox, setJoinInbox] = useState<{
+    scope: string;
+    status: "ready" | "denied" | "unavailable";
+    records: JoinRequest[];
+  } | null>(null);
+  const [inboxNavigation, setInboxNavigation] = useState(0);
+  useEffect(() => {
+    setJoinInbox(null);
+    if (!inboxScope || !api.joinRequests) return;
+    const abort = new AbortController();
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      try {
+        const records = await api.joinRequests!(inboxWorkspace, abort.signal);
+        if (!abort.signal.aborted) setJoinInbox({ scope: inboxScope, status: "ready", records });
+      } catch (error) {
+        if (!abort.signal.aborted)
+          setJoinInbox({
+            scope: inboxScope,
+            status: error instanceof Error && error.message === "denied" ? "denied" : "unavailable",
+            records: [],
+          });
+      }
+      if (!abort.signal.aborted) timer = setTimeout(() => void poll(), 5000);
+    };
+    void poll();
+    return () => {
+      abort.abort();
+      clearTimeout(timer);
+    };
+  }, [api, inboxScope, inboxWorkspace]);
 
   const loadExperience = useCallback(() => {
     initialRequest.current?.abort();
@@ -304,6 +345,23 @@ export function App({
   }
 
   const route = resolveRoute(pathname);
+  const currentInbox = joinInbox?.scope === inboxScope ? joinInbox : null;
+  const pendingJoins =
+    currentInbox?.status === "ready"
+      ? currentInbox.records.filter((r) => ["pending", "approving"].includes(r.status))
+      : [];
+  const openJoinInbox = () => {
+    try {
+      sessionStorage.setItem(
+        `frevos:${experience.session.userId}:${experience.workspace.workspaceId}:discovery:tab`,
+        "requests",
+      );
+    } catch {
+      /* Optional preference. */
+    }
+    setInboxNavigation((value) => value + 1);
+    navigate("/systems/discovery");
+  };
   const projectWorkspace =
     route?.id === "repository-center" ||
     route?.id === "agents" ||
@@ -328,7 +386,13 @@ export function App({
         onWorkspaceChange={selectWorkspace}
         onPalette={() => setOverlay("palette")}
         onActivity={() => setOverlay("activity")}
-        onStates={() => setOverlay("states")}
+        notificationControl={
+          <JoinNotifications
+            status={currentInbox?.status ?? "loading"}
+            records={pendingJoins}
+            onReview={openJoinInbox}
+          />
+        }
         accountControl={
           <AccountControls
             api={api}
@@ -360,6 +424,13 @@ export function App({
               onCommandChange={setCommand}
               onSubmit={submitCommand}
               navigate={navigate}
+              approvalControl={
+                <JoinApprovalCard
+                  status={currentInbox?.status ?? "loading"}
+                  count={pendingJoins.length}
+                  onReview={openJoinInbox}
+                />
+              }
             />
           ) : null}
           {route?.id === "design-system" ? (
@@ -410,6 +481,7 @@ export function App({
           ) : null}
           {route?.id === "discovery" && experience.workspace.workspaceId === "ws_server20" ? (
             <DiscoveryPage
+              key={experience.workspace.workspaceId + ":" + inboxNavigation}
               api={api}
               workspaceId={experience.workspace.workspaceId}
               scopeName={workspaceDisplayName(experience.workspace)}
@@ -617,7 +689,7 @@ function LocalLoginForm({
   const [joining, setJoining] = useState(false);
   const [verification, setVerification] = useState<DeviceLoginChallenge | null>(null);
   const [status, setStatus] = useState<
-    "idle" | "submitting" | "invalid" | "unavailable" | "device" | "secure-origin"
+    "idle" | "submitting" | "invalid" | "unavailable" | "device" | "verification" | "secure-origin"
   >("idle");
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -635,7 +707,11 @@ function LocalLoginForm({
       })
       .catch((error: unknown) => {
         setPassword("");
-        if (error instanceof DeviceVerificationRequired) setVerification(error.challenge);
+        if (error instanceof DeviceVerificationRequired) {
+          setVerification(error.challenge);
+          setStatus("verification");
+          return;
+        }
         setStatus(
           error instanceof Error && error.message === "paired-system-secure-origin-required"
             ? "secure-origin"
@@ -676,14 +752,14 @@ function LocalLoginForm({
       </label>
       {status === "invalid" ? (
         <p className="login-message" role="alert">
-          Username or password is incorrect.
+          Sign in could not be completed. Check your credentials. If you requested access, wait for
+          administrator approval and complete this computer's connection.
         </p>
       ) : null}
       {status === "device" ? (
         <p className="login-message" role="alert">
-          Sign in from your registered computer with its updated DevSetu connector running. Ask an
-          administrator to register this computer for your account. Allow the browser's
-          local-network permission if requested.
+          Your account needs its own connected computer. Open the DevSetu connector on this computer
+          and request access for your account. After approval it connects automatically.
         </p>
       ) : null}
       {status === "unavailable" ? (
@@ -769,7 +845,7 @@ function TopBar({
   onWorkspaceChange,
   onPalette,
   onActivity,
-  onStates,
+  notificationControl,
 }: {
   accountControl?: ReactNode;
   workspaces: Workspace[];
@@ -777,7 +853,7 @@ function TopBar({
   onWorkspaceChange: (id: string) => void;
   onPalette: () => void;
   onActivity: () => void;
-  onStates: () => void;
+  notificationControl: ReactNode;
 }) {
   return (
     <header className="top-bar">
@@ -818,15 +894,102 @@ function TopBar({
       >
         <PanelRightOpen aria-hidden="true" size={17} />
       </button>
+      {notificationControl}
+    </header>
+  );
+}
+
+type JoinInboxStatus = "loading" | "ready" | "denied" | "unavailable";
+export function JoinApprovalCard({
+  status,
+  count,
+  onReview,
+}: {
+  status: JoinInboxStatus;
+  count: number;
+  onReview: () => void;
+}) {
+  if (status !== "ready" || !count) return null;
+  return (
+    <section className="panel" aria-label="Pending join approvals">
+      <div className="panel-header">
+        <div>
+          <h2>
+            {count} join request{count === 1 ? " needs" : "s need"} approval
+          </h2>
+          <p>Review the requested account and computer before granting access.</p>
+        </div>
+        <button className="button primary" type="button" onClick={onReview}>
+          Review join requests
+        </button>
+      </div>
+    </section>
+  );
+}
+export function JoinNotifications({
+  status,
+  records,
+  onReview,
+}: {
+  status: JoinInboxStatus;
+  records: JoinRequest[];
+  onReview: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  if (status === "denied") return null;
+  const count = status === "ready" ? records.length : 0;
+  return (
+    <div className="join-notifications">
       <button
         className="top-action"
         type="button"
-        onClick={onStates}
-        aria-label="Open interface state gallery"
+        aria-label={
+          status === "ready"
+            ? `Notifications: ${count} pending join requests`
+            : "Notifications unavailable"
+        }
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
       >
         <Bell aria-hidden="true" size={17} />
+        {count > 0 ? <span className="join-count">{count}</span> : null}
       </button>
-    </header>
+      {open ? (
+        <section className="join-notification-popover" aria-label="Notifications">
+          <h2>Notifications</h2>
+          {status === "ready" ? (
+            <>
+              <p role="status">
+                {count ? `${count} join requests need your approval.` : "No pending join requests."}
+              </p>
+              {records.slice(0, 5).map((r) => (
+                <p key={r.id}>
+                  <strong>{r.displayName}</strong> · {r.computerName ?? r.platform}
+                </p>
+              ))}
+              {count ? (
+                <button
+                  className="button primary"
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    onReview();
+                  }}
+                >
+                  Review join requests
+                </button>
+              ) : null}
+            </>
+          ) : (
+            <p role="status">
+              {status === "loading"
+                ? "Checking notifications…"
+                : "Notifications could not be checked. Retrying automatically."}
+            </p>
+          )}
+        </section>
+      ) : null}
+    </div>
   );
 }
 
@@ -1008,6 +1171,7 @@ function ControlCenter({
   onCommandChange,
   onSubmit,
   navigate,
+  approvalControl,
 }: {
   workspace: Workspace;
   clients: Client[];
@@ -1017,6 +1181,7 @@ function ControlCenter({
   onCommandChange: (value: string) => void;
   onSubmit: (value: string) => void;
   navigate: (to: string) => void;
+  approvalControl?: ReactNode;
 }) {
   const examples = [
     "Analyze the current architecture",
@@ -1037,6 +1202,7 @@ function ControlCenter({
         }
       />
 
+      {approvalControl}
       <section className="command-hero" aria-labelledby="command-title">
         <div className="hero-glow" aria-hidden="true" />
         <div className="command-intro">

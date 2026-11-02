@@ -8,7 +8,13 @@ import {
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { App, canCommitReviewedChanges, projectAutomationStatusLabel } from "../src/App.js";
+import {
+  App,
+  JoinApprovalCard,
+  JoinNotifications,
+  canCommitReviewedChanges,
+  projectAutomationStatusLabel,
+} from "../src/App.js";
 import type { ExperienceState } from "../src/experience.js";
 import {
   addBasePath,
@@ -55,6 +61,25 @@ const readyExperience: ExperienceState = {
   clients: [client],
   projects: [project],
 };
+it("renders the real admin approval count while hiding ordinary-user data and avoiding false zero states", () => {
+  const props = { count: 2, onReview: () => {} };
+  expect(renderToStaticMarkup(<JoinApprovalCard {...props} status="ready" />)).toContain(
+    "2 join requests need approval",
+  );
+  for (const status of ["denied", "loading", "unavailable"] as const)
+    expect(renderToStaticMarkup(<JoinApprovalCard {...props} status={status} />)).toBe("");
+  expect(
+    renderToStaticMarkup(<JoinNotifications status="ready" records={[]} onReview={() => {}} />),
+  ).toContain("Notifications: 0 pending join requests");
+  expect(
+    renderToStaticMarkup(
+      <JoinNotifications status="unavailable" records={[]} onReview={() => {}} />,
+    ),
+  ).toContain("Notifications unavailable");
+  expect(
+    renderToStaticMarkup(<JoinNotifications status="denied" records={[]} onReview={() => {}} />),
+  ).toBe("");
+});
 
 describe("Control Center route contract", () => {
   it("keeps route paths and identifiers unique", () => {

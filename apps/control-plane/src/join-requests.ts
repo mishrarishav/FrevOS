@@ -24,6 +24,7 @@ const Credential = z
   .object({ salt: z.string().regex(/^[a-f0-9]{32}$/), hash: z.string().regex(/^[a-f0-9]{128}$/) })
   .strict();
 const RecordSchema = JoinRequestSchema.extend({
+  autoConnection: JoinRequestInputSchema.shape.autoConnection,
   workspaceId: z.string(),
   codeHash: z.string().regex(/^[a-f0-9]{64}$/),
   requesterHash: z.string().regex(/^[a-f0-9]{64}$/),
@@ -57,6 +58,7 @@ function target(record: Record) {
     credentialReference,
     credentialVersion,
     identityId,
+    autoConnection,
     createdAt,
     expiresAt,
   } = record;
@@ -74,6 +76,7 @@ function target(record: Record) {
     credentialReference,
     credentialVersion,
     identityId,
+    ...(autoConnection ? { autoConnection } : {}),
     createdAt,
     expiresAt,
   };
@@ -134,6 +137,11 @@ export class JoinRequests {
     const record = RecordSchema.parse(value);
     if (record.workspaceId !== this.workspaceId || digest(record) !== record.digest)
       throw new ServixDeploymentError("join-scope-changed", 503);
+    if (
+      record.autoConnection &&
+      (record.connectionMode !== "automatic" || record.computerName !== record.autoConnection.name)
+    )
+      throw new ServixDeploymentError("join-scope-changed", 503);
     return record;
   }
   private safe(record: Record) {
@@ -147,6 +155,7 @@ export class JoinRequests {
       credentialVersion: _version,
       identityId: _identity,
       redemption: _redemption,
+      autoConnection: _connection,
       ...safe
     } = value as typeof value & { password?: never };
     return JoinRequestSchema.parse(safe);
@@ -193,7 +202,15 @@ export class JoinRequests {
     const body = JoinRequestInputSchema.parse(input);
     if (body.platform === "android" && body.fileActivity)
       throw new ServixDeploymentError("android-monitoring-only", 400);
+    if (
+      body.autoConnection &&
+      ((body.platform !== "android" && body.autoConnection.architecture !== "x64") ||
+        body.autoConnection.credentialHash === body.autoConnection.pollHash)
+    )
+      throw new ServixDeploymentError("join-redemption-scope-denied", 403);
     return this.serial(async () => {
+      if (body.autoConnection && (await this.records()).some((r) => r.deviceId === body.deviceId))
+        throw new ServixDeploymentError("join-device-already-requested", 409);
       if ((await this.records()).length >= 500)
         throw new ServixDeploymentError("join-capacity", 503);
       let principal: IdentityPrincipal | null = null,
@@ -217,6 +234,12 @@ export class JoinRequests {
       const { password: _, ...data } = body;
       const draft = {
         ...data,
+        ...(body.autoConnection
+          ? {
+              connectionMode: "automatic" as const,
+              computerName: body.autoConnection.name,
+            }
+          : {}),
         id,
         workspaceId: this.workspaceId,
         ownerUserId:
@@ -254,6 +277,33 @@ export class JoinRequests {
     }
     if (!equal(secret!, record.requesterHash))
       throw new ServixDeploymentError("join-request-unavailable", 401);
+    return this.safe(record);
+  }
+  async nativeRequest(input: unknown, proof: string) {
+    const body = JoinRequestInputSchema.parse(input);
+    if (
+      !body.autoConnection ||
+      !proof.startsWith(body.deviceId + ".") ||
+      !equal(proof, body.autoConnection.pollHash)
+    )
+      throw new ServixDeploymentError("join-native-proof-denied", 403);
+    return { record: (await this.request(body)).record };
+  }
+  async nativeStatus(input: unknown, proof: string) {
+    const body = z
+      .object({ version: z.literal(1), deviceId: JoinRequestInputSchema.shape.deviceId })
+      .strict()
+      .parse(input);
+    const record = (await this.records()).find(
+      (r) => r.deviceId === body.deviceId && r.autoConnection,
+    );
+    if (
+      !record ||
+      !proof.startsWith(body.deviceId + ".") ||
+      !equal(proof, record.autoConnection!.pollHash)
+    )
+      throw new ServixDeploymentError("join-request-unavailable", 404);
+    this.rate("native-poll:" + record.id, 400);
     return this.safe(record);
   }
   async list(actor: string) {
@@ -438,6 +488,14 @@ export class JoinRequests {
         pollHash: body.pollHash,
         name: body.name,
       };
+      if (
+        record.autoConnection &&
+        (record.autoConnection.name !== body.name ||
+          record.autoConnection.architecture !== body.architecture ||
+          record.autoConnection.credentialHash !== body.credentialHash ||
+          record.autoConnection.pollHash !== body.pollHash)
+      )
+        throw new ServixDeploymentError("join-redemption-scope-denied", 403);
       if (record.redemption && JSON.stringify(record.redemption) !== JSON.stringify(binding))
         throw new ServixDeploymentError("join-code-consumed", 409);
       await this.evidence(

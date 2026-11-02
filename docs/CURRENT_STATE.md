@@ -1,5 +1,38 @@
 # DevSetu Current State
 
+2026-11-03: The owner explicitly requests the simple-join release through DevSetu
+on Server20, including all three installers and preserved pairing/data/`.env`.
+ADR 0086 authorizes frozen source commit and enrolled native preparation, with
+the existing authenticated maintenance activation boundary after exact artifact
+review. Fresh SMB observation confirms active manifest b0c30009; the authenticated
+component UI confirms source/builder/destination Online and existing protected
+paths. No new release is activated, no pairing owner is changed and no GitHub
+publication is claimed by this preparation decision.
+
+2026-11-03: ADRs 0084/0085 implement local connector-bound new/existing-account
+requests with one admin approval and automatic redemption for Windows, Linux
+and Android. The admin bell/dashboard now lead to the real join inbox; desktop
+status launchers and fresh Connected/Offline states are added without changing
+existing pairing owners or browser proof. Final complete native CI passes:
+96 files / 494 tests, unchanged coverage/typecheck/build/audit gates. An earlier
+293/294 backend run times out in unchanged native Git; an isolated 18-check
+diagnostic passes in 178.614 seconds and the final full repeat passes all 294
+backend tests without changing its 180-second limit or any assertion.
+Existing Server20 SDK signs the local-uncommitted Android source using its
+retained certificate; phone and genuine Linux desktop acceptance remain open.
+The [implementation handoff](SIMPLE_JOIN_IMPLEMENTATION_HANDOFF.md) records scope,
+earlier failures and remaining device qualification. No publication or live activation.
+Four owned local previews are restored healthy with identities/images/mounts
+preserved; no live pairing owner or environment is rewritten. Phase 4 remains open.
+
+2026-11-02: Owner-reported Windows onboarding observations are recorded in
+[the diagnosis notes](ONBOARDING_OBSERVATIONS_2026_11_02.md). Fresh admin UI
+shows the new account's join request Approved, not Paired; the affected L-1465
+monitoring connection remains admin-owned. The ordinary user's login therefore
+lacks an owned pairing. Static inspection also finds the successful device
+challenge sharing the generic registration-error state. Notes only; no runtime
+fix, ownership change, new pairing or Server20 deployment occurs.
+
 2026-11-02: Frozen db64e3e passes full native CI (95 files / 489 tests), original
 coverage/build/audit gates and GitHub CI 41360983325. Server20 SDK signs the same
 source with the existing certificate. Prepared manifest a28b9f4a / archive

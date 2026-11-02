@@ -12,6 +12,53 @@ import { DeviceLogins } from "../src/device-logins.js";
 const require = createRequire(import.meta.url);
 const { startDeviceLoginProof } = require("../../../deployment/servix/Connector.cjs");
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
+it("serves a fresh minimal connection status on loopback, reports offline and denies cross-origin checks", async () => {
+  let online = true;
+  const local = await startDeviceLoginProof(
+    "http://devsetu.fixture",
+    async () => {
+      throw Error("No login");
+    },
+    async () => online,
+  );
+  const origin = "http://127.0.0.1:" + local.port;
+  try {
+    const page = await fetch(origin + "/connection-status");
+    expect(page.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
+    expect(await page.text()).toContain("This system is connected");
+    const current = (await (await fetch(origin + "/connection-status/check")).json()) as {
+      online: boolean;
+    };
+    expect(current.online).toBe(true);
+    expect(Object.keys(current).sort()).toEqual(["checkedAt", "online"]);
+    online = false;
+    expect(await (await fetch(origin + "/connection-status/check")).json()).toMatchObject({
+      online: false,
+    });
+    expect(
+      (
+        await fetch(origin + "/connection-status/check", {
+          headers: { origin: "http://foreign.fixture" },
+        })
+      ).status,
+    ).toBe(403);
+    expect(
+      await new Promise<number>((resolve) => {
+        const request = httpRequest(
+          origin + "/connection-status/check",
+          { headers: { host: "foreign.fixture" } },
+          (response) => {
+            response.resume();
+            resolve(response.statusCode!);
+          },
+        );
+        request.end();
+      }),
+    ).toBe(403);
+  } finally {
+    await local.close();
+  }
+});
 it("requires owner proof, browser binding and a current credential version; persists session binding and rechecks unpairing/admin removal", async () => {
   const root = await mkdtemp(join(tmpdir(), "device-login-"));
   let clock = Date.parse("2026-10-28T10:00:00Z");

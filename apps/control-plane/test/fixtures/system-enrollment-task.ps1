@@ -25,6 +25,18 @@ if($task){
  Unregister-ScheduledTask -TaskName $name -Confirm:$false
 }
 if($Operation -ceq 'remove' -and (Test-Path -LiteralPath $root)){
+ $desktop=[Environment]::GetFolderPath('DesktopDirectory')
+ $link=Join-Path $desktop ('DevSetu Connection Status '+$DeviceId.Substring(3,6)+'.lnk')
+ if(Test-Path -LiteralPath $link){
+  if((Get-Item -LiteralPath $link).Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'Fixture shortcut linked'}
+  $shell=New-Object -ComObject WScript.Shell;$shortcut=$shell.CreateShortcut($link)
+  try{
+   $expectedArguments='-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy RemoteSigned -File "'+(Join-Path $root 'Run-Connector.ps1')+'" -ConnectionStatus'
+   if($shortcut.TargetPath -ine (Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe') -or $shortcut.Arguments -cne $expectedArguments){throw 'Fixture shortcut ownership differs'}
+  }finally{[void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($shortcut);[void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($shell)}
+  if([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($link)) -ine $desktop){throw 'Fixture shortcut cleanup differs'}
+  Remove-Item -LiteralPath $link -Force
+ }
  $resolved=(Resolve-Path -LiteralPath $root).ProviderPath
  if([IO.Path]::GetDirectoryName($resolved) -ine $base -or [IO.Path]::GetFileName($resolved) -cne $DeviceId -or ((Get-Item -LiteralPath $root -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)){throw 'Fixture resolved cleanup differs'}
  Remove-Item -LiteralPath $resolved -Recurse -Force

@@ -209,15 +209,18 @@ export function DiscoveryPage({
   useEffect(() => {
     if (!userId) return;
     try {
+      const saved = sessionStorage.getItem(`frevos:${userId}:${workspaceId}:discovery:tab`);
       setTab(
-        sessionStorage.getItem(`frevos:${userId}:${workspaceId}:discovery:tab`) === "reports"
-          ? "reports"
-          : "systems",
+        saved === "requests" && access?.role === "admin"
+          ? "requests"
+          : saved === "reports"
+            ? "reports"
+            : "systems",
       );
     } catch {
       /* Optional preference. */
     }
-  }, [userId, workspaceId]);
+  }, [userId, workspaceId, access?.role]);
   function selectTab(value: "systems" | "reports" | "requests") {
     setTab(value);
     try {

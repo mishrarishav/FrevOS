@@ -25,4 +25,5 @@ if($existing){$owner=$existing.Principal.UserId;if($owner -notmatch '^S-1-'){$ow
  Register-ScheduledTask -TaskName $taskName -Action $action -Principal $principal -Trigger @($logon,$recovery) -Settings $settings|Out-Null
 }
 if(-not $existing -or $existing.State -cne 'Running'){Start-ScheduledTask -TaskName $taskName}
+& (Join-Path $expected 'Run-Connector.ps1') -CreateStatusShortcut
 $config=$null
