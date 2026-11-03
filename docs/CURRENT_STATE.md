@@ -1,5 +1,16 @@
 # DevSetu Current State
 
+2026-11-03 21:23 IST: Source 6dbae78 / manifest 07ac11a8 is deployed through
+authenticated DevSetu request su_63e3b06d12e837d72cf9fb02c468d9ab. Full native
+CI passes 537 tests; exact packaged direct-IP/gateway browser tests, installers,
+27-file recovery snapshot and native Plan/Apply PASS. Eight pairings, five
+settings, all 13 historical software records and IIS/relay verify; health/UI 200
+and all served installers match. Existing owner instruction authorizes deployment;
+no fabricated new artifact-specific reply. L-1465 remains Online on its older
+connector; private capability/update acceptance and actual L-1770 peer GET/POST
+are pending its one-time local update. No remote demo has been started. See
+[the release and update handoff](PRIVATE_SERVICE_LISTENING_HANDOFF.md).
+
 2026-11-03: Owner requests configuring a paired service's listen address from
 DevSetu rather than typing commands on the laptop. ADR 0097 scopes negotiated
 private-interface selection and explicit client IPs for the actual managed API,
