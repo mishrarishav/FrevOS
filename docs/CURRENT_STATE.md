@@ -1,5 +1,16 @@
 # DevSetu Current State
 
+2026-11-03 21:56 IST: L-1465 update is verified on the same pairing, owner and
+permissions with network capability v1 and matching bundled API. Actual DevSetu
+catalogue adoption moves revision 1 → 2. L-1770 native HTTP and browser direct
+LAN GET/POST reach L-1465 at its reported 192.168.1.4:5080, with matching job and
+echoed nonce; authenticated VPN gateway GET/POST also pass. Direct VPN peer IP
+10.242.1.14 returns ENETUNREACH; read-only route lookup selects Wi-Fi default,
+not VPN. No VPN/firewall change. Both temporary API starts and stops succeed;
+zero final services, direct port refused and gateway 401 verify cleanup. Eight
+pairings, five settings, 12 historical records except intentional catalogue
+update, and IIS/relay verify. See [the completed peer acceptance](PRIVATE_SERVICE_LISTENING_HANDOFF.md).
+
 2026-11-03 21:23 IST: Source 6dbae78 / manifest 07ac11a8 is deployed through
 authenticated DevSetu request su_63e3b06d12e837d72cf9fb02c468d9ab. Full native
 CI passes 537 tests; exact packaged direct-IP/gateway browser tests, installers,

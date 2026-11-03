@@ -1,7 +1,47 @@
 # Configurable private API listening
 
 Status: Server20 deployment PASS, 2026-11-03 21:23 IST. L-1465 connector
-update and actual L-1770 to L-1465 direct-IP acceptance are pending.
+update and real L-1770 to L-1465 direct LAN and authenticated VPN gateway
+GET/POST PASS, verified 21:56 IST. Direct VPN peer IP routing remains unavailable.
+
+## Completed peer acceptance
+
+The owner updates L-1465 from the new Windows installer. The same original
+device, owner and credential identity remain, both software permissions are on,
+and network capability version 1 reports current private interfaces. Its bundled
+API program matches the deployed release. The administrator explicitly adopts
+that program through the real DevSetu catalogue action, revision 1 → 2; all other
+catalogue fields remain identical.
+
+- DevSetu starts the owned API on reported VPN address 10.242.1.14:5080, allowing
+  L-1770's 10.242.1.13 only, for 900 seconds. Job
+  sw_21dd0bee7171c0c16ff1729cbc074181 succeeds. Actual L-1770 browser gateway
+  GET/POST returns L-1465 and that instance, echoing nonce
+  demo-1793722879966-5de8112c785288. The lease is closed and the API stopped.
+- A source-bound native direct VPN peer request returns ENETUNREACH. Read-only
+  Find-NetRoute shows 10.242.1.14 uses Wi-Fi's default route, not a VPN host/subnet
+  route. This does not establish the server-side VPN peer policy or return route.
+  No VPN route, firewall or DNS setting is changed to force the test.
+- Both computers also report addresses on the same Wi-Fi network. Through the
+  same DevSetu controls, start job sw_daa0c883ebf490f0ac5050e97ec6ed64 binds
+  192.168.1.4:5080 and allows only L-1770's 192.168.1.2. Native HTTP and actual
+  L-1770 browser direct GET/POST succeed with matching L-1465/job identity. The
+  browser receives nonce demo-1793722962892-1d0a898f604398. This proves direct LAN
+  access while VPN is connected; it is not a VPN peer IP success.
+- Both starts retain loopback and pass their consumed administrator/digest
+  checks. Both stop jobs succeed: sw_306e6a0a73886a3affb62fd6949728e5 and
+  sw_30b3a0860c1aff62ac61adadcef8ab93. Final capability has zero services;
+  the stopped direct LAN port refuses connections and gateway returns its
+  expected 401 closed-access denial. DevSetu health remains 200.
+- Eight pairings and five settings verify. All 12 preexisting software records
+  other than the intentionally revisioned catalogue remain byte-identical,
+  including inventory and prior jobs. Four new successful test jobs are retained.
+  Existing IIS/relay and customer projects remain unchanged.
+
+Actual private IPs above are observations for this test, not application defaults.
+Same-network direct access is accepted. Across different networks, the existing
+authenticated VPN gateway is accepted; direct VPN peer IP access needs network
+administration to provide/verify its routes and peer policy separately.
 
 ## Live release and preservation
 
@@ -75,7 +115,7 @@ delta, with independently derived retained IIS/relay digest evidence. The old
 exact-key journal is unavailable; no repeated direct-current-key scan or
 exhaustive secret audit is claimed. Provider secrets are not build inputs.
 
-## L-1465 update and remaining live test
+## Connector update and repeatable service workflow
 
 Use the same Windows user that originally paired L-1465:
 
@@ -101,10 +141,12 @@ Use the same Windows user that originally paired L-1465:
    records and original pairings/settings. Catalogue adoption and new service
    jobs are intentional audited changes; do not label them byte-identical.
 
-The live page currently shows the old connector's localhost mode and an explicit
-Download connector update link; Approve API update is disabled until the target
-reports the new program. The owner has received the update steps. No source
-customer project is touched and no temporary remote API has been started yet.
+Before the completed update, the live page correctly showed localhost mode, a
+Download connector update link and a disabled Approve API update action. After
+the update it exposes actual interfaces; the catalogue now matches the connector.
+The final live controls show Start API enabled and no running service. To repeat
+the accepted LAN scenario, select the current Wi-Fi address and the caller's
+current private IP before starting; addresses may change with network leases.
 
 ## Evidence and scope
 
@@ -112,6 +154,9 @@ Private task `.local/software-network-*` records contain build/CI, artifact,
 installer, packaged browser, 27-file snapshot, native Plan, owner-request intent,
 activation receipt, live downloads, preservation and policy verification.
 Screenshots are under `.local/evidence/software-network-*`.
+The `software-network-peer-final-acceptance.json` record explicitly reports
+PASS_WITH_VPN_ROUTE_LIMITATION, with separate native/direct browser/gateway,
+route, job lifecycle and cleanup evidence. It does not claim direct VPN success.
 
 Preparation uses the configured enrolled native builder; activation uses DevSetu.
 This is prepared-artifact activation, not proof of a new UI build-only pipeline.
