@@ -1,5 +1,16 @@
 # DevSetu Current State
 
+2026-11-03 11:46 IST: The owner-approved software-management release d0f03f5 is
+live on Server20 through authenticated DevSetu maintenance. Manifest f8dd3726,
+request su_ecd178442612caeb51b415cc16060240 and native Apply are PASS. Eight stable
+pairing identities/credentials, five settings and all three served installer
+hashes verify. L-1465 reports the new capability after the owner's local update;
+both software permissions are enabled and inventory collects 367 records.
+Cross-laptop API acceptance remains pending.
+Actual private-preview Plan rejects the Windows host's scoped link-local DNS
+answer. ADR 0090 scopes the classifier follow-up; no preview configuration has
+been applied and the deployed artifact is not edited in place.
+
 2026-11-03: Frozen software-management source d0f03f5 passes enrolled native CI
 (104 files / 525 tests), full artifact/installers review and actual read-only
 Server20 Plan. Manifest f8dd3726 / archive a01579c5 is staged with a 14-file

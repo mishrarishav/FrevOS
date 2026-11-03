@@ -225,3 +225,6 @@ installer qualification with preserved pairing/data and separate final activatio
 
 [0089: Maintenance-bound private preview configuration](0089-maintenance-bound-private-preview-configuration.md)
 records strict actual activation receipt authority without inventing component publication.
+
+[0090: Windows private preview DNS classification](0090-windows-private-preview-dns.md)
+records the observed scoped link-local DNS result and bounded classifier repair.

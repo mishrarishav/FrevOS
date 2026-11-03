@@ -1,8 +1,17 @@
 # Software inventory and VPN preview: Server20 release handoff
 
-Status: PASS for frozen build, independent artifact/installers and native Plan.
-Live delivery status: BLOCKED pending fresh exact-artifact owner approval and the
-L-1465 local connector update/opt-in. No new activation has been submitted.
+Status: PASS for frozen build, independent artifact/installers, native Plan and
+actual Server20 activation. The owner refreshes the expired approval on
+2026-11-03 at 11:39 IST; DevSetu maintenance request
+su_ecd178442612caeb51b415cc16060240 succeeds with native Apply PASS, health/UI 200,
+eight stable pairing identities/credentials and five selected settings unchanged.
+All three served installer downloads match the exact manifest below.
+The owner updates L-1465 in place; both software permissions are freshly reported
+and actual inventory collects 367 records at 12:06:40 IST. The temporary demo
+catalogue is saved through DevSetu. No temporary API process has been started.
+Live preview remains incomplete: actual configuration Plan rejects Windows DNS
+results containing scoped link-local IPv6. ADR 0090 scopes the small follow-up
+and a new immutable artifact; no deployed release is edited in place.
 Phase 4 remains open. No PR, GitHub push, central-source publication or self-merge.
 
 Repository: mishrarishav/FrevOS, provider ID 1329122983.
@@ -12,7 +21,7 @@ Resulting immutable application source: d0f03f59432b3fcbb1b14021d63b99406fe23210
 Source tree: 49ee53d8668909c32b5ecbb85bb3189c0ebf13fe.
 Activation target: DCAPP7/10.9.69.20.
 Activation job/candidate: d51023f0dba14c7d9650a56ef21afd85.
-Authenticated actor to submit: usr_windows_admin; Windows operator SID is bound
+Authenticated submitting actor: usr_windows_admin; Windows operator SID is bound
 in the private job. Documentation follow-up does not change the application source.
 
 ## Exact reviewed artifact
@@ -89,15 +98,18 @@ desktop or the pending L-1465 to L-1770 live session.
 
 ## Remaining bounded live work
 
-1. Obtain and record fresh, expiring, single-use, actor/workspace/action/target/
-   correlation/manifest/archive-bound owner approval for this candidate. Seal
-   only after that reply, then submit through authenticated DevSetu maintenance.
-2. Verify actual activation/health, served installer hashes and unchanged selected
-   settings/pairing identities/credentials. No live rollback is pre-authorized.
-3. Run the newly served Windows package once on L-1465 in its existing Windows
-   user account, enabling inventory and trusted approved-software management.
-   The in-place updater retains its pairing. Old monitoring-only code has no
-   authorized remote updater/software channel; do not bypass it with raw commands.
+1. Completed: actual exact-artifact approval, authenticated maintenance activation,
+   successful native receipt, health and installer/protected-record verification.
+   The sealing helper uses the fresh native Plan's server-side archive hash plus
+   unchanged staged metadata; Apply independently hashes the ZIP again. A redundant
+   client SMB hash is stopped before sealing because small synchronous reads are
+   slow over the VPN. The old expired decision is not extended or reused.
+2. Completed: owner-run L-1465 in-place connector update and local software opt-in.
+   Actual inventory is ready with 367 installed-program records; paired identity
+   is retained. No third-party installer or temporary demo process is started yet.
+3. Complete ADR 0090's scoped DNS-classification repair, new frozen native build
+   and separate exact-artifact approval. Existing deployments stay unchanged
+   during preparation; L-1465 needs no second update for this server-only fix.
 4. Configure private software preview using strict v2 authority from the actual
    maintenance request/consumed claim/native success receipt. Draft origin
    http://dcapp7:51860 and loopback demo port/lifetime are configurable; DNS

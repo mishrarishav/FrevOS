@@ -495,9 +495,27 @@ it("rejects oversized responses, malformed locations and upstream timeouts witho
 it("validates a private listener, DNS addresses and separate hostnames without changing the network", async () => {
   const f = await fixture();
   expect(await validatePreviewConfig(f.config, f.portal)).toEqual(f.config);
-  for (const address of ["0.0.0.0", "8.8.8.8", "169.254.169.254", "192.0.2.1"])
+  for (const address of [
+    "0.0.0.0",
+    "8.8.8.8",
+    "169.254.169.254",
+    "192.0.2.1",
+    "2001:4860:4860::8888",
+    "fec0::1",
+    "fe8::1",
+    "fe80:garbage",
+    "fe80::1::2",
+  ])
     expect(privateAddress(address)).toBe(false);
-  for (const address of ["::1", "::ffff:127.0.0.1", "172.18.0.2", "192.168.1.3"])
+  for (const address of [
+    "::1",
+    "::ffff:127.0.0.1",
+    "172.18.0.2",
+    "192.168.1.3",
+    "fe80::bd4c:86af:9407:c1f8%3",
+    "FE80::1",
+    "febf:ffff::1",
+  ])
     expect(privateAddress(address)).toBe(true);
   await expect(
     validatePreviewConfig({ ...f.config, listen: { host: "0.0.0.0", port: 6000 } }, f.portal),
@@ -530,6 +548,25 @@ it("validates a private listener, DNS addresses and separate hostnames without c
   expect(await loadPreviewConfig(join(f.root, "absent.json"), f.portal)).toBeUndefined();
   await writeFile(join(f.root, "config.json"), JSON.stringify(f.config));
   expect(await loadPreviewConfig(join(f.root, "config.json"), f.portal)).toEqual(f.config);
+});
+it("accepts Windows private dual-stack hostname results and rejects mixed public DNS answers", async () => {
+  const f = await fixture();
+  const privateAnswers = [
+    { address: "fe80::bd4c:86af:9407:c1f8%3", family: 6 },
+    { address: "10.9.69.20", family: 4 },
+  ];
+  expect(
+    await validatePreviewConfig(f.config, f.portal, async () => privateAnswers as never),
+  ).toEqual(f.config);
+  for (const address of ["8.8.8.8", "2001:4860:4860::8888", "fe80:malformed"])
+    await expect(
+      validatePreviewConfig(
+        f.config,
+        f.portal,
+        async () =>
+          [...privateAnswers, { address, family: address.includes(":") ? 6 : 4 }] as never,
+      ),
+    ).rejects.toThrow("private-origin");
 });
 it("pins each hostname to one target across restarts, and cannot issue access when audit persistence fails", async () => {
   const f = await fixture();

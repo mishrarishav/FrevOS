@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import { lstat, mkdir, open, readdir, readFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { isIP } from "node:net";
 import { dirname, join } from "node:path";
 import {
   type PreviewJob,
@@ -47,6 +48,9 @@ export type PreviewConfig = z.infer<typeof PreviewConfigSchema>;
 export function privateAddress(value: string): boolean {
   const address = value.replace(/^::ffff:/, "");
   if (address === "::1") return true;
+  // Windows resolves its own private hostname to both LAN IPv4 and a scoped
+  // IPv6 link-local address. Validate the entire literal before its fe80::/10 range.
+  if (isIP(address) === 6 && /^fe[89ab][0-9a-f]:/i.test(address)) return true;
   const octets = address.split(".").map(Number);
   return (
     /^\d+\.\d+\.\d+\.\d+$/.test(address) &&
