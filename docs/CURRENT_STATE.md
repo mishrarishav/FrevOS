@@ -1,5 +1,22 @@
 # DevSetu Current State
 
+2026-11-04: DevSetu application source 6c666a4 is activated through the actual
+authenticated maintenance UI: manifest 9e6aebd3eb745f0905ad3becbc2edd87d313169357b0242d09f9ed1535ae855a,
+candidate 13887b5b7190478ebb7b8a365b12ecba, request su_adcabd47de07462847816b5c2cc20c38.
+All 544 native CI tests pass. The exact frozen SDK/packaging stages resume after
+the unchanged Android worker is restarted; the original failed attempt remains
+recorded. Artifact/source/installer reviews and a native Plan pass; 31 selected
+files, eight pairings, five settings and 17 software records remain protected.
+The loopback browser profile and Server20 source-restricted IIS route are live,
+with both health checks 200. The Server9 edge attempt restores its exact prior
+IIS bytes after an in-server public-address HTTPS timeout. It is not public yet.
+Add an optional external HTTPS observer receipt, bound to request, privileged
+identity, certificate, target URI, proposed IIS digest and freshness; malformed
+or missing evidence retains owned recovery. Sixteen actual-validator fixtures
+pass. This routing-only operator correction does not rebuild or replace the
+already qualified application artifact; trusted roots, DNS, bindings and private
+keys remain unchanged. Actual external browser acceptance still remains.
+
 2026-11-04: Corrected frozen browser-entry source 850b80a completes 331 of
 333 backend tests; two failures prevent build/publication. The Android guard's
 consumer still expects eight checks instead of the expanded thirteen: update

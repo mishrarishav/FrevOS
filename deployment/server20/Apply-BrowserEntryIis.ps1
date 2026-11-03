@@ -5,9 +5,37 @@ if($directory -ieq [IO.Path]::GetPathRoot($directory) -or -not(Test-Path -Litera
 foreach($path in @($directory,(Join-Path $directory 'approval.json'),(Join-Path $directory 'plan-result.json'))){if((Get-Item -LiteralPath $path).Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'Browser operation link rejected'}}
 Import-Module (Join-Path $PSScriptRoot 'BrowserEntryIisModel.psm1') -Force
 function Hash([string]$File){(Get-FileHash -LiteralPath $File -Algorithm SHA256).Hash.ToLowerInvariant()}
+function Test-BrowserEntryExternalReceipt($Receipt,$Request,[string]$RequestSha256){
+ $fields='applicationHostSha256,bodyStatus,certificateSha256,correlationId,httpStatus,observedAt,observerSid,operationId,requestSha256,tlsValidated,uri,version'
+ $now=[DateTimeOffset]::UtcNow;$at=[DateTimeOffset]::Parse($Receipt.observedAt)
+ if((@($Receipt.PSObject.Properties.Name|Sort-Object)-join ',') -cne $fields -or $Receipt.version -ne 1 -or $Receipt.operationId -cne $Request.operationId -or $Receipt.correlationId -cne $Request.correlationId -or $Receipt.requestSha256 -cne $RequestSha256 -or $Receipt.uri -cne $Request.uri -or $Receipt.observerSid -cne $Request.observerSid -or $Receipt.applicationHostSha256 -cne $Request.applicationHostSha256 -or $Receipt.certificateSha256 -cne $Request.certificateSha256 -or $Receipt.tlsValidated -isnot [bool] -or -not $Receipt.tlsValidated -or $Receipt.httpStatus -ne 200 -or $Receipt.bodyStatus -cne 'ok' -or $at -lt [DateTimeOffset]::Parse($Request.issuedAt) -or $at -gt $now.AddSeconds(60) -or ($now-$at).TotalSeconds -gt 120){throw 'External HTTPS health receipt rejected'}
+ return $true
+}
+function Wait-BrowserEntryExternalHealth($Approval,$Plan,[string]$Directory,[Uri]$Health){
+ $options=$Approval.externalHealth
+ if((@($options.PSObject.Properties.Name|Sort-Object)-join ',') -cne 'certificateSha256,observerSid' -or $options.certificateSha256 -cnotmatch '^[a-f0-9]{64}$' -or $options.observerSid -cne $Approval.executionSid -or $Health.Scheme -cne 'https'){throw 'External HTTPS observer scope rejected'}
+ $requestFile=Join-Path $Directory 'external-health-request.json';$receiptFile=Join-Path $Directory 'external-health-result.json'
+ if((Test-Path -LiteralPath $requestFile) -or (Test-Path -LiteralPath $receiptFile)){throw 'External health observation already requested'}
+ $request=@{version=1;operationId=$Approval.operationId;correlationId=$Approval.correlationId;uri=$Health.AbsoluteUri;observerSid=$options.observerSid;certificateSha256=$options.certificateSha256;applicationHostSha256=$Plan.applicationHostProposedSha256;issuedAt=[DateTimeOffset]::UtcNow.ToString('o')}
+ $temporary=Join-Path $Directory 'external-health-request.tmp';[IO.File]::WriteAllText($temporary,($request|ConvertTo-Json -Compress),[Text.UTF8Encoding]::new($false));[IO.File]::Move($temporary,$requestFile)
+ $requestHash=Hash $requestFile;$deadline=[DateTimeOffset]::UtcNow.AddSeconds(75)
+ do{
+  if(Test-Path -LiteralPath $receiptFile){
+   $item=Get-Item -LiteralPath $receiptFile
+   if($item.PSIsContainer -or $item.Attributes -band [IO.FileAttributes]::ReparsePoint -or $item.Length -gt 16384){throw 'External health receipt file rejected'}
+   foreach($rule in (Get-Acl -LiteralPath $receiptFile).Access){if($rule.AccessControlType -eq 'Allow' -and $rule.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value -notin @($Approval.executionSid,'S-1-5-18','S-1-5-32-544')){throw 'External health receipt access widened'}}
+   $receipt=Get-Content -LiteralPath $receiptFile -Raw|ConvertFrom-Json
+   [void](Test-BrowserEntryExternalReceipt $receipt $request $requestHash)
+   return @{StatusCode=200;Content='{"status":"ok"}';proof=$receipt}
+  }
+  Start-Sleep -Milliseconds 250
+ }while([DateTimeOffset]::UtcNow -lt $deadline)
+ throw 'External HTTPS health observation deadline'
+}
 $planFile=Join-Path $directory 'plan-result.json';$plan=Get-Content -LiteralPath $planFile -Raw|ConvertFrom-Json
 $approval=Get-Content -LiteralPath (Join-Path $directory 'approval.json') -Raw|ConvertFrom-Json
 $keys='action,actor,computerName,correlationId,executionSid,expiresAt,issuedAt,operationId,planSha256,profileFile,publicHealthUri,reference,version,workspaceId'
+if($approval.PSObject.Properties.Name -ccontains 'externalHealth'){$keys=(@($keys.Split(',')+'externalHealth'|Sort-Object)-join ',')}
 if((@($approval.PSObject.Properties.Name|Sort-Object)-join ',') -cne $keys -or $approval.version -ne 1 -or $approval.action -cne 'devsetu.browser-entry.iis.activate.v1' -or $approval.operationId -cnotmatch '^bgi_[a-f0-9]{32}$' -or $approval.correlationId -cnotmatch '^bg_[a-f0-9]{32}$' -or $approval.workspaceId -cnotmatch '^ws_[a-z0-9_-]{1,100}$' -or $approval.actor -cnotmatch '^usr_[A-Za-z0-9_-]{1,100}$' -or $approval.reference.Length -lt 10){throw 'Browser IIS approval schema rejected'}
 $now=[DateTimeOffset]::UtcNow;$issued=[DateTimeOffset]::Parse($approval.issuedAt);$expires=[DateTimeOffset]::Parse($approval.expiresAt)
 if($issued -gt $now -or $expires -le $now -or ($expires-$issued).TotalMinutes -gt 15 -or $approval.computerName -cne $env:COMPUTERNAME -or $approval.executionSid -cne [Security.Principal.WindowsIdentity]::GetCurrent().User.Value -or $approval.planSha256 -cne (Hash $planFile)){throw 'Browser IIS approval identity, time or plan differs'}
@@ -33,9 +61,10 @@ try{
  $manager=[Microsoft.Web.Administration.ServerManager]::new()
  try{if((Hash $appHost) -cne $plan.applicationHostBeforeSha256){throw 'Browser IIS baseline moved before commit'};Add-BrowserEntryIisModel $manager $profile|Out-Null;$manager.CommitChanges();$changed=$true}finally{$manager.Dispose()}
  if((Hash $appHost) -cne $plan.applicationHostProposedSha256 -or (Get-BrowserEntryIisFingerprint $appHost $profile) -cne $plan.siblingFingerprint){throw 'Browser IIS live result differs from mapped review'}
- $response=Invoke-WebRequest -UseBasicParsing -Uri $health -TimeoutSec 20
+ if($approval.PSObject.Properties.Name -ccontains 'externalHealth'){$response=Wait-BrowserEntryExternalHealth $approval $plan $directory $health}else{$response=Invoke-WebRequest -UseBasicParsing -Uri $health -TimeoutSec 20}
  if($response.StatusCode -ne 200 -or ($response.Content|ConvertFrom-Json).status -cne 'ok'){throw 'Browser IIS application health failed'}
  $result=@{status='PASS';operationId=$approval.operationId;correlationId=$approval.correlationId;actor=$approval.actor;workspaceId=$approval.workspaceId;planSha256=$approval.planSha256;applicationHostSha256=(Hash $appHost);siblingFingerprint=$plan.siblingFingerprint;healthStatus=200;completedAt=[DateTimeOffset]::UtcNow.ToString('o')}
+ if($approval.PSObject.Properties.Name -ccontains 'externalHealth'){$result.httpsProbe=@{mode='external-verified-https';certificateSha256=$response.proof.certificateSha256;observerSid=$response.proof.observerSid;requestSha256=$response.proof.requestSha256;systemTrustAndDnsChanged=$false}}
  $result|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $directory 'result.json') -Encoding UTF8
  $result|ConvertTo-Json -Compress
 }catch{

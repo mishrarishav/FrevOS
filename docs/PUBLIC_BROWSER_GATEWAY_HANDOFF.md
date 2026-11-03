@@ -108,3 +108,24 @@ failure is a Docker/WSL runc crash; after the engine returns to Running, both
 focused Linux tests pass. Four retained preview identities are healthy. A fresh
 complete frozen CI/build is required; focused reruns do not qualify the failed
 artifact. No application, route or data is activated by either rejected attempt.
+
+Application 6c666a4 subsequently passes all 544 tests. Its unchanged frozen SDK
+and packaging stages resume after the existing restricted Android worker stops;
+source, signing identity, archive and all 4,074 packaged files are reverified.
+The original incomplete native attempt remains recorded as failed; this is an
+operator packaging continuation, not a new source-to-deploy UI build claim.
+DevSetu's authenticated maintenance UI activates manifest
+`9e6aebd3eb745f0905ad3becbc2edd87d313169357b0242d09f9ed1535ae855a`.
+The loopback browser profile and Server20 IIS route pass actual native execution.
+
+Server9 cannot reliably probe its public NAT address and its local TLS client
+has a different trust/CRL environment. The first edge attempt recovers the exact
+previous IIS bytes. An optional `externalHealth` receipt supports a separately
+trusted HTTPS client, with URI, proposed IIS digest, certificate, actor SID,
+correlation, request hash and short freshness checks. It never accepts a missing
+or invalid receipt; timeout retains owned recovery. The normal in-server probe
+remains the default. No system certificate validation, trusted root store, DNS,
+certificate binding or private key is changed. Sixteen native receipt-validator
+checks pass. Application source remains 6c666a4; this independent routing
+operator update needs its own frozen file hashes and native mapping/execution
+proof, with public browser acceptance still pending at this record.
