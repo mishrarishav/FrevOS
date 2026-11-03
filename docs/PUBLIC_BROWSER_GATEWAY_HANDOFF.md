@@ -86,9 +86,10 @@ The first frozen attempt (0254d3f) passes 541 tests and produces a signed APK,
 but packaging is rejected by the old verifier's UI-directory allowlist. It is
 not an approved artifact and is not activated. The verifier now admits only the
 additional closed `dist-browser` tree with matching metadata/runtime, retaining
-all hashes, budgets, path/link and file-set checks. An optional third fixed
-builder sidecar updates that verifier with the same protected enrollment/task
-checks; arbitrary verifier filenames remain rejected. Separately, the public
+all hashes, budgets, path/link and file-set checks. The two required fixed
+builder sidecars can be accompanied by the two named HTTP/capability verifiers,
+with the same protected enrollment/task checks; arbitrary verifier filenames
+remain rejected. Separately, the public
 maintenance screen now renders its prefix and scoped CSRF cookie. Executed
 JavaScript regression checks polling/submission for both entries; the authenticated
 HTTP integration also checks the maintenance script/style URLs.
@@ -98,3 +99,12 @@ retain the browser capability and matching built prefix. Without an active
 profile, recovery to the earlier application remains available. Real ZIP/file
 fixtures cover both cases and reject mismatched assets. These checks complement
 the prepared-artifact review; no live rollback is claimed by fixture results.
+
+The corrected frozen attempt 850b80a fails two of 333 backend tests and is not
+eligible for activation. The native guard's consumer assertion is corrected
+from eight to thirteen checks and explicitly requires the three browser
+capability/prefix results. Its four focused tests pass. The Linux fixture's
+failure is a Docker/WSL runc crash; after the engine returns to Running, both
+focused Linux tests pass. Four retained preview identities are healthy. A fresh
+complete frozen CI/build is required; focused reruns do not qualify the failed
+artifact. No application, route or data is activated by either rejected attempt.

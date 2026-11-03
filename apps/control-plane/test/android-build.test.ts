@@ -17,7 +17,7 @@ async function removeOwnedSdkFixture(root: string) {
   await rm(root, { recursive: true, force: true });
 }
 it.skipIf(process.platform !== "win32")(
-  "accepts compatible Android recovery and rejects pre-Android downgrade, changed archive or source through the actual native operator guard",
+  "retains configured Android, preview and browser entry capabilities through the actual native recovery guard",
   async () => {
     const systemRoot = process.env["WINDIR"];
     if (!systemRoot) throw Error("Windows runtime unavailable");
@@ -43,10 +43,13 @@ it.skipIf(process.platform !== "win32")(
     );
     expect(JSON.parse(stdout)).toMatchObject({
       status: "PASS",
-      checks: 8,
+      checks: 13,
       previewDowngradeDenied: true,
       incompatibleDowngradeDenied: true,
       sameCapabilityRecoveryAccepted: true,
+      activeBrowserEntryRetained: true,
+      inactiveEntryRecoveryAllowed: true,
+      mismatchedBrowserAssetsDenied: true,
     });
   },
 );

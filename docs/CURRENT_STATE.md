@@ -1,5 +1,15 @@
 # DevSetu Current State
 
+2026-11-04: Corrected frozen browser-entry source 850b80a completes 331 of
+333 backend tests; two failures prevent build/publication. The Android guard's
+consumer still expects eight checks instead of the expanded thirteen: update
+the assertion and explicitly require retained browser capability/prefix proofs.
+Its four focused tests pass. The Linux fixture fails during Docker/WSL runc
+crashes; after the engine returns to Running, both focused Linux tests pass.
+All four retained preview identities are healthy. No activation, public route,
+application/profile change or Docker restart is performed by this attempt.
+Freeze the assertion correction and repeat the complete enrolled CI/build.
+
 2026-11-04: First frozen browser-entry source 0254d3f passes native
 CI (541 tests) and signed Android build, then packaging rejects the additional
 UI tree under the old verifier allowlist. No activation or public route. A
