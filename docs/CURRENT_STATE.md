@@ -1,5 +1,24 @@
 # DevSetu Current State
 
+2026-11-04: Requested administrator browser entry is LIVE at
+https://tserver2.eeslindia.org/devsetu/. Server9 only routes HTTPS; application,
+database and retained identity/data remain on Server20. Application source
+6c666a4 / manifest 9e6aebd3eb745f0905ad3becbc2edd87d313169357b0242d09f9ed1535ae855a
+is activated by the actual DevSetu maintenance UI. Routing operator 8e74d91
+passes 17 native validator/locked-file checks, real mapped plans and final
+execution, with external HTTPS status 200 and exact certificate pin. Native CI
+passes all 544 tests. Public browser login page, exact JS/CSS hashes, no-store,
+anonymous API 401, connector/preview 503 and native plaintext denial 403 pass.
+The direct public client route is Wi-Fi/default gateway, rather than VPN.
+Eight pairings, five settings, 17 software records, relay and all three live
+installer download hashes are preserved/verified; the 31-file selected snapshot
+remains retained. Server9 sibling fingerprint remains unchanged and both IIS
+digests exactly match their mapped proposals. No schema, DNS, firewall, trusted
+root, certificate binding or private-key change. Normal public administrator
+sign-in remains for the owner; paired-user sign-in, connectors and laptop
+previews still use the private entry. This is not a complete device VPN.
+GitHub publication is not performed for this task. See PUBLIC_BROWSER_GATEWAY_HANDOFF.md.
+
 2026-11-04: External pinned HTTPS health reaches the requested public route
 with 200, but a transient Windows sharing violation while the native operator
 reads its returned receipt triggers owned recovery. Retain all receipt checks

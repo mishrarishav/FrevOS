@@ -5,6 +5,52 @@ only the HTTPS routing gateway. The application, existing identity store,
 pairings, domain services, background work and database remain on Server20.
 The existing internal entry stays at `http://10.9.69.20`.
 
+## Current live result
+
+The requested public browser entry is live. Application source is **6c666a4**,
+manifest `9e6aebd3eb745f0905ad3becbc2edd87d313169357b0242d09f9ed1535ae855a`,
+archive `7e4569835b3b77ac3842c53a07d1f53e79b5f93e61e12102cb6a60786bf862d7`.
+Actual authenticated DevSetu activation uses candidate
+`13887b5b7190478ebb7b8a365b12ecba`, request `su_adcabd47de07462847816b5c2cc20c38`,
+actor `usr_windows_admin`. The separately frozen routing operator is **8e74d91**;
+its external observer check succeeds with the exact reviewed certificate,
+URI/request/identity/IIS bindings. Its 17 native validator/real locked-file
+checks pass. This keeps the existing application artifact unchanged.
+
+All **544** application CI tests pass. Live public health/shell return 200;
+the public JS/CSS bytes match the artifact, no-store is retained, anonymous
+protected API returns 401 and private connector/preview routes return 503.
+Native plaintext access returns 403. Direct public client routing selects
+Wi-Fi/default gateway; the verified HTTPS requests do not use the VPN route.
+The browser sign-in page loads without a certificate interstitial. Eight
+pairings, five settings and 17 software records remain preserved. Windows,
+Linux and signed Android downloads are verified against exact manifest hashes.
+Both final IIS digests match the mapped proposals and sibling fingerprints
+are unchanged. The selected 31-file snapshot is retained; it is not a database
+backup. No schema migration is performed.
+
+The public page is left open for the owner's normal **existing DevSetu admin**
+sign-in; authenticated production login at the new entry is not claimed.
+Saved legacy-UAT autofill was cleared without submission. The path shares
+the hostname's browser origin with other Server9 apps. Paired-user sign-in,
+connectors and laptop previews retain their private entry; no endpoint migration
+or complete device VPN is claimed. No global trusted root, certificate binding,
+private key, DNS or firewall is changed. The existing wildcard certificate ends
+at `2026-11-18T23:59:59Z` and requires its normal renewal separately.
+
+The independent web tool could not fetch the public endpoint. A raw Node/OpenSSL
+probe reported `UNABLE_TO_VERIFY_LEAF_SIGNATURE`; Windows platform trust, pinned
+HTTPS and actual browser checks succeeded. No validation bypass was used and
+no global PKI repair is included. Check full certificate-chain delivery before
+moving strict non-browser connector clients to this public hostname.
+
+Local evidence is `.local/public-browser-rollout-result.json`, public/live
+verification receipts, the native application/profile/IIS results, exact
+artifact/source/installer reviews and captured browser screenshots. This is
+operator-prepared frozen build/packaging followed by actual DevSetu UI activation;
+no new full source-to-deploy UI build or GitHub publication is implied. Earlier
+paragraphs below retain the chronological preparation/failure evidence.
+
 ## Verified connection reference
 
 TrackGRN's **Analyse all** chat and IMS's **Add SQLite UAT environment** chat
