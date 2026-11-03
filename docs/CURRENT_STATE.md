@@ -1,5 +1,17 @@
 # DevSetu Current State
 
+2026-11-03 16:40 IST: Exact approved application source 812501d is now active
+through DevSetu maintenance request su_fa961f5e0e8469cb84d203a9361a14d6,
+manifest b8aed7d6 / archive 8c0c31b1. Native Apply, health, eight pairings/five
+settings, retained software data, IIS/relay and three served installer hashes
+PASS. Real browser bootstrap now reaches the relay but is rejected: portal
+no-referrer causes a null Origin on cross-origin form POST. A loopback-only
+browser diagnostic reproduces the denial and proves strict-origin allows the
+bootstrap cookie and DemoApi GET/POST with echoed nonce. This is local fixture
+evidence, not cross-laptop acceptance. Actual L-1465 preview is closed, owned
+demo stopped (sw_0201f595e7a3fc1401c10956f03a0a8b), services empty. ADR 0095
+scopes the header repair; no relay authorization weakening or active-file patch.
+
 2026-11-03 16:12 IST: Frozen packaging repair 812501d passes enrolled full native
 CI (104 files / 526 tests), build, independent package/installer review and the
 new actual packaged-runtime CSP probe. Manifest b8aed7d6 / archive 8c0c31b1,

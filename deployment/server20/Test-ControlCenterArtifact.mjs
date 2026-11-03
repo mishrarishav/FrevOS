@@ -61,6 +61,17 @@ try {
       if (!directives.includes(expected)) throw Error("artifact-restrictive-policy-differs");
     if (response.headers["x-content-type-options"] !== "nosniff")
       throw Error("artifact-content-type-guard-differs");
+    if (response.headers["referrer-policy"] !== "strict-origin")
+      throw Error("artifact-preview-form-origin-suppressed");
+  }
+  const withoutPreview = fastify();
+  try {
+    await registerControlCenter(withoutPreview, assets, "", true);
+    const response = await withoutPreview.inject({ method: "GET", url: "/" });
+    if (response.headers["referrer-policy"] !== "no-referrer")
+      throw Error("artifact-default-referrer-policy-differs");
+  } finally {
+    await withoutPreview.close();
   }
   const invalid = fastify();
   let denied = false;
@@ -82,6 +93,8 @@ try {
       outputs,
       navigationChecks: 2,
       invalidOriginDenied: true,
+      previewFormOriginPreserved: true,
+      defaultNoReferrerRetained: true,
     }),
   );
 } catch (error) {

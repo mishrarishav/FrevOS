@@ -240,3 +240,6 @@ records the recovered activation and bounded health-contract/error-response repa
 
 [0094: Refresh packaged Control Center runtime](0094-refresh-packaged-control-center-runtime.md)
 records the live browser packaging mismatch and bounded fresh-output repair.
+
+[0095: Preserve preview bootstrap Origin](0095-preserve-preview-bootstrap-origin.md)
+records the real-browser form failure, local reproduction and bounded header repair.

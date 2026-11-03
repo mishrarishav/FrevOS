@@ -63,6 +63,10 @@ export async function registerControlCenter(
             "form-action 'self' " + previewOrigins.join(" "),
           );
       }
+      // Cross-origin form POSTs lose Origin under no-referrer. Preview bootstrap
+      // validates that browser-generated Origin; send only the portal origin,
+      // never its path/query, and retain downgrade protection.
+      if (name === "referrer-policy" && previewOrigins.length) header = "strict-origin";
       reply.header(name, header);
     }
     return payload;

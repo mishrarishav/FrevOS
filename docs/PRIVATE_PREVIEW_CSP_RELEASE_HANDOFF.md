@@ -107,9 +107,17 @@ docs/adr/README.md                                 |   3 +
 
 This handoff and the next CURRENT_STATE checkpoint are documentation follow-up;
 the application artifact stays bound to frozen implementation source 812501d.
-After fresh exact approval: activate through actual DevSetu maintenance UI, check
-the live configured CSP, start a new temporary L-1465 demo through software controls,
-prove L-1770 browser GET/POST and matching instance/nonce, close the lease and stop
-only the demo. Reverify pairing/settings/software/IIS/relay and served installers.
-No live rollback, third-party software install, Linux desktop or phone acceptance
-is claimed by this preparation. Phase 4 remains open.
+The exact approval was received and consumed. Actual DevSetu maintenance request
+su_fa961f5e0e8469cb84d203a9361a14d6 activates this artifact successfully: native
+Apply, health, eight pairings/five settings, retained software records, IIS/relay
+and all three served installer hashes PASS. It is the active application.
+
+The subsequent actual browser attempt starts demo sw_7ffea31e8d534d52b844688994ab9195
+and reaches the preview bootstrap, which returns preview-bootstrap-denied.
+Portal no-referrer suppresses Origin on this cross-origin form POST. The preview
+lease is closed and demo stop sw_0201f595e7a3fc1401c10956f03a0a8b succeeds; observed
+services are empty. Local isolated browser reproduction proves strict-origin
+preserves the exact portal Origin and completes cookie/GET/POST with nonce.
+ADR 0095 scopes a separate immutable header correction; the relay must continue
+rejecting null or incorrect Origin. No live cross-laptop GET/POST, live rollback,
+third-party install, Linux desktop or phone acceptance is claimed. Phase 4 remains open.

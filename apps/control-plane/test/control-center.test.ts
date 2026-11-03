@@ -31,6 +31,7 @@ describe("same-origin Control Center delivery", () => {
     expect(shell.headers["content-security-policy"]).toContain("frame-ancestors 'none'");
     expect(shell.headers["strict-transport-security"]).toBe("max-age=31536000");
     expect(shell.headers["x-content-type-options"]).toBe("nosniff");
+    expect(shell.headers["referrer-policy"]).toBe("no-referrer");
 
     const asset = await server.inject({ method: "GET", url: "/assets/app-123.js" });
     expect(asset.statusCode).toBe(200);
@@ -45,6 +46,7 @@ describe("same-origin Control Center delivery", () => {
       expect(response.headers["content-security-policy"]).toContain(
         "connect-src 'self' http://127.0.0.1:*/device-login",
       );
+      expect(response.headers["referrer-policy"]).toBe("no-referrer");
       expect(response.headers["content-security-policy"]).not.toContain("connect-src *");
       const normal = await server.inject({ method: "GET", url: "/" });
       expect(normal.headers["content-security-policy"]).not.toContain("127.0.0.1");
@@ -92,6 +94,7 @@ describe("same-origin Control Center delivery", () => {
       expect(response.headers["content-security-policy"]).toContain(
         "form-action 'self' http://preview.internal",
       );
+      expect(response.headers["referrer-policy"]).toBe("strict-origin");
       expect(response.headers["content-security-policy"]).toContain(
         "connect-src 'self' http://127.0.0.1:*/device-login",
       );
