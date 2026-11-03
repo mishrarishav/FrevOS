@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import type { ControlCenterApi } from "./api.js";
 import { deploymentRequestId } from "./deployment-request-id.js";
 import { RecordBadge, type RecordColumn, RecordWorkspace } from "./RecordWorkspace.js";
+import { ServiceListenControls, serviceListenInput } from "./ServiceListenControls.js";
 import { VpnPreviewButton } from "./VpnPreviewButton.js";
 import { WorkspaceDialog } from "./WorkspaceDialog.js";
 
@@ -67,7 +68,9 @@ export function SoftwarePanel({
       enabled: true,
     });
   const [port, setPort] = useState("5080"),
-    [lifetime, setLifetime] = useState("900");
+    [lifetime, setLifetime] = useState("900"),
+    [listenAddress, setListenAddress] = useState("127.0.0.1"),
+    [allowedClients, setAllowedClients] = useState("");
   // biome-ignore lint/correctness/useExhaustiveDependencies: generation explicitly restarts polling after an action or Retry.
   useEffect(() => {
     const abort = new AbortController();
@@ -137,13 +140,18 @@ export function SoftwarePanel({
         ? "Inventory refresh requested."
         : input.operation === "stop-demo"
           ? "Temporary service stop requested."
-          : state?.administrator
-            ? "Approved installation queued."
-            : "Installation request sent for administrator approval.",
+          : state?.catalog.packages.some((p) => p.id === input.packageId && p.recipe === "demo-api")
+            ? state.administrator
+              ? "API start queued. Its address will appear when the computer reports it running."
+              : "API start sent for administrator approval."
+            : state?.administrator
+              ? "Approved installation queued."
+              : "Installation request sent for administrator approval.",
     );
   };
   const capability = state?.device.capability,
-    inventory = state?.device.inventory;
+    inventory = state?.device.inventory,
+    listenInput = serviceListenInput(listenAddress, allowedClients, capability?.network);
   const records: Row[] =
     tab === "inventory"
       ? (inventory?.items.map((p) => ({
@@ -249,7 +257,8 @@ export function SoftwarePanel({
   };
   const actions = (row: Row) => {
     if (row.package) {
-      const pkg = row.package;
+      const pkg = row.package,
+        runningService = capability?.services.find((service) => service.id === pkg.id);
       return (
         <>
           <button
@@ -263,6 +272,8 @@ export function SoftwarePanel({
               pkg.platform !== capability.platform ||
               (pkg.recipe === "demo-api" &&
                 (capability.services.length > 0 ||
+                  pkg.programSha256 !== capability.programSha256 ||
+                  !listenInput.ready ||
                   !Number.isInteger(Number(port)) ||
                   Number(port) < 1024 ||
                   Number(port) > 65535 ||
@@ -278,13 +289,56 @@ export function SoftwarePanel({
                 packageId: pkg.id,
                 packageDigest: state!.packageDigests[pkg.id]!,
                 ...(pkg.recipe === "demo-api"
-                  ? { port: Number(port), lifetimeSeconds: Number(lifetime) }
+                  ? {
+                      port: Number(port),
+                      lifetimeSeconds: Number(lifetime),
+                      ...(listenInput.ready && listenInput.listen
+                        ? { listen: listenInput.listen }
+                        : {}),
+                    }
                   : {}),
               })
             }
           >
-            {state?.administrator ? "Install" : "Request install"}
+            {pkg.recipe === "demo-api"
+              ? state?.administrator
+                ? "Start API"
+                : "Request API start"
+              : state?.administrator
+                ? "Install"
+                : "Request install"}
           </button>
+          {pkg.recipe === "demo-api" && pkg.programSha256 !== capability?.programSha256 ? (
+            <p>
+              Connector and approved API versions differ. Update the connector, then approve the
+              current bundled API version.
+            </p>
+          ) : null}
+          {pkg.recipe === "demo-api" &&
+          state?.administrator &&
+          state.demoProgramSha256 &&
+          pkg.programSha256 !== state.demoProgramSha256 ? (
+            <button
+              type="button"
+              className="button secondary"
+              disabled={busy || capability?.programSha256 !== state.demoProgramSha256}
+              onClick={() =>
+                void act(async () => {
+                  const programSha256 = state.demoProgramSha256;
+                  if (!api.softwareCatalog || !programSha256) throw Error();
+                  await api.softwareCatalog(workspaceId, {
+                    version: 1,
+                    expectedRevision: state.catalog.revision,
+                    packages: state.catalog.packages.map((p) =>
+                      p.id === pkg.id ? { ...pkg, programSha256 } : p,
+                    ),
+                  });
+                }, "Bundled API version approved with a new catalogue revision.")
+              }
+            >
+              Approve API update
+            </button>
+          ) : null}
           {state?.administrator ? (
             <button
               type="button"
@@ -295,7 +349,7 @@ export function SoftwarePanel({
               Edit
             </button>
           ) : null}
-          {pkg.recipe === "demo-api" && capability?.services.some((s) => s.id === pkg.id) ? (
+          {pkg.recipe === "demo-api" && runningService ? (
             <>
               <VpnPreviewButton
                 api={api}
@@ -303,6 +357,29 @@ export function SoftwarePanel({
                 deviceId={deviceId}
                 serviceId={pkg.id}
               />
+              {runningService.listen ? (
+                <div>
+                  <p>
+                    Hosted on {name} · localhost:{runningService.port}
+                  </p>
+                  <a
+                    href={`http://${runningService.listen.address}:${runningService.port}/`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Open direct API · {runningService.listen.address}:{runningService.port}
+                  </a>
+                  <p>
+                    Allowed clients: {runningService.listen.allowedClients.join(", ")}. VPN/firewall
+                    reachability is not inferred from the listener.
+                  </p>
+                </div>
+              ) : (
+                <p>
+                  Hosted on {name} · localhost:
+                  {runningService.port}
+                </p>
+              )}
               <button
                 type="button"
                 className="button secondary"
@@ -364,6 +441,12 @@ export function SoftwarePanel({
           <summary>Approval and artifact details</summary>
           <p>Request: {job.request.requestId}</p>
           <p>Request digest: {job.digest}</p>
+          {job.request.operation === "install" && job.request.listen ? (
+            <p>
+              Listen: {job.request.listen.address}:{job.request.port} · allowed clients:{" "}
+              {job.request.listen.allowedClients.join(", ")}
+            </p>
+          ) : null}
           {job.package ? (
             <p>
               Artifact SHA-256:{" "}
@@ -386,11 +469,13 @@ export function SoftwarePanel({
       </>
     );
   };
-  const statusNotice = !capability
-    ? "This connector has not reported software capability. Update it once; existing pairing is retained."
-    : !capability.inventoryConsent && !capability.installConsent
-      ? "Enable software permissions once using the DevSetu desktop connection-status icon on this computer."
-      : `Inventory: ${inventory ? `${inventory.status} · ${new Date(inventory.observedAt).toLocaleString()}${inventory.truncated ? " · truncated" : ""}` : "not collected"}. ${capability.installConsent ? "Trusted software management enabled." : "Installation disabled."}`;
+  const statusNotice = !state
+    ? "Loading software capability…"
+    : !capability
+      ? "This connector has not reported software capability. Update it once; existing pairing is retained."
+      : !capability.inventoryConsent && !capability.installConsent
+        ? "Enable software permissions once using the DevSetu desktop connection-status icon on this computer."
+        : `Inventory: ${inventory ? `${inventory.status} · ${new Date(inventory.observedAt).toLocaleString()}${inventory.truncated ? " · truncated" : ""}` : "not collected"}. ${capability.installConsent ? "Trusted software management enabled." : "Installation disabled."}`;
   return (
     <WorkspaceDialog label={`Software on ${name}`} onClose={onClose}>
       <div className="software-workspace">
@@ -657,6 +742,16 @@ export function SoftwarePanel({
                         onChange={(e) => setLifetime(e.target.value)}
                       />
                     </label>
+                    {capability ? (
+                      <ServiceListenControls
+                        network={capability.network}
+                        platform={capability.platform}
+                        address={listenAddress}
+                        clients={allowedClients}
+                        onAddress={setListenAddress}
+                        onClients={setAllowedClients}
+                      />
+                    ) : null}
                   </>
                 ) : null}
                 <button

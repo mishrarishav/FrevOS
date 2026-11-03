@@ -139,6 +139,109 @@ async function fixture(clockStep = 0) {
   };
 }
 describe("workspace and artifact bound approved software", () => {
+  it("binds private listening to the reported interface and exact administrator-approved client list", async () => {
+    const f = await fixture();
+    const listen = { address: "10.20.30.40", allowedClients: ["10.20.30.41"] };
+    const input = {
+      version: 1 as const,
+      requestId: `sw_${"9".repeat(32)}`,
+      deviceId: a,
+      operation: "install" as const,
+      packageId: "test-api",
+      packageDigest: (await f.store.state(admin, workspace, a)).packageDigests["test-api"]!,
+      port: 5180,
+      lifetimeSeconds: 900,
+      listen,
+    };
+    await expect(f.store.request(admin, workspace, input)).rejects.toThrow(
+      "service-listen-unavailable",
+    );
+    await f.observe({
+      network: { version: 1, addresses: [{ name: "Private adapter", address: listen.address }] },
+    });
+    await expect(
+      f.store.request(admin, workspace, {
+        ...input,
+        listen: { ...listen, address: "10.20.30.99" },
+      }),
+    ).rejects.toThrow("service-listen-unavailable");
+    const approved = await f.store.request(admin, workspace, input);
+    expect(approved.request).toMatchObject({ listen });
+    const claimed = (await f.store.claim(alice)).job;
+    if (!claimed || claimed.request.operation !== "install")
+      throw Error("Expected claimed install");
+    expect(protocol.validateJob(claimed, { workspaceId: workspace, deviceId: a }, f.now())).toEqual(
+      claimed,
+    );
+    const changed = {
+      ...claimed,
+      request: { ...claimed.request, listen: { ...listen, allowedClients: ["10.20.30.42"] } },
+    };
+    expect(() =>
+      protocol.validateJob(changed, { workspaceId: workspace, deviceId: a }, f.now()),
+    ).toThrow("job-denied");
+    await f.store.complete(alice, {
+      requestId: input.requestId,
+      digest: claimed.digest,
+      result: "demo-started",
+    });
+    const service = {
+      id: "test-api",
+      jobId: input.requestId,
+      digest: claimed.digest,
+      port: 5180,
+      expiresAt: new Date(f.now() + 60000).toISOString(),
+      listen,
+    };
+    await f.observe({
+      network: { version: 1, addresses: [{ name: "Private adapter", address: listen.address }] },
+      services: [service],
+    });
+    await expect(
+      f.observe({ network: { version: 1, addresses: [] }, services: [service] }),
+    ).rejects.toThrow("demo-observation-denied");
+    await expect(
+      f.observe({
+        network: { version: 1, addresses: [{ name: "Private adapter", address: listen.address }] },
+        services: [{ ...service, listen: { ...listen, allowedClients: ["10.20.30.42"] } }],
+      }),
+    ).rejects.toThrow("demo-observation-denied");
+  });
+  it("does not dispatch private listening after interface loss or attach listening settings to an installer", async () => {
+    const f = await fixture();
+    const listen = { address: "10.20.30.40", allowedClients: ["10.20.30.41"] };
+    await f.observe({
+      network: { version: 1, addresses: [{ name: "Private adapter", address: listen.address }] },
+    });
+    const state = await f.store.state(admin, workspace, a);
+    const input = {
+      version: 1 as const,
+      requestId: `sw_${"9".repeat(32)}`,
+      deviceId: a,
+      operation: "install" as const,
+      packageId: "test-api",
+      packageDigest: state.packageDigests["test-api"]!,
+      port: 5180,
+      lifetimeSeconds: 900,
+      listen,
+    };
+    await expect(
+      f.store.request(admin, workspace, {
+        ...input,
+        packageId: "test-msi",
+        packageDigest: state.packageDigests["test-msi"]!,
+        port: undefined,
+        lifetimeSeconds: undefined,
+      }),
+    ).rejects.toThrow("package-parameters-denied");
+    await f.store.request(admin, workspace, input);
+    await f.observe({ network: { version: 1, addresses: [] } });
+    expect((await f.store.claim(alice)).job).toBeNull();
+    expect((await f.store.state(admin, workspace, a)).jobs[0]).toMatchObject({
+      status: "failed",
+      result: "failed",
+    });
+  });
   it("keeps job and approval leases within protocol bounds when the clock advances between reads", async () => {
     const inventory = await fixture(1);
     const requested = await inventory.store.request(alice, workspace, {

@@ -11,6 +11,28 @@ const Name = z
   .refine((v) => ![...v].some((c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127));
 export const SoftwarePackageIdSchema = z.string().regex(/^[a-z][a-z0-9-]{0,59}$/);
 export const SoftwareRequestIdSchema = z.string().regex(/^sw_[a-f0-9]{32}$/);
+export function isServicePrivateIPv4(value: string): boolean {
+  if (!/^(?:0|[1-9][0-9]{0,2})(?:\.(?:0|[1-9][0-9]{0,2})){3}$/.test(value)) return false;
+  const parts = value.split(".").map(Number);
+  return (
+    parts.every((part) => part <= 255) &&
+    (parts[0] === 10 ||
+      (parts[0] === 172 && parts[1]! >= 16 && parts[1]! <= 31) ||
+      (parts[0] === 192 && parts[1] === 168))
+  );
+}
+export const ServicePrivateIPv4Schema = z.string().refine(isServicePrivateIPv4);
+export const ServicePrivateListenSchema = z
+  .object({
+    address: ServicePrivateIPv4Schema,
+    allowedClients: z
+      .array(ServicePrivateIPv4Schema)
+      .min(1)
+      .max(16)
+      .refine((values) => new Set(values).size === values.length),
+  })
+  .strict();
+export type ServicePrivateListen = z.infer<typeof ServicePrivateListenSchema>;
 const Asset = z
   .object({
     url: z.url().refine((value) => {
@@ -129,6 +151,7 @@ export const SoftwareRequestSchema = z.discriminatedUnion("operation", [
       packageDigest: Digest,
       port: z.number().int().min(1024).max(65535).optional(),
       lifetimeSeconds: z.number().int().min(60).max(1800).optional(),
+      listen: ServicePrivateListenSchema.optional(),
     })
     .strict(),
   z
@@ -222,6 +245,7 @@ export const SoftwareServiceSchema = z
     digest: Digest,
     port: z.number().int().min(1024).max(65535),
     expiresAt: z.iso.datetime(),
+    listen: ServicePrivateListenSchema.optional(),
   })
   .strict();
 export const SoftwareObservationSchema = z
@@ -239,6 +263,16 @@ export const SoftwareObservationSchema = z
       .strict()
       .optional(),
     programSha256: Digest,
+    network: z
+      .object({
+        version: z.literal(1),
+        addresses: z
+          .array(z.object({ name: Name, address: ServicePrivateIPv4Schema }).strict())
+          .max(64)
+          .refine((rows) => new Set(rows.map((row) => row.address)).size === rows.length),
+      })
+      .strict()
+      .optional(),
     services: z.array(SoftwareServiceSchema).max(1),
   })
   .strict();

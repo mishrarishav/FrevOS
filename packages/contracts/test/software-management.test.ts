@@ -4,6 +4,7 @@ import {
   SoftwareInventorySchema,
   SoftwareObservationSchema,
   SoftwareRequestSchema,
+  ServicePrivateListenSchema,
 } from "../src/software-management.js";
 
 const asset = { url: "https://example.org/app.msi", sha256: "a".repeat(64), bytes: 100 };
@@ -18,6 +19,70 @@ const pkg = {
   asset,
 };
 describe("software management wire contracts", () => {
+  it("accepts only canonical private interface/client addresses with a bounded explicit client list", () => {
+    const listen = { address: "10.20.30.40", allowedClients: ["172.16.1.2", "192.168.1.5"] };
+    expect(ServicePrivateListenSchema.parse(listen)).toEqual(listen);
+    for (const address of [
+      "0.0.0.0",
+      "127.0.0.1",
+      "8.8.8.8",
+      "169.254.1.2",
+      "100.64.1.2",
+      "10.01.1.2",
+      "10.256.1.2",
+      "::1",
+      "example.org",
+      "10.1.2.3:5080",
+    ]) {
+      expect(ServicePrivateListenSchema.safeParse({ ...listen, address }).success).toBe(false);
+      expect(
+        ServicePrivateListenSchema.safeParse({ ...listen, allowedClients: [address] }).success,
+      ).toBe(false);
+    }
+    for (const allowedClients of [
+      [],
+      ["10.1.1.1", "10.1.1.1"],
+      Array.from({ length: 17 }, (_, n) => `10.1.1.${n + 1}`),
+    ])
+      expect(ServicePrivateListenSchema.safeParse({ ...listen, allowedClients }).success).toBe(
+        false,
+      );
+    expect(ServicePrivateListenSchema.safeParse({ ...listen, command: "listen" }).success).toBe(
+      false,
+    );
+  });
+  it("keeps legacy observations unchanged and validates negotiated interface reports", () => {
+    const legacy = {
+      version: 1,
+      platform: "win32",
+      inventoryConsent: true,
+      installConsent: true,
+      programSha256: "a".repeat(64),
+      services: [],
+    };
+    expect(SoftwareObservationSchema.parse(legacy)).toEqual(legacy);
+    const network = {
+      version: 1,
+      addresses: [{ name: "Private adapter", address: "10.20.30.40" }],
+    };
+    expect(SoftwareObservationSchema.safeParse({ ...legacy, network }).success).toBe(true);
+    expect(
+      SoftwareObservationSchema.safeParse({
+        ...legacy,
+        network: { ...network, addresses: [...network.addresses, ...network.addresses] },
+      }).success,
+    ).toBe(false);
+    expect(
+      SoftwareObservationSchema.safeParse({ ...legacy, network: { ...network, version: 2 } })
+        .success,
+    ).toBe(false);
+    expect(
+      SoftwareObservationSchema.safeParse({
+        ...legacy,
+        network: { ...network, addresses: [{ name: "Public", address: "8.8.8.8" }] },
+      }).success,
+    ).toBe(false);
+  });
   it("accepts reviewed catalogue metadata and rejects commands, mutable or credential-bearing artifact references", () => {
     const input = { version: 1, expectedRevision: 0, packages: [pkg] };
     expect(SoftwareCatalogInputSchema.safeParse(input).success).toBe(true);

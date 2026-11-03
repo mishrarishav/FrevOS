@@ -3,6 +3,7 @@ const fs = require("node:fs/promises"),
   path = require("node:path"),
   http = require("node:http"),
   crypto = require("node:crypto"),
+  os = require("node:os"),
   { fork, spawn } = require("node:child_process");
 const native = require("./SoftwareNative.cjs"),
   protocol = require("./SoftwareProtocol.cjs"),
@@ -32,6 +33,7 @@ async function start(config, api, options = {}) {
     connected = false,
     progress = "Enable software permissions once to use the catalogue.",
     identity,
+    identityAt = 0,
     busy = false,
     stopped = false,
     observing = false,
@@ -72,6 +74,16 @@ async function start(config, api, options = {}) {
     }
     if (!consent.install)
       for (const demo of demos.values()) demo.child.send?.({ operation: "stop" });
+    const addresses = protocol.privateInterfaces(os.networkInterfaces());
+    for (const demo of demos.values())
+      if (
+        demo.service.listen &&
+        !addresses.some((row) => row.address === demo.service.listen.address)
+      ) {
+        demo.child.send?.({ operation: "stop" });
+        progress =
+          "Selected private interface is unavailable. Choose its current address in DevSetu before starting again.";
+      }
   }
   const server = http.createServer(async (req, res) => {
     const origin = "http://127.0.0.1:" + server.address().port;
@@ -150,6 +162,9 @@ async function start(config, api, options = {}) {
     inventoryConsent: consent.inventory,
     installConsent: consent.install,
     programSha256,
+    ...(identity?.serviceNetworkVersion === 1
+      ? { network: { version: 1, addresses: protocol.privateInterfaces(os.networkInterfaces()) } }
+      : {}),
     ...(operation ? { operation } : {}),
     services: (consent.install ? [...demos.values()] : [])
       .filter((d) => d.child.connected && Date.parse(d.expiresAt) > Date.now())
@@ -159,6 +174,14 @@ async function start(config, api, options = {}) {
     await reloadConsent();
     protocol.validateJob(job, identity);
     if (!consent.install) throw Error("software-consent-revoked");
+    if (
+      job.request.listen &&
+      (identity.serviceNetworkVersion !== 1 ||
+        !protocol
+          .privateInterfaces(os.networkInterfaces())
+          .some((row) => row.address === job.request.listen.address))
+    )
+      throw Error("software-listen-unavailable");
     const result = await api(endpoint + "authorize", {
       requestId: job.request.requestId,
       digest: job.digest,
@@ -254,6 +277,7 @@ async function start(config, api, options = {}) {
             digest: job.digest,
             port: request.port,
             expiresAt,
+            ...(request.listen ? { listen: request.listen } : {}),
           };
           await new Promise((resolve, reject) => {
             const timer = setTimeout(() => reject(Error("software-demo-timeout")), 10000);
@@ -274,6 +298,7 @@ async function start(config, api, options = {}) {
               name: job.package.name,
               port: request.port,
               expiresAt,
+              ...(request.listen ? { listen: request.listen } : {}),
             });
           }).catch((e) => {
             child.disconnect();
@@ -333,7 +358,10 @@ async function start(config, api, options = {}) {
     busy = true;
     try {
       await reloadConsent();
-      identity ??= await api(endpoint + "identity", {});
+      if (!identity || Date.now() - identityAt >= 60000) {
+        identity = await api(endpoint + "identity", {});
+        identityAt = Date.now();
+      }
       if (identity.deviceId !== config.deviceId) throw Error("software-identity-denied");
       await api(endpoint + "observe", observations());
       connected = true;

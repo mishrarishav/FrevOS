@@ -244,7 +244,8 @@ export class SoftwareManagement {
     if (!value.installConsent && value.services.length) this.fail("consent-required");
     for (const service of value.services) {
       const job = await this.job(service.jobId),
-        r = job.request;
+        r = job.request,
+        listen = service.listen;
       if (
         job.workspaceId !== this.workspaceId ||
         r.deviceId !== d.deviceId ||
@@ -256,6 +257,9 @@ export class SoftwareManagement {
         job.result !== "demo-started" ||
         job.status !== "succeeded" ||
         r.port !== service.port ||
+        JSON.stringify(r.listen ?? null) !== JSON.stringify(service.listen ?? null) ||
+        (listen !== undefined &&
+          !value.network?.addresses.some((row) => row.address === listen.address)) ||
         !job.approval?.consumedAt ||
         Date.parse(service.expiresAt) >
           Date.parse(job.approval.consumedAt) + (r.lifetimeSeconds ?? 0) * 1000 ||
@@ -304,9 +308,18 @@ export class SoftwareManagement {
             ? !request.port ||
               !request.lifetimeSeconds ||
               pkg.programSha256 !== observed.programSha256
-            : request.port !== undefined || request.lifetimeSeconds !== undefined
+            : request.port !== undefined ||
+              request.lifetimeSeconds !== undefined ||
+              request.listen !== undefined
         )
           this.fail("package-parameters-denied");
+        const listen = request.listen;
+        if (
+          listen &&
+          (observed.network?.version !== 1 ||
+            !observed.network.addresses.some((row) => row.address === listen.address))
+        )
+          this.fail("service-listen-unavailable", 409);
       }
       const all = await this.jobs();
       if (
@@ -436,6 +449,21 @@ export class SoftwareManagement {
         )
           continue;
         if (job.request.operation === "install") {
+          const listen = job.request.listen;
+          if (
+            listen &&
+            !observed.network?.addresses.some((row) => row.address === listen.address)
+          ) {
+            job.status = "failed";
+            job.result = "failed";
+            await this.audit("listen-unavailable", job.actor, {
+              target: d.deviceId,
+              correlationId: job.request.requestId,
+              digest: job.digest,
+            });
+            await this.write(job.request.requestId + ".json", job);
+            continue;
+          }
           const a = job.approval,
             pkg = job.package;
           const current = (await this.catalog()).packages.find(
@@ -482,7 +510,7 @@ export class SoftwareManagement {
   }
   async identity(credential: string) {
     const d = await this.credential(credential);
-    return { workspaceId: this.workspaceId, deviceId: d.deviceId };
+    return { workspaceId: this.workspaceId, deviceId: d.deviceId, serviceNetworkVersion: 1 };
   }
   async authorize(credential: string, input: unknown) {
     const d = await this.credential(credential),

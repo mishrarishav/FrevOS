@@ -1,5 +1,13 @@
 # DevSetu Current State
 
+2026-11-03: Owner requests configuring a paired service's listen address from
+DevSetu rather than typing commands on the laptop. ADR 0097 scopes negotiated
+private-interface selection and explicit client IPs for the actual managed API,
+with default loopback and the accepted VPN gateway preserved. Task branch
+codex/service-network-bindings starts at cafbaf0. No live network binding, firewall
+or VPN change is made by this implementation checkpoint; current application
+remains source 7625404 / manifest 357d14c9.
+
 2026-11-03 18:46 IST: Corrected source 7625404 is activated through actual DevSetu
 maintenance request su_efd2c30c78bd3d8be5d2f628e3d86a76, manifest 357d14c9 /
 archive 4bcd0c65. Exact owner approval call_8e12a5fb0cf54d5aaada01d48d5a2806

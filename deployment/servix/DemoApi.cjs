@@ -1,10 +1,40 @@
 "use strict";
 const http = require("node:http"),
-  os = require("node:os");
+  os = require("node:os"),
+  protocol = require("./SoftwareProtocol.cjs");
+function requestAllowed(req, config) {
+  const local = String(req.socket.localAddress).replace(/^::ffff:/, ""),
+    remote = String(req.socket.remoteAddress).replace(/^::ffff:/, ""),
+    authority = String(req.headers.host ?? "").toLowerCase();
+  const privateSocket = config.listen && local === config.listen.address;
+  if (privateSocket) {
+    if (
+      authority !== config.listen.address + ":" + config.port ||
+      (remote !== config.listen.address && !config.listen.allowedClients.includes(remote))
+    )
+      return false;
+  } else if (
+    local !== "127.0.0.1" ||
+    remote !== "127.0.0.1" ||
+    !["localhost:" + config.port, "127.0.0.1:" + config.port].includes(authority)
+  )
+    return false;
+  return (
+    req.method !== "POST" || !req.headers.origin || req.headers.origin === "http://" + authority
+  );
+}
 function start(config) {
   if (
     !config ||
-    Object.keys(config).sort().join() !== "expiresAt,instance,name,port" ||
+    Object.keys(config).sort().join() !==
+      (config.listen === undefined
+        ? "expiresAt,instance,name,port"
+        : "expiresAt,instance,listen,name,port") ||
+    (config.listen !== undefined &&
+      (!protocol.validListen(config.listen) ||
+        !protocol
+          .privateInterfaces(os.networkInterfaces())
+          .some((row) => row.address === config.listen.address))) ||
     !/^sw_[a-f0-9]{32}$/.test(config.instance) ||
     typeof config.name !== "string" ||
     config.name.length > 180 ||
@@ -17,13 +47,18 @@ function start(config) {
     Date.parse(config.expiresAt) > Date.now() + 1800000
   )
     throw Error("demo-config-denied");
-  const server = http.createServer(async (req, res) => {
+  const handle = async (req, res) => {
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader(
       "Content-Security-Policy",
       "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'",
     );
+    if (!requestAllowed(req, config)) {
+      res.writeHead(403, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "demo-network-denied" }));
+      return;
+    }
     if (req.url === "/" && req.method === "GET") {
       res.setHeader("Content-Type", "text/html; charset=utf-8");
       res.end(
@@ -63,17 +98,43 @@ function start(config) {
         received: Buffer.concat(chunks).toString("utf8"),
       }),
     );
-  });
-  server.requestTimeout = 15000;
-  server.headersTimeout = 10000;
-  server.maxConnections = 16;
+  };
+  const server = http.createServer(handle),
+    network = config.listen ? http.createServer(handle) : undefined;
+  for (const listener of [server, network].filter(Boolean)) {
+    listener.requestTimeout = 15000;
+    listener.headersTimeout = 10000;
+    listener.maxConnections = 16;
+  }
+  let closing = false;
+  const close = server.close.bind(server);
+  server.close = (callback) => {
+    closing = true;
+    if (network?.listening) network.close();
+    return close(callback);
+  };
   const timer = setTimeout(
     () => server.close(),
     Math.max(1, Date.parse(config.expiresAt) - Date.now()),
   );
   timer.unref();
-  server.on("close", () => clearTimeout(timer));
-  server.listen(config.port, "127.0.0.1");
+  server.on("close", () => {
+    clearTimeout(timer);
+    if (network?.listening) network.close();
+  });
+  server.once("error", () => {
+    if (network?.listening) network.close();
+  });
+  if (network) {
+    network.once("error", (error) => {
+      server.emit("error", error);
+    });
+    network.once("listening", () => {
+      if (closing) network.close();
+      else server.listen(config.port, "127.0.0.1");
+    });
+    network.listen(config.port, config.listen.address);
+  } else server.listen(config.port, "127.0.0.1");
   return server;
 }
 if (require.main === module) {
@@ -99,4 +160,4 @@ if (require.main === module) {
     if (!server) process.exit(1);
   }, 10000).unref();
 }
-module.exports = { start };
+module.exports = { start, requestAllowed };

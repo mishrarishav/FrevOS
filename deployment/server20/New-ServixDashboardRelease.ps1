@@ -142,7 +142,7 @@ try{
  $inputs+=@('apps/control-center/src/connector-platform.ts')
  $inputs+=@('deployment/server20/Verify-AndroidCompatibility.ps1')
  foreach($relative in @('apps/android-connector','deployment/android')){if(Test-Path -LiteralPath (Join-Path $root $relative)){$inputs+=@(Get-ChildItem -LiteralPath (Join-Path $root $relative) -Recurse -File|ForEach-Object {$_.FullName.Substring($root.Length+1).Replace('\','/')})}}
- $inputs+=@('packages/contracts/src/software-management.ts','apps/control-plane/src/software-management.ts','apps/control-center/src/SoftwarePanel.tsx')
+ $inputs+=@('packages/contracts/src/software-management.ts','apps/control-plane/src/software-management.ts','apps/control-center/src/SoftwarePanel.tsx','apps/control-center/src/ServiceListenControls.tsx')
  $inputs+=@('packages/contracts/src/preview-relay.ts','apps/control-plane/src/preview-relay.ts','apps/control-center/src/VpnPreviewButton.tsx','deployment/server20/Configure-PrivatePreview.ps1','deployment/server20/Validate-PreviewConfig.mjs')
  $inputs+=@('apps/control-plane/src/control-center.ts')
  $inputs+=@('deployment/server20/Test-ControlCenterArtifact.mjs')

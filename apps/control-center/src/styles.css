@@ -4059,6 +4059,30 @@ kbd,
 .software-workspace .record-header-actions label input {
   max-width: 110px;
 }
+.software-workspace .service-listen-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  flex-basis: 100%;
+  min-width: 0;
+  gap: 8px 12px;
+  text-align: left;
+}
+.software-workspace .service-listen-controls label {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+.software-workspace .service-listen-controls label input,
+.software-workspace .service-listen-controls select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+.software-workspace .service-listen-controls p {
+  grid-column: 1 / -1;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
 .software-workspace .record-card details,
 .software-workspace .record-table details {
   overflow-wrap: anywhere;

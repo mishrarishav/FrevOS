@@ -246,3 +246,6 @@ records the real-browser form failure, local reproduction and bounded header rep
 
 [0096: Consistent software lease instants](0096-consistent-software-lease-instants.md)
 records the exact live one-millisecond rejection and strict, single-instant repair.
+
+[0097: Configure private service listening](0097-configurable-private-service-listening.md)
+records the owner's direct-IP control request and bounded managed-service workflow.
