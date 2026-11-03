@@ -383,7 +383,11 @@ export function createControlCenterApi(
   basePath?: string,
   cookieReader: (name: string) => string | undefined = readBrowserCookie,
 ): ControlCenterApi {
-  const authCookies = authCookiePolicy(globalThis.location?.protocol ?? "https:");
+  const cookieNamespace = Reflect.get(import.meta.env, "VITE_FREVOS_COOKIE_NAMESPACE");
+  const authCookies = authCookiePolicy(
+    globalThis.location?.protocol ?? "https:",
+    typeof cookieNamespace === "string" ? cookieNamespace : undefined,
+  );
   const get = async <Output>(
     path: string,
     schema: RuntimeSchema<Output>,

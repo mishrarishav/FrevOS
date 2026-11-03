@@ -1,5 +1,14 @@
 # DevSetu Current State
 
+2026-11-03 22:33 IST: Owner selects the existing public HTTPS host's `/devsetu/`
+path, with Server9 routing only and the application/data remaining on Server20.
+TrackGRN/IMS chat references identify DCPUBWEB.eesl.co.in:5052 Kerberos WinRM;
+fresh administrator access and Server9 → Server20 UI/health 200 pass. Read-only
+IIS inventory is captured; no live public route or application configuration has
+changed. ADR 0098 scopes a separate shared-state browser listener, configured
+public assets/origin, protected internal transport and mapped IIS recovery.
+Task branch codex/public-gateway-entry starts at c850f5e.
+
 2026-11-03 21:56 IST: L-1465 update is verified on the same pairing, owner and
 permissions with network capability v1 and matching bundled API. Actual DevSetu
 catalogue adoption moves revision 1 → 2. L-1770 native HTTP and browser direct

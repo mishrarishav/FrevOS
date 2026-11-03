@@ -6,6 +6,7 @@ import type { ProjectFolderSearchJob } from "@frevos/contracts";
 import { AgentNotifications } from "./agent-notifications.js";
 import { AgentWorkspace } from "./agent-workspace.js";
 import { ArtifactPromotions } from "./artifact-promotions.js";
+import { buildBrowserEntry, loadBrowserEntry } from "./browser-entry.js";
 import { ComponentDeployments } from "./component-deployments.js";
 import { loadConfig } from "./config.js";
 import { registerControlCenter } from "./control-center.js";
@@ -395,7 +396,7 @@ try {
           }),
           transactionCodec: new OidcTransactionCodec(config.oidcTransactionKey),
         };
-  const server = await buildServer({
+  const serverOptions = {
     publicOrigin: config.publicOrigin,
     ...(config.servixRoot && config.authMode === "local"
       ? { selfUpdates: new SelfUpdates(join(config.servixRoot, "..", "maintenance")) }
@@ -439,7 +440,19 @@ try {
       ? {}
       : { trackGrnAgentTokenHash: config.trackGrnAgentTokenHash }),
     readiness: () => verifyDatabaseReadiness(pool),
-  });
+  } satisfies Parameters<typeof buildServer>[0];
+  const server = await buildServer(serverOptions);
+  const browserProfile = config.servixRoot
+    ? await loadBrowserEntry(join(config.servixRoot, "config", "browser-entry.json"))
+    : undefined;
+  if (browserProfile?.listen.port === config.port) throw Error("browser-entry-listener-conflict");
+  const browserServer = browserProfile
+    ? await buildBrowserEntry(
+        serverOptions,
+        browserProfile,
+        fileURLToPath(new URL("../../control-center/dist-browser/", import.meta.url)),
+      )
+    : undefined;
   if (systemDiscovery) {
     await systemDiscovery.prune();
     const discovery = systemDiscovery;
@@ -460,6 +473,7 @@ try {
     developerConnectors?.close();
     servixDeployment?.close();
     await server.close();
+    await browserServer?.close();
     await pool.end();
   };
   process.once("SIGINT", () => void shutdown());
@@ -473,8 +487,10 @@ try {
   }
   try {
     await server.listen({ host: config.host, port: config.port });
+    if (browserProfile && browserServer) await browserServer.listen(browserProfile.listen);
   } catch (error) {
     await server.close();
+    await browserServer?.close();
     throw error;
   }
 } catch (error) {

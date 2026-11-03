@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$PreviousPackageRoot,[switch]$BootstrapMaintenance,[string]$SourceRoot,[string]$ReleaseOutputRoot,[string]$AndroidArtifactReference,[string]$AndroidBuilderReference)
+param([Parameter(Mandatory=$true)][string]$PreviousPackageRoot,[switch]$BootstrapMaintenance,[string]$SourceRoot,[string]$ReleaseOutputRoot,[string]$AndroidArtifactReference,[string]$AndroidBuilderReference,[string]$BrowserEntryBasePath)
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 $root=if($SourceRoot){[IO.Path]::GetFullPath($SourceRoot)}else{[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))}
@@ -27,10 +27,20 @@ function Get-SourceGuard {
  foreach($relative in @('apps/control-center/index.html','apps/control-center/public/favicon.svg','package.json','pnpm-lock.yaml','pnpm-workspace.yaml','apps\control-center\package.json','apps\control-plane\package.json','packages\contracts\package.json')){$paths+=Join-Path $root $relative}
  $paths+=@(Get-ChildItem -LiteralPath $root -Filter 'tsconfig*.json' -File|Select-Object -ExpandProperty FullName)
  $paths+=Join-Path $root 'packages\contracts\tsconfig.build.json'
+ $paths+=Join-Path $root 'scripts\build-browser-entry.mjs'
+ $paths+=Join-Path $root 'apps\control-center\vite.config.ts'
  return @($paths|Sort-Object -Unique|ForEach-Object {@{path=$_.Substring($root.Length+1);sha256=(Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash.ToLowerInvariant()}})|ConvertTo-Json -Compress
 }
 $sourceState=if((& git -C $root status --porcelain=v1|Out-String).Trim()){'local-uncommitted'}else{'committed'}
 $sourceGuard=Get-SourceGuard
+$browserBuildFile=Join-Path $root 'deployment\server20\BrowserEntryBuild.json'
+if(Test-Path -LiteralPath $browserBuildFile){
+ Assert-NoReparsePath $browserBuildFile
+ $browserBuild=Get-Content -LiteralPath $browserBuildFile -Raw|ConvertFrom-Json
+ if((@($browserBuild.PSObject.Properties.Name|Sort-Object)-join ',') -cne 'basePath,version' -or $browserBuild.version -ne 1 -or $browserBuild.basePath -cnotmatch '^/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$'){throw 'Browser entry build profile rejected'}
+ if($BrowserEntryBasePath -and $BrowserEntryBasePath -cne $browserBuild.basePath){throw 'Browser entry build profile differs from explicit path'}
+ $BrowserEntryBasePath=$browserBuild.basePath
+}
 $artifactRoot=if($ReleaseOutputRoot){[IO.Path]::GetFullPath($ReleaseOutputRoot)}else{Join-Path $root '.local'}
 if($ReleaseOutputRoot){if($artifactRoot -ieq [IO.Path]::GetPathRoot($artifactRoot) -or -not(Test-Path -LiteralPath $artifactRoot -PathType Container)){throw 'Choose an existing specific release output directory'};Assert-NoReparsePath $artifactRoot}
 Push-Location $root
@@ -38,6 +48,7 @@ try{
  & pnpm.cmd run build
  if($LASTEXITCODE -ne 0){throw 'Application build failed'}
  try{$env:VITE_FREVOS_AUTH_MODE='local';& pnpm.cmd --filter '@frevos/control-center' run build;if($LASTEXITCODE -ne 0){throw 'Local-auth UI build failed'}}finally{Remove-Item Env:VITE_FREVOS_AUTH_MODE -ErrorAction SilentlyContinue}
+ if($BrowserEntryBasePath){& (Get-Command node.exe -ErrorAction Stop).Source (Join-Path $root 'scripts\build-browser-entry.mjs') $BrowserEntryBasePath;if($LASTEXITCODE -ne 0){throw 'Browser-entry UI build failed'}}
  $id=[guid]::NewGuid().ToString('N');$output=Join-Path $artifactRoot ('servix-release-'+$id);$package=Join-Path $output 'package'
  [void][IO.Directory]::CreateDirectory($output);Copy-Item -LiteralPath $PreviousPackageRoot -Destination $package -Recurse
  # The baseline remains sealed. This one pinned security update is imported
@@ -70,6 +81,15 @@ try{
  $ui=Join-Path $package 'apps\control-center\dist'
  if(-not [IO.Path]::GetFullPath($ui).StartsWith([IO.Path]::GetFullPath($output)+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'UI cleanup escaped package'}
  Assert-NoReparsePath $ui;Remove-Item -LiteralPath $ui -Recurse -Force;Copy-Item -LiteralPath (Join-Path $root 'apps\control-center\dist') -Destination $ui -Recurse
+ foreach($suffix in @('js','js.map','d.ts','d.ts.map')){Copy-Item -LiteralPath (Join-Path $root ('apps\control-plane\dist\browser-entry.'+$suffix)) -Destination (Join-Path $package ('apps\control-plane\dist\browser-entry.'+$suffix))}
+ foreach($suffix in @('js','js.map','d.ts','d.ts.map')){Copy-Item -LiteralPath (Join-Path $root ('packages\contracts\dist\auth-cookies.'+$suffix)) -Destination (Join-Path $package ('apps\control-plane\node_modules\@frevos\contracts\dist\auth-cookies.'+$suffix))}
+ $browserUi=Join-Path $package 'apps\control-center\dist-browser'
+ if($BrowserEntryBasePath){
+  if(-not [IO.Path]::GetFullPath($browserUi).StartsWith([IO.Path]::GetFullPath($output)+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'Browser UI destination escaped package'}
+  Assert-NoReparsePath $browserUi
+  if(Test-Path -LiteralPath $browserUi){Remove-Item -LiteralPath $browserUi -Recurse -Force}
+  Copy-Item -LiteralPath (Join-Path $root 'apps\control-center\dist-browser') -Destination $browserUi -Recurse
+ }elseif(Test-Path -LiteralPath $browserUi){throw 'Existing browser-entry assets require an explicit matching build path'}
  $servixOperator=Join-Path $package 'deployment\servix'
  [void][IO.Directory]::CreateDirectory($servixOperator)
  foreach($file in Get-ChildItem -LiteralPath (Join-Path $root 'deployment\servix') -File){Copy-Item -LiteralPath $file.FullName -Destination $servixOperator}
@@ -128,7 +148,7 @@ try{
   [IO.File]::WriteAllText($mainFile,$main,[Text.UTF8Encoding]::new($false))
  }
  if((Get-SourceGuard) -cne $sourceGuard){throw 'Source changed during the release build; no artifact will be published'}
- foreach($name in @('Verify-AndroidCompatibility.ps1','Configure-PrivatePreview.ps1','Validate-PreviewConfig.mjs')){Copy-Item -LiteralPath (Join-Path $root ('deployment\server20\'+$name)) -Destination (Join-Path $package ('deployment\server20\'+$name))}
+ foreach($name in @('Verify-AndroidCompatibility.ps1','Configure-PrivatePreview.ps1','Validate-PreviewConfig.mjs','BrowserEntryIisModel.psm1','Plan-BrowserEntryIis.ps1','Apply-BrowserEntryIis.ps1','Configure-BrowserEntryIis.ps1','Configure-BrowserEntry.ps1','Validate-BrowserEntry.mjs','BrowserEntry.example.json')){Copy-Item -LiteralPath (Join-Path $root ('deployment\server20\'+$name)) -Destination (Join-Path $package ('deployment\server20\'+$name))}
  Assert-PackagedRuntimeModules $package
  if(-not $BootstrapMaintenance){foreach($suffix in @('js','js.map','d.ts','d.ts.map')){$relative='apps\control-plane\dist\control-center.'+$suffix;if((Get-FileHash -LiteralPath (Join-Path $root $relative)).Hash -cne (Get-FileHash -LiteralPath (Join-Path $package $relative)).Hash){throw 'Packaged control-center runtime differs from the fresh build'}}}
  $inputs=@('apps/control-center/src/EnvironmentVariables.tsx','apps/control-center/src/environment-seal.ts','packages/contracts/src/local-development.ts','apps/control-plane/src/local-development.ts','apps/control-center/src/LocalDevelopmentPage.tsx')+@('apps/control-plane/src/atomic-record.ts','packages/contracts/src/component-deployments.ts','apps/control-plane/src/component-deployments.ts','apps/control-plane/src/component-git.ts','apps/control-center/src/ComponentDeployments.tsx','packages/contracts/src/deployment-change.ts','apps/control-center/src/DeploymentActionDialog.tsx','apps/control-center/src/PlatformProjectDetails.tsx','apps/control-plane/src/local-accounts.ts','apps/control-plane/src/self-updates.ts','apps/control-center/src/AccountControls.tsx','apps/control-center/src/main.tsx','packages/contracts/src/local-accounts.ts','deployment/server20/Install-SelfUpdate.ps1','deployment/server20/Run-SelfUpdate.ps1','apps/control-center/index.html','apps/control-center/public/favicon.svg','apps/control-center/package.json','pnpm-lock.yaml','pnpm-workspace.yaml','apps/control-plane/src/config.ts','apps/control-plane/src/main.ts','apps/control-plane/src/server.ts','apps/control-plane/src/repositories.ts','apps/control-plane/src/developer-connectors.ts','apps/control-plane/src/servix-deployment.ts','apps/control-center/src/api.ts','apps/control-center/src/App.tsx','apps/control-center/src/DeploymentsPage.tsx','apps/control-center/src/RecordWorkspace.tsx','apps/control-center/src/WorkspaceDialog.tsx','apps/control-center/src/DeveloperAccess.tsx','apps/control-center/src/deployment-request-id.ts','apps/control-center/src/servix-deployment-state.ts','apps/control-center/src/styles.css','apps/control-center/src/DeploymentSettingsPage.tsx','apps/control-center/src/routing.ts','apps/control-plane/src/deployment-settings.ts','packages/contracts/src/deployment-settings.ts','packages/contracts/src/servix-deployment.ts','packages/contracts/src/developer-connectors.ts','packages/contracts/src/index.ts')+@(Get-ChildItem (Join-Path $root 'deployment\servix') -File|ForEach-Object {'deployment/servix/'+$_.Name})+@('deployment/server20/HttpCommon.ps1','deployment/server20/Start-Server20.ps1','deployment/server20/Apply-ServixDashboard.ps1','deployment/server20/Verify-HttpManifest.mjs','deployment/server20/New-ServixDashboardRelease.ps1')
@@ -145,6 +165,11 @@ try{
  $inputs+=@('packages/contracts/src/software-management.ts','apps/control-plane/src/software-management.ts','apps/control-center/src/SoftwarePanel.tsx','apps/control-center/src/ServiceListenControls.tsx')
  $inputs+=@('packages/contracts/src/preview-relay.ts','apps/control-plane/src/preview-relay.ts','apps/control-center/src/VpnPreviewButton.tsx','deployment/server20/Configure-PrivatePreview.ps1','deployment/server20/Validate-PreviewConfig.mjs')
  $inputs+=@('apps/control-plane/src/control-center.ts')
+ $inputs+=@('apps/control-plane/src/browser-entry.ts','scripts/build-browser-entry.mjs','apps/control-center/vite.config.ts')
+ $inputs+=@('deployment/server20/BrowserEntryIisModel.psm1','deployment/server20/Plan-BrowserEntryIis.ps1','deployment/server20/BrowserEntry.example.json')
+ $inputs+=@('deployment/server20/BrowserEntryBuild.json')
+ $inputs+=@('packages/contracts/src/auth-cookies.ts')
+ $inputs+=@('deployment/server20/Apply-BrowserEntryIis.ps1','deployment/server20/Configure-BrowserEntryIis.ps1','deployment/server20/Configure-BrowserEntry.ps1','deployment/server20/Validate-BrowserEntry.mjs','deployment/server20/BrowserEntryRemote.py')
  $inputs+=@('deployment/server20/Test-ControlCenterArtifact.mjs')
  $inputs+=@('packages/contracts/src/repository-center.ts','packages/contracts/src/git-desktop.ts','apps/control-plane/src/repository-center.ts','apps/control-plane/src/git-engine.ts','apps/control-plane/src/git-desktop.ts','apps/control-center/src/RepositoryCenterPage.tsx','apps/control-center/src/GitFoldersPanel.tsx','apps/control-center/src/RepositoryRecoveryDialog.tsx')
  $inventory=@($inputs|ForEach-Object {@{path=$_;sha256=(Get-FileHash -LiteralPath (Join-Path $root $_) -Algorithm SHA256).Hash.ToLowerInvariant()}})

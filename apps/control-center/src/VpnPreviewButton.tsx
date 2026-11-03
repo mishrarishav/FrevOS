@@ -15,6 +15,8 @@ export function VpnPreviewButton({
 }) {
   const [busy, setBusy] = useState(false),
     [notice, setNotice] = useState("");
+  const privateEntryRequired =
+    Reflect.get(import.meta.env, "VITE_DEVSETU_BROWSER_ENTRY") === "true";
   const open = async () => {
     if (!api.previewOpen) return;
     const name = "devsetu-preview-" + deploymentRequestId("ld"),
@@ -64,16 +66,19 @@ export function VpnPreviewButton({
       <button
         type="button"
         className="button secondary"
-        disabled={busy}
+        disabled={busy || privateEntryRequired}
         onClick={() => void open()}
       >
         Open VPN preview
       </button>
+      {privateEntryRequired ? (
+        <p>Open the private DevSetu address while connected to its network to use this preview.</p>
+      ) : null}
       {api.previewClose ? (
         <button
           type="button"
           className="button secondary"
-          disabled={busy}
+          disabled={busy || privateEntryRequired}
           onClick={async () => {
             setBusy(true);
             try {

@@ -33,6 +33,8 @@ function Assert-ServixDelta($Previous,$Candidate) {
     $before=@{};foreach($file in $Previous.files){$before[$file.path]=$file.sha256}
     $after=@{};foreach($file in $Candidate.files){$after[$file.path]=$file.sha256}
     foreach($path in @(@($before.Keys)+@($after.Keys)|Sort-Object -Unique)){
+        if($path -match '^apps/control-plane/node_modules/@frevos/contracts/dist/auth-cookies\.(js|js\.map|d\.ts|d\.ts\.map)$'){continue}
+        if($path -match '^apps/control-plane/dist/browser-entry\.(js|js\.map|d\.ts|d\.ts\.map)$' -or $path -match '^apps/control-center/dist-browser/' -or $path -cin @('deployment/server20/BrowserEntryIisModel.psm1','deployment/server20/Plan-BrowserEntryIis.ps1','deployment/server20/Apply-BrowserEntryIis.ps1','deployment/server20/Configure-BrowserEntryIis.ps1','deployment/server20/Configure-BrowserEntry.ps1','deployment/server20/Validate-BrowserEntry.mjs','deployment/server20/BrowserEntry.example.json')){continue}
         if($path -cin @('deployment/server20/Verify-AndroidCompatibility.ps1','deployment/server20/Configure-PrivatePreview.ps1','deployment/server20/Validate-PreviewConfig.mjs') -or $path -match '^apps/control-plane/node_modules/@frevos/contracts/dist/preview-relay\.(js|js\.map|d\.ts|d\.ts\.map)$'){continue}
         if($before.ContainsKey($path) -and $after.ContainsKey($path) -and $before[$path] -ceq $after[$path]){continue}
         if($path -match '^apps/control-plane/(dist|node_modules/@frevos/contracts/dist)/system-discovery\.(js|js\.map|d\.ts|d\.ts\.map)$' -or $path -match '^apps/control-plane/node_modules/zod/'){continue}

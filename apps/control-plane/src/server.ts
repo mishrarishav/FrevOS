@@ -161,6 +161,7 @@ interface BuildServerOptions {
   readonly componentDeployments?: ComponentDeployments;
   readonly publicOrigin: string;
   readonly basePath?: string;
+  readonly authCookieNamespace?: string;
   readonly authMode?: "local" | "oidc";
   readonly oidcProvider?: OidcProvider;
   readonly transactionCodec?: OidcTransactionCodec;
@@ -222,7 +223,10 @@ class HttpError extends Error {
 type ServerContext = BuildServerOptions & { readonly authCookies: AuthCookiePolicy };
 
 export async function buildServer(input: BuildServerOptions): Promise<FastifyInstance> {
-  const authCookies = authCookiePolicy(new URL(input.publicOrigin).protocol);
+  const authCookies = authCookiePolicy(
+    new URL(input.publicOrigin).protocol,
+    input.authCookieNamespace,
+  );
   if (!authCookies.secure && input.authMode !== "local") {
     throw new Error("HTTP authentication requires local auth mode");
   }

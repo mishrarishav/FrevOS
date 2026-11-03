@@ -3,6 +3,24 @@ import { GithubConnectionSchema } from "@frevos/contracts";
 import { describe, expect, it, vi } from "vitest";
 import { createControlCenterApi } from "../src/api.js";
 
+it("uses the built gateway cookie namespace for CSRF while retaining the configured API prefix", async () => {
+  vi.stubEnv("VITE_FREVOS_COOKIE_NAMESPACE", "workspace");
+  try {
+    const reader = vi.fn(() => "gateway-csrf");
+    const fetcher = vi.fn(async () => new Response(null, { status: 204 }));
+    await createControlCenterApi(fetcher, "/workspace", reader).logout?.();
+    expect(reader).toHaveBeenCalledWith("__Host-frevos-workspace-csrf");
+    expect(fetcher).toHaveBeenCalledWith(
+      "/workspace/auth/logout",
+      expect.objectContaining({
+        headers: { "x-csrf-token": "gateway-csrf" },
+      }),
+    );
+  } finally {
+    vi.unstubAllEnvs();
+  }
+});
+
 const session = {
   sessionId: "ses_primary",
   userId: "usr_primary",

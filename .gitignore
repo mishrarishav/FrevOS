@@ -4,6 +4,7 @@ node_modules/
 # Build and test output
 coverage/
 dist/
+dist-browser/
 *.tsbuildinfo
 /deployment/servix/FrevOS.FolderPicker.exe
 

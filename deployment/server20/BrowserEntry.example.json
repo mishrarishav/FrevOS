@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "publicOrigin": "https://gateway.example.org",
+  "basePath": "/workspace",
+  "proxyHosts": ["browser-entry-upstream"],
+  "listen": { "host": "127.0.0.1", "port": 3002 }
+}

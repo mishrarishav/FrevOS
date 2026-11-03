@@ -3,11 +3,11 @@ import type {
   DeviceLoginChallenge,
   GithubConnection,
   GithubDiscoveryOperation,
+  JoinRequest,
   Project,
   ProjectAutomationOperation,
   ProjectAutomationRequest,
   ProjectRepositoryConnection,
-  JoinRequest,
   Workspace,
 } from "@frevos/contracts";
 import {
@@ -55,7 +55,6 @@ import {
   useState,
 } from "react";
 import { AccountControls } from "./AccountControls.js";
-import { JoinRequestForm } from "./JoinRequestForm.js";
 import { AgentsPage } from "./AgentsPage.js";
 import { ArtifactPromotionsPage } from "./ArtifactPromotionsPage.js";
 import {
@@ -82,6 +81,7 @@ import {
   loadInitialExperience,
   loadWorkspaceExperience,
 } from "./experience.js";
+import { JoinRequestForm } from "./JoinRequestForm.js";
 import { LocalDevelopmentPage } from "./LocalDevelopmentPage.js";
 import { RepositoryCenterPage } from "./RepositoryCenterPage.js";
 import {
@@ -105,6 +105,14 @@ function workspaceDisplayName(workspace: Workspace): string {
 type OverlayName = "palette" | "activity" | "states" | "composer" | null;
 
 const browserApi = createControlCenterApi();
+function BrowserEntryNotice() {
+  return Reflect.get(import.meta.env, "VITE_DEVSETU_BROWSER_ENTRY") === "true" ? (
+    <p role="status">
+      Browser access is connected to your existing workspace. Computer connectors and local app
+      previews still use their configured private network connection.
+    </p>
+  ) : null;
+}
 const builtAuthenticationMode =
   Reflect.get(import.meta.env, "VITE_FREVOS_AUTH_MODE") === "local"
     ? ("local" as const)
@@ -414,6 +422,7 @@ export function App({
           deploymentProfilesEnabled={experience.workspace.workspaceId === "ws_server20"}
         />
         <main id="main-content" className="main-workspace">
+          <BrowserEntryNotice />
           {route?.id === "control-center" ? (
             <ControlCenter
               workspace={experience.workspace}
@@ -655,6 +664,7 @@ function ExperienceBoundary({
           <p className="eyebrow experience-eyebrow">{content.eyebrow}</p>
           <h1>{content.title}</h1>
           <p>{content.description}</p>
+          <BrowserEntryNotice />
           {showLogin && authenticationMode === "oidc" ? (
             <a className="button primary experience-action" href={addBasePath("/auth/login")}>
               Continue to secure sign in
