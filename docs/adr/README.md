@@ -234,3 +234,6 @@ records the scoped configuration-operator repair without changing the active app
 
 [0092: Private preview through IIS port 80](0092-private-preview-iis-host-route.md)
 records owner-selected preparation and the separate exact live-routing approval.
+
+[0093: Preserve the relay denial response](0093-private-preview-denial-contract.md)
+records the recovered activation and bounded health-contract/error-response repair.

@@ -1,5 +1,13 @@
 # DevSetu Current State
 
+2026-11-03 15:10 IST: The owner-approved exact IIS operation cf959bd reaches its
+routing health assertion, then recovers the original IIS/relay configuration.
+Both original hashes match and eight pairings/five settings/five software records
+verify. The check incorrectly expected 403; the relay contract requires 401 and
+the exact fixed denial body. ADR 0093 scopes that operator repair plus new-site
+error-response pass-through. Revised exact review/approval remains pending;
+no live cross-laptop API acceptance is claimed.
+
 2026-11-03: Operator source 62d58ef passes 12 native file/recovery checks and
 successfully configures the private preview with guard/task/runtime/root
 permissions preserved. Port 51860 is listening but inaccessible from L-1770 over

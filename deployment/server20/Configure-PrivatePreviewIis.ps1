@@ -62,7 +62,7 @@ Test-PrivatePreviewIisApproval $approval $plan $payload
 WriteJson (Join-Path $directory 'approval-consumed.json') $approval -New
 [IO.File]::Copy($appHost,(Join-Path $directory 'applicationHost.before.config'),$false)
 [IO.File]::Copy($currentFile,(Join-Path $directory 'relay.before.json'),$false)
-$iisChanged=$false;$relayChanged=$false;$folderCreated=$false;$afterHash=$null
+$iisChanged=$false;$relayChanged=$false;$folderCreated=$false;$afterHash=$null;$status=$null
 try{
  [void][IO.Directory]::CreateDirectory($physical);$folderCreated=$true
  $acl=[Security.AccessControl.DirectorySecurity]::new();$acl.SetAccessRuleProtection($true,$false)
@@ -77,18 +77,20 @@ try{
  & (Join-Path $directory 'Configure-PrivatePreview.ps1') -PlanReference $child|Out-Null
  $relayChanged=$true
  $request=[Net.HttpWebRequest]::Create('http://'+$payload.iis.address+'/');$request.Host=$payload.iis.hostname;$request.Proxy=$null;$request.AllowAutoRedirect=$false;$request.Timeout=15000
- $status=$null;try{$response=$request.GetResponse();try{$status=[int]$response.StatusCode}finally{$response.Dispose()}}catch [Net.WebException]{if($_.Exception.Response){$status=[int]$_.Exception.Response.StatusCode;$_.Exception.Response.Dispose()}else{throw}}
- if($status -ne 403){throw 'Private IIS proxy did not enforce preview authorization'}
+ $response=$null;try{$response=$request.GetResponse()}catch [Net.WebException]{if($_.Exception.Response){$response=$_.Exception.Response}else{throw}}
+ try{$status=[int]$response.StatusCode;$stream=$response.GetResponseStream();$reader=[IO.StreamReader]::new($stream);try{$characters=New-Object char[] 128;$count=$reader.ReadBlock($characters,0,$characters.Length);$denial=[string]::new($characters,0,$count)}finally{$reader.Dispose()}}finally{$response.Dispose()}
+ if($status -ne 401 -or $denial -cne 'preview-open-from-devsetu'){throw 'Private IIS proxy did not preserve the exact unauthenticated relay response'}
  $health=Invoke-WebRequest -UseBasicParsing -Uri ($payload.portalOrigin+'/health') -TimeoutSec 10
  if($health.StatusCode -ne 200 -or ($health.Content|ConvertFrom-Json).status -cne 'ok' -or (Get-PrivatePreviewIisFingerprint $appHost $payload.iis) -cne $beforeFingerprint){throw 'Private IIS portal or sibling verification failed'}
  $result=@{status='PASS';action=$plan.action;id=$plan.id;manifestSha256=$payload.manifestSha256;payloadSha256=$plan.payloadSha256;applicationHostSha256=(Hash $appHost);previewOrigin=('http://'+$payload.iis.hostname);unauthenticatedPreviewStatus=$status;portalHealth=200;existingIisPreserved=$true;dnsChanged=$false;firewallChanged=$false;databaseWritten=$false;activeApplicationUnchanged=$true}
  WriteJson (Join-Path $directory 'result.json') $result;$result|ConvertTo-Json -Compress
 }catch{
- $failure=@{status='FAIL';action=$plan.action;id=$plan.id;manifestSha256=$payload.manifestSha256;type=$_.Exception.GetType().Name;line=$_.InvocationInfo.ScriptLineNumber;iisChanged=$iisChanged;relayChanged=$relayChanged;recovered=$false}
+ $failure=@{status='FAIL';action=$plan.action;id=$plan.id;manifestSha256=$payload.manifestSha256;type=$_.Exception.GetType().Name;line=$_.InvocationInfo.ScriptLineNumber;unauthenticatedPreviewStatus=$status;iisChanged=$iisChanged;relayChanged=$relayChanged;recovered=$false}
  try{
   if($relayChanged){$restore=New-ConfigIntent $current (Hash $currentFile) ('pvc_'+[guid]::NewGuid().ToString('N')) ('Recovery of owned private IIS operation '+$plan.id);& (Join-Path $directory 'Configure-PrivatePreview.ps1') -PlanReference $restore|Out-Null}
   if($iisChanged){if((Hash $appHost) -cne $afterHash){throw 'IIS changed outside this operation; retained for owner recovery'};$manager=[Microsoft.Web.Administration.ServerManager]::new();try{Remove-PrivatePreviewIisModel $manager $payload;$manager.CommitChanges()}finally{$manager.Dispose()}}
   if((Get-PrivatePreviewIisFingerprint $appHost $payload.iis) -cne $beforeFingerprint -or (Hash $currentFile) -cne $payload.configBeforeSha256){throw 'Private IIS recovery preservation differs'}
+  if($folderCreated -and [IO.Path]::GetFullPath($physical) -ceq (Get-PrivatePreviewIisRoot $payload) -and @(Get-ChildItem -LiteralPath $physical -Force).Count -eq 0){[IO.Directory]::Delete($physical,$false)}
   $failure.recovered=$true
  }catch{$failure.recoveryType=$_.Exception.GetType().Name}
  WriteJson (Join-Path $directory 'result.json') $failure;$failure|ConvertTo-Json -Compress;exit 1

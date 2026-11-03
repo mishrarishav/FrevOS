@@ -2,6 +2,22 @@
 
 Status: PASS for preparation; activation and browser acceptance pending.
 
+Update 2026-11-03 15:10 IST: cf959bd's approved activation failed its incorrect
+403 denial expectation and recovered the exact IIS/relay preimages. The first
+receipt did not retain the actual HTTP status, so it is not asserted here. Eight
+pairings/five settings/five software records verify after recovery. ADR 0093
+records the revised operator: require the existing relay's 401 plus fixed denial
+body, preserve upstream error bodies in the new site and retain numeric failure
+status. The old approval is consumed; revised review/approval is pending.
+The revised native mapped Plan (pvi_95806a05bd7147fcb114a3708d2c551b) passes
+creation/recovery and sibling preservation; proposed IIS SHA256 is now
+204d1c51d699f836b4ee13f8d24b78dbda0cd625329080df3c87109b6594b1ac.
+Thirty local checks pass again. The existing real relay authentication test
+(`pnpm.cmd --filter @frevos/control-plane exec vitest run
+test/preview-relay.test.ts -t "requires exact Host"`) passes, one test with 18
+unselected; exit 0. Repository validation passes for 146 Markdown files and
+`git diff --check` exits 0. These scoped checks do not repeat the full app build.
+
 Repository: mishrarishav/FrevOS (provider ID 1329122983). Branch:
 `codex/software-inventory-vpn-preview`. Bounded base:
 `62d58eff3a4120d26e859cccbab9647d3bd36483`. Phase 4 remains open. No pull request,
@@ -67,6 +83,7 @@ Changed files in this bounded operation:
 - docs/CURRENT_STATE.md
 - docs/PRIVATE_PREVIEW_IIS_HANDOFF.md
 - docs/adr/0092-private-preview-iis-host-route.md
+- docs/adr/0093-private-preview-denial-contract.md (follow-up repair)
 - docs/adr/README.md
 
 Next boundary: show exact frozen source and payload review, obtain the requested

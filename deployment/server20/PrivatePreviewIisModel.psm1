@@ -49,6 +49,7 @@ function Add-PrivatePreviewIisModel($Manager,$Payload){
  $pool=$Manager.ApplicationPools.Add($iis.poolName);$pool.ManagedRuntimeVersion=''
  $site=$Manager.Sites.Add($iis.siteName,'http',($iis.address+':80:'+$iis.hostname),(Get-PrivatePreviewIisRoot $Payload));$site.Applications['/'].ApplicationPoolName=$iis.poolName
  $site.ServerAutoStart=$true;$site.GetChildElement('logFile').SetAttributeValue('enabled',$false);$site.GetChildElement('traceFailedRequestsLogging').SetAttributeValue('enabled',$false)
+ $configuration.GetSection('system.webServer/httpErrors',$iis.siteName).SetAttributeValue('existingResponse','PassThrough')
  $farms=$configuration.GetSection('webFarms').GetCollection();foreach($existing in $farms){if($existing.GetAttributeValue('name') -ceq $iis.farmName){throw 'Private IIS farm collision'}}
  $farm=$farms.CreateElement('webFarm');$farm.SetAttributeValue('name',$iis.farmName)
  $protocol=$farm.GetChildElement('applicationRequestRouting').GetChildElement('protocol');$protocol.SetAttributeValue('preserveHostHeader',$true);$protocol.SetAttributeValue('reverseRewriteHostInResponseHeaders',$false);$protocol.SetAttributeValue('timeout',[TimeSpan]::FromSeconds(30))
