@@ -65,7 +65,7 @@ if(Test-Path -LiteralPath $backup){throw 'Private preview intent was already con
 [IO.File]::WriteAllText((Join-Path $backup 'intent.json'),($plan|ConvertTo-Json -Depth 9 -Compress),[Text.UTF8Encoding]::new($false))
 [IO.File]::Copy($guard,(Join-Path $backup 'guard.before.ps1'),$false)
 if(Test-Path -LiteralPath $configFile){[IO.File]::Copy($configFile,(Join-Path $backup 'config.before.json'),$false)}
-$changed=$false
+$changed=$false;$guardChanged=$false
 try{
  $createdDirectory=-not(Test-Path -LiteralPath $configDirectory)
  [void][IO.Directory]::CreateDirectory($configDirectory);Plain $configDirectory
@@ -79,7 +79,8 @@ try{
  $acl=[Security.AccessControl.FileSecurity]::new();$acl.SetAccessRuleProtection($true,$false);foreach($owner in $owners){$acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($owner),'FullControl','Allow'))};$acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($principal),'ReadAndExecute','Allow'));[IO.File]::SetAccessControl($temporary,$acl)
  if(Test-Path -LiteralPath $configFile){[IO.File]::Replace($temporary,$configFile,(Join-Path $backup 'atomic-config.json'))}else{[IO.File]::Move($temporary,$configFile)}
  $changed=$true
- $newGuard=Join-Path $release 'deployment\server20\Verify-AndroidCompatibility.ps1';$temporaryGuard=$guard+'.'+$plan.id+'.tmp';[IO.File]::Copy($newGuard,$temporaryGuard,$false);CopyReviewedAcl $guard $temporaryGuard;[IO.File]::Replace($temporaryGuard,$guard,(Join-Path $backup 'atomic-guard.ps1'))
+ $newGuard=Join-Path $release 'deployment\server20\Verify-AndroidCompatibility.ps1'
+ if((Hash $guard) -cne (Hash $newGuard)){$temporaryGuard=$guard+'.'+$plan.id+'.tmp';[IO.File]::Copy($newGuard,$temporaryGuard,$false);CopyReviewedAcl $guard $temporaryGuard;[IO.File]::Replace($temporaryGuard,$guard,(Join-Path $backup 'atomic-guard.ps1'));$guardChanged=$true}
  Stop-ScheduledTask -TaskName $plan.controlTask;$deadline=[DateTimeOffset]::UtcNow.AddSeconds(30)
  while((Get-ScheduledTask -TaskName $plan.controlTask).State -ceq 'Running'){if([DateTimeOffset]::UtcNow -gt $deadline){throw 'Private preview stop deadline'};Start-Sleep -Milliseconds 250}
  Start-ScheduledTask -TaskName $plan.controlTask
@@ -87,9 +88,10 @@ try{
  while([DateTimeOffset]::UtcNow -lt $deadline){try{$health=Invoke-WebRequest -UseBasicParsing -Uri ($runtime.FREVOS_PUBLIC_ORIGIN+'/health') -TimeoutSec 5;if($health.StatusCode -eq 200 -and ($health.Content|ConvertFrom-Json).status -ceq 'ok'){$healthy=$true;break}}catch{};Start-Sleep -Milliseconds 500}
  if(-not $healthy){throw 'Private preview health check failed'}
  if((Hash $runtimeFile) -cne $runtimeHash -or (Get-Content -LiteralPath $activeFile -Raw|ConvertFrom-Json).manifestSha256 -cne $plan.manifestSha256 -or (Export-ScheduledTask -TaskName $plan.controlTask) -cne $taskXml -or (Get-Acl -LiteralPath $root).Sddl -cne $rootAcl -or (Hash $guard) -cne (Hash $newGuard)){throw 'Private preview preservation check failed'}
- $result=@{status='PASS';action=$plan.action;id=$plan.id;manifestSha256=$plan.manifestSha256;workspaceId=$plan.workspaceId;origins=@($normalized.targets.origin);configSha256=(Hash $configFile);compatibilityGuardUpdated=$true;runtimeValuesPreserved=$true;taskDefinitionPreserved=$true;parentPermissionsPreserved=$true;databaseWritten=$false;firewallChanged=$false;dnsChanged=$false;httpHealth=200}
+ $result=@{status='PASS';action=$plan.action;id=$plan.id;manifestSha256=$plan.manifestSha256;workspaceId=$plan.workspaceId;origins=@($normalized.targets.origin);configSha256=(Hash $configFile);compatibilityGuardUpdated=$guardChanged;runtimeValuesPreserved=$true;taskDefinitionPreserved=$true;parentPermissionsPreserved=$true;databaseWritten=$false;firewallChanged=$false;dnsChanged=$false;httpHealth=200}
  [IO.File]::WriteAllText((Join-Path $backup 'result.json'),($result|ConvertTo-Json -Depth 7 -Compress),[Text.UTF8Encoding]::new($false));$result|ConvertTo-Json -Depth 7 -Compress
 }catch{
- if($changed){Stop-ScheduledTask -TaskName $plan.controlTask;if($null -ne $plan.configBeforeSha256){[IO.File]::Copy((Join-Path $backup 'config.before.json'),$configFile,$true)}else{if([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($configFile)) -cne $configDirectory){throw 'Private preview recovery scope differs'};Remove-Item -LiteralPath $configFile -Force};[IO.File]::Copy((Join-Path $backup 'guard.before.ps1'),$guard,$true);Start-ScheduledTask -TaskName $plan.controlTask}
- [IO.File]::WriteAllText((Join-Path $backup 'recovery.json'),'{"status":"RESTORED"}',[Text.UTF8Encoding]::new($false));throw 'Private preview configuration failed; previous configuration restored; inspect scoped receipt'
+ $failure=@{status='RESTORED';failureType=$_.Exception.GetType().Name;failureLine=$_.InvocationInfo.ScriptLineNumber}
+ if($changed){Stop-ScheduledTask -TaskName $plan.controlTask;if($null -ne $plan.configBeforeSha256){[IO.File]::Copy((Join-Path $backup 'config.before.json'),$configFile,$true)}else{if([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($configFile)) -cne $configDirectory){throw 'Private preview recovery scope differs'};Remove-Item -LiteralPath $configFile -Force};if($guardChanged){[IO.File]::Copy((Join-Path $backup 'guard.before.ps1'),$guard,$true)};Start-ScheduledTask -TaskName $plan.controlTask}
+ [IO.File]::WriteAllText((Join-Path $backup 'recovery.json'),($failure|ConvertTo-Json -Compress),[Text.UTF8Encoding]::new($false));throw 'Private preview configuration failed; previous configuration restored; inspect scoped receipt'
 }finally{$runtime=$null}

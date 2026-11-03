@@ -1,5 +1,13 @@
 # DevSetu Current State
 
+2026-11-03 12:49 IST: DNS-fix source 2f70b82 is activated through DevSetu with
+manifest acce2b5c and request su_3b0d72946f2f08d6e13ddd73beac2c34. Native CI passes
+526 tests; native Apply, health, installers, eight pairings, five settings and
+five stable software data files verify. Private configuration Plan is READY.
+Its first Apply fails in the identical-guard replacement path and recovery
+restores the absent configuration with health 200. ADR 0091 scopes the operator
+repair; the approved application artifact is not modified in place.
+
 2026-11-03 11:46 IST: The owner-approved software-management release d0f03f5 is
 live on Server20 through authenticated DevSetu maintenance. Manifest f8dd3726,
 request su_ecd178442612caeb51b415cc16060240 and native Apply are PASS. Eight stable

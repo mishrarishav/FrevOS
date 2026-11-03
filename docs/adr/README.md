@@ -228,3 +228,6 @@ records strict actual activation receipt authority without inventing component p
 
 [0090: Windows private preview DNS classification](0090-windows-private-preview-dns.md)
 records the observed scoped link-local DNS result and bounded classifier repair.
+
+[0091: Preserve the identical preview guard](0091-identical-preview-guard-operation.md)
+records the scoped configuration-operator repair without changing the active application artifact.

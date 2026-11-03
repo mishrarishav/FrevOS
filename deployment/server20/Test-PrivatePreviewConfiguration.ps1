@@ -59,7 +59,18 @@ try{
  $v.plan.activationRequestId='su_'+[guid]::NewGuid().ToString('N');Json $v.reference $v.plan;$denied=$false;try{& (Join-Path $PSScriptRoot 'Configure-PrivatePreview.ps1') -PlanReference $v.reference -PlanOnly|Out-Null}catch{$denied=$true};Assert $denied 'Different maintenance request accepted'
  $v.plan.activationRequestId=$activation.requestId;$v.plan.requestedBy='usr_other';Json $v.reference $v.plan;$denied=$false;try{& (Join-Path $PSScriptRoot 'Configure-PrivatePreview.ps1') -PlanReference $v.reference -PlanOnly|Out-Null}catch{$denied=$true};Assert $denied 'Other maintenance actor accepted'
  $v.plan.requestedBy=$activation.actor;Json $v.reference $v.plan;Json (Join-Path $v.root ('operator\servix-dashboard-'+$v.plan.candidateId+'\result-apply.json')) @{status='PASS';manifestSha256=('f'*64)};$denied=$false;try{& (Join-Path $PSScriptRoot 'Configure-PrivatePreview.ps1') -PlanReference $v.reference -PlanOnly|Out-Null}catch{$denied=$true};Assert $denied 'Other native artifact accepted'
- @{status='PASS';checks=10;realConfigValidationAndFiles=$true;taskAndHealthTransport='fixed-fixture-functions';nativeLiveAcceptance=$false;runtimePreserved=$true;failedStartRestored=$true;publicationActorBound=$true;legacyLauncherPreserved=$true}|ConvertTo-Json -Compress
+ foreach($failStart in @($false,$true)){
+  $same=Fixture;$sameGuard=Join-Path $same.plan.executorRoot 'Verify-AndroidCompatibility.ps1'
+  [IO.File]::Copy((Join-Path $PSScriptRoot 'Verify-AndroidCompatibility.ps1'),$sameGuard,$true)
+  $same.plan.guardBeforeSha256=Hash $sameGuard;Json $same.reference $same.plan
+  $attributes=[IO.File]::GetAttributes($sameGuard);[IO.File]::SetAttributes($sameGuard,($attributes -bor [IO.FileAttributes]::ReadOnly));$global:PreviewConfigFailStart=$failStart
+  try{
+   if($failStart){$denied=$false;try{& (Join-Path $PSScriptRoot 'Configure-PrivatePreview.ps1') -PlanReference $same.reference|Out-Null}catch{$denied=$true};Assert ($denied -and -not(Test-Path -LiteralPath (Join-Path $same.root 'servix\config\preview-relay.json')) -and $global:PreviewConfigState -ceq 'Running') 'Identical guard recovery failed'}
+   else{$result=& (Join-Path $PSScriptRoot 'Configure-PrivatePreview.ps1') -PlanReference $same.reference|ConvertFrom-Json;Assert ($result.status -ceq 'PASS' -and -not $result.compatibilityGuardUpdated) 'Identical guard was needlessly replaced'}
+   Assert ((Hash $sameGuard) -ceq $same.plan.guardBeforeSha256 -and ([IO.File]::GetAttributes($sameGuard) -band [IO.FileAttributes]::ReadOnly)) 'Identical guard metadata changed'
+  }finally{[IO.File]::SetAttributes($sameGuard,$attributes)}
+ }
+ @{status='PASS';checks=12;realConfigValidationAndFiles=$true;taskAndHealthTransport='fixed-fixture-functions';nativeLiveAcceptance=$false;runtimePreserved=$true;failedStartRestored=$true;publicationActorBound=$true;legacyLauncherPreserved=$true;identicalGuardUntouched=$true;identicalGuardRecovery=$true}|ConvertTo-Json -Compress
 }finally{
  $resolved=[IO.Path]::GetFullPath($temporary)
  if([IO.Path]::GetDirectoryName($resolved) -cne $parent -or [IO.Path]::GetFileName($resolved) -cnotmatch '^dvpconfig-[a-f0-9]{32}$'){throw 'Private preview fixture cleanup escaped owned target'}
