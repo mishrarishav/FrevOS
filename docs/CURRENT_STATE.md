@@ -1,5 +1,13 @@
 # DevSetu Current State
 
+2026-11-03 16:12 IST: Frozen packaging repair 812501d passes enrolled full native
+CI (104 files / 526 tests), build, independent package/installer review and the
+new actual packaged-runtime CSP probe. Manifest b8aed7d6 / archive 8c0c31b1,
+candidate 8f03ca8733af421e9b5931324ca90917: native Plan PASS, 14-file selected
+snapshot, eight pairings/five settings/seven software records and retained IIS/
+relay verified. Exact application approval is pending; active manifest remains
+acce2b5c. See [the release handoff](PRIVATE_PREVIEW_CSP_RELEASE_HANDOFF.md).
+
 2026-11-03 15:35 IST: After owner login, actual DevSetu starts the L-1465 demo
 and issues a preview lease. Browser bootstrap is blocked: the sealed artifact's
 control-center.js is stale and emits self-only form CSP, although current main.js
