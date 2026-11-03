@@ -23,14 +23,14 @@ stage = "scope"
 try:
     host, root, identifier = config["host"], config["installationRoot"], config["id"]
     kind = config.get("kind", "configuration")
-    if kind not in ("configuration", "executor"):
+    if kind not in ("configuration", "executor", "iis-preview"):
         raise ValueError("kind")
-    script_name = "Configure-PrivatePreview.ps1" if kind == "configuration" else "Update-PreviewExecutor.ps1"
+    script_name = {"configuration":"Configure-PrivatePreview.ps1", "executor":"Update-PreviewExecutor.ps1", "iis-preview":"Configure-PrivatePreviewIis.ps1"}[kind]
     address = ipaddress.IPv4Address(host)
     if (not any(address in ipaddress.ip_network(n) for n in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"))
             or not re.fullmatch(r"[A-Z]:\\[A-Za-z0-9 _.-]+(?:\\[A-Za-z0-9 _.-]+)*", root)
             or any(p in (".", "..") for p in root[3:].split("\\"))
-            or not re.fullmatch((r"pvc_[a-f0-9]{32}" if kind == "configuration" else r"pve_[a-f0-9]{32}"), identifier)
+            or not re.fullmatch(({"configuration":r"pvc_[a-f0-9]{32}","executor":r"pve_[a-f0-9]{32}","iis-preview":r"pvi_[a-f0-9]{32}"}[kind]), identifier)
             or config["mode"] not in ("plan", "apply")
             or not all(re.fullmatch(r"[a-f0-9]{64}", config[n]) for n in ("scriptSha256", "planSha256"))):
         raise ValueError("scope")
@@ -71,8 +71,10 @@ try:
     plan = json.loads(bounded(relative + "\\plan.json", config["planSha256"]).decode("utf-8-sig"))
     if kind == "configuration" and plan.get("version") not in (1, 2):
         raise ValueError("version")
-    expected_action = ("devsetu.private-preview.configure.v" + str(plan["version"])) if kind == "configuration" else "devsetu.preview.executor-update.v1"
-    if (plan["id"] != identifier or plan["installationRoot" if kind == "configuration" else "platformRoot"] != root
+    if kind == "iis-preview" and plan.get("version") != 1:
+        raise ValueError("version")
+    expected_action = ("devsetu.private-preview.configure.v" + str(plan["version"])) if kind == "configuration" else "devsetu.private-preview.iis.v1" if kind == "iis-preview" else "devsetu.preview.executor-update.v1"
+    if (plan["id"] != identifier or plan["installationRoot" if kind != "executor" else "platformRoot"] != root
             or plan["executionSid"] != "S-1-5-18"
             or plan["action"] != expected_action
             or (kind == "executor" and plan["role"] != "destination")):
@@ -111,9 +113,10 @@ try:
     if int(last["pLastReturnCode"]) == 0:
         receipt_path = (relative + "\\plan-only-result.json" if config["mode"] == "plan"
                         else relative + "\\preview-executor-result.json" if kind == "executor"
+                        else relative + "\\result.json" if kind == "iis-preview"
                         else root[3:] + "\\operator\\private-preview-" + identifier + "\\result.json")
         receipt = json.loads(bounded(receipt_path).decode("utf-8-sig"))
-        if receipt.get("id") != identifier or (kind == "configuration" and receipt.get("manifestSha256") != plan["manifestSha256"]):
+        if receipt.get("id") != identifier or (kind != "executor" and receipt.get("manifestSha256") != plan["manifestSha256"]):
             raise ValueError("receipt")
     else:
         receipt = {"status": "FAIL", "id": identifier, "nativeExitCode": int(last["pLastReturnCode"])}

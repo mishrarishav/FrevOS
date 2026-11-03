@@ -231,3 +231,6 @@ records the observed scoped link-local DNS result and bounded classifier repair.
 
 [0091: Preserve the identical preview guard](0091-identical-preview-guard-operation.md)
 records the scoped configuration-operator repair without changing the active application artifact.
+
+[0092: Private preview through IIS port 80](0092-private-preview-iis-host-route.md)
+records owner-selected preparation and the separate exact live-routing approval.

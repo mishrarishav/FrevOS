@@ -1,5 +1,17 @@
 # DevSetu Current State
 
+2026-11-03: Operator source 62d58ef passes 12 native file/recovery checks and
+successfully configures the private preview with guard/task/runtime/root
+permissions preserved. Port 51860 is listening but inaccessible from L-1770 over
+the VPN; Windows firewall is already disabled. The owner selects preparing an
+isolated hostname route through existing IIS port 80, with exact review before
+activation. The full schema-bound operator's native read-only Plan passes,
+including mapped creation/recovery and existing IIS fingerprint comparison;
+30 local payload/approval checks pass. Global proxy settings are unchanged.
+No live IIS change or final browser GET/POST is claimed.
+ADR 0092 scopes this next bounded operation; active manifest remains acce2b5c.
+See [the exact-route preparation handoff](PRIVATE_PREVIEW_IIS_HANDOFF.md).
+
 2026-11-03 12:49 IST: DNS-fix source 2f70b82 is activated through DevSetu with
 manifest acce2b5c and request su_3b0d72946f2f08d6e13ddd73beac2c34. Native CI passes
 526 tests; native Apply, health, installers, eight pairings, five settings and
