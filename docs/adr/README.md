@@ -237,3 +237,6 @@ records owner-selected preparation and the separate exact live-routing approval.
 
 [0093: Preserve the relay denial response](0093-private-preview-denial-contract.md)
 records the recovered activation and bounded health-contract/error-response repair.
+
+[0094: Refresh packaged Control Center runtime](0094-refresh-packaged-control-center-runtime.md)
+records the live browser packaging mismatch and bounded fresh-output repair.

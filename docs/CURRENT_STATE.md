@@ -1,5 +1,13 @@
 # DevSetu Current State
 
+2026-11-03 15:35 IST: After owner login, actual DevSetu starts the L-1465 demo
+and issues a preview lease. Browser bootstrap is blocked: the sealed artifact's
+control-center.js is stale and emits self-only form CSP, although current main.js
+passes the configured preview origins. The package recipe omitted that module.
+The lease is closed, the owned demo stopped and services empty. ADR 0094 scopes
+the packaging repair and new exact immutable release; no active artifact edit or
+successful browser GET/POST is claimed.
+
 2026-11-03 15:19 IST: Revised exact IIS operation 552ea79 is activated with owner
 approval call_b9724e8535d641c68d1fececab1a96a6. Correlation
 pvi_f0dad9b345f7452d88d31ef0fbb88344, payload e71776a5, IIS artifact 204d1c51:
