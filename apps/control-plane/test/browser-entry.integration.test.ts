@@ -7,6 +7,7 @@ import { expect, it, vi } from "vitest";
 import { type BrowserEntry, buildBrowserEntry, loadBrowserEntry } from "../src/browser-entry.js";
 import { prepareApplicationLoginRole, runMigrations } from "../src/database.js";
 import { IdentitySessionRepository, WorkspaceRepository } from "../src/repositories.js";
+import { SelfUpdates } from "../src/self-updates.js";
 import { buildServer } from "../src/server.js";
 
 const profile: BrowserEntry = {
@@ -69,9 +70,19 @@ it("serves both origins with shared persisted identities, scoped APIs and unchan
       username: "entry.owner",
       password: "synthetic-entry-password",
       displayName: "Entry Owner",
+      userId: "usr_windows_admin",
     });
     await workspaces.createWorkspace({ workspaceId: "ws_entry", displayName: "Entry workspace" });
     await workspaces.createWorkspace({ workspaceId: "ws_other", displayName: "Other workspace" });
+    await workspaces.createWorkspace({
+      workspaceId: "ws_server20",
+      displayName: "Platform workspace",
+    });
+    await workspaces.createMembership({
+      workspaceId: "ws_server20",
+      userId: owner.userId,
+      grantedScopes: ["workspace:read", "project:read", "project:write"],
+    });
     await workspaces.createMembership({
       workspaceId: "ws_entry",
       userId: owner.userId,
@@ -82,6 +93,7 @@ it("serves both origins with shared persisted identities, scoped APIs and unchan
       publicOrigin: "http://10.0.0.20",
       identitySessions: identities,
       workspaces,
+      selfUpdates: new SelfUpdates(join(root, "maintenance")),
     };
     internal = await buildServer(common);
     await expect(buildBrowserEntry({ ...common, authMode: "oidc" }, profile, root)).rejects.toThrow(
@@ -174,6 +186,19 @@ it("serves both origins with shared persisted identities, scoped APIs and unchan
       (await external.inject({ url: "/workspace/v1/session", headers: authenticated })).json()
         .userId,
     ).toBe(owner.userId);
+    const maintenance = await external.inject({
+      url: "/workspace/maintenance",
+      headers: authenticated,
+    });
+    expect(maintenance.statusCode).toBe(200);
+    expect(maintenance.body).toContain('href="/workspace/maintenance.css"');
+    expect(maintenance.body).toContain('src="/workspace/maintenance.js"');
+    const maintenanceScript = await external.inject({ url: "/workspace/maintenance.js", headers });
+    expect(maintenanceScript.statusCode).toBe(200);
+    expect(maintenanceScript.body).toContain(
+      "/workspace/v1/workspaces/ws_server20/platform-update",
+    );
+    expect(maintenanceScript.body).toContain("__Host-frevos-workspace-csrf=");
     expect(
       (
         await external.inject({

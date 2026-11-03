@@ -108,8 +108,8 @@ const browserApi = createControlCenterApi();
 function BrowserEntryNotice() {
   return Reflect.get(import.meta.env, "VITE_DEVSETU_BROWSER_ENTRY") === "true" ? (
     <p role="status">
-      Browser access is connected to your existing workspace. Computer connectors and local app
-      previews still use their configured private network connection.
+      Administrator browser access uses your existing workspace. Paired-computer sign-in, connectors
+      and local app previews still use the private DevSetu entry.
     </p>
   ) : null;
 }

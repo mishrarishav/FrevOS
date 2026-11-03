@@ -34,7 +34,20 @@ try{
  foreach($file in $g.plan.files){Assert ((Hash (Join-Path $g.root $file.name)) -ceq $file.beforeSha256) 'Executor preimage not restored'}
  Assert ((Hash (Join-Path $g.root 'executor.dpapi')) -ceq $g.plan.configurationSha256 -and $global:PreviewExecutorState -ceq 'Running') 'Executor recovery changed identity'
  $h=Fixture;$h.plan.repositoryId='gitrepo_'+('d'*32);Json $h.reference $h.plan;$denied=$false;try{& (Join-Path $PSScriptRoot 'Update-PreviewExecutor.ps1') -PlanReference $h.reference -PlanOnly|Out-Null}catch{$denied=$true};Assert $denied 'Other provider repository accepted'
- @{status='PASS';checks=5;realWindowsFilesAndDpapi=$true;taskTransport='fixed-fixture-functions';nativeLiveAcceptance=$false;providerRepositoryBound=$true;enrollmentPreserved=$true;failedStartRestored=$true}|ConvertTo-Json -Compress
+ $j=Fixture;$node=Join-Path $j.root 'node.exe';$nodeSource=(Get-Command node.exe -ErrorAction Stop).Source
+ try{New-Item -ItemType HardLink -Path $node -Target $nodeSource -ErrorAction Stop|Out-Null}catch{[IO.File]::Copy($nodeSource,$node,$false)}
+ $verifier=Join-Path $j.root 'Verify-HttpManifest.mjs';$next=Join-Path $temporary ($j.plan.id+'-verifier.mjs')
+ [IO.File]::WriteAllText($verifier,'// previous verifier',[Text.UTF8Encoding]::new($false));[IO.File]::WriteAllText($next,'export {};',[Text.UTF8Encoding]::new($false))
+ $j.plan.files+=@{name='Verify-HttpManifest.mjs';source=$next;sha256=(Hash $next);beforeSha256=(Hash $verifier)}
+ $guard=Join-Path $j.root 'Verify-AndroidCompatibility.ps1';$nextGuard=Join-Path $temporary ($j.plan.id+'-guard.ps1')
+ [IO.File]::WriteAllText($guard,'# previous compatibility guard',[Text.UTF8Encoding]::new($false));[IO.File]::WriteAllText($nextGuard,'# reviewed compatibility guard',[Text.UTF8Encoding]::new($false))
+ $j.plan.files+=@{name='Verify-AndroidCompatibility.ps1';source=$nextGuard;sha256=(Hash $nextGuard);beforeSha256=(Hash $guard)};Json $j.reference $j.plan
+ $ready=& (Join-Path $PSScriptRoot 'Update-PreviewExecutor.ps1') -PlanReference $j.reference -PlanOnly|ConvertFrom-Json;Assert ($ready.status -ceq 'READY') 'Verifier preflight failed'
+ $updated=& (Join-Path $PSScriptRoot 'Update-PreviewExecutor.ps1') -PlanReference $j.reference|ConvertFrom-Json
+ Assert ($updated.status -ceq 'PASS' -and (Hash $verifier) -ceq (Hash $next) -and (Hash (Join-Path $j.root 'executor.dpapi')) -ceq $j.plan.configurationSha256) 'Verifier update changed enrollment or bytes'
+ $k=Fixture;$k.plan.files+=@{name='OtherVerifier.mjs';source=$next;sha256=(Hash $next);beforeSha256=(Hash $next)};Json $k.reference $k.plan
+ $denied=$false;try{& (Join-Path $PSScriptRoot 'Update-PreviewExecutor.ps1') -PlanReference $k.reference -PlanOnly|Out-Null}catch{$denied=$true};Assert $denied 'Unenrolled verifier filename accepted'
+ @{status='PASS';checks=7;realWindowsFilesAndDpapi=$true;taskTransport='fixed-fixture-functions';nativeLiveAcceptance=$false;providerRepositoryBound=$true;enrollmentPreserved=$true;failedStartRestored=$true;fixedVerifierUpdateValidated=$true}|ConvertTo-Json -Compress
 }finally{
  $env:LOCALAPPDATA=$originalLocal;$resolved=[IO.Path]::GetFullPath($temporary)
  if([IO.Path]::GetDirectoryName($resolved) -cne $parent -or [IO.Path]::GetFileName($resolved) -cnotmatch '^dvpex-[a-f0-9]{32}$'){throw 'Executor fixture cleanup escaped owned target'}

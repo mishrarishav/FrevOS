@@ -12,7 +12,7 @@ for (const [script, checks] of [
   ["servix/Test-GitRecoveryBoundary.ps1", 7],
   ["servix/Test-SystemConnectorUpdate.ps1", 6],
   ["server20/Test-PrivatePreviewConfiguration.ps1", 12],
-  ["server20/Test-PreviewExecutorUpdate.ps1", 5],
+  ["server20/Test-PreviewExecutorUpdate.ps1", 7],
 ] as const) {
   it.skipIf(process.platform !== "win32")(
     `runs real Windows file/protection preservation and fixed transport failure recovery: ${script}`,

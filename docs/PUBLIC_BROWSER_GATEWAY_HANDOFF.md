@@ -33,8 +33,9 @@ preserving legacy cookie names and the secure host-only policy. The release
 recipe includes the new module, fresh contracts, public assets and source
 inventory. The existing `.env`/runtime profile is not rewritten.
 
-This first entry provides browser access. Connector endpoints, pairing and
-private preview retain their current private-network requirements. The public
+This first entry provides administrator browser access. Paired-device sign-in,
+connector endpoints, pairing and private preview retain their private-entry
+requirements pending a verified connector endpoint migration. The public
 listener explicitly rejects connector transport/private preview actions and
 the public UI explains this limit. A public browser URL is not a full system
 VPN, and a path does not isolate this app's browser origin from sibling apps.
@@ -80,3 +81,20 @@ activation, profile/IIS activation and actual public browser/external-network
 acceptance remain pending. Do not describe this preparation as a live public
 deployment or as a completed source-to-deploy UI pipeline. GitHub publication
 is not requested for this change.
+
+The first frozen attempt (0254d3f) passes 541 tests and produces a signed APK,
+but packaging is rejected by the old verifier's UI-directory allowlist. It is
+not an approved artifact and is not activated. The verifier now admits only the
+additional closed `dist-browser` tree with matching metadata/runtime, retaining
+all hashes, budgets, path/link and file-set checks. An optional third fixed
+builder sidecar updates that verifier with the same protected enrollment/task
+checks; arbitrary verifier filenames remain rejected. Separately, the public
+maintenance screen now renders its prefix and scoped CSRF cookie. Executed
+JavaScript regression checks polling/submission for both entries; the authenticated
+HTTP integration also checks the maintenance script/style URLs.
+
+An active browser profile also gates native activation/recovery compatibility:
+retain the browser capability and matching built prefix. Without an active
+profile, recovery to the earlier application remains available. Real ZIP/file
+fixtures cover both cases and reject mismatched assets. These checks complement
+the prepared-artifact review; no live rollback is claimed by fixture results.

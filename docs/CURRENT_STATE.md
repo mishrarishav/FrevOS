@@ -1,5 +1,17 @@
 # DevSetu Current State
 
+2026-11-04: First frozen browser-entry source 0254d3f passes native
+CI (541 tests) and signed Android build, then packaging rejects the additional
+UI tree under the old verifier allowlist. No activation or public route. A
+read-only diagnostic verifies the 4,074-file package with the revised closed-tree
+verifier. A discovered maintenance root-path/internal-cookie assumption is fixed
+with executed script and authenticated HTTP regressions. Fixed verifier updates
+retain protected builder enrollment; native capability checks retain an active
+browser profile's required runtime/assets on recovery. Focused checks pass;
+the corrected source still needs its own frozen full CI, exact artifact and
+native activation/review. Existing eight pairings, five settings, 17 software
+records, internal app and IIS/relay remain preserved.
+
 2026-11-03 22:33 IST: Owner selects the existing public HTTPS host's `/devsetu/`
 path, with Server9 routing only and the application/data remaining on Server20.
 TrackGRN/IMS chat references identify DCPUBWEB.eesl.co.in:5052 Kerberos WinRM;

@@ -1,8 +1,8 @@
 import { createHash, randomBytes } from "node:crypto";
-import { readFile, writeFile, link, unlink } from "node:fs/promises";
+import { link, readFile, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { type DeploymentChange, DeploymentChangeSchema } from "@frevos/contracts";
 import { z } from "zod";
-import { DeploymentChangeSchema, type DeploymentChange } from "@frevos/contracts";
 
 const digest = z.string().regex(/^[a-f0-9]{64}$/);
 const id = z.string().regex(/^[a-f0-9]{32}$/);
@@ -167,3 +167,30 @@ deploy.onclick=()=>{if(submitting||!window.candidate)return;selected=window.cand
 form.onsubmit=async e=>{e.preventDefault();if(submitting||!selected)return;pendingBody??={candidateId:selected.candidateId,manifestSha256:selected.manifestSha256,changeDetails:{message:message.value.trim(),approvedBy:approvedBy.value.trim()}};submitting=true;started=Date.now();deploy.disabled=true;confirmButton.disabled=cancel.disabled=true;message.readOnly=approvedBy.readOnly=true;formStatus.textContent='Submitting update…';try{const cookie=document.cookie.split('; ').find(x=>x.startsWith('frevos-internal-csrf='));if(!cookie)throw Error();const r=await fetch('/v1/workspaces/ws_server20/platform-update',{method:'POST',headers:{'content-type':'application/json','x-csrf-token':decodeURIComponent(cookie.slice(cookie.indexOf('=')+1))},body:JSON.stringify(pendingBody)});if(!r.ok){if([400,401,403,409].includes(r.status)){pendingBody=null;message.readOnly=approvedBy.readOnly=false;formStatus.textContent='Request was rejected. Check the prepared candidate and details.';return;}throw Error();}dialog.close();message.value='';approvedBy.value='';}catch{formStatus.textContent='Request not confirmed. Retry retains the same candidate and details.';}finally{submitting=false;confirmButton.disabled=cancel.disabled=false;}};
 setInterval(()=>{document.getElementById('elapsed').textContent=started?'Elapsed '+Math.floor((Date.now()-started)/1000)+' seconds':'';},1000);poll();
 `;
+
+function maintenanceBasePath(basePath: string): string {
+  if (!/^$|^\/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(basePath))
+    throw Error("Invalid maintenance base path");
+  return basePath;
+}
+
+export function renderSelfUpdateHtml(basePath: string): string {
+  maintenanceBasePath(basePath);
+  return selfUpdateHtml
+    .replaceAll('"/maintenance', `"${basePath}/maintenance`)
+    .replace('href="/deployments/', `href="${basePath}/deployments/`);
+}
+
+export function renderSelfUpdateScript(basePath: string, csrfCookieName: string): string {
+  maintenanceBasePath(basePath);
+  if (!/^[A-Za-z0-9_-]{1,160}$/.test(csrfCookieName)) throw Error("Invalid maintenance cookie");
+  return selfUpdateScript
+    .replaceAll(
+      "fetch('/v1/workspaces/ws_server20/platform-update'",
+      `fetch(${JSON.stringify(`${basePath}/v1/workspaces/ws_server20/platform-update`)}`,
+    )
+    .replace(
+      "x.startsWith('frevos-internal-csrf=')",
+      `x.startsWith(${JSON.stringify(`${csrfCookieName}=`)})`,
+    );
+}

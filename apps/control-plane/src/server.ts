@@ -60,9 +60,9 @@ import type {
 } from "./repositories.js";
 import type { RepositoryCenter } from "./repository-center.js";
 import {
+  renderSelfUpdateHtml,
+  renderSelfUpdateScript,
   type SelfUpdates,
-  selfUpdateHtml,
-  selfUpdateScript,
   selfUpdateStyle,
 } from "./self-updates.js";
 import { ServixDeploymentError, type ServixDeploymentStore } from "./servix-deployment.js";
@@ -789,10 +789,16 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
       }).allowed
     )
       throw new HttpError(403, "platform-update-denied");
-    return reply.header("cache-control", "no-store").type("text/html").send(selfUpdateHtml);
+    return reply
+      .header("cache-control", "no-store")
+      .type("text/html")
+      .send(renderSelfUpdateHtml(basePath));
   });
   server.get(route("/maintenance.js"), async (_request, reply) =>
-    reply.header("cache-control", "no-store").type("application/javascript").send(selfUpdateScript),
+    reply
+      .header("cache-control", "no-store")
+      .type("application/javascript")
+      .send(renderSelfUpdateScript(basePath, options.authCookies.csrf)),
   );
   server.get(route("/maintenance.css"), async (_request, reply) =>
     reply.header("cache-control", "no-store").type("text/css").send(selfUpdateStyle),

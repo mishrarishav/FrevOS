@@ -35,12 +35,19 @@ $roleField=if($plan.role -ceq 'builder'){'builderId'}else{'destinationId'}
 if($profile.repository.id -cne $plan.repositoryId -or -not @($profile.components|Where-Object {$_.$roleField -ceq $plan.executorId}).Count){throw 'Preview executor provider repository differs'}
 foreach($file in Get-ChildItem -LiteralPath (Join-Path $plan.platformRoot 'servix\jobs\components') -Filter 'job-cj_*.json'){$job=Get-Content -LiteralPath $file.FullName -Raw|ConvertFrom-Json;if($job.executorId -ceq $plan.executorId -and $job.status -cnotin @('succeeded','failed')){throw 'Preview executor has unresolved work'}}
 $allowed=if($plan.role -ceq 'builder'){@('HttpCommon.ps1','New-ServixDashboardRelease.ps1')}else{@('HttpCommon.ps1','Verify-AndroidCompatibility.ps1')}
-if(@($plan.files).Count -ne 2 -or (@($plan.files.name|Sort-Object)-join ',') -cne ($allowed -join ',')){throw 'Preview executor file inventory differs'}
+if($plan.role -ceq 'builder'){foreach($optional in @('Verify-AndroidCompatibility.ps1','Verify-HttpManifest.mjs')){if(@($plan.files.name|Where-Object {$_ -ceq $optional}).Count -eq 1){$allowed+= $optional}}}
+if(@($plan.files).Count -ne $allowed.Count -or (@($plan.files.name|Sort-Object)-join ',') -cne (($allowed|Sort-Object)-join ',')){throw 'Preview executor file inventory differs'}
 foreach($file in $plan.files){
  if((@($file.PSObject.Properties.Name|Sort-Object)-join ',') -cne 'beforeSha256,name,sha256,source'){throw 'Preview executor sidecar fields differ'}
  Plain $file.source;Plain (Join-Path $root $file.name)
  if($file.sha256 -cnotmatch '^[a-f0-9]{64}$' -or (Hash $file.source) -cne $file.sha256 -or (Hash (Join-Path $root $file.name)) -cne $file.beforeSha256){throw 'Preview executor file bytes differ'}
- $tokens=$null;$parseErrors=$null;[void][Management.Automation.Language.Parser]::ParseFile($file.source,[ref]$tokens,[ref]$parseErrors);if($parseErrors.Count){throw 'Preview executor script parse failed'}
+ if($file.name -ceq 'Verify-HttpManifest.mjs'){
+  $node=Join-Path $root 'node.exe';Plain $node
+  & $node --check $file.source
+  if($LASTEXITCODE -ne 0){throw 'Preview executor verifier parse failed'}
+ }else{
+  $tokens=$null;$parseErrors=$null;[void][Management.Automation.Language.Parser]::ParseFile($file.source,[ref]$tokens,[ref]$parseErrors);if($parseErrors.Count){throw 'Preview executor script parse failed'}
+ }
 }
 $taskName='DevSetu-Executor-'+$plan.executorId;$task=Get-ScheduledTask -TaskName $taskName;$principal=$task.Principal.UserId
 if($principal -notmatch '^S-1-'){$principal=([Security.Principal.NTAccount]::new($principal)).Translate([Security.Principal.SecurityIdentifier]).Value}

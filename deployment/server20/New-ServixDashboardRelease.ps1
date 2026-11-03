@@ -169,6 +169,7 @@ try{
  $inputs+=@('deployment/server20/BrowserEntryIisModel.psm1','deployment/server20/Plan-BrowserEntryIis.ps1','deployment/server20/BrowserEntry.example.json')
  $inputs+=@('deployment/server20/BrowserEntryBuild.json')
  $inputs+=@('packages/contracts/src/auth-cookies.ts')
+ $inputs+=@('deployment/server20/Update-PreviewExecutor.ps1')
  $inputs+=@('deployment/server20/Apply-BrowserEntryIis.ps1','deployment/server20/Configure-BrowserEntryIis.ps1','deployment/server20/Configure-BrowserEntry.ps1','deployment/server20/Validate-BrowserEntry.mjs','deployment/server20/BrowserEntryRemote.py')
  $inputs+=@('deployment/server20/Test-ControlCenterArtifact.mjs')
  $inputs+=@('packages/contracts/src/repository-center.ts','packages/contracts/src/git-desktop.ts','apps/control-plane/src/repository-center.ts','apps/control-plane/src/git-engine.ts','apps/control-plane/src/git-desktop.ts','apps/control-center/src/RepositoryCenterPage.tsx','apps/control-center/src/GitFoldersPanel.tsx','apps/control-center/src/RepositoryRecoveryDialog.tsx')

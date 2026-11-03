@@ -33,5 +33,16 @@ try{
  if((Includes-Android $beforeInventory) -and -not(Includes-Android $inventory)){throw 'Android compatibility boundary: use a release that supports existing Android records; no changes applied'}
  $previewMarker='packages/contracts/src/preview-relay.ts'
  if(@($beforeInventory.files|Where-Object path -CEQ $previewMarker).Count -and -not @($inventory.files|Where-Object path -CEQ $previewMarker).Count){throw 'Preview compatibility boundary: use a release that supports retained preview service plans; no changes applied'}
+ $browserFile=Join-Path $root 'servix\config\browser-entry.json'
+ if(Test-Path -LiteralPath $browserFile){
+  if((Get-Item -LiteralPath $browserFile).Attributes -band [IO.FileAttributes]::ReparsePoint -or (Get-Item -LiteralPath $browserFile).Length -gt 4096){throw 'Browser entry compatibility profile rejected'}
+  $browser=Get-Content -LiteralPath $browserFile -Raw|ConvertFrom-Json
+  if($browser.version -ne 1 -or $browser.basePath -cnotmatch '^/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$' -or -not @($inventory.files|Where-Object path -CEQ 'apps/control-plane/src/browser-entry.ts').Count){throw 'Browser entry compatibility boundary: retain support for the configured browser entry; no changes applied'}
+  $metadataBytes=Read-BoundedEntry $zip 'apps/control-center/dist-browser/browser-entry.json' 4096
+  $metadataEntry=@($manifest.files|Where-Object path -CEQ 'apps/control-center/dist-browser/browser-entry.json')
+  $metadataHash=[BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($metadataBytes)).Replace('-','').ToLowerInvariant()
+  $metadata=[Text.Encoding]::UTF8.GetString($metadataBytes)|ConvertFrom-Json
+  if($metadataEntry.Count -ne 1 -or $metadataEntry[0].sha256 -cne $metadataHash -or $metadata.version -ne 1 -or $metadata.basePath -cne $browser.basePath){throw 'Browser entry compatibility boundary: built assets must match the retained browser entry; no changes applied'}
+ }
 }finally{$zip.Dispose()}
 'PASS: Android data compatibility boundary retained'

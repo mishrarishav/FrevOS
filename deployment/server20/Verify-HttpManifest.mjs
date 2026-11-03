@@ -57,7 +57,7 @@ try {
   for (const f of m.files) {
     if (
       typeof f.path !== "string" ||
-      !/^(apps\/control-plane\/|apps\/control-center\/dist\/|deployment\/(?:server20|servix)\/|prerequisites\/)/.test(
+      !/^(apps\/control-plane\/|apps\/control-center\/(?:dist|dist-browser)\/|deployment\/(?:server20|servix)\/|prerequisites\/)/.test(
         f.path,
       ) ||
       /(^|\/)(\.|\.\.)(\/|$)|[:\\]/.test(f.path) ||
@@ -85,6 +85,28 @@ try {
     "prerequisites/node-v24.19.0-win-x64.zip",
   ])
     if (!expected.has(required.toLowerCase())) fail();
+  if ([...expected.keys()].some((name) => name.startsWith("apps/control-center/dist-browser/"))) {
+    for (const required of [
+      "apps/control-plane/dist/browser-entry.js",
+      "apps/control-center/dist-browser/index.html",
+      "apps/control-center/dist-browser/browser-entry.json",
+    ])
+      if (!expected.has(required)) fail();
+    const metadataPath = join(root, "apps/control-center/dist-browser/browser-entry.json");
+    const metadataInfo = await lstat(metadataPath);
+    if (metadataInfo.isSymbolicLink() || !metadataInfo.isFile() || metadataInfo.size > 4096) fail();
+    const metadata = await readFile(metadataPath);
+    if (metadata.length > 4096) fail();
+    const entry = JSON.parse(metadata.toString("utf8"));
+    if (
+      Object.keys(entry).sort().join(",") !== "basePath,version" ||
+      entry.version !== 1 ||
+      typeof entry.basePath !== "string" ||
+      entry.basePath.length > 65 ||
+      !/^\/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(entry.basePath)
+    )
+      fail();
+  }
   if (m.schemaVersion === 3 || m.schemaVersion === 4)
     for (const required of [
       "deployment/server20/HttpCommon.ps1",
