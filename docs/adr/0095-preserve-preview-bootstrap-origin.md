@@ -2,7 +2,7 @@
 
 Date: 2026-11-03
 
-Status: Implemented and locally qualified; immutable release preparation pending.
+Status: Activated in source 7625404; actual L-1770 to L-1465 browser GET/POST PASS.
 
 ## Context
 
@@ -42,6 +42,10 @@ DemoApi, and completes popup form bootstrap, HttpOnly/SameSite cookie, GET and
 POST with an echoed nonce. It uses only owned loopback services and temporary
 fixture storage, without production credentials, projects or pairings. The
 actual L-1770 to L-1465 browser test remains pending the corrected live artifact.
+
+The corrected artifact is subsequently activated with ADR 0096. The real
+cross-laptop browser GET/POST, lease revocation and owned demo stop pass; see
+[the completed handoff](../PRIVATE_PREVIEW_ORIGIN_RELEASE_HANDOFF.md).
 
 ## References
 

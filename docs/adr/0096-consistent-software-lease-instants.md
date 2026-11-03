@@ -2,7 +2,7 @@
 
 Date: 2026-11-03
 
-Status: Accepted bounded correction; new release and live acceptance pending.
+Status: Activated in source 7625404; fresh inventory and real demo lifecycle PASS.
 
 ## Observed problem
 
@@ -43,3 +43,13 @@ After qualification and exact artifact activation, perform a fresh UI inventory
 request and actual L-1770 browser GET/POST against the temporary L-1465 demo.
 Close the preview lease and stop only the owned demo. Retain the interrupted
 request as history; never relabel it successful.
+
+## Acceptance
+
+Full native CI passes 527 tests. Actual UI refresh
+sw_68de3048a3b9129c6916820ebed28e31 succeeds with 367 entries. Demo start
+sw_93f97a430c4527f96f04dcb69350af97 succeeds with an exact one-hour job and
+ten-minute approval. L-1770 browser GET/POST returns L-1465 and an echoed nonce.
+The preview lease is closed and owned stop sw_7f2adf9c5f519661c808b66cdde6a63f
+succeeds with no services remaining. The old interrupted record is retained.
+See [the completed handoff](../PRIVATE_PREVIEW_ORIGIN_RELEASE_HANDOFF.md).

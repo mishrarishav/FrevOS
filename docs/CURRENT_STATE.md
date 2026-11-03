@@ -1,5 +1,19 @@
 # DevSetu Current State
 
+2026-11-03 18:46 IST: Corrected source 7625404 is activated through actual DevSetu
+maintenance request su_efd2c30c78bd3d8be5d2f628e3d86a76, manifest 357d14c9 /
+archive 4bcd0c65. Exact owner approval call_8e12a5fb0cf54d5aaada01d48d5a2806
+is consumed; native Apply/health PASS. Full native CI passes 527 tests. Fresh
+L-1465 inventory reports 367 entries. Actual L-1770 browser GET and POST through
+dcapp7 return machine L-1465, matching demo job and echoed nonce. Preview access
+is closed, its old browser lease is rejected, and owned demo stop succeeds with
+zero services. Eight pairing identities, five settings, nine historical software
+records, updater and IIS/relay verify; inventory is intentionally refreshed after
+deployment preservation was checked. Three served installers match the artifact.
+No connector reinstall, customer project change or schema migration. API hosting
+is on L-1465 loopback port 5080; Server20 is the VPN relay, not the source host.
+See [the completed acceptance handoff](PRIVATE_PREVIEW_ORIGIN_RELEASE_HANDOFF.md).
+
 2026-11-03 17:55 IST: The first header-fix native build fails one real software
 client integration test (525/526 pass). Isolated runs initially reproduce the
 failure, then pass; these passes alone do not establish a repair. Actual UI

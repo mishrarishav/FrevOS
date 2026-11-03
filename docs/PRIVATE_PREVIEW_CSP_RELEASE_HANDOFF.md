@@ -1,14 +1,16 @@
 # Private preview packaged-runtime repair
 
-Status: PASS for release preparation; exact application activation and live
-browser GET/POST acceptance pending.
+Status: Historical packaging repair activated successfully, then superseded by
+source 7625404 with completed live browser acceptance. See
+[the current handoff](PRIVATE_PREVIEW_ORIGIN_RELEASE_HANDOFF.md).
 
 Repository mishrarishav/FrevOS (provider ID 1329122983), branch
 codex/software-inventory-vpn-preview. Bounded implementation base
 c1ad31f0490c4cd4ac2e0551a673808cc1646ee8, frozen source
 812501ddec7fdd80ca998d11c812ebed9daf6b82, tree
 eff3cedc18a2d91d06bd726509a9adf5f47768bf. No PR, GitHub push or merge is performed.
-The active application remains source 2f70b82 / manifest acce2b5c until approval.
+At this preparation checkpoint the active application was source 2f70b82 /
+manifest acce2b5c; the subsequent activation and correction are recorded below.
 The previously activated private IIS route stays live and unchanged.
 
 ## Problem and bounded fix
