@@ -1,6 +1,40 @@
 # Private VPN preview: IIS route preparation
 
-Status: PASS for preparation; activation and browser acceptance pending.
+Status: PASS for route activation; authenticated browser API acceptance pending.
+
+Live operation 2026-11-03 15:19 IST:
+
+- Frozen operator source `552ea79489c39e8824b5ea94d99977cd7c8f4647`.
+- Operator SHA256 e4148a57c7272a003599002c965e6485bcc8d80cd6368ab6150d34d36631b3f8.
+- Payload SHA256 e71776a5689273f8813166a6bcfed4662d09ec6b4cda1b792266a17487d48670.
+- IIS artifact SHA256 204d1c51d699f836b4ee13f8d24b78dbda0cd625329080df3c87109b6594b1ac.
+- Correlation pvi_f0dad9b345f7452d88d31ef0fbb88344; action
+  devsetu.private-preview.iis.v1; workspace ws_server20; target DCAPP7/10.9.69.20;
+  actor usr_windows_admin / existing enrolled EESL operator SID.
+- Exact owner approval question call_b9724e8535d641c68d1fececab1a96a6, recorded
+  09:47:08.0937727 UTC, expires 10:02:08.0937727 UTC, single-use consumed.
+- `.local/Activate-ApprovedIisPreview.ps1`: fresh native Plan READY and Apply
+  PASS, exit 0; temporary tasks removed. Fixed typed configuration execution;
+  no claim that this is an additional application source-to-build UI release.
+- `.local/Verify-IisPreviewLive.cjs`: exit 0 / PASS from actual L-1770, exact
+  committed IIS digest, loopback relay, hostname port-80 401 with fixed denial
+  body, DevSetu IP portal health 200. Actual browser also renders the fixed denial.
+- `.local/Verify-IisPreviewProtection.cjs`: exit 0 / PASS, eight pairing
+  identities/credentials, five settings and five existing software records match.
+- Existing IIS sibling fingerprint remains 8e51d9ac499c979152aa2106b1f3d51422b5b6627e1da29cdb6e5bcdc4cf474c.
+- `.local/Inspect-SoftwareUpdater.ps1`: exit 0 / PASS, updater running under its
+  expected SYSTEM identity and worker integrity verified.
+
+The route now exists, active app/source remains unchanged. Authenticated browser
+session signs out after restart; owner login is requested to continue actual
+DevSetu demo start/open/GET/POST/close/stop. Inventory and live connector remain
+available. Do not equate the unauthenticated denial with a successful API test.
+The owner says L-1465 is not physically with them. No physical interaction on
+that laptop is needed while its connector is Online; the missing action is only
+admin login on the L-1770 browser. No demo is started while that login is pending,
+so no new temporary API service or preview lease is left running. Superseded local
+review tabs and four verified owned loopback review servers are closed/stopped.
+The historical preparation and recovered attempt below remain for traceability.
 
 Update 2026-11-03 15:10 IST: cf959bd's approved activation failed its incorrect
 403 denial expectation and recovered the exact IIS/relay preimages. The first

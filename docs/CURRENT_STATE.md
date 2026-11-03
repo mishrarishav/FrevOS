@@ -1,5 +1,15 @@
 # DevSetu Current State
 
+2026-11-03 15:19 IST: Revised exact IIS operation 552ea79 is activated with owner
+approval call_b9724e8535d641c68d1fececab1a96a6. Correlation
+pvi_f0dad9b345f7452d88d31ef0fbb88344, payload e71776a5, IIS artifact 204d1c51:
+native Apply PASS, exact unauthorized relay response 401 and portal health 200.
+L-1770 independently reaches the private hostname on port 80; its browser shows
+the expected denial before a preview lease. Existing IIS fingerprint, eight
+pairings, five settings, five software records and updater integrity verify.
+The active application manifest remains acce2b5c. Browser session signs out after
+restart; owner login is requested before actual UI-driven demo GET/POST acceptance.
+
 2026-11-03 15:10 IST: The owner-approved exact IIS operation cf959bd reaches its
 routing health assertion, then recovers the original IIS/relay configuration.
 Both original hashes match and eight pairings/five settings/five software records
