@@ -316,14 +316,15 @@ export class SoftwareManagement {
         )
       )
         this.fail("device-busy", 409);
+      const createdAt = this.now();
       const job = SoftwareJobSchema.parse({
         version: 1,
         workspaceId,
         actor,
         request,
         digest: "0".repeat(64),
-        createdAt: this.now().toISOString(),
-        expiresAt: new Date(this.now().getTime() + 3600000).toISOString(),
+        createdAt: createdAt.toISOString(),
+        expiresAt: new Date(createdAt.getTime() + 3600000).toISOString(),
         status: request.operation === "install" ? "pending-approval" : "approved",
         ...(pkg ? { package: pkg } : {}),
       });
@@ -342,6 +343,7 @@ export class SoftwareManagement {
     });
   }
   private approval(actor: string, job: SoftwareJob, pkg: SoftwarePackage) {
+    const issuedAt = this.now();
     return {
       version: 1 as const,
       action: "software.install.v1" as const,
@@ -351,8 +353,8 @@ export class SoftwareManagement {
       correlationId: job.request.requestId,
       artifactSha256: softwareArtifact(pkg),
       digest: job.digest,
-      issuedAt: this.now().toISOString(),
-      expiresAt: new Date(this.now().getTime() + 600000).toISOString(),
+      issuedAt: issuedAt.toISOString(),
+      expiresAt: new Date(issuedAt.getTime() + 600000).toISOString(),
     };
   }
   async decide(actor: string, workspaceId: string, input: unknown) {

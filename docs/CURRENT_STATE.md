@@ -1,5 +1,17 @@
 # DevSetu Current State
 
+2026-11-03 17:55 IST: The first header-fix native build fails one real software
+client integration test (525/526 pass). Isolated runs initially reproduce the
+failure, then pass; these passes alone do not establish a repair. Actual UI
+inventory refresh sw_a167c9e7a098e21b3899a74886fb71a0 is claimed and interrupted
+144 ms later; prior 367-record inventory remains intact. Its created/expires
+timestamps differ by 3,600,001 ms, exceeding the unchanged connector limit by
+one millisecond. Job and approval construction each read the clock twice.
+ADR 0096 scopes one-instant lease construction. An advancing-clock regression
+fails on the old source with the exact 3,600,001 ms mismatch. The obsolete
+second preparation is stopped without activation; live manifest stays b8aed7d6,
+eight pairings/five settings and the existing IIS/relay remain preserved.
+
 2026-11-03 16:40 IST: Exact approved application source 812501d is now active
 through DevSetu maintenance request su_fa961f5e0e8469cb84d203a9361a14d6,
 manifest b8aed7d6 / archive 8c0c31b1. Native Apply, health, eight pairings/five

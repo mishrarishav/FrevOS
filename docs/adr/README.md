@@ -243,3 +243,6 @@ records the live browser packaging mismatch and bounded fresh-output repair.
 
 [0095: Preserve preview bootstrap Origin](0095-preserve-preview-bootstrap-origin.md)
 records the real-browser form failure, local reproduction and bounded header repair.
+
+[0096: Consistent software lease instants](0096-consistent-software-lease-instants.md)
+records the exact live one-millisecond rejection and strict, single-instant repair.

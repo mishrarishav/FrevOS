@@ -25,7 +25,7 @@ afterEach(async () => {
     await rm(root, { recursive: true, force: true });
   }
 });
-async function fixture() {
+async function fixture(clockStep = 0) {
   const root = await mkdtemp(join(tmpdir(), "frevos-software-"));
   roots.push(root);
   let time = Date.parse("2026-11-03T00:00:00.000Z");
@@ -64,7 +64,11 @@ async function fixture() {
     workspace,
     registry,
     async (actor) => administrators.has(actor),
-    () => new Date(time),
+    () => {
+      const instant = time;
+      time += clockStep;
+      return new Date(instant);
+    },
     program,
   );
   const observation = {
@@ -135,6 +139,35 @@ async function fixture() {
   };
 }
 describe("workspace and artifact bound approved software", () => {
+  it("keeps job and approval leases within protocol bounds when the clock advances between reads", async () => {
+    const inventory = await fixture(1);
+    const requested = await inventory.store.request(alice, workspace, {
+      version: 1,
+      requestId: `sw_${"9".repeat(32)}`,
+      deviceId: a,
+      operation: "inventory",
+    });
+    expect(Date.parse(requested.expiresAt) - Date.parse(requested.createdAt)).toBe(3600000);
+    const claimed = (await inventory.store.claim(alice)).job;
+    expect(
+      protocol.validateJob(claimed, { workspaceId: workspace, deviceId: a }, inventory.now()),
+    ).toBe(claimed);
+
+    for (const actor of [admin, alice]) {
+      const f = await fixture(1);
+      let job = await f.install(actor);
+      if (actor !== admin) job = await f.approve(job);
+      expect(Date.parse(job.expiresAt) - Date.parse(job.createdAt)).toBe(3600000);
+      const approval = job.approval;
+      if (!approval) throw Error("Expected an artifact-bound approval");
+      expect(Date.parse(approval.expiresAt) - Date.parse(approval.issuedAt)).toBe(600000);
+      const work = (await f.store.claim(alice)).job;
+      expect(protocol.validateJob(work, { workspaceId: workspace, deviceId: a }, f.now())).toBe(
+        work,
+      );
+    }
+  });
+
   it("handles stale request, busy device and semantic idempotency without dispatching new work", async () => {
     const f = await fixture(),
       job = await f.install(admin);
