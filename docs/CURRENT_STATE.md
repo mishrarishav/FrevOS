@@ -1,5 +1,12 @@
 # DevSetu Current State
 
+2026-11-04: External pinned HTTPS health reaches the requested public route
+with 200, but a transient Windows sharing violation while the native operator
+reads its returned receipt triggers owned recovery. Retain all receipt checks
+and retry only bounded I/O errors within the existing deadline. Seventeen
+actual-validator/real locked-file checks pass; repeat the same mapped route
+with the separately frozen corrected operator. Application remains 6c666a4.
+
 2026-11-04: DevSetu application source 6c666a4 is activated through the actual
 authenticated maintenance UI: manifest 9e6aebd3eb745f0905ad3becbc2edd87d313169357b0242d09f9ed1535ae855a,
 candidate 13887b5b7190478ebb7b8a365b12ecba, request su_adcabd47de07462847816b5c2cc20c38.

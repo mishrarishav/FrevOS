@@ -21,10 +21,13 @@ function Wait-BrowserEntryExternalHealth($Approval,$Plan,[string]$Directory,[Uri
  $requestHash=Hash $requestFile;$deadline=[DateTimeOffset]::UtcNow.AddSeconds(75)
  do{
   if(Test-Path -LiteralPath $receiptFile){
-   $item=Get-Item -LiteralPath $receiptFile
-   if($item.PSIsContainer -or $item.Attributes -band [IO.FileAttributes]::ReparsePoint -or $item.Length -gt 16384){throw 'External health receipt file rejected'}
-   foreach($rule in (Get-Acl -LiteralPath $receiptFile).Access){if($rule.AccessControlType -eq 'Allow' -and $rule.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value -notin @($Approval.executionSid,'S-1-5-18','S-1-5-32-544')){throw 'External health receipt access widened'}}
-   $receipt=Get-Content -LiteralPath $receiptFile -Raw|ConvertFrom-Json
+   try{
+    $item=Get-Item -LiteralPath $receiptFile
+    if($item.PSIsContainer -or $item.Attributes -band [IO.FileAttributes]::ReparsePoint -or $item.Length -gt 16384){throw 'External health receipt file rejected'}
+    foreach($rule in (Get-Acl -LiteralPath $receiptFile).Access){if($rule.AccessControlType -eq 'Allow' -and $rule.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value -notin @($Approval.executionSid,'S-1-5-18','S-1-5-32-544')){throw 'External health receipt access widened'}}
+    $receiptText=Get-Content -LiteralPath $receiptFile -Raw
+   }catch{if($_.Exception -is [IO.IOException] -or $_.Exception.InnerException -is [IO.IOException]){Start-Sleep -Milliseconds 100;continue};throw}
+   $receipt=$receiptText|ConvertFrom-Json
    [void](Test-BrowserEntryExternalReceipt $receipt $request $requestHash)
    return @{StatusCode=200;Content='{"status":"ok"}';proof=$receipt}
   }
@@ -68,7 +71,7 @@ try{
  $result|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $directory 'result.json') -Encoding UTF8
  $result|ConvertTo-Json -Compress
 }catch{
- $failure=@{status='FAIL';operationId=$approval.operationId;type=$_.Exception.GetType().Name;line=$_.InvocationInfo.ScriptLineNumber;recovered=$false}
+ $failure=@{status='FAIL';operationId=$approval.operationId;type=$_.Exception.GetType().Name;hresult=$_.Exception.HResult;line=$_.InvocationInfo.ScriptLineNumber;recovered=$false}
  try{
   if($changed){$manager=[Microsoft.Web.Administration.ServerManager]::new();try{Remove-BrowserEntryIisModel $manager $profile;$manager.CommitChanges()}finally{$manager.Dispose()}}
   if((Get-BrowserEntryIisFingerprint $appHost $profile) -cne $plan.siblingFingerprint){throw 'Sibling configuration differs during owned recovery'}
