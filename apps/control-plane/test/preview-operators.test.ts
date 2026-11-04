@@ -12,7 +12,7 @@ for (const [script, checks] of [
   ["servix/Test-GitRecoveryBoundary.ps1", 7],
   ["servix/Test-SystemConnectorUpdate.ps1", 6],
   ["server20/Test-PrivatePreviewConfiguration.ps1", 12],
-  ["server20/Test-PreviewExecutorUpdate.ps1", 7],
+  ["server20/Test-PreviewExecutorUpdate.ps1", 10],
 ] as const) {
   it.skipIf(process.platform !== "win32")(
     `runs real Windows file/protection preservation and fixed transport failure recovery: ${script}`,
@@ -50,6 +50,12 @@ for (const [script, checks] of [
         { env: environment, windowsHide: true, timeout: 90000, maxBuffer: 65536 },
       );
       expect(JSON.parse(stdout)).toMatchObject({ status: "PASS", checks });
+      if (script.includes("Executor"))
+        expect(JSON.parse(stdout)).toMatchObject({
+          destinationVerifierInventoryValidated: true,
+          destinationSystemBoundaryRetained: true,
+          exactUpdaterDeltaValidated: true,
+        });
     },
     100000,
   );

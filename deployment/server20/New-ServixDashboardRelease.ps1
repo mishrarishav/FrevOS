@@ -132,6 +132,7 @@ try{
   [IO.File]::WriteAllText((Join-Path $servixOperator 'android-artifact.json'),($publicAndroid|ConvertTo-Json -Compress),[Text.UTF8Encoding]::new($false))
  }
  foreach($name in @('HttpCommon.ps1','Start-Server20.ps1','Apply-ServixDashboard.ps1','Verify-HttpManifest.mjs','Install-SelfUpdate.ps1','Run-SelfUpdate.ps1')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $package 'deployment\server20')}
+ Copy-Item -LiteralPath (Join-Path $root 'deployment\server20\Update-PreviewExecutor.ps1') -Destination (Join-Path $package 'deployment\server20\Update-PreviewExecutor.ps1')
  if($BootstrapMaintenance){
   if($AndroidArtifactReference){throw 'Android enrollment cannot be enabled through the historical maintenance bootstrap'}
   # Bootstrap adds only the authenticated platform updater. Keep the preceding

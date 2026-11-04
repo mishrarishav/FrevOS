@@ -8,6 +8,15 @@ function CopyReviewedAcl([string]$Source,[string]$Destination){
 }
 function Hash([string]$File){(Get-FileHash -LiteralPath $File -Algorithm SHA256).Hash.ToLowerInvariant()}
 function Plain([string]$File){for($cursor=[IO.Path]::GetFullPath($File);;$cursor=[IO.Path]::GetDirectoryName($cursor)){if([IO.File]::GetAttributes($cursor) -band [IO.FileAttributes]::ReparsePoint){throw 'Linked preview executor path denied'};if($cursor -eq [IO.Path]::GetPathRoot($cursor)){break}}}
+function Get-PreviewExecutorFileInventory {
+ param([ValidateSet('builder','destination')][string]$Role,[object[]]$Files)
+ if($Role -cnotin @('builder','destination')){throw 'Preview executor role differs'}
+ $allowed=if($Role -ceq 'builder'){@('HttpCommon.ps1','New-ServixDashboardRelease.ps1')}else{@('HttpCommon.ps1','Verify-AndroidCompatibility.ps1')}
+ $optional=if($Role -ceq 'builder'){@('Verify-AndroidCompatibility.ps1','Verify-HttpManifest.mjs')}else{@('Verify-HttpManifest.mjs')}
+ foreach($name in $optional){if(@($Files.name|Where-Object {$_ -ceq $name}).Count -eq 1){$allowed+=$name}}
+ if(@($Files).Count -ne $allowed.Count -or (@($Files.name|Sort-Object)-join ',') -cne (($allowed|Sort-Object)-join ',')){throw 'Preview executor file inventory differs'}
+ return $allowed
+}
 Plain $PlanReference;if((Get-Item -LiteralPath $PlanReference).Length -gt 16384){throw 'Preview executor intent capacity'}
 $plan=Get-Content -LiteralPath $PlanReference -Raw|ConvertFrom-Json;$now=[DateTimeOffset]::UtcNow
 if((@($plan.PSObject.Properties.Name|Sort-Object)-join ',') -cne 'action,adapterSha256,configurationSha256,executionSid,executorId,expectedActiveManifest,expiresAt,files,id,installationRoot,issuedAt,ownerReference,platformRoot,profileId,repositoryId,role,version,workspaceId'){throw 'Preview executor intent fields differ'}
@@ -34,9 +43,7 @@ $profile=Get-Content -LiteralPath (Join-Path $plan.platformRoot ('servix\jobs\co
 $roleField=if($plan.role -ceq 'builder'){'builderId'}else{'destinationId'}
 if($profile.repository.id -cne $plan.repositoryId -or -not @($profile.components|Where-Object {$_.$roleField -ceq $plan.executorId}).Count){throw 'Preview executor provider repository differs'}
 foreach($file in Get-ChildItem -LiteralPath (Join-Path $plan.platformRoot 'servix\jobs\components') -Filter 'job-cj_*.json'){$job=Get-Content -LiteralPath $file.FullName -Raw|ConvertFrom-Json;if($job.executorId -ceq $plan.executorId -and $job.status -cnotin @('succeeded','failed')){throw 'Preview executor has unresolved work'}}
-$allowed=if($plan.role -ceq 'builder'){@('HttpCommon.ps1','New-ServixDashboardRelease.ps1')}else{@('HttpCommon.ps1','Verify-AndroidCompatibility.ps1')}
-if($plan.role -ceq 'builder'){foreach($optional in @('Verify-AndroidCompatibility.ps1','Verify-HttpManifest.mjs')){if(@($plan.files.name|Where-Object {$_ -ceq $optional}).Count -eq 1){$allowed+= $optional}}}
-if(@($plan.files).Count -ne $allowed.Count -or (@($plan.files.name|Sort-Object)-join ',') -cne (($allowed|Sort-Object)-join ',')){throw 'Preview executor file inventory differs'}
+[void](Get-PreviewExecutorFileInventory -Role $plan.role -Files $plan.files)
 foreach($file in $plan.files){
  if((@($file.PSObject.Properties.Name|Sort-Object)-join ',') -cne 'beforeSha256,name,sha256,source'){throw 'Preview executor sidecar fields differ'}
  Plain $file.source;Plain (Join-Path $root $file.name)

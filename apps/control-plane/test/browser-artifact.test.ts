@@ -63,6 +63,29 @@ it("verifies the closed public asset tree and still rejects tampering, missing r
       await writeFile(join(root, relative), body);
     }
     expect(JSON.parse((await verify()).stdout).files).toHaveLength(entries.size);
+    const metadataPath = "apps/control-center/dist-browser/browser-entry.json";
+    const setMetadata = async (value: unknown) => {
+      const bytes = JSON.stringify(value);
+      entries.set(metadataPath, bytes);
+      await writeFile(join(root, metadataPath), bytes);
+    };
+    await setMetadata({ version: 1, basePath: "/workspace", connectorTransport: 1 });
+    expect(JSON.parse((await verify()).stdout).files).toHaveLength(entries.size);
+    // Recompute every manifest digest after each metadata change, proving that
+    // rejection comes from its capability contract rather than stale hashes.
+    for (const value of [
+      { version: 1, basePath: "/workspace", connectorTransport: 0 },
+      { version: 1, basePath: "/workspace", connectorTransport: false },
+      { version: 1, basePath: "/workspace", connectorTransport: true },
+      { version: 1, basePath: "/workspace", connectorTransport: "1" },
+      { version: 1, basePath: "/workspace", connectorTransport: null },
+      { version: 1, basePath: "/workspace", connectorTransport: 1, unknown: true },
+      { version: 1, basePath: "/workspace", unknown: true },
+      { version: 2, basePath: "/workspace", connectorTransport: 1 },
+    ]) {
+      await setMetadata(value);
+      await expect(verify()).rejects.toThrow();
+    }
     entries.set(
       "apps/control-center/dist-browser/browser-entry.json",
       JSON.stringify({ version: 1, basePath: "/workspace/other" }),

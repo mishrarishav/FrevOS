@@ -99,7 +99,9 @@ try {
     if (metadata.length > 4096) fail();
     const entry = JSON.parse(metadata.toString("utf8"));
     if (
-      Object.keys(entry).sort().join(",") !== "basePath,version" ||
+      (Object.keys(entry).sort().join(",") !== "basePath,version" &&
+        (Object.keys(entry).sort().join(",") !== "basePath,connectorTransport,version" ||
+          entry.connectorTransport !== 1)) ||
       entry.version !== 1 ||
       typeof entry.basePath !== "string" ||
       entry.basePath.length > 65 ||

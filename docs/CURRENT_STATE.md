@@ -1,5 +1,18 @@
 # DevSetu Current State
 
+2026-11-04: Public-device source a2b12a5 passes all 573 enrolled native CI
+tests and produces a signed Android APK with the retained signing identity.
+Final packaging fails because the HTTP manifest verifier still accepts only
+the old two-field browser metadata, while the new builder emits the explicit
+connector capability marker. Preserve that failed attempt; strictly validate
+both legacy metadata and the exact supported marker, and test malformed values
+and unknown fields. Update the fixed verifier on both enrolled builder and
+destination without changing their credentials/tasks. Include the fresh fixed
+executor updater in the artifact under an exact delta allowance. Repeat the
+frozen native build before activation; no failed artifact is live. Server20
+still serves 6c666a4, with eight pairings/five settings retained. L-1465 is
+currently offline, so its actual public API acceptance remains pending.
+
 2026-11-04: Owner extends the public entry scope to connector transport,
 registered-device login, isolated public laptop preview and a proper TLS-chain
 repair. Also requests Discovery styling, a Windows-style connected-system

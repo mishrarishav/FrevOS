@@ -26,6 +26,40 @@ function Fixture {
  $reference=Join-Path $temporary ($plan.id+'.json');Json $reference $plan;return @{root=$root;plan=$plan;reference=$reference}
 }
 try{
+ # Execute the pure inventory and exact destination execution guard extracted
+ # from the actual operator AST; never change its SYSTEM/DPAPI boundary.
+ $tokens=$null;$parseErrors=$null;$operatorAst=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'Update-PreviewExecutor.ps1'),[ref]$tokens,[ref]$parseErrors);Assert ($parseErrors.Count -eq 0) 'Executor operator does not parse'
+ $inventoryAst=$operatorAst.Find({param($node)$node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq 'Get-PreviewExecutorFileInventory'},$true);Assert ($null -ne $inventoryAst) 'Executor inventory helper missing'
+ $inventory=$inventoryAst.Body.GetScriptBlock()
+ $builder=@(@{name='HttpCommon.ps1'},@{name='New-ServixDashboardRelease.ps1'});$destination=@(@{name='HttpCommon.ps1'},@{name='Verify-AndroidCompatibility.ps1'})
+ Assert (@(& $inventory -Role builder -Files $builder).Count -eq 2) 'Builder baseline inventory denied'
+ Assert (@(& $inventory -Role destination -Files $destination).Count -eq 2) 'Destination baseline inventory denied'
+ Assert (@(& $inventory -Role builder -Files ($builder+@(@{name='Verify-AndroidCompatibility.ps1'},@{name='Verify-HttpManifest.mjs'}))).Count -eq 4) 'Builder fixed sidecars denied'
+ Assert (@(& $inventory -Role destination -Files ($destination+@(@{name='Verify-HttpManifest.mjs'}))).Count -eq 3) 'Destination fixed verifier denied'
+ foreach($bad in @(
+  @{role='destination';files=($destination+@(@{name='New-ServixDashboardRelease.ps1'}))},
+  @{role='destination';files=($destination+@(@{name='Verify-HttpManifest.mjs'},@{name='Verify-HttpManifest.mjs'}))},
+  @{role='destination';files=@(@{name='HttpCommon.ps1'},@{name='Verify-HttpManifest.mjs'})},
+  @{role='destination';files=($destination+@(@{name='OtherVerifier.mjs'}))},
+  @{role='destination';files=($destination+@(@{name='verify-httpmanifest.mjs'}))},
+  @{role='builder';files=($builder+@(@{name='OtherVerifier.mjs'}))}
+ )){$denied=$false;try{& $inventory -Role $bad.role -Files $bad.files|Out-Null}catch{$denied=$true};Assert $denied 'Executor inventory accepted unrelated or duplicate sidecars'}
+ $boundaryAst=$operatorAst.Find({param($node)$node -is [Management.Automation.Language.IfStatementAst] -and $node.Extent.Text.Contains("throw 'Preview executor execution boundary differs'")},$true);Assert ($null -ne $boundaryAst) 'Destination execution guard missing'
+ $boundary=[scriptblock]::Create($boundaryAst.Extent.Text);$root=Join-Path $temporary 'destination-boundary';$plan=@{role='destination';installationRoot=$root;executionSid='S-1-5-21-fixture'}
+ $denied=$false;try{& $boundary}catch{if($_.Exception.Message -ceq 'Preview executor execution boundary differs'){$denied=$true}};Assert $denied 'Non-SYSTEM destination identity accepted'
+ $plan.executionSid='S-1-5-18';& $boundary
+ $commonAst=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'HttpCommon.ps1'),[ref]$tokens,[ref]$parseErrors);Assert ($parseErrors.Count -eq 0) 'HTTP common operator does not parse'
+ $deltaAst=$commonAst.Find({param($node)$node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq 'Assert-ServixDelta'},$true);Assert ($null -ne $deltaAst) 'Servix delta guard missing'
+ # Its parameters are declared on the function signature, outside Body AST.
+ # Load the exact complete function so real arguments cannot fall through to
+ # same-named variables in this fixture's parent scope.
+ . ([scriptblock]::Create($deltaAst.Extent.Text))
+ $operatorPath='deployment/server20/Update-PreviewExecutor.ps1';$previous=@{files=@(@{path=$operatorPath;sha256=('a'*64)})};$candidate=@{files=@(@{path=$operatorPath;sha256=('b'*64)})}
+ Assert-ServixDelta $previous $candidate
+ Assert-ServixDelta @{files=@()} $candidate
+ foreach($lookalike in @('deployment/server20/Update-PreviewExecutor-extra.ps1','deployment/server20/Update-PreviewExecutor.ps1.bak','deployment/server20/Other-Executor.ps1','deployment/server20/update-previewexecutor.ps1')){
+  $denied=$false;try{Assert-ServixDelta @{files=@(@{path=$lookalike;sha256=('a'*64)})} @{files=@(@{path=$lookalike;sha256=('b'*64)})}}catch{$denied=$true};Assert $denied 'Servix delta accepted an unrelated executor operator'
+ }
  $f=Fixture;$ready=& (Join-Path $PSScriptRoot 'Update-PreviewExecutor.ps1') -PlanReference $f.reference -PlanOnly|ConvertFrom-Json;Assert ($ready.status -ceq 'READY') 'Executor preflight failed'
  $result=& (Join-Path $PSScriptRoot 'Update-PreviewExecutor.ps1') -PlanReference $f.reference|ConvertFrom-Json
  Assert ($result.status -ceq 'PASS' -and (Hash (Join-Path $f.root 'executor.dpapi')) -ceq $f.plan.configurationSha256 -and $global:PreviewExecutorEnabled -and $global:PreviewExecutorState -ceq 'Running') 'Executor update lost its enrollment'
@@ -47,7 +81,7 @@ try{
  Assert ($updated.status -ceq 'PASS' -and (Hash $verifier) -ceq (Hash $next) -and (Hash (Join-Path $j.root 'executor.dpapi')) -ceq $j.plan.configurationSha256) 'Verifier update changed enrollment or bytes'
  $k=Fixture;$k.plan.files+=@{name='OtherVerifier.mjs';source=$next;sha256=(Hash $next);beforeSha256=(Hash $next)};Json $k.reference $k.plan
  $denied=$false;try{& (Join-Path $PSScriptRoot 'Update-PreviewExecutor.ps1') -PlanReference $k.reference -PlanOnly|Out-Null}catch{$denied=$true};Assert $denied 'Unenrolled verifier filename accepted'
- @{status='PASS';checks=7;realWindowsFilesAndDpapi=$true;taskTransport='fixed-fixture-functions';nativeLiveAcceptance=$false;providerRepositoryBound=$true;enrollmentPreserved=$true;failedStartRestored=$true;fixedVerifierUpdateValidated=$true}|ConvertTo-Json -Compress
+ @{status='PASS';checks=10;realWindowsFilesAndDpapi=$true;taskTransport='fixed-fixture-functions';nativeLiveAcceptance=$false;providerRepositoryBound=$true;enrollmentPreserved=$true;failedStartRestored=$true;fixedVerifierUpdateValidated=$true;destinationVerifierInventoryValidated=$true;destinationSystemBoundaryRetained=$true;exactUpdaterDeltaValidated=$true}|ConvertTo-Json -Compress
 }finally{
  $env:LOCALAPPDATA=$originalLocal;$resolved=[IO.Path]::GetFullPath($temporary)
  if([IO.Path]::GetDirectoryName($resolved) -cne $parent -or [IO.Path]::GetFileName($resolved) -cnotmatch '^dvpex-[a-f0-9]{32}$'){throw 'Executor fixture cleanup escaped owned target'}
