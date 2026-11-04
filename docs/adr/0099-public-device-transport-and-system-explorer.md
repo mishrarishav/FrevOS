@@ -2,7 +2,9 @@
 
 Date: 2026-11-04
 
-Status: Accepted owner scope; implementation and live acceptance pending.
+Status: Accepted owner scope; application deployed and bounded L-1770 public
+acceptance passed. L-1465 API, phone/Linux desktop and actual non-admin paired
+sign-in acceptance remain pending. See PUBLIC_DEVICE_EXPLORER_HANDOFF.md.
 
 The owner extends ADR 0098: repair the actual public TLS certificate chain and
 support paired connectors, registered-device sign-in and laptop previews from

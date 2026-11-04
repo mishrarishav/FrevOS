@@ -1,5 +1,36 @@
 # DevSetu Current State
 
+2026-11-04: Public-device release b8d2e38 is LIVE on Server20 through the
+authenticated DevSetu maintenance UI. Manifest
+ae5f7f0ee8e95d7bd1e6b069474e1cbf04e8e40e9b14d549bcc80492c737ed58,
+archive 88ebea5a6385e5fb2b94982942a08888d949544fc986b6a93bd6eb92de5794b2,
+request su_1e73c76b48b58062d8d3defb8dae2445 succeeded at 07:57:46Z.
+All 573 tests across 113 files and the original enrolled native build pass.
+The build was operator-prepared through the enrolled adapter; activation used
+the actual UI. Eight pairings, five stable settings, 17 software records,
+33 protected snapshot files, environment, IIS/relay and Android signing identity
+are retained. All three actual installer downloads match the reviewed artifact.
+The retained browser profile now explicitly enables connector transport.
+Strict Windows, Node and OpenSSL HTTPS validation passes after the scoped TLS
+chain repair. The public Local development page has the compact connection
+chip and uses the available width. L-1770 now reports through the public base
+with its original installation namespace and pairing. Its pre-Git legacy root
+needed an exact artifact-bound missing GitDesktop.cjs repair after a temporary
+monitoring gap; fresh Discovery and Explorer observations subsequently pass.
+Actual public Explorer browsing, ZIP metadata, exclusive empty folder/file
+creation, Location/Up/Back/Forward and non-recursive test cleanup pass.
+Activity segments show bounded Work/Temp/All views; 24 configured browser and
+package-cache rules were explicitly saved through Tracking settings. Retained
+metadata is reclassified and the existing quota reapplied (653 Work / 400 Temp /
+1053 total observed), without deleting laptop files or changing collection
+consents. L-1465 remains offline, so
+its public API live acceptance is pending. Phone/Linux desktop and actual
+non-admin paired login are not live-tested. Full executable public application
+preview still requires an isolated hostname; the same-host public surface is
+an inert API inspector. Existing executor endpoints remain private. No GitHub
+or central source publication was performed. See PUBLIC_DEVICE_EXPLORER_HANDOFF.md
+and PUBLIC_DEVICE_EXPLORER_CHANGESET.md for evidence and limitations.
+
 2026-11-04: Public-device source a2b12a5 passes all 573 enrolled native CI
 tests and produces a signed Android APK with the retained signing identity.
 Final packaging fails because the HTTP manifest verifier still accepts only
