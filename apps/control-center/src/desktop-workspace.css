@@ -232,6 +232,16 @@
   font-weight: 600;
 }
 
+.record-card-heading > .record-identity {
+  flex: 1;
+}
+
+.record-badge {
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
 @media (max-width: 760px) {
   .record-app-canvas .main-workspace {
     padding: 12px;
