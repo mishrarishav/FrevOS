@@ -11,6 +11,7 @@ import {
   ChangePasswordSchema,
   ClientSchema,
   ConnectGithubRepositoryRequestSchema,
+  ConnectorConnectionStatusSchema,
   DeploymentSettingsInputSchema,
   GithubConnectionSchema,
   GithubDiscoveryCompletionSchema,
@@ -1648,6 +1649,32 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
     return reply
       .header("cache-control", "no-store")
       .send(await pairings().status(connectorCredential(request)));
+  });
+  server.post(route("/v1/connector/connection-status"), async (request, reply) => {
+    EmptyBodySchema.parse(request.body);
+    const device = await connectors().checkCredential(connectorCredential(request));
+    const evidence = await options.workspaces.getEvidence(device.workspaceId, device.userId);
+    if (
+      evidence?.workspace.workspaceId !== device.workspaceId ||
+      evidence.workspace.status !== "active" ||
+      evidence.membership?.status !== "active" ||
+      evidence.membership.workspaceId !== device.workspaceId ||
+      evidence.membership.userId !== device.userId
+    )
+      throw new HttpError(403, "connector-access-denied");
+    return reply.header("cache-control", "no-store").send(
+      ConnectorConnectionStatusSchema.parse({
+        deviceId: device.deviceId,
+        actor: device.userId,
+        workspaceId: device.workspaceId,
+        profileId: device.profileId ?? null,
+        mode: device.mode === "system" ? "system" : "project",
+        ready: true,
+        ...(connectors().identityNamespaceOrigin()
+          ? { discoveryIdentityOrigin: connectors().identityNamespaceOrigin() }
+          : {}),
+      }),
+    );
   });
   server.post<{ Params: WorkspaceParams }>(
     route("/v1/workspaces/:workspaceId/connectors/enrollments/lookup"),

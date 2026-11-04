@@ -88,3 +88,42 @@ it.skipIf(process.platform !== "win32")(
   },
   65000,
 );
+for (const [capability, checks] of [
+  ["Discovery", 8],
+  ["Transport", 13],
+] as const) {
+  it.skipIf(process.platform !== "win32")(
+    `updates project connector ${capability} with exact scope, real protected files and failure recovery`,
+    async () => {
+      const { stdout } = await promisify(execFile)(
+        join(
+          process.env["WINDIR"] ?? "C:/Windows",
+          "System32/WindowsPowerShell/v1.0/powershell.exe",
+        ),
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-ExecutionPolicy",
+          "RemoteSigned",
+          "-File",
+          fileURLToPath(
+            new URL("../../../deployment/servix/Test-PreviewConnectorUpdate.ps1", import.meta.url),
+          ),
+          "-NodeExecutable",
+          process.execPath,
+          "-Capability",
+          capability,
+        ],
+        { env: environment, windowsHide: true, timeout: 90000, maxBuffer: 65536 },
+      );
+      expect(JSON.parse(stdout)).toMatchObject({
+        status: "PASS",
+        checks,
+        pairingPreserved: true,
+        failedStartRestored: true,
+        discoveryIdentityPreserved: true,
+      });
+    },
+    100000,
+  );
+}

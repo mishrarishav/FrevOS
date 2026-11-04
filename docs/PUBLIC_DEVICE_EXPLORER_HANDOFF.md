@@ -15,6 +15,9 @@ No new DNS or public preview port is introduced. ADR 0099 records the scope.
 - Public registered-device login uses a connector-page transaction and existing
   device/owner proof. URL changes retain existing pairing credentials and
   permissions, verify the new endpoint first and retain bounded recovery.
+  The protected discovery identity namespace survives a server URL change, so
+  the same physical installation does not become a second system row. Fresh
+  enrollments persist the server's canonical namespace before the first start.
 - API request/response inspection reaches only a configured managed service
   through its authenticated connector queue. Responses are inert text/JSON or
   Base64; proxied HTML/scripts do not execute on the login hostname. Requests
@@ -62,3 +65,17 @@ the existing device at the new HTTPS endpoint rather than creating a new one.
 Android exposes Change server address · keep pairing. Do not substitute a fresh
 registration for an update or claim phone/Linux-desktop acceptance from local
 fixtures. Actual updated-device acceptance remains pending at this checkpoint.
+
+Existing Windows project connectors have a separate typed `Discovery`/`Transport`
+update in `Update-PreviewConnector.ps1`. It updates only the five manifest-bound
+collector/browser sidecars. Transport derives the new URL from the active,
+hash-bound Server20 browser profile, verifies the same device/owner/workspace and
+profile at both endpoints, and preserves the installed-old discovery identity,
+credential, project folder, consent bytes, task and ACLs. It waits for the exact
+old worker to stop and verifies the restarted task; failure restores and checks
+the old files/configuration. A fresh server observation is still required after
+the real update. Customer source folders are not changed by this operation.
+
+New executor enrollments support prefixed public bases; existing executor DPAPI
+endpoint migration is not part of this release. Do not infer that all existing
+executors have moved from private to public transport.

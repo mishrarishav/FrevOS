@@ -4,9 +4,31 @@ import {
   DeploymentProfileIdSchema,
   SourceCheckoutPathSchema,
 } from "./deployment-settings.js";
-import { UserIdSchema } from "./identifiers.js";
+import { UserIdSchema, WorkspaceIdSchema } from "./identifiers.js";
 import { IsoTimestampSchema } from "./identity.js";
 export const ConnectorIdSchema = z.string().regex(/^fc_[a-f0-9]{32}$/);
+export const DiscoveryIdentityOriginSchema = z
+  .string()
+  .max(2048)
+  .refine((value) => {
+    try {
+      const url = new URL(value);
+      return ["http:", "https:"].includes(url.protocol) && url.origin === value;
+    } catch {
+      return false;
+    }
+  });
+export const ConnectorConnectionStatusSchema = z
+  .object({
+    deviceId: ConnectorIdSchema,
+    actor: UserIdSchema,
+    workspaceId: WorkspaceIdSchema,
+    profileId: DeploymentProfileIdSchema.nullable(),
+    mode: z.enum(["system", "project"]),
+    ready: z.literal(true),
+    discoveryIdentityOrigin: DiscoveryIdentityOriginSchema.optional(),
+  })
+  .strict();
 export const FolderSelectionSchema = z
   .object({
     version: z.literal(1),

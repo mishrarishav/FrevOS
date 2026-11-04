@@ -291,6 +291,7 @@ function context(options = {}) {
           ...config,
           server: input.server,
           allowInternalHttp: false,
+          discoveryIdentityOrigin: require("./SystemDiscovery.cjs").identityNamespaceOrigin(config),
         });
         await execute("/usr/bin/systemctl", ["--user", "start", unit(config.deviceId)], 30000);
         await execute("/usr/bin/systemctl", ["--user", "is-active", unit(config.deviceId)]);
@@ -312,6 +313,13 @@ function context(options = {}) {
   }
   async function install(config) {
     await preflight();
+    config = {
+      ...config,
+      discoveryIdentityOrigin: await require("./Connector.cjs").connectionIdentityOrigin(
+        config,
+        options.fetch || fetch,
+      ),
+    };
     const packaged = await packageFiles(),
       folder = directory(config.deviceId);
     if (

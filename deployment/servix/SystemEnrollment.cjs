@@ -51,6 +51,13 @@ async function plain(file) {
 }
 async function installRuntime(config, options = {}) {
   if (process.platform !== "win32" && !options.installRoot) throw Error("windows-setup-required");
+  config = {
+    ...config,
+    discoveryIdentityOrigin: await require("./Connector.cjs").connectionIdentityOrigin(
+      config,
+      options.fetch || fetch,
+    ),
+  };
   const folder =
     options.installRoot || path.join(process.env.LOCALAPPDATA, "FrevOS/Connector", config.deviceId);
   const packaged = JSON.parse(

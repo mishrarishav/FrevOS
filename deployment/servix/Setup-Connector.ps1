@@ -108,7 +108,12 @@ if(Test-Path -LiteralPath $npmDestination){
 }else{[void][IO.Directory]::CreateDirectory((Join-Path $destination 'node_modules'));Copy-Item -LiteralPath $npmSource -Destination (Join-Path $destination 'node_modules') -Recurse}
 $configFields=@{version=1;server=$server;allowInternalHttp=($serverUri.Scheme -ceq 'http');deviceId=$paired.deviceId;credential=$paired.credential;profileId=$profileId;repository=$repository;repositoryOrigin=$repositoryOrigin;git=$git;stateRoot=(Join-Path $destination 'state')}
 if($central){$configFields.centralRepository=$paired.centralRepository}
-$config=$configFields|ConvertTo-Json -Compress
+# Resolve the public entry's canonical installation namespace before the first
+# protected credential write. Only this fixed read-only helper receives stdin.
+$namespaceInfo=[Diagnostics.ProcessStartInfo]::new();$namespaceInfo.FileName=Join-Path $destination 'node.exe';$namespaceInfo.Arguments='"'+(Join-Path $destination 'Connector.cjs')+'" --identity-namespace';$namespaceInfo.UseShellExecute=$false;$namespaceInfo.CreateNoWindow=$true;$namespaceInfo.RedirectStandardInput=$true;$namespaceInfo.RedirectStandardOutput=$true;$namespaceInfo.RedirectStandardError=$true
+$namespaceChild=[Diagnostics.Process]::new();$namespaceChild.StartInfo=$namespaceInfo
+try{[void]$namespaceChild.Start();$namespaceOut=$namespaceChild.StandardOutput.ReadToEndAsync();$namespaceErr=$namespaceChild.StandardError.ReadToEndAsync();$namespaceChild.StandardInput.Write(($configFields|ConvertTo-Json -Depth 8 -Compress));$namespaceChild.StandardInput.Close();if(-not $namespaceChild.WaitForExit(15000)){$namespaceChild.Kill();throw 'Identity namespace check deadline'};[void]$namespaceErr.Result;if($namespaceChild.ExitCode -ne 0 -or $namespaceOut.Result.Length -gt 4096){throw 'Identity namespace proof unavailable'};$namespaceValue=$namespaceOut.Result|ConvertFrom-Json;$configFields.discoveryIdentityOrigin=$namespaceValue.discoveryIdentityOrigin}finally{$namespaceChild.Dispose()}
+$config=$configFields|ConvertTo-Json -Depth 8 -Compress
 if($clone -or $profileId -ceq 'servix-development' -or $central){
  $mode=if($clone){'--initialize'}else{'--bind'}
  $info=[Diagnostics.ProcessStartInfo]::new();$info.FileName=Join-Path $destination 'node.exe';$info.Arguments='"'+(Join-Path $destination 'Connector.cjs')+'" '+$mode;$info.UseShellExecute=$false;$info.CreateNoWindow=$true;$info.RedirectStandardInput=$true

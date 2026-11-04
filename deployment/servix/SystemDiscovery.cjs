@@ -146,7 +146,29 @@ async function operatingSystem() {
     return "Linux " + os.release();
   }
 }
+function identityNamespaceOrigin(config) {
+  const value =
+    config.discoveryIdentityOrigin === undefined
+      ? new URL(config.server).origin
+      : config.discoveryIdentityOrigin;
+  try {
+    const url = new URL(value);
+    if (
+      typeof value !== "string" ||
+      value.length > 2048 ||
+      !["http:", "https:"].includes(url.protocol) ||
+      url.origin !== value
+    )
+      throw Error();
+    return value;
+  } catch {
+    throw Error("discovery-identity-origin-invalid");
+  }
+}
 async function installationIdentity(config) {
+  // Validate an explicit protected namespace before any fallback/OS observation.
+  const namespace =
+    config.discoveryIdentityOrigin === undefined ? undefined : identityNamespaceOrigin(config);
   try {
     const value =
       process.platform === "win32"
@@ -164,7 +186,7 @@ async function installationIdentity(config) {
       .update(
         [
           "devsetu-system-v1",
-          new URL(config.server).origin,
+          namespace ?? identityNamespaceOrigin(config),
           os.userInfo().username,
           value.toLowerCase(),
         ].join("\0"),
@@ -284,6 +306,14 @@ class SystemDiscovery {
       /* A new baseline cannot reconstruct offline edits. */
     }
     this.os = await operatingSystem();
+    if (
+      this.config.discoveryIdentityOrigin === undefined &&
+      typeof this.config.server === "string" &&
+      new URL(this.config.server).pathname !== "/"
+    )
+      // The installer must persist this in protected enrollment before first
+      // observation. A transient in-memory proof would break a later migration.
+      throw Error("discovery-identity-protected-namespace-required");
     this.installationId = await installationIdentity(this.config);
   }
   skip(root, file) {
@@ -946,7 +976,9 @@ class SystemDiscovery {
       return (
         c.version === 1 &&
         c.deviceId === this.config.deviceId &&
-        c.server === this.config.server &&
+        (c.server === this.config.server ||
+          (this.config.discoveryIdentityOrigin !== undefined &&
+            c.server === identityNamespaceOrigin(this.config))) &&
         c.accountName === this.config.accountName &&
         c.enabled === true
       );
@@ -1103,4 +1135,6 @@ module.exports = {
   defaultPolicy: defaults,
   showNotification,
   notificationCapability,
+  installationIdentity,
+  identityNamespaceOrigin,
 };

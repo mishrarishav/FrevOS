@@ -79,6 +79,35 @@ function controlPlane(config) {
     throw Error("invalid-control-plane");
   return server;
 }
+async function connectionIdentityOrigin(config, fetcher = fetch) {
+  const identity = require("./SystemDiscovery.cjs");
+  if (config.discoveryIdentityOrigin !== undefined) return identity.identityNamespaceOrigin(config);
+  const server = controlPlane(config);
+  // Preserve existing direct-entry enrollment semantics. The optional public
+  // entry always has a configured prefix and must prove its canonical namespace.
+  if (server.pathname === "/") return server.origin;
+  const response = await fetcher(serverRequestUrl(server, "/v1/connector/connection-status").href, {
+    method: "POST",
+    headers: { authorization: "Bearer " + config.credential, "content-type": "application/json" },
+    body: "{}",
+    redirect: "error",
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!response.ok) throw Error("discovery-identity-proof-unavailable");
+  const text = await response.text();
+  if (text.length > 8192) throw Error("discovery-identity-proof-unavailable");
+  const proof = JSON.parse(text);
+  if (
+    proof.deviceId !== config.deviceId ||
+    proof.mode !== (config.mode === "system" ? "system" : "project") ||
+    proof.ready !== true ||
+    typeof proof.discoveryIdentityOrigin !== "string"
+  )
+    throw Error("discovery-identity-proof-unavailable");
+  return identity.identityNamespaceOrigin({
+    discoveryIdentityOrigin: proof.discoveryIdentityOrigin,
+  });
+}
 async function downloadBaseline(config, heads, file) {
   const response = await fetch(
     serverRequestUrl(controlPlane(config), "/v1/connector/source-base"),
@@ -1066,6 +1095,7 @@ module.exports = {
   connectionOfflinePage,
   serverEndpoint,
   serverRequestUrl,
+  connectionIdentityOrigin,
   completeDeviceLogin,
   startDeviceLoginProof,
   publishWorkingTree,
@@ -1154,6 +1184,13 @@ if (require.main === module) {
       if (input.length > 16384) throw Error("connector-config-capacity");
     }
     const config = JSON.parse(input);
+    if (process.argv[2] === "--identity-namespace") {
+      if (process.argv.length !== 3) throw Error("identity-namespace-scope");
+      process.stdout.write(
+        JSON.stringify({ discoveryIdentityOrigin: await connectionIdentityOrigin(config) }),
+      );
+      return;
+    }
     if (config.mode !== "system") config.profileId ||= "servix-development";
     if (config.mode === "system" && process.argv[2]) throw Error("system-enrollment-scope");
     if (process.argv[2] === "--bind") {

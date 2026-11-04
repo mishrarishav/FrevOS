@@ -51,7 +51,7 @@ $previous=if(Test-Path -LiteralPath $destination){[IO.File]::ReadAllBytes($desti
 try{
  if($previous){[IO.File]::WriteAllBytes((Join-Path $directory 'browser-entry.before.json'),$previous)}
  $temporary=Join-Path (Split-Path $destination -Parent) ($plan.id+'.tmp');[IO.File]::Copy($proposed,$temporary,$false)
- if($previous){[IO.File]::Replace($temporary,$destination,$null)}else{[IO.File]::Move($temporary,$destination)}
+ if($previous){[IO.File]::Replace($temporary,$destination,[NullString]::Value)}else{[IO.File]::Move($temporary,$destination)}
  Stop-ScheduledTask -TaskName $plan.controlTask;Start-ScheduledTask -TaskName $plan.controlTask
  $ready=$false;for($attempt=0;$attempt -lt 30;$attempt++){try{$private=Invoke-WebRequest -UseBasicParsing -Uri ($runtime.FREVOS_PUBLIC_ORIGIN+'/health') -TimeoutSec 2;$public=Invoke-WebRequest -UseBasicParsing -Uri ('http://127.0.0.1:'+$normalized.listen.port+$normalized.basePath+'/health') -TimeoutSec 2;if($private.StatusCode -eq 200 -and $public.StatusCode -eq 200){$ready=$true;break}}catch{};Start-Sleep -Milliseconds 500}
  if(-not $ready -or (Hash $runtimeFile) -cne $plan.runtimeBeforeSha256){throw 'Browser entry health or runtime preservation failed'}

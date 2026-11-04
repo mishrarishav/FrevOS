@@ -4,6 +4,7 @@ import { join, dirname, isAbsolute } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import {
   ConnectorIdSchema,
+  DiscoveryIdentityOriginSchema,
   UserIdSchema,
   type ConnectorProbe,
   ConnectorProbeSchema,
@@ -140,7 +141,13 @@ export class DeveloperConnectorStore {
     private readonly discoveryAdministrator: (actor: string) => Promise<boolean> = async () =>
       false,
     private readonly administratorPairing = false,
-  ) {}
+    private readonly identityOrigin?: string,
+  ) {
+    if (identityOrigin !== undefined) DiscoveryIdentityOriginSchema.parse(identityOrigin);
+  }
+  identityNamespaceOrigin() {
+    return this.identityOrigin;
+  }
   private async profile(id: string) {
     return (await this.configured?.connectorProfile(id)) ?? this.settings?.profile(id);
   }

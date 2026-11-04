@@ -280,6 +280,7 @@ try {
       componentDeployments,
       discoveryAdministrator,
       true,
+      config.publicOrigin,
     );
     componentDeployments.connect(developerConnectors);
     deviceLogins = new DeviceLogins(

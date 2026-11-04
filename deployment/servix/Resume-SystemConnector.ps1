@@ -26,6 +26,8 @@ $clear=[Security.Cryptography.ProtectedData]::Unprotect($beforeDevice,$null,[Sec
 try{$config=[Text.Encoding]::UTF8.GetString($clear)|ConvertFrom-Json}finally{[Array]::Clear($clear,0,$clear.Length)}
 $previousServer=if($fields -ceq 'deviceId,fileActivity,previousServer,server,username'){$request.previousServer}else{$request.server}
 if($config.mode -cne 'system' -or $config.deviceId -cne $request.deviceId -or $config.server -cne $previousServer -or $config.accountName -cne $request.username -or $config.stateRoot -ine (Join-Path $root 'state')){throw 'Protected enrollment differs'}
+$identityNamespace=if($config.PSObject.Properties.Name -contains 'discoveryIdentityOrigin'){$config.discoveryIdentityOrigin}else{([uri]$config.server).GetLeftPart([UriPartial]::Authority)}
+$namespaceUri=[uri]$identityNamespace;if(-not $namespaceUri.IsAbsoluteUri -or $namespaceUri.Scheme -cnotin @('http','https') -or -not $namespaceUri.Host -or $namespaceUri.UserInfo -or $namespaceUri.Query -or $namespaceUri.Fragment -or $namespaceUri.AbsolutePath -cne '/' -or $identityNamespace -cne $namespaceUri.GetLeftPart([UriPartial]::Authority)){throw 'Discovery identity namespace differs'}
 $transportChanged=$config.server -cne $request.server
 if($transportChanged){
  if(@(Get-ChildItem -LiteralPath (Join-Path $root 'state') -File -Filter 'enrollment-*.dpapi').Count -ge 3){throw 'Protected transport recovery copy capacity reached'}
@@ -92,7 +94,7 @@ function Restore-Owned([string]$target,[byte[]]$previous,[byte[]]$proposed){
 }
 try{
  if($changed){
-  $config.fileActivity=$request.fileActivity;$config.server=$request.server;if($transportChanged){$config.allowInternalHttp=$false}
+  $config.fileActivity=$request.fileActivity;$config.server=$request.server;if($transportChanged){$config.allowInternalHttp=$false;$config|Add-Member -NotePropertyName discoveryIdentityOrigin -NotePropertyValue $identityNamespace -Force}
   $bytes=[Text.UTF8Encoding]::new($false).GetBytes(($config|ConvertTo-Json -Compress))
   try{$nextDevice=[Security.Cryptography.ProtectedData]::Protect($bytes,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser)}finally{[Array]::Clear($bytes,0,$bytes.Length)}
   if($activityChanged){$nextConsent=[Text.UTF8Encoding]::new($false).GetBytes((@{version=1;deviceId=$request.deviceId;metadata=$request.fileActivity;approvedAt=[DateTimeOffset]::UtcNow.ToString('o')}|ConvertTo-Json -Compress))}

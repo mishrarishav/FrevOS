@@ -80,6 +80,24 @@ public final class MainActivity extends Activity {
         refresh();
     }
     private void text(LinearLayout parent,String value) { TextView view = new TextView(this); view.setText(value); view.setPadding(0,16,0,16); parent.addView(view); }
+    private void markPaired(JSONObject saved,ConnectorApi api) throws Exception {
+        // Persist a canonical server namespace before the first observation.
+        // Existing paired app identities are never recomputed during migration.
+        if(!saved.has("discoveryIdentityOrigin")) {
+            java.net.URI entry=new java.net.URI(api.origin);
+            String namespace;
+            if(entry.getRawPath()==null||entry.getRawPath().isEmpty()) {
+                namespace=new java.net.URI(entry.getScheme(),null,entry.getHost(),entry.getPort(),null,null,null).toASCIIString();
+            }else{
+                JSONObject proof=api.post("/v1/connector/connection-status",new JSONObject(),saved.getString("credential"));
+                if(!saved.getString("deviceId").equals(proof.getString("deviceId"))||!proof.getBoolean("ready")||!"system".equals(proof.getString("mode")))throw new Exception("Canonical device identity proof is unavailable.");
+                namespace=proof.getString("discoveryIdentityOrigin");
+            }
+            namespace=ServerOrigin.identityNamespace(namespace);
+            saved.put("discoveryIdentityOrigin",namespace).put("installationId",ConnectorApi.installationId(this,namespace));
+        }else{ServerOrigin.identityNamespace(saved.getString("discoveryIdentityOrigin"));}
+        saved.put("paired",true);
+    }
     private void changeServer() {
         try {
             JSONObject current=state.read();
@@ -198,7 +216,7 @@ public final class MainActivity extends Activity {
             }
             api.post("/v1/connector/heartbeat",new JSONObject(),saved.getString("credential"));
             if(!state.read().optString("deviceId").equals(saved.getString("deviceId")))throw new Exception("The pending device changed.");
-            saved.put("paired",true);saved.remove("nativeCode");state.write(saved);
+            markPaired(saved,api);saved.remove("nativeCode");state.write(saved);
             runOnUiThread(() -> {refresh();startMonitoring();});
         }catch(ConnectorApi.RequestNotFound missing){actionError="Enter your own account password and tap Request access to retry.";message(actionError);}
         catch(ConnectorApi.AccessDenied denied){actionError=denied.getMessage();message(actionError);}
@@ -255,7 +273,7 @@ public final class MainActivity extends Activity {
                 if (!approvedCode.isEmpty()) {
                     if (!saved.optBoolean("join")) throw new Exception("This pending request uses administrator code approval. Check that approval first.");
                     api.post("/v1/connector/join/redeem",proposal.put("code",approvedCode),null);
-                    saved.put("paired",true); saved.remove("joinCodeHash"); state.write(saved); runOnUiThread(() -> getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE)); message("Paired. Tap Start monitoring.");
+                    markPaired(saved,api); saved.remove("joinCodeHash"); state.write(saved); runOnUiThread(() -> getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE)); message("Paired. Tap Start monitoring.");
                 } else {
                     if (saved.optBoolean("join")) throw new Exception("Re-enter your approved join code to retry this saved connection.");
                     api.post("/v1/connector/enrollment/start",proposal.put("codeHash",ConnectorApi.hash(saved.getString("pairCode"))),null);
@@ -276,13 +294,13 @@ public final class MainActivity extends Activity {
                     // consumed code. Successful credential authentication proves
                     // the server completed the prior approved redemption.
                     api.post("/v1/connector/heartbeat",new JSONObject(),saved.getString("credential"));
-                    saved.put("paired",true); saved.remove("joinCodeHash"); state.write(saved);
+                    markPaired(saved,api); saved.remove("joinCodeHash"); state.write(saved);
                     runOnUiThread(() -> getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE));
                     message("The approved connection is paired. Tap Start monitoring."); busy(false); return;
                 }
                 JSONObject result=api.post("/v1/connector/enrollment/poll",new JSONObject(),saved.getString("pollSecret"));
                 if (!"approved".equals(result.getString("status"))) { message("Approval status: "+result.getString("status")+". Ask your administrator, then check again."); }
-                else { saved.put("paired",true); saved.remove("pairCode"); state.write(saved); runOnUiThread(() -> getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE)); message("Approved and paired. Tap Start monitoring."); }
+                else { markPaired(saved,api); saved.remove("pairCode"); state.write(saved); runOnUiThread(() -> getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE)); message("Approved and paired. Tap Start monitoring."); }
             } catch(Exception error) { message(error.getMessage()); }
             busy(false);
         });

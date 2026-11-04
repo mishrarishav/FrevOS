@@ -6,6 +6,15 @@ import java.net.URI;
 public final class ServerOrigin {
     private ServerOrigin() {}
 
+    public static String identityNamespace(String value) throws Exception {
+        URI uri=new URI(value);
+        if(uri.getHost()==null || uri.getRawUserInfo()!=null || uri.getRawQuery()!=null || uri.getRawFragment()!=null ||
+            !((uri.getRawPath()==null)||uri.getRawPath().isEmpty()) || !("http".equals(uri.getScheme())||"https".equals(uri.getScheme())) ||
+            !new URI(uri.getScheme(),null,uri.getHost().toLowerCase(java.util.Locale.ROOT),uri.getPort(),null,null,null).toASCIIString().equals(value))
+            throw new Exception("Invalid discovery identity namespace.");
+        return value;
+    }
+
     public static String normalize(String input, boolean internalHttp) throws Exception {
         URI uri;
         try { uri = new URI(input.trim()); }

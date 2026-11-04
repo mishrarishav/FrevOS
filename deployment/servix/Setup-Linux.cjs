@@ -161,7 +161,7 @@ async function enroll(envelope, reviewProject) {
   await fs.chmod(path.join(directory, "runtime/bin/node"), 0o755);
   const config = {
     version: 1,
-    server: url.origin,
+    server,
     allowInternalHttp: url.protocol === "http:",
     deviceId: paired.deviceId,
     credential: paired.credential,
@@ -174,6 +174,8 @@ async function enroll(envelope, reviewProject) {
     credentialFile,
     ...(paired.centralRepository ? { centralRepository: paired.centralRepository } : {}),
   };
+  config.discoveryIdentityOrigin =
+    await require("./Connector.cjs").connectionIdentityOrigin(config);
   await privateProcess(
     path.join(directory, "runtime/bin/node"),
     [path.join(directory, "Connector.cjs"), clone ? "--initialize" : "--bind"],
