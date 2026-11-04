@@ -25,6 +25,7 @@ import {
   FlaskConical,
   GitBranch,
   GitPullRequest,
+  Globe2,
   Layers3,
   type LucideIcon,
   Mic2,
@@ -107,9 +108,10 @@ type OverlayName = "palette" | "activity" | "states" | "composer" | null;
 const browserApi = createControlCenterApi();
 function BrowserEntryNotice() {
   return Reflect.get(import.meta.env, "VITE_DEVSETU_BROWSER_ENTRY") === "true" ? (
-    <p role="status">
-      Administrator browser access uses your existing workspace. Paired-computer sign-in, connectors
-      and local app previews still use the private DevSetu entry.
+    <p className="browser-entry-notice" role="status" aria-label="Public connection">
+      <Globe2 size={14} aria-hidden="true" />
+      <span>Public connection</span>
+      <span className="browser-entry-workspace">Existing workspace</span>
     </p>
   ) : null;
 }

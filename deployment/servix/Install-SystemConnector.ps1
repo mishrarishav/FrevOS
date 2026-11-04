@@ -6,7 +6,7 @@ if((@($config.PSObject.Properties.Name|Sort-Object) -join ',') -cne 'accountName
 if($config.version -ne 1 -or $config.mode -cne 'system' -or $config.deviceId -cnotmatch '^fc_[a-f0-9]{32}$' -or $config.credential -cnotmatch ('^'+$config.deviceId+'\.[A-Za-z0-9_-]{43}$') -or $config.runtimeManifestSha256 -cnotmatch '^[a-f0-9]{64}$' -or $config.fileActivity -isnot [bool] -or $config.accountName -isnot [string] -or $config.accountName.Length -lt 1 -or $config.accountName.Length -gt 64){throw 'System enrollment differs'}
 $expected=Join-Path $env:LOCALAPPDATA ('FrevOS\Connector\'+$config.deviceId)
 if($PSScriptRoot -ine $expected -or $config.stateRoot -ine (Join-Path $expected 'state') -or $config.monitoringRoot -ine [Environment]::GetFolderPath('UserProfile')){throw 'System enrollment location differs'}
-$url=[uri]$config.server;if($url.Scheme -cnotin @('http','https') -or $url.UserInfo -or $url.Query -or $url.Fragment -or $url.AbsolutePath -cne '/'){throw 'Server origin differs'}
+$url=[uri]$config.server;if($url.Scheme -cnotin @('http','https') -or $url.UserInfo -or $url.Query -or $url.Fragment -or $url.AbsolutePath -cnotmatch '^/(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)?$'){throw 'Server origin differs'}
 $identity=[Security.Principal.WindowsIdentity]::GetCurrent();$taskName='FrevOS-Connector-'+$config.deviceId
 $file=Join-Path $expected 'device.dpapi';Add-Type -AssemblyName System.Security
 if(-not(Test-Path -LiteralPath $file)){

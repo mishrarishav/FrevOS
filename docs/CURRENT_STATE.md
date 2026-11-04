@@ -1,5 +1,15 @@
 # DevSetu Current State
 
+2026-11-04: Owner extends the public entry scope to connector transport,
+registered-device login, isolated public laptop preview and a proper TLS-chain
+repair. Also requests Discovery styling, a Windows-style connected-system
+Explorer (file metadata including ZIP, new empty files/folders), separate temp
+activity and clear machine-versus-project connections. ADR 0099 records the
+bounded implementation, capability negotiation and preservation requirements.
+Implementation/validation is in progress; existing live application remains
+6c666a4 until a new exact artifact is activated. Preview must retain hostname
+isolation because cookies are not port-scoped.
+
 2026-11-04: Requested administrator browser entry is LIVE at
 https://tserver2.eeslindia.org/devsetu/. Server9 only routes HTTPS; application,
 database and retained identity/data remain on Server20. Application source

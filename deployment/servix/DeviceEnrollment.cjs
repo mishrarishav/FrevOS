@@ -109,7 +109,11 @@ async function serve(options = {}) {
             child.kill();
             reject(Error("protected-connection-timeout"));
           },
-          name === "Update-SystemConnector.ps1" ? 120000 : 45000,
+          name === "Update-SystemConnector.ps1"
+            ? 120000
+            : name === "Resume-SystemConnector.ps1"
+              ? 90000
+              : 45000,
         );
         child.stdout.on("data", (b) => {
           output += b;
@@ -139,7 +143,7 @@ async function serve(options = {}) {
     const r = await remoteFetch(server + route, {
       method: "POST",
       headers: {
-        origin: server,
+        origin: new URL(server).origin,
         "content-type": "application/json",
         ...(credential ? { authorization: "Bearer " + credential } : {}),
       },
@@ -183,7 +187,13 @@ async function serve(options = {}) {
   }
   async function prepare(server, fileActivity, approvalCode = "", joinUsername = "") {
     const existing = await readIndex(connectionFile);
-    if (existing?.server === server && !forceNew && !approvalCode && !joinUsername) {
+    if (
+      existing &&
+      !forceNew &&
+      !approvalCode &&
+      !joinUsername &&
+      (existing.server === server || server.startsWith("https:"))
+    ) {
       try {
         const config = await helper("Pairing-State.ps1", {
           operation: "connection",
@@ -191,7 +201,7 @@ async function serve(options = {}) {
         });
         if (
           config.mode !== "system" ||
-          config.server !== server ||
+          config.server !== existing.server ||
           config.deviceId !== existing.deviceId
         )
           throw Error();
@@ -302,7 +312,7 @@ async function serve(options = {}) {
         freshAfter = 0;
       if (prepared.active) {
         config = prepared.config;
-        const current = await status(config);
+        const current = await status({ ...config, server });
         if (!current?.ready) throw Error("connection-no-longer-authorized");
         if (
           config.accountName?.startsWith("pair:") &&
@@ -319,7 +329,7 @@ async function serve(options = {}) {
           const update = await (options.update || ((r) => helper("Update-SystemConnector.ps1", r)))(
             {
               deviceId: config.deviceId,
-              server,
+              server: config.server,
               username: config.accountName,
               bundle: options.bundle || __dirname,
               manifestSha256: sha(manifest),
@@ -332,7 +342,9 @@ async function serve(options = {}) {
           server,
           username: config.accountName,
           fileActivity: body.fileActivity,
+          ...(config.server !== server ? { previousServer: config.server } : {}),
         });
+        config = { ...config, server };
       } else {
         const p = prepared.proposal;
         const proof = p.deviceId + "." + p.pollSecret;

@@ -13,6 +13,10 @@ if (!profile) throw Error("browser-entry-profile-required");
 const metadata = JSON.parse(
   await readFile(join(release, "apps/control-center/dist-browser/browser-entry.json"), "utf8"),
 );
-if (metadata.version !== 1 || metadata.basePath !== profile.basePath)
+if (
+  metadata.version !== 1 ||
+  metadata.basePath !== profile.basePath ||
+  (profile.connectorTransport && metadata.connectorTransport !== 1)
+)
   throw Error("browser-entry-assets-mismatch");
 process.stdout.write(JSON.stringify(profile));

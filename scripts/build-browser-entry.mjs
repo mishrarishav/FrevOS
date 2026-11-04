@@ -30,5 +30,5 @@ if (result.error) throw result.error;
 if (result.status !== 0) process.exit(result.status ?? 1);
 await writeFile(
   join(ui, "dist-browser", "browser-entry.json"),
-  JSON.stringify({ version: 1, basePath }),
+  JSON.stringify({ version: 1, basePath, connectorTransport: 1 }),
 );

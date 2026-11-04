@@ -107,7 +107,7 @@ async function enroll(envelope, reviewProject) {
     url.password ||
     url.search ||
     url.hash ||
-    url.pathname !== "/"
+    !/^\/(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)?$/.test(url.pathname)
   )
     throw Error("source-enrollment-origin-invalid");
   // Verify the user's existing service manager before pairing/copying anything.
@@ -263,7 +263,7 @@ async function interactive() {
       url.password ||
       url.search ||
       url.hash ||
-      url.pathname !== "/"
+      !/^\/(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)?$/.test(url.pathname)
     )
       throw Error();
     if (
@@ -289,7 +289,7 @@ async function interactive() {
     let login = await fetch(server + "/auth/login", {
       method: "POST",
       redirect: "error",
-      headers: { origin: server, "content-type": "application/json" },
+      headers: { origin: new URL(server).origin, "content-type": "application/json" },
       body: JSON.stringify({ username, password }),
       signal: AbortSignal.timeout(15000),
     });
@@ -298,7 +298,7 @@ async function interactive() {
     if (!login.ok) throw Error();
     const cookies = login.headers.getSetCookie().map((c) => c.split(";")[0]),
       csrf = cookies
-        .find((c) => c.startsWith("frevos-internal-csrf=") || c.startsWith("__Host-frevos-csrf="))
+        .find((c) => c.startsWith(require("./SystemEnrollment.cjs").csrfCookieName(server) + "="))
         ?.split("=")
         .slice(1)
         .join("=");
@@ -308,7 +308,7 @@ async function interactive() {
         method: body ? "POST" : "GET",
         redirect: "error",
         headers: {
-          origin: server,
+          origin: new URL(server).origin,
           "content-type": "application/json",
           "x-csrf-token": decodeURIComponent(csrf),
           cookie: cookies.join("; "),

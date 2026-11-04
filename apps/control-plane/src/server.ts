@@ -161,6 +161,7 @@ interface BuildServerOptions {
   readonly componentDeployments?: ComponentDeployments;
   readonly publicOrigin: string;
   readonly basePath?: string;
+  readonly deviceLoginMethod?: "connector-page";
   readonly authCookieNamespace?: string;
   readonly authMode?: "local" | "oidc";
   readonly oidcProvider?: OidcProvider;
@@ -385,7 +386,11 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
         }
         if (options.deviceLogins) {
           const browserState = randomBytes(32).toString("hex");
-          const challenge = await options.deviceLogins.begin(principal, browserState);
+          const challenge = await options.deviceLogins.begin(
+            principal,
+            browserState,
+            options.deviceLoginMethod,
+          );
           if (challenge)
             return reply
               .header("cache-control", "no-store")
@@ -1476,10 +1481,10 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
       );
     },
   );
-  for (const action of ["open", "close"] as const) {
+  for (const action of ["open", "close", "inspect"] as const) {
     server.post<{ Params: WorkspaceParams }>(
       route("/v1/workspaces/:workspaceId/local-development/preview/" + action),
-      async (request) => {
+      async (request, reply) => {
         const evidence = await requireWorkspace(request, options, "project:write", now());
         requireCsrf(
           request,
@@ -1491,7 +1496,7 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
         if (!relay) throw new HttpError(503, "preview-not-configured");
         const actor = evidence.session.session.context.userId;
         if (action === "close") return relay.end(actor, evidence.workspaceId, request.body);
-        return relay.open(actor, evidence.workspaceId, request.body, async () => {
+        const authorize = async () => {
           const live = await options.identitySessions.authenticate(
             evidence.session.rawToken,
             now(),
@@ -1515,7 +1520,24 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
             }).allowed
           )
             throw new ServixDeploymentError("preview-workspace-access-denied", 403);
-        });
+        };
+        if (action === "inspect") {
+          const abort = new AbortController(),
+            cancel = () => abort.abort();
+          reply.raw.once("close", cancel);
+          try {
+            return await relay.inspect(
+              actor,
+              evidence.workspaceId,
+              request.body,
+              authorize,
+              abort.signal,
+            );
+          } finally {
+            reply.raw.off("close", cancel);
+          }
+        }
+        return relay.open(actor, evidence.workspaceId, request.body, authorize);
       },
     );
   }

@@ -200,34 +200,34 @@ it("requires owner proof, browser binding and a current credential version; pers
       async () => versions.get(userId) ?? null,
       "connector-page",
     );
-    const pageChallenge = (await navigation.begin(principal, "original-browser"))!;
+    const pageChallenge = (await service.begin(principal, "original-browser", "connector-page"))!;
     expect(pageChallenge.method).toBe("connector-page");
     expect(pageChallenge.devices).toEqual([{ port: 55001, name: "usr_alice" }]);
-    const pageProof = await navigation.attest(alice.credential, {
+    const pageProof = await service.attest(alice.credential, {
       version: 1,
       challengeId: pageChallenge.challengeId,
     });
-    await expect(navigation.receive(pageProof, "http://127.0.0.1:55002")).rejects.toThrow();
-    await expect(navigation.receive(pageProof, "https://127.0.0.1:55001")).rejects.toThrow();
-    await expect(navigation.receive(pageProof, "http://localhost:55001")).rejects.toThrow();
-    await expect(navigation.receive(pageProof, "http://127.0.0.1:55001/")).rejects.toThrow();
+    await expect(service.receive(pageProof, "http://127.0.0.1:55002")).rejects.toThrow();
+    await expect(service.receive(pageProof, "https://127.0.0.1:55001")).rejects.toThrow();
+    await expect(service.receive(pageProof, "http://localhost:55001")).rejects.toThrow();
+    await expect(service.receive(pageProof, "http://127.0.0.1:55001/")).rejects.toThrow();
     await expect(
-      navigation.receive({ ...pageProof, proof: "0".repeat(64) }, "http://127.0.0.1:55001"),
+      service.receive({ ...pageProof, proof: "0".repeat(64) }, "http://127.0.0.1:55001"),
     ).rejects.toThrow();
-    const receiver = await navigation.receive(pageProof, "http://127.0.0.1:55001");
-    await expect(navigation.receive(pageProof, "http://127.0.0.1:55001")).rejects.toThrow();
-    await expect(navigation.finish("another-browser", receiver)).rejects.toThrow();
-    await expect(navigation.finish("original-browser", "bad-cookie")).rejects.toThrow();
+    const receiver = await service.receive(pageProof, "http://127.0.0.1:55001");
+    await expect(service.receive(pageProof, "http://127.0.0.1:55001")).rejects.toThrow();
+    await expect(service.finish("another-browser", receiver)).rejects.toThrow();
+    await expect(service.finish("original-browser", "bad-cookie")).rejects.toThrow();
     await expect(
-      navigation.finish(
+      service.finish(
         "original-browser",
         receiver.slice(0, -1) + (receiver.endsWith("a") ? "b" : "a"),
       ),
     ).rejects.toThrow();
-    expect(await navigation.finish("original-browser", receiver)).toMatchObject({
+    expect(await service.finish("original-browser", receiver)).toMatchObject({
       deviceId: alice.deviceId,
     });
-    await expect(navigation.finish("original-browser", receiver)).rejects.toThrow();
+    await expect(service.finish("original-browser", receiver)).rejects.toThrow();
     const changedPage = (await navigation.begin(principal, "changed-browser"))!;
     const changedProof = await navigation.attest(alice.credential, {
       version: 1,

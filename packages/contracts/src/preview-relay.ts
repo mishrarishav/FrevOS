@@ -78,3 +78,23 @@ export const PreviewResultSchema = z.discriminatedUnion("ok", [
 ]);
 export type PreviewJob = z.infer<typeof PreviewJobSchema>;
 export type PreviewResult = z.infer<typeof PreviewResultSchema>;
+// Inert API inspection uses the enrolled service, never an arbitrary target URL.
+export const PreviewInspectSchema = PreviewOpenSchema.extend({
+  method: z.enum(["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]),
+  path: PreviewJobSchema.shape.path,
+  contentType: z.enum(["application/json", "text/plain"]).default("application/json"),
+  body: z.string().max(65536).default(""),
+})
+  .strict()
+  .refine((value) => !["GET", "HEAD"].includes(value.method) || !value.body);
+export const PreviewInspectResultSchema = z
+  .object({
+    status: z.number().int().min(200).max(599),
+    contentType: z.string().max(8192),
+    encoding: z.enum(["utf8", "base64"]),
+    body: z.string().max(349528),
+    bytes: z.number().int().min(0).max(262144),
+  })
+  .strict();
+export type PreviewInspect = z.input<typeof PreviewInspectSchema>;
+export type PreviewInspectResult = z.infer<typeof PreviewInspectResultSchema>;

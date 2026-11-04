@@ -240,9 +240,66 @@ function context(options = {}) {
   async function resume(input) {
     await preflight();
     const config = await connection(input.deviceId);
-    if (config.server !== input.server || config.accountName !== input.username)
+    if (
+      config.server !== (input.previousServer || input.server) ||
+      config.accountName !== input.username
+    )
       throw Error("linux-connection-scope-invalid");
     await installed(config);
+    if (config.server !== input.server) {
+      if (
+        (await fs.readdir(directory(config.deviceId))).filter((name) =>
+          /^transport-before-[a-f0-9]{16}\.json$/.test(name),
+        ).length >= 3
+      )
+        throw Error("linux-transport-recovery-capacity");
+      if (!input.server.startsWith("https:") || serverOrigin(input.server) !== input.server)
+        throw Error("linux-transport-https-required");
+      const response = await (options.fetch || fetch)(
+        input.server + "/v1/connector/system-status",
+        {
+          method: "POST",
+          headers: {
+            authorization: "Bearer " + config.credential,
+            "content-type": "application/json",
+          },
+          body: "{}",
+          redirect: "error",
+          signal: AbortSignal.timeout(15000),
+        },
+      );
+      if (!response.ok) throw Error("linux-transport-pairing-unrecognized");
+      const status = await response.json();
+      if (
+        status.deviceId !== config.deviceId ||
+        status.ready !== true ||
+        (config.accountName.startsWith("pair:") &&
+          config.accountName !== "pair:" + sha(Buffer.from(status.actor)).slice(0, 40))
+      )
+        throw Error("linux-transport-pairing-unrecognized");
+      await writePrivate(
+        path.join(
+          directory(config.deviceId),
+          "transport-before-" + randomBytes(8).toString("hex") + ".json",
+        ),
+        config,
+        true,
+      );
+      await execute("/usr/bin/systemctl", ["--user", "stop", unit(config.deviceId)], 30000);
+      try {
+        await writePrivate(path.join(directory(config.deviceId), "device.json"), {
+          ...config,
+          server: input.server,
+          allowInternalHttp: false,
+        });
+        await execute("/usr/bin/systemctl", ["--user", "start", unit(config.deviceId)], 30000);
+        await execute("/usr/bin/systemctl", ["--user", "is-active", unit(config.deviceId)]);
+      } catch {
+        await writePrivate(path.join(directory(config.deviceId), "device.json"), config);
+        await execute("/usr/bin/systemctl", ["--user", "start", unit(config.deviceId)], 30000);
+        throw Error("linux-transport-recovered-previous-endpoint");
+      }
+    }
     await writePrivate(path.join(config.stateRoot, "discovery-consent.json"), {
       version: 1,
       deviceId: config.deviceId,

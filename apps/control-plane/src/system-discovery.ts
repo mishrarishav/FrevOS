@@ -4,32 +4,32 @@ import { createRequire } from "node:module";
 import { join, posix, win32 } from "node:path";
 import {
   type ActivitySettings,
-  type DiscoveryPolicy,
   ActivitySettingsInputSchema,
   ActivitySettingsRecordSchema,
-  CollectorMetricsSchema,
-  defaultActivitySettings,
-  ContentPreviewInputSchema,
-  ContentPreviewJobSchema,
-  type ContentPreviewJob,
-  SystemHealthPointSchema,
   type Client,
+  CollectorMetricsSchema,
   ConnectorIdSchema,
   ConnectorProbeSchema,
+  ContentPreviewInputSchema,
+  type ContentPreviewJob,
+  ContentPreviewJobSchema,
   type DeliveryPlan,
   DeliveryPlanInputSchema,
   DeliveryPlanSchema,
   type DiscoveryEvent,
   DiscoveryObservationSchema,
+  type DiscoveryPolicy,
   DiscoveryPolicyInputSchema,
   DiscoveryPolicyRecordSchema,
   DiscoveryStateSchema,
+  defaultActivitySettings,
   defaultDiscoveryPolicy,
   deliveryReport,
   FolderBrowseInputSchema,
   type FolderBrowseJob,
   FolderBrowseJobSchema,
   type Project,
+  SystemHealthPointSchema,
 } from "@frevos/contracts";
 import { z } from "zod";
 import { replaceDurableRecord } from "./atomic-record.js";
@@ -55,6 +55,7 @@ const safety = createRequire(import.meta.url)("../../../deployment/servix/Discov
 const CollectorRecord = z
   .object({ receivedAt: z.iso.datetime(), collector: CollectorMetricsSchema })
   .strict();
+const ExplorerRecord = z.object({ receivedAt: z.iso.datetime(), version: z.literal(1) }).strict();
 const HealthHistory = z.array(SystemHealthPointSchema).max(180);
 const StoredObservation = z
   .object({
@@ -80,6 +81,7 @@ const StoredObservation = z
   })
   .strict();
 type Catalog = { projects: Project[]; clients: Client[] };
+
 import { ProjectFolderSearch } from "./project-folder-search.js";
 export class SystemDiscovery {
   readonly workspaceId = "ws_server20" as const;
@@ -241,12 +243,13 @@ export class SystemDiscovery {
   async content(actor: string, id: string) {
     if (!/^cp_[a-f0-9]{32}$/.test(id))
       throw new ServixDeploymentError("discovery-content-not-found", 404);
+    const access = await this.connectors.discoveryAccess(actor);
     const value = await this.read(id + ".json");
     const job = value ? ContentPreviewJobSchema.parse(value) : null;
     const device = (await this.connectors.discoveryDevices(actor)).find(
       (d) =>
         d.deviceId === job?.request.deviceId &&
-        d.userId === actor &&
+        (d.userId === actor || access.role === "admin") &&
         d.workspaceAuthorized &&
         d.status === "active",
     );
@@ -269,7 +272,6 @@ export class SystemDiscovery {
       for (const job of await this.contentJobs())
         if (
           job.request.deviceId === device.deviceId &&
-          job.actor === device.userId &&
           job.status === "queued" &&
           Date.parse(job.expiresAt) > this.now().getTime()
         ) {
@@ -285,7 +287,7 @@ export class SystemDiscovery {
     return this.serial(async () => {
       const device = await this.connectors.checkCredential(credential),
         result = ContentPreviewJobSchema.parse(input);
-      const job = await this.content(device.userId, result.requestId);
+      const job = await this.content(result.actor, result.requestId);
       if (
         job.status !== "working" ||
         !["succeeded", "declined", "failed"].includes(result.status) ||
@@ -362,14 +364,14 @@ export class SystemDiscovery {
     });
   }
   private async browseDevice(actor: string, id: string) {
+    const access = await this.connectors.discoveryAccess(actor);
     const device = (await this.connectors.discoveryDevices(actor)).find(
       (d) =>
         d.deviceId === id &&
         d.status === "active" &&
         d.workspaceAuthorized &&
-        d.userId === actor &&
-        d.online &&
-        (d.source || d.mode === "system"),
+        (d.userId === actor || access.role === "admin") &&
+        d.online,
     );
     if (!device) throw new ServixDeploymentError("discovery-device-access-denied", 403);
     if (device.platform === "android")
@@ -378,12 +380,31 @@ export class SystemDiscovery {
     const stored = value ? StoredObservation.parse(value) : null;
     if (!stored || this.now().getTime() - Date.parse(stored.receivedAt) > 30000)
       throw new ServixDeploymentError("discovery-source-stale");
-    return { device, observation: stored.observation };
+    const explorer = await this.read(id + ".explorer.json");
+    return {
+      device,
+      observation: stored.observation,
+      explorer: !!explorer && ExplorerRecord.parse(explorer).receivedAt === stored.receivedAt,
+    };
+  }
+  private folderJobName(job: FolderBrowseJob) {
+    return (
+      (job.request.includeFiles !== undefined || job.request.create ? "explorer-" : "") +
+      job.requestId +
+      ".json"
+    );
+  }
+  private async folderJob(id: string) {
+    return (await this.read(id + ".json")) ?? this.read("explorer-" + id + ".json");
   }
   async requestFolders(actor: string, input: unknown) {
     return this.serial(async () => {
       const request = FolderBrowseInputSchema.parse(input);
-      const { device, observation } = await this.browseDevice(actor, request.deviceId);
+      const { device, observation, explorer } = await this.browseDevice(actor, request.deviceId);
+      if ((request.includeFiles || request.create) && !explorer)
+        throw new ServixDeploymentError("folder-connector-update-required", 409);
+      if (request.create && (request.page !== 0 || request.fingerprint))
+        throw new ServixDeploymentError("discovery-folder-scope-denied", 403);
       if (
         ![
           ...(device.source ? [device.source.repository] : []),
@@ -391,7 +412,9 @@ export class SystemDiscovery {
         ].includes(request.root)
       )
         throw new ServixDeploymentError("discovery-folder-scope-denied", 403);
-      const names = (await readdir(this.root)).filter((n) => /^fb_[a-f0-9]{32}\.json$/.test(n));
+      const names = (await readdir(this.root)).filter((n) =>
+        /^(?:explorer-)?fb_[a-f0-9]{32}\.json$/.test(n),
+      );
       let active = 0;
       let retained = 0;
       for (const name of names) {
@@ -418,14 +441,14 @@ export class SystemDiscovery {
         createdAt: this.now().toISOString(),
         expiresAt: new Date(this.now().getTime() + 120000).toISOString(),
       });
-      await this.save(job.requestId + ".json", job, true);
+      await this.save(this.folderJobName(job), job, true);
       return job;
     });
   }
   async folders(actor: string, requestId: string) {
     if (!/^fb_[a-f0-9]{32}$/.test(requestId))
       throw new ServixDeploymentError("discovery-folder-not-found", 404);
-    const value = await this.read(requestId + ".json");
+    const value = await this.folderJob(requestId);
     const job = value ? FolderBrowseJobSchema.parse(value) : null;
     if (!job || job.actor !== actor)
       throw new ServixDeploymentError("discovery-folder-not-found", 404);
@@ -437,7 +460,9 @@ export class SystemDiscovery {
   async claimFolders(credential: string) {
     return this.serial(async () => {
       const device = await this.connectors.checkCredential(credential);
-      const names = (await readdir(this.root)).filter((n) => /^fb_[a-f0-9]{32}\.json$/.test(n));
+      const names = (await readdir(this.root)).filter((n) =>
+        /^(?:explorer-)?fb_[a-f0-9]{32}\.json$/.test(n),
+      );
       for (const name of names) {
         const job = FolderBrowseJobSchema.parse(await this.read(name));
         if (
@@ -458,12 +483,11 @@ export class SystemDiscovery {
     return this.serial(async () => {
       const device = await this.connectors.checkCredential(credential),
         result = FolderBrowseJobSchema.parse(input);
-      const prior = await this.read(result.requestId + ".json");
+      const prior = await this.folderJob(result.requestId);
       if (!prior) throw new ServixDeploymentError("discovery-folder-not-found", 404);
       const job = FolderBrowseJobSchema.parse(prior);
       if (
         job.request.deviceId !== device.deviceId ||
-        job.actor !== device.userId ||
         job.status !== "working" ||
         Date.parse(job.expiresAt) <= this.now().getTime() ||
         !["succeeded", "failed"].includes(result.status) ||
@@ -488,12 +512,17 @@ export class SystemDiscovery {
               e.path !== (page.path ? page.path + "/" : "") + e.name ||
               /[/\\]/.test(e.name) ||
               [".", ".."].includes(e.name),
-          )
+          ) ||
+          (job.request.create
+            ? page.created?.kind !== job.request.create.kind ||
+              page.created?.path !==
+                (job.request.path ? job.request.path + "/" : "") + job.request.create.name
+            : !!page.created)
         )
           throw new ServixDeploymentError("discovery-folder-result-invalid", 400);
       } else if (result.result || !result.errorCode)
         throw new ServixDeploymentError("discovery-folder-result-invalid", 400);
-      await this.save(result.requestId + ".json", result);
+      await this.save(this.folderJobName(result), result);
       return { accepted: true };
     });
   }
@@ -511,7 +540,9 @@ export class SystemDiscovery {
       job.status !== "succeeded" ||
       !job.result ||
       (body.path !== job.result.path &&
-        !job.result.entries.some((e) => e.path === body.path && !e.excluded))
+        !job.result.entries.some(
+          (e) => e.path === body.path && !e.excluded && (!e.kind || e.kind === "directory"),
+        ))
     )
       throw new ServixDeploymentError("discovery-folder-selection-invalid", 403);
     const osPath = /^[A-Za-z]:\\/.test(job.request.root) ? win32 : posix;
@@ -530,6 +561,7 @@ export class SystemDiscovery {
       },
       notifications: { version: 1 },
       folderSearch: { version: 1 },
+      fileExplorer: { version: 1 },
     };
   }
   async configure(actor: string, input: unknown, enrollmentApprover?: string) {
@@ -596,6 +628,7 @@ export class SystemDiscovery {
           observation.coverage.roots.length !== 0 ||
           observation.coverage.watchedDirectories !== 0 ||
           observation.coverage.gaps.length !== 0 ||
+          !!observation.fileExplorer ||
           observation.coverage.attribution !== "unavailable")
       )
         throw new ServixDeploymentError("android-monitoring-only", 409);
@@ -673,9 +706,18 @@ export class SystemDiscovery {
       // New telemetry lives outside the old strict record for rollback compatibility.
       const collector = observation.collector;
       delete observation.collector;
+      const explorer = observation.fileExplorer;
+      delete observation.fileExplorer;
       const receivedAt = this.now().toISOString();
       if (collector)
         await this.save(device.deviceId + ".collector.json", { receivedAt, collector });
+      if (explorer) await this.save(device.deviceId + ".explorer.json", { receivedAt, version: 1 });
+      else
+        await unlink(join(this.root, device.deviceId + ".explorer.json")).catch(
+          (error: NodeJS.ErrnoException) => {
+            if (error.code !== "ENOENT") throw error;
+          },
+        );
       const previousHealth = await this.read(device.deviceId + ".health.json");
       const point = {
         at: observation.at,
@@ -791,6 +833,8 @@ export class SystemDiscovery {
         const settings = configuration?.settings ?? defaultActivitySettings;
         const metrics = await this.read(d.deviceId + ".collector.json");
         const metricRecord = metrics ? CollectorRecord.parse(metrics) : null;
+        const explorer = await this.read(d.deviceId + ".explorer.json");
+        const explorerRecord = explorer ? ExplorerRecord.parse(explorer) : null;
         const health = await this.read(d.deviceId + ".health.json");
         const healthHistory = (health ? HealthHistory.parse(health) : []).filter(
           (p) => Date.parse(p.at) >= this.now().getTime() - 900000,
@@ -826,12 +870,19 @@ export class SystemDiscovery {
               : (record?.receivedAt ?? null),
           healthHistory: historyDeviceId === d.deviceId ? healthHistory : healthHistory.slice(-12),
           policy,
-          observation: record?.observation ?? null,
+          observation: record
+            ? {
+                ...record.observation,
+                ...(explorerRecord?.receivedAt === record.receivedAt
+                  ? { fileExplorer: { version: 1 as const } }
+                  : {}),
+              }
+            : null,
           history: historyDeviceId === d.deviceId ? history : history.slice(-20),
           historyCount: history.length,
           contentRequests:
             historyDeviceId === d.deviceId &&
-            d.userId === actor &&
+            (d.userId === actor || access.role === "admin") &&
             d.workspaceAuthorized &&
             d.status === "active"
               ? contentRequests

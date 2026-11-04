@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ApiFailure, type ControlCenterApi } from "./api.js";
 import { deploymentRequestId } from "./deployment-request-id.js";
+import { PreviewApiInspector } from "./PreviewApiInspector.js";
 
 export function VpnPreviewButton({
   api,
@@ -63,6 +64,12 @@ export function VpnPreviewButton({
   };
   return (
     <div>
+      <PreviewApiInspector
+        api={api}
+        workspaceId={workspaceId}
+        deviceId={deviceId}
+        serviceId={serviceId}
+      />
       <button
         type="button"
         className="button secondary"
@@ -72,7 +79,10 @@ export function VpnPreviewButton({
         Open VPN preview
       </button>
       {privateEntryRequired ? (
-        <p>Open the private DevSetu address while connected to its network to use this preview.</p>
+        <p>
+          Use API request / response here. A full application preview needs its separately
+          configured network address.
+        </p>
       ) : null}
       {api.previewClose ? (
         <button

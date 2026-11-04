@@ -17,6 +17,7 @@ public final class MonitorService extends Service {
     private final String bootId=UUID.randomUUID().toString();
     private PrivateState state;
     private LoginProofServer proof;
+    private String proofBase;
     private volatile boolean stopping;
     private int retrySeconds=5;
 
@@ -32,7 +33,7 @@ public final class MonitorService extends Service {
                 JSONObject saved=state.read();
                 if (!saved.optBoolean("paired")) throw new Exception("Complete approved pairing before starting monitoring.");
                 ConnectorApi api=new ConnectorApi(saved.getString("server"),saved.optBoolean("internalHttp"));
-                proof=new LoginProofServer(api,saved.getString("credential")); proof.start();
+                proof=new LoginProofServer(api,saved.getString("credential")); proof.start();proofBase=api.origin;
                 tick();
             } catch(Exception error) { status("Monitoring could not start. Open DevSetu Connector and check its pairing."); stopSelf(); }
         });
@@ -61,6 +62,7 @@ public final class MonitorService extends Service {
             JSONObject saved=state.read();
             ConnectorApi api=new ConnectorApi(saved.getString("server"),saved.optBoolean("internalHttp"));
             String credential=saved.getString("credential");
+            if(!api.origin.equals(proofBase)) { if(proof!=null)proof.close();proof=new LoginProofServer(api,credential);proof.start();proofBase=api.origin; }
             api.post("/v1/connector/heartbeat",new JSONObject().put("loginProofPort",proof.port()),credential);
             JSONObject policy=api.post("/v1/connector/discovery/policy",new JSONObject(),credential);
             JSONObject accepted=api.post("/v1/connector/discovery/observe",sample(saved,policy.getInt("revision")),credential);

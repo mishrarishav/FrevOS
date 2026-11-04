@@ -2686,9 +2686,39 @@ kbd,
 }
 .record-app-canvas .main-workspace {
   display: flex;
+  flex-direction: column;
   min-height: 0;
   max-width: none;
   padding: 22px;
+}
+.browser-entry-notice {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0 0 12px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.browser-entry-notice > svg {
+  flex-shrink: 0;
+  color: var(--signal);
+}
+.browser-entry-workspace {
+  padding-left: 8px;
+  border-left: 1px solid var(--border-strong);
+  color: var(--muted);
+  font-size: 11px;
 }
 .rail-submenu {
   display: grid;
@@ -3713,6 +3743,141 @@ kbd,
   max-height: 88dvh;
   min-height: 0;
 }
+.workspace-dialog:has(> .discovery-editor) {
+  width: min(1180px, calc(100% - 40px));
+  overflow: hidden;
+}
+.workspace-dialog > .discovery-editor {
+  width: 100%;
+  height: min(860px, calc(100dvh - 44px));
+  max-height: calc(100dvh - 44px);
+  gap: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.discovery-editor .discovery-scroll {
+  flex: 1;
+  padding: 18px 24px 24px;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+.discovery-editor h3 {
+  font-size: 15px;
+  margin: 22px 0 10px;
+}
+.discovery-editor h3:first-child {
+  margin-top: 0;
+}
+.discovery-editor label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+}
+.discovery-editor input:not([type="checkbox"]),
+.discovery-editor select,
+.discovery-editor textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 9px 12px;
+  color: var(--foreground);
+  background: var(--background);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  font: inherit;
+}
+.discovery-editor textarea {
+  resize: vertical;
+}
+.discovery-editor input[type="checkbox"] {
+  accent-color: var(--signal);
+}
+.discovery-detail-toolbar {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--background);
+}
+.discovery-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.discovery-tabs .button {
+  min-height: 34px;
+  font-size: 12px;
+}
+.discovery-tabs .button[aria-pressed="true"] {
+  border-color: var(--signal);
+  background: oklch(0.82 0.14 200 / 0.1);
+  color: var(--signal);
+}
+.activity-segments {
+  margin-block: 18px;
+}
+.discovery-help {
+  margin-block: 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.discovery-help > summary {
+  cursor: pointer;
+}
+.discovery-connection-card {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-panel);
+  background: var(--background);
+  overflow-wrap: anywhere;
+}
+.discovery-connection-card > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+}
+.discovery-connection-card .button {
+  justify-self: start;
+}
+.discovery-details .discovery-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 16px;
+}
+.discovery-details .discovery-facts > span {
+  border: 1px solid var(--border);
+  padding: 12px 16px;
+  border-radius: var(--radius-control);
+  background: var(--background);
+}
+.discovery-event {
+  font-size: 13px;
+}
+.discovery-event > strong {
+  font-weight: 600;
+}
+.discovery-event > small {
+  color: var(--muted);
+}
+.discovery-bindings > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+}
 .discovery-editor > .settings-header {
   flex-shrink: 0;
 }
@@ -3785,6 +3950,16 @@ kbd,
     width: 100%;
   }
   .discovery-diff {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .workspace-dialog:has(> .discovery-editor) {
+    width: calc(100% - 16px);
+  }
+  .discovery-editor .discovery-scroll,
+  .discovery-detail-toolbar {
+    padding: 12px;
+  }
+  .discovery-details .discovery-facts {
     grid-template-columns: minmax(0, 1fr);
   }
 }

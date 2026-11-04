@@ -1,7 +1,10 @@
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import { afterEach, expect, it } from "vitest";
 
 const require = createRequire(import.meta.url),
@@ -9,6 +12,37 @@ const require = createRequire(import.meta.url),
   { discover } = require("../../../deployment/servix/LocalDevelopment.cjs"),
   { projectFolders } = require("../../../deployment/servix/SystemPrerequisites.cjs");
 const roots: string[] = [];
+it("executes Linux explorer metadata and exclusive creation with actual non-root files", async () => {
+  const env = require("../../../deployment/servix/NativePlatform.cjs").buildEnvironment();
+  const { stdout } = await promisify(execFile)(
+    "docker",
+    [
+      "run",
+      "--rm",
+      "--network",
+      "none",
+      "--user",
+      "1000:1000",
+      "--memory",
+      "256m",
+      "--cpus",
+      "1",
+      "-v",
+      fileURLToPath(new URL("../../../", import.meta.url)) + ":/source:ro",
+      "--entrypoint",
+      "python3",
+      "python@sha256:70729b46c69b4f1e97c4822c1af3df53a1476cf5ddc6c087c0c10bc3a5678c2f",
+      "/source/apps/control-plane/test/file-explorer-linux.fixture.py",
+    ],
+    { env, windowsHide: true, timeout: 90000, maxBuffer: 65536 },
+  );
+  expect(JSON.parse(stdout)).toEqual({
+    status: "PASS",
+    metadata: true,
+    exclusiveCreation: true,
+    noLinkTraversal: true,
+  });
+}, 100000);
 it("locates bounded metadata candidates without contents, links, secret folders or arbitrary roots", async () => {
   const root = await mkdtemp(join(tmpdir(), "devsetu-search-runtime-"));
   roots.push(root);
@@ -59,6 +93,74 @@ it("locates bounded metadata candidates without contents, links, secret folders 
 afterEach(async () => {
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
 });
+it("lists real files and ZIP metadata and exclusively creates empty files/folders without traversing links or overwriting", async () => {
+  const root = await mkdtemp(join(tmpdir(), "devsetu-explorer-runtime-"));
+  roots.push(root);
+  const project = join(root, "project"),
+    state = join(root, "state");
+  await mkdir(project);
+  await mkdir(state);
+  await writeFile(join(project, "release.zip"), Buffer.from([80, 75, 3, 4]));
+  await writeFile(join(project, "existing.txt"), "preserve these bytes");
+  await symlink(state, join(project, "linked"), process.platform === "win32" ? "junction" : "dir");
+  const deviceId = "fc_" + "a".repeat(32),
+    config = { deviceId, repository: project, stateRoot: state },
+    job = {
+      version: 1,
+      requestId: "fb_" + "b".repeat(32),
+      workspaceId: "ws_server20",
+      actor: "usr_fixture",
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 120000).toISOString(),
+      status: "working",
+      request: { version: 1, deviceId, root: project, path: "", page: 0, includeFiles: true },
+    };
+  const listed = await browse(config, job, [], true);
+  expect(listed.status).toBe("succeeded");
+  expect(listed.result.entries).toContainEqual(
+    expect.objectContaining({ name: "release.zip", kind: "file", size: 4 }),
+  );
+  expect(listed.result.entries).toContainEqual(
+    expect.objectContaining({ name: "linked", kind: "link", excluded: true }),
+  );
+  expect(JSON.stringify(listed)).not.toContain("preserve these bytes");
+  const create = (kind: string, name: string) =>
+    browse(config, { ...job, request: { ...job.request, create: { kind, name } } }, [], true);
+  const directory = await create("directory", "New project");
+  expect(directory.errorCode).toBeUndefined();
+  expect(directory).toMatchObject({ status: "succeeded" });
+  expect(directory.result.created).toEqual({ kind: "directory", path: "New project" });
+  expect((await stat(join(project, "New project"))).isDirectory()).toBe(true);
+  expect((await create("file", "notes.txt")).status).toBe("succeeded");
+  expect((await stat(join(project, "notes.txt"))).size).toBe(0);
+  expect((await create("file", "existing.txt")).errorCode).toBe("folder-already-exists");
+  expect((await create("directory", "New project")).errorCode).toBe("folder-already-exists");
+  expect(await readFile(join(project, "existing.txt"), "utf8")).toBe("preserve these bytes");
+  for (const name of [
+    "../escape",
+    "CON.txt",
+    "new.",
+    ".env",
+    "secret.txt",
+    "name:stream",
+    "bad\\name",
+  ])
+    expect((await create("file", name)).errorCode).toBe("folder-scope-denied");
+  expect(
+    (
+      await browse(
+        config,
+        {
+          ...job,
+          request: { ...job.request, path: "linked", create: { kind: "file", name: "out.txt" } },
+        },
+        [],
+        true,
+      )
+    ).errorCode,
+  ).toBe("folder-scope-denied");
+  await expect(stat(join(state, "out.txt"))).rejects.toMatchObject({ code: "ENOENT" });
+}, 60000);
 it("browses real directories with stable pagination, consent/scope checks, stale-page rejection and no link traversal", async () => {
   const root = await mkdtemp(join(tmpdir(), "devsetu-folder-runtime-"));
   roots.push(root);

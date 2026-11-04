@@ -12,7 +12,7 @@ if($request.operation -ceq 'prepare'){
  $state=$request.state
  if((@($state.PSObject.Properties.Name|Sort-Object)-join ',') -cne 'architecture,code,createdAt,credential,deviceId,fileActivity,name,platform,pollSecret,server,version'){throw 'Pending fields differ'}
  if($state.version -ne 1 -or $state.deviceId -cne $request.deviceId -or $state.credential -cnotmatch ('^'+$state.deviceId+'\.[A-Za-z0-9_-]{43}$') -or $state.pollSecret -cnotmatch '^[A-Za-z0-9_-]{43}$' -or $state.code -cnotmatch '^[A-HJ-NP-Z2-9]{8}$' -or $state.fileActivity -isnot [bool]){throw 'Pending scope differs'}
- $url=[uri]$state.server;if($url.Scheme -cnotin @('http','https') -or $url.UserInfo -or $url.Query -or $url.Fragment -or $url.AbsolutePath -cne '/'){throw 'Server differs'}
+ $url=[uri]$state.server;if($url.Scheme -cnotin @('http','https') -or $url.UserInfo -or $url.Query -or $url.Fragment -or $url.AbsolutePath -cnotmatch '^/(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)?$'){throw 'Server differs'}
  $bytes=[Text.UTF8Encoding]::new($false).GetBytes(($state|ConvertTo-Json -Compress));try{$encrypted=[Security.Cryptography.ProtectedData]::Protect($bytes,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser);$stream=[IO.File]::Open($file,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None);try{$stream.Write($encrypted,0,$encrypted.Length);$stream.Flush($true)}finally{$stream.Dispose()}}finally{[Array]::Clear($bytes,0,$bytes.Length)}
  [Console]::Out.Write('{"saved":true}');exit
 }

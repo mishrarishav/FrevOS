@@ -15,6 +15,7 @@ const BrowserEntrySchema = z
         return false;
       }
     }),
+    connectorTransport: z.boolean().optional(),
     basePath: z
       .string()
       .max(65)
@@ -61,14 +62,21 @@ export async function buildBrowserEntry(
   BrowserEntrySchema.parse(profile);
   if (common.authMode !== "local") throw Error("browser-entry-local-auth-required");
   const metadata = z
-    .object({ version: z.literal(1), basePath: z.literal(profile.basePath) })
+    .object({
+      version: z.literal(1),
+      basePath: z.literal(profile.basePath),
+      connectorTransport: z.literal(1).optional(),
+    })
     .strict();
-  metadata.parse(await jsonFile(join(assetsDirectory, "browser-entry.json")));
+  const capabilities = metadata.parse(await jsonFile(join(assetsDirectory, "browser-entry.json")));
+  if (profile.connectorTransport && capabilities.connectorTransport !== 1)
+    throw Error("browser-entry-connector-capability-required");
   const server = await buildServer({
     ...common,
     publicOrigin: profile.publicOrigin,
     basePath: profile.basePath,
     authCookieNamespace: profile.basePath.slice(1),
+    ...(profile.connectorTransport ? { deviceLoginMethod: "connector-page" as const } : {}),
   });
   let attempts = 0;
   let windowStarted = Date.now();
@@ -91,13 +99,14 @@ export async function buildBrowserEntry(
       if (++attempts > 60)
         return reply.header("retry-after", "60").status(429).send({ error: "login-rate-limited" });
     }
-    // Existing endpoints and credentials are intentionally not migrated by a
-    // browser route. A public preview needs its own isolated browser origin.
+    // Public connector transport is explicit and retains the credential checks
+    // of the shared backend. Preview still requires a separately isolated origin.
     const path = pathname.slice(profile.basePath.length);
     if (
-      path === "/v1/connector" ||
-      path.startsWith("/v1/connector/") ||
-      /\/local-development\/preview\//.test(path)
+      (!profile.connectorTransport &&
+        (path === "/v1/connector" || path.startsWith("/v1/connector/"))) ||
+      (/\/local-development\/preview\//.test(path) &&
+        !(profile.connectorTransport && path.endsWith("/local-development/preview/inspect")))
     )
       return reply.status(503).send({ error: "browser-entry-private-transport-required" });
   });

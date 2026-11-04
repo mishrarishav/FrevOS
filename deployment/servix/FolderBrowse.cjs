@@ -16,6 +16,15 @@ const relative = (value) =>
     value
       .split("/")
       .every((p) => p && p !== "." && p !== ".." && ![...p].some((c) => c.charCodeAt(0) < 32)));
+const newName = (name) =>
+  typeof name === "string" &&
+  name.length > 0 &&
+  name.length <= 255 &&
+  !/[\\/:*?"<>|]/.test(name) &&
+  [...name].every((c) => c.charCodeAt(0) >= 32 && c.charCodeAt(0) !== 127) &&
+  !/[. ]$/.test(name) &&
+  !/^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(name) &&
+  ![".", ".."].includes(name);
 function command(file, args, input) {
   return new Promise((resolve, reject) => {
     const child = execFile(
@@ -65,12 +74,29 @@ async function browse(config, job, roots, consent) {
     )
       throw Error("folder-scope-denied");
     const agentRoot = __dirname;
+    if (request.create) {
+      const { excluded, pseudoPath } = require("./DiscoverySafety.cjs");
+      if (
+        !["file", "directory"].includes(request.create.kind) ||
+        !newName(request.create.name) ||
+        request.page !== 0 ||
+        request.fingerprint ||
+        Object.keys(request.create).sort().join() !== "kind,name" ||
+        excluded((request.path ? request.path + "/" : "") + request.create.name) ||
+        pseudoPath(path.join(folder, request.create.name)) ||
+        within(config.stateRoot, path.join(folder, request.create.name)) ||
+        within(agentRoot, path.join(folder, request.create.name))
+      )
+        throw Error("folder-scope-denied");
+    }
     const input = {
       root: request.root,
       path: request.path,
       page: request.page,
       ...(request.fingerprint ? { fingerprint: request.fingerprint } : {}),
       agentRoot,
+      ...(request.includeFiles ? { includeFiles: true } : {}),
+      ...(request.create ? { create: request.create } : {}),
     };
     const value =
       process.platform === "win32"
@@ -88,6 +114,11 @@ async function browse(config, job, roots, consent) {
           )
         : await command("/usr/bin/python3", [path.join(__dirname, "Browse-Folders.py")], input);
     if (value.errorCode) throw Error(value.errorCode);
+    if (
+      request.create &&
+      (value.created?.kind !== request.create.kind || value.created?.name !== request.create.name)
+    )
+      throw Error("folder-browser-unavailable");
     if (
       !Array.isArray(value.entries) ||
       value.entries.length > 100 ||
@@ -108,10 +139,22 @@ async function browse(config, job, roots, consent) {
           excluded:
             !!e.excluded ||
             metadataExcluded(e.name) ||
+            (e.kind === "file" && require("./DiscoverySafety.cjs").excluded(e.name)) ||
             within(agentRoot, selected) ||
             within(config.stateRoot, selected),
+          ...(e.kind ? { kind: e.kind } : {}),
+          ...(e.size !== undefined ? { size: e.size } : {}),
+          ...(e.modifiedAt ? { modifiedAt: e.modifiedAt } : {}),
         };
       }),
+      ...(request.create
+        ? {
+            created: {
+              kind: request.create.kind,
+              path: (request.path ? request.path + "/" : "") + request.create.name,
+            },
+          }
+        : {}),
     };
     return { ...job, status: "succeeded", result };
   } catch (e) {
@@ -122,6 +165,7 @@ async function browse(config, job, roots, consent) {
       "folder-changed",
       "folder-consent-required",
       "folder-request-expired",
+      "folder-already-exists",
     ];
     return {
       ...job,

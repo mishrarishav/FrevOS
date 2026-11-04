@@ -11,7 +11,7 @@ import {
   defaultActivitySettings,
   defaultDiscoveryPolicy,
 } from "@frevos/contracts";
-import { X } from "lucide-react";
+import { FolderOpen, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { ControlCenterApi } from "./api.js";
 import { type DiscoverySystem, discoverySystems, lastSeenLabel } from "./discovery-systems.js";
@@ -22,6 +22,7 @@ import { RecordBadge, type RecordColumn, RecordWorkspace } from "./RecordWorkspa
 import { addBasePath } from "./routing.js";
 import { SoftwarePanel } from "./SoftwarePanel.js";
 import { SystemPairingDialog } from "./SystemPairingDialog.js";
+import { SystemConnections } from "./SystemConnections.js";
 import { WorkspaceDialog } from "./WorkspaceDialog.js";
 
 type System = DiscoveryState["systems"][number];
@@ -72,6 +73,7 @@ export function DiscoveryPage({
   const [reload, setReload] = useState(0),
     [busy, setBusy] = useState(false);
   const [details, setDetails] = useState<string | null>(null);
+  const [detailTab, setDetailTab] = useState<"overview" | "activity" | "connections">("overview");
   const [activityDay, setActivityDay] = useState("");
   const [activityPath, setActivityPath] = useState("");
   const [activityLimit, setActivityLimit] = useState(100);
@@ -97,6 +99,11 @@ export function DiscoveryPage({
   const canManageSystem = (system: System) =>
     !!access?.canManageOwnSystems &&
     system.userId === access.actorId &&
+    system.status === "active" &&
+    system.platform !== "android" &&
+    system.observation?.system.platform !== "android";
+  const canBrowseSystem = (system: System) =>
+    (access?.role === "admin" || canManageSystem(system)) &&
     system.status === "active" &&
     system.platform !== "android" &&
     system.observation?.system.platform !== "android";
@@ -129,9 +136,24 @@ export function DiscoveryPage({
           if (details && !next.systems.some((system) => system.deviceId === details))
             setDetails(null);
           setSettings((prior) => (prior && owned(prior.system.deviceId) ? prior : null));
-          setFolderPicker((prior) => (prior && owned(prior.system.deviceId) ? prior : null));
+          setFolderPicker((prior) =>
+            prior &&
+            (owned(prior.system.deviceId) ||
+              (prior.mode === "inspect" && next.access?.role === "admin"))
+              ? prior
+              : null,
+          );
           setEditor((prior) => (next.access!.canManagePlans ? prior : null));
-          setPreview((prior) => (prior && owned(prior.request.deviceId) ? prior : null));
+          setPreview((prior) =>
+            prior &&
+            (owned(prior.request.deviceId) ||
+              (next.access?.role === "admin" &&
+                next.systems.some(
+                  (s) => s.deviceId === prior.request.deviceId && s.status === "active",
+                )))
+              ? prior
+              : null,
+          );
           setLoading(false);
           setError("");
         }
@@ -161,6 +183,7 @@ export function DiscoveryPage({
   }, [api, workspaceId, reload, details]);
   function openActivity(deviceId: string) {
     setDetails(deviceId);
+    setDetailTab("overview");
     setActivityDay("");
     setActivityPath("");
     setActivityLimit(100);
@@ -335,16 +358,18 @@ export function DiscoveryPage({
           Software
         </button>
       ) : null}
+      {canBrowseSystem(s) ? (
+        <button
+          type="button"
+          className="button secondary"
+          disabled={!s.online}
+          onClick={() => setFolderPicker({ system: s, mode: "inspect" })}
+        >
+          <FolderOpen size={15} /> Files &amp; folders
+        </button>
+      ) : null}
       {canManageSystem(s) ? (
         <>
-          <button
-            type="button"
-            className="button secondary"
-            disabled={!s.online}
-            onClick={() => setFolderPicker({ system: s, mode: "inspect" })}
-          >
-            Browse folders
-          </button>
           <button
             type="button"
             className="button secondary"
@@ -367,9 +392,8 @@ export function DiscoveryPage({
   const systemColumns: RecordColumn<DiscoverySystem>[] = [
     {
       id: "name",
-      label: "System / project source",
-      value: (s) =>
-        `${s.observation?.system.systemName ?? s.name} ${s.bindings.map((b) => b.profileId).join(" ")}`,
+      label: "Computer",
+      value: (s) => s.observation?.system.systemName ?? s.name,
     },
     {
       id: "projects",
@@ -518,6 +542,11 @@ export function DiscoveryPage({
     </div>
   );
   const selected = state.systems.find((s) => s.deviceId === details);
+  const selectedSystem = selected
+    ? discoverySystems(state.systems).find((s) =>
+        s.bindings.some((b) => b.deviceId === selected.deviceId),
+      )
+    : undefined;
   const selectedIsAndroid =
     selected?.platform === "android" || selected?.observation?.system.platform === "android";
   useEffect(() => {
@@ -600,7 +629,8 @@ export function DiscoveryPage({
                 <div className="record-identity">
                   <h2>{s.observation?.system.systemName ?? s.name}</h2>
                   <small>
-                    {s.bindings.length} {s.bindings.length === 1 ? "connection" : "connections"} ·{" "}
+                    Computer · {s.bindings.length}{" "}
+                    {s.bindings.length === 1 ? "connector" : "connectors"} ·{" "}
                     {s.observation?.system.installationId
                       ? "System identity reported"
                       : "Identity unavailable; source shown separately"}
@@ -629,10 +659,13 @@ export function DiscoveryPage({
                     : "System monitoring · add projects later")}
               </small>
               {systemActions(s)}
-              <div className="discovery-bindings">
+              <details className="discovery-bindings">
+                <summary>Linked projects &amp; connectors ({s.bindings.length})</summary>
                 {s.bindings.map((binding) => (
                   <div key={binding.deviceId}>
-                    <strong>{binding.profileId ?? "System monitoring"}</strong>
+                    <strong>
+                      {binding.profileId ? `Project: ${binding.profileId}` : "System monitoring"}
+                    </strong>
                     <small>
                       {binding.source?.repository ??
                         (binding.profileId ? "Source not verified" : "No project required")}
@@ -690,7 +723,7 @@ export function DiscoveryPage({
                     </div>
                   </div>
                 ))}
-              </div>
+              </details>
             </article>
           )}
         />
@@ -790,9 +823,9 @@ export function DiscoveryPage({
           )}
         />
       )}
-      {selected ? (
+      {selected && !folderPicker ? (
         <WorkspaceDialog label="Activity and health" onClose={() => setDetails(null)}>
-          <section className="project-editor discovery-editor">
+          <section className="project-editor discovery-editor discovery-details">
             <header className="settings-header">
               <div>
                 <h2>{selected.observation?.system.systemName ?? selected.name}</h2>
@@ -811,115 +844,146 @@ export function DiscoveryPage({
                 <X size={16} />
               </button>
             </header>
-            <div className="discovery-scroll">
-              <label>
-                Connection
-                <select value={selected.deviceId} onChange={(e) => openActivity(e.target.value)}>
-                  {discoverySystems(state.systems)
-                    .find((s) => s.bindings.some((b) => b.deviceId === selected.deviceId))
-                    ?.bindings.map((b) => (
-                      <option key={b.deviceId} value={b.deviceId}>
-                        {b.profileId ?? "System monitoring"}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              {health(selected)}
-              <p>{lastSeenLabel(selected.lastSeenAt)}</p>
-              <p>
-                {selectedIsAndroid
-                  ? "RAM above describes this Android device. System-wide CPU is unavailable."
-                  : "CPU and RAM above describe the whole computer."}
-              </p>
-              <HealthGraphs
-                points={selected.healthHistory ?? []}
-                online={selected.online}
-                cpuSupported={
-                  selected.platform !== "android" &&
-                  selected.observation?.system.platform !== "android"
-                }
-              />
-              {!selectedIsAndroid ? (
-                <p>
-                  {selected.collector
-                    ? `Connector: ${(selected.collector.rss / 1048576).toFixed(1)} MB RAM (RSS), ${(selected.collector.heapUsed / 1048576).toFixed(1)} MB JavaScript heap · pending jobs ${selected.collector.pendingJobs} / ${selected.collector.maxPendingJobs}`
-                    : "Connector resource metrics unavailable from this installed version. Update the connector once for bounded processing and its own RAM measurement."}
-                </p>
-              ) : null}
-              <p>
-                {selected.profileId
-                  ? selected.sourceFresh
-                    ? "Project folder"
-                    : "Last verified folder"
-                  : "Connection"}
-                :{" "}
-                <strong>
-                  {selected.source?.repository ??
-                    (selected.profileId
-                      ? "Source verification unavailable"
-                      : "System monitoring · no project binding")}
-                </strong>
-              </p>
-              {selected.observation?.system.disks.map((d) => (
-                <p key={d.root}>
-                  <strong>{d.root}</strong> · {bytes(d.available)} available / {bytes(d.total)}
-                </p>
-              ))}
-              {selectedIsAndroid ? (
-                <section aria-label="Android monitoring scope">
-                  <h3>Android monitoring</h3>
-                  <p>
-                    Device health and presence are shared. Desktop tools, project execution, folder
-                    browsing and file tracking are unavailable.
-                  </p>
-                  <p>
-                    The Android app's ongoing notification has a Stop action. Android may pause
-                    monitoring after force-close or battery restrictions; open the app and Start
-                    monitoring to resume.
-                  </p>
-                </section>
-              ) : (
-                <>
+            <div className="discovery-detail-toolbar">
+              <fieldset className="discovery-tabs" aria-label="Computer details">
+                {(["overview", "activity", "connections"] as const).map((value) => (
                   <button
                     type="button"
                     className="button secondary"
-                    onClick={() =>
-                      setSoftware({ deviceId: selected.deviceId, name: selected.name })
-                    }
+                    key={value}
+                    aria-pressed={detailTab === value}
+                    onClick={() => setDetailTab(value)}
                   >
-                    Software inventory and installs
+                    {value === "overview"
+                      ? "Overview"
+                      : value === "activity"
+                        ? "File activity"
+                        : "Connections"}
                   </button>
-                  <h3>Tools</h3>
-                  {selected.observation?.system.tools.map((t) => (
-                    <p key={`${t.id}:${t.required}`}>
-                      {t.id}: {t.detected ?? "Missing"} · required {t.required} · {t.status}
+                ))}
+              </fieldset>
+              {canBrowseSystem(selected) ? (
+                <button
+                  type="button"
+                  className="button primary"
+                  disabled={!selected.online}
+                  onClick={() => setFolderPicker({ system: selected, mode: "inspect" })}
+                >
+                  <FolderOpen size={16} /> Files &amp; folders
+                </button>
+              ) : null}
+            </div>
+            <div className="discovery-scroll">
+              {detailTab === "connections" && selectedSystem ? (
+                <SystemConnections
+                  system={selectedSystem}
+                  selectedDeviceId={selected.deviceId}
+                  onSelect={(id) => {
+                    openActivity(id);
+                    setDetailTab("activity");
+                  }}
+                />
+              ) : null}
+              {detailTab === "overview" ? (
+                <>
+                  {health(selected)}
+                  <p>{lastSeenLabel(selected.lastSeenAt)}</p>
+                  <p>
+                    {selectedIsAndroid
+                      ? "RAM above describes this Android device. System-wide CPU is unavailable."
+                      : "CPU and RAM above describe the whole computer."}
+                  </p>
+                  <HealthGraphs
+                    points={selected.healthHistory ?? []}
+                    online={selected.online}
+                    cpuSupported={
+                      selected.platform !== "android" &&
+                      selected.observation?.system.platform !== "android"
+                    }
+                  />
+                  {!selectedIsAndroid ? (
+                    <p>
+                      {selected.collector
+                        ? `Connector: ${(selected.collector.rss / 1048576).toFixed(1)} MB RAM (RSS), ${(selected.collector.heapUsed / 1048576).toFixed(1)} MB JavaScript heap · pending jobs ${selected.collector.pendingJobs} / ${selected.collector.maxPendingJobs}`
+                        : "Connector resource metrics unavailable from this installed version. Update the connector once for bounded processing and its own RAM measurement."}
+                    </p>
+                  ) : null}
+                  <p className="record-muted">
+                    Computer monitoring · Project links are listed in Connections.
+                  </p>
+                  {selected.observation?.system.disks.map((d) => (
+                    <p key={d.root}>
+                      <strong>{d.root}</strong> · {bytes(d.available)} available / {bytes(d.total)}
                     </p>
                   ))}
-                  <p>
-                    Use the local installer’s system check to review and install selected
-                    prerequisites.
+                  {selectedIsAndroid ? (
+                    <section aria-label="Android monitoring scope">
+                      <h3>Android monitoring</h3>
+                      <p>
+                        Device health and presence are shared. Desktop tools, project execution,
+                        folder browsing and file tracking are unavailable.
+                      </p>
+                      <p>
+                        The Android app's ongoing notification has a Stop action. Android may pause
+                        monitoring after force-close or battery restrictions; open the app and Start
+                        monitoring to resume.
+                      </p>
+                    </section>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className="button secondary"
+                        onClick={() =>
+                          setSoftware({ deviceId: selected.deviceId, name: selected.name })
+                        }
+                      >
+                        Software inventory and installs
+                      </button>
+                      <h3>Tools</h3>
+                      {selected.observation?.system.tools.map((t) => (
+                        <p key={`${t.id}:${t.required}`}>
+                          {t.id}: {t.detected ?? "Missing"} · required {t.required} · {t.status}
+                        </p>
+                      ))}
+                      <p>
+                        Use the local installer’s system check to review and install selected
+                        prerequisites.
+                      </p>
+                      <h3>Coverage</h3>
+                      <p>
+                        {selected.observation?.coverage.roots.join(", ") ||
+                          "Tracking is not active"}
+                      </p>
+                      <p>
+                        Acting user / process comes only from matching OS audit records when
+                        available. Filesystem notifications, connector account and assigned
+                        developer do not prove who edited a file.
+                      </p>
+                      {selected.observation?.coverage.gaps.map((g) => (
+                        <p key={g} className="record-muted">
+                          {g.replaceAll("-", " ")}
+                        </p>
+                      ))}
+                    </>
+                  )}
+                </>
+              ) : null}
+              {detailTab === "activity" ? (
+                <>
+                  <h3>File activity</h3>
+                  <p className="record-muted">
+                    Activity source:{" "}
+                    {selected.profileId
+                      ? `Project connection · ${selected.profileId}`
+                      : "System monitoring"}
                   </p>
-                  <h3>Coverage</h3>
-                  <p>
-                    {selected.observation?.coverage.roots.join(", ") || "Tracking is not active"}
-                  </p>
-                  <p>
-                    Acting user / process comes only from matching OS audit records when available.
-                    Filesystem notifications, connector account and assigned developer do not prove
-                    who edited a file.
-                  </p>
-                  {selected.observation?.coverage.gaps.map((g) => (
-                    <p key={g} className="record-muted">
-                      {g.replaceAll("-", " ")}
-                    </p>
-                  ))}
                   <p>
                     {selected.history.length} of {selected.historyCount} retained events loaded.
                     Retention: {selected.policy?.policy.retentionDays ?? 7} days, up to{" "}
                     {selected.policy?.policy.maxEvents ?? 2000} events within the storage limit.
                     Notifications may coalesce edits; gaps are not reconstructed.
                   </p>
-                  <h3>File activity</h3>
                   {selected.contentRequests?.length ? (
                     <label>
                       Recent file requests
@@ -940,12 +1004,15 @@ export function DiscoveryPage({
                       </select>
                     </label>
                   ) : null}
-                  <p>
-                    Request a file snapshot below. The computer's user must approve that exact
-                    request in a local browser page. Earlier changes are available only when an
-                    earlier approved snapshot exists; file notifications cannot reconstruct old
-                    content.
-                  </p>
+                  <details className="discovery-help">
+                    <summary>About file content requests</summary>
+                    <p>
+                      Request a file snapshot below. The computer's user must approve that exact
+                      request in a local browser page. Earlier changes are available only when an
+                      earlier approved snapshot exists; file notifications cannot reconstruct old
+                      content.
+                    </p>
+                  </details>
                   {preview ? (
                     <section className="discovery-event" aria-label="Requested file content">
                       <h3>Requested file content · {preview.status}</h3>
@@ -989,41 +1056,48 @@ export function DiscoveryPage({
                       ) : null}
                     </section>
                   ) : null}
-                  <label>
-                    Activity segment
-                    <select
-                      value={activitySegment}
-                      onChange={(e) => {
-                        setActivitySegment(e.target.value as "work" | "noise" | "all");
-                        setActivityLimit(100);
-                      }}
-                    >
-                      <option value="work">
-                        Work / other activity (
-                        {selected.activity?.workCount ?? selected.historyCount})
-                      </option>
-                      <option value="noise">
-                        Temp / Cache / Tooling ({selected.activity?.noiseCount ?? 0})
-                      </option>
-                      <option value="all">All activity ({selected.historyCount})</option>
-                    </select>
-                  </label>
-                  <p>
-                    Path categories help review activity; they do not prove productive work.
-                    Summaries count retained notifications, not edits. Separate event and byte
-                    quotas discard the oldest activity in each segment. Excluded sensitive paths
-                    stay excluded.
-                  </p>
-                  <p>
-                    Temp / Cache / Tooling: up to {selected.activity?.settings.noisePercent ?? 20}%
-                    of the event and storage budget, retained for up to{" "}
-                    {Math.min(
-                      selected.policy?.policy.retentionDays ?? 7,
-                      selected.activity?.settings.noiseRetentionDays ?? 2,
-                    )}{" "}
-                    days. Matching metadata notifications are summarized over{" "}
-                    {selected.activity?.settings.summarySeconds ?? 30} seconds.
-                  </p>
+                  <fieldset
+                    className="discovery-tabs activity-segments"
+                    aria-label="Activity segment"
+                  >
+                    {(["work", "noise", "all"] as const).map((segment) => (
+                      <button
+                        type="button"
+                        key={segment}
+                        className="button secondary"
+                        aria-pressed={activitySegment === segment}
+                        onClick={() => {
+                          setActivitySegment(segment);
+                          setActivityLimit(100);
+                        }}
+                      >
+                        {segment === "work"
+                          ? `Work / other (${selected.activity?.workCount ?? selected.historyCount})`
+                          : segment === "noise"
+                            ? `Temp / cache / tooling (${selected.activity?.noiseCount ?? 0})`
+                            : `All activity (${selected.historyCount})`}
+                      </button>
+                    ))}
+                  </fieldset>
+                  <details className="discovery-help">
+                    <summary>Retention and temp activity rules</summary>
+                    <p>
+                      Path categories help review activity; they do not prove productive work.
+                      Summaries count retained notifications, not edits. Separate event and byte
+                      quotas discard the oldest activity in each segment. Excluded sensitive paths
+                      stay excluded.
+                    </p>
+                    <p>
+                      Temp / Cache / Tooling: up to {selected.activity?.settings.noisePercent ?? 20}
+                      % of the event and storage budget, retained for up to{" "}
+                      {Math.min(
+                        selected.policy?.policy.retentionDays ?? 7,
+                        selected.activity?.settings.noiseRetentionDays ?? 2,
+                      )}{" "}
+                      days. Matching metadata notifications are summarized over{" "}
+                      {selected.activity?.settings.summarySeconds ?? 30} seconds.
+                    </p>
+                  </details>
                   <div className="discovery-form-grid">
                     <label>
                       Day (your local time)
@@ -1063,7 +1137,7 @@ export function DiscoveryPage({
                             {new Date(e.at).toLocaleTimeString()}
                           </small>
                         ) : null}
-                        {e.kind !== "gap" && canManageSystem(selected) ? (
+                        {e.kind !== "gap" && canBrowseSystem(selected) ? (
                           <button
                             type="button"
                             className="button secondary"
@@ -1071,7 +1145,6 @@ export function DiscoveryPage({
                               busy ||
                               !selected.online ||
                               !selected.collector ||
-                              selected.userId !== userId ||
                               (!!preview && ["queued", "working"].includes(preview.status))
                             }
                             onClick={() => void requestContent(selected, e.root, e.path)}
@@ -1119,7 +1192,7 @@ export function DiscoveryPage({
                     </button>
                   ) : null}
                 </>
-              )}
+              ) : null}
             </div>
           </section>
         </WorkspaceDialog>
@@ -1173,6 +1246,26 @@ export function DiscoveryPage({
                     }
                   />
                 </label>
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() =>
+                    setSettings({
+                      ...settings,
+                      activity: {
+                        ...settings.activity,
+                        noiseFolders: [
+                          ...new Set([
+                            ...settings.activity.noiseFolders,
+                            ...defaultActivitySettings.noiseFolders,
+                          ]),
+                        ].slice(0, 40),
+                      },
+                    })
+                  }
+                >
+                  Add recommended temp / browser cache rules
+                </button>
                 <label>
                   Summary interval (5–300 seconds)
                   <input
@@ -1419,7 +1512,13 @@ export function DiscoveryPage({
             folderPicker.mode === "content" ||
             (folderPicker.mode === "priority" && !settings?.policy.allLocalDrives)
           }
-          label={folderPicker.mode === "content" ? "Add content folder" : "Track this folder first"}
+          label={
+            folderPicker.mode === "inspect"
+              ? "Files & folders"
+              : folderPicker.mode === "content"
+                ? "Add content folder"
+                : "Track this folder first"
+          }
           onChoose={
             folderPicker.mode === "inspect"
               ? undefined

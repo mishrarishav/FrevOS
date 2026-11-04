@@ -22,6 +22,24 @@ it("separates tooling paths on folder boundaries without weakening secret exclus
   expect(safety.activityCategory({ ...event(0, "TEMP/file.ts"), root: "/home/" })).toBe("work");
   expect(safety.activityCategory(event(0, "template/work.ts"))).toBe("work");
   expect(safety.activityCategory(event(0, "my-cache/source.ts"))).toBe("work");
+  expect(
+    safety.activityCategory(
+      event(0, "project/artifacts/edge-profile/Default/Network/SCT Auditing Pending Reports"),
+    ),
+  ).toBe("noise");
+  expect(
+    safety.activityCategory(
+      event(0, "project/artifacts/edge-profile/Default/Network/Sdch Dictionaries"),
+    ),
+  ).toBe("noise");
+  expect(safety.activityCategory(event(0, "project/artifacts/candidate-report.json"))).toBe("work");
+  expect(safety.activityCategory(event(0, "project/Default/Networking/source.ts"))).toBe("work");
+  expect(
+    safety.activityCategory(event(0, "project/Default/Network/file"), {
+      ...defaultActivitySettings,
+      noiseFolders: [],
+    }),
+  ).toBe("work");
   expect(safety.safeEvent(event(0, "Temp/.env.prod"))).toBeNull();
   expect(safety.safeEvent(event(0, "AppData/Temp/file.txt"))).toBeNull();
 });

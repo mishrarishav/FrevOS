@@ -54,6 +54,7 @@ it("serves both origins with shared persisted identities, scoped APIs and unchan
   const root = await mkdtemp(join(tmpdir(), "devsetu-browser-runtime-"));
   let internal: Awaited<ReturnType<typeof buildServer>> | undefined;
   let external: Awaited<ReturnType<typeof buildBrowserEntry>> | undefined;
+  let transport: Awaited<ReturnType<typeof buildBrowserEntry>> | undefined;
   try {
     await runMigrations(admin);
     await admin.query(
@@ -154,6 +155,30 @@ it("serves both origins with shared persisted identities, scoped APIs and unchan
         ).statusCode,
       ).toBe(503);
     }
+    await expect(
+      buildBrowserEntry(common, { ...profile, connectorTransport: true }, root),
+    ).rejects.toThrow("browser-entry-connector-capability-required");
+    await writeFile(
+      join(root, "browser-entry.json"),
+      JSON.stringify({ version: 1, basePath: profile.basePath, connectorTransport: 1 }),
+    );
+    transport = await buildBrowserEntry(common, { ...profile, connectorTransport: true }, root);
+    const transportProof = await transport.inject({
+      method: "POST",
+      url: "/workspace/v1/connector/login-proof",
+      headers,
+      payload: {},
+    });
+    expect(transportProof.statusCode).toBe(503);
+    expect(transportProof.json().error).toBe("device-login-unavailable");
+    const preview = await transport.inject({
+      method: "POST",
+      url: "/workspace/v1/workspaces/ws_entry/local-development/preview/open",
+      headers,
+      payload: {},
+    });
+    expect(preview.statusCode).toBe(503);
+    expect(preview.json().error).toBe("browser-entry-private-transport-required");
     const payload = { username: "entry.owner", password: "synthetic-entry-password" };
     const rejected = await external.inject({
       method: "POST",
@@ -286,6 +311,7 @@ it("serves both origins with shared persisted identities, scoped APIs and unchan
     await rm(join(root, "index.html"));
     await expect(buildBrowserEntry(common, profile, root)).rejects.toThrow();
   } finally {
+    await transport?.close();
     await external?.close();
     await internal?.close();
     await pool?.end();

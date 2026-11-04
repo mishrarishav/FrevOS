@@ -93,7 +93,7 @@ function validateConfig(config) {
     server.password ||
     server.search ||
     server.hash ||
-    server.pathname !== "/" ||
+    !/^\/(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)?$/.test(server.pathname) ||
     !["http:", "https:"].includes(server.protocol) ||
     (server.protocol === "http:" && config.allowInternalHttp !== true)
   )
@@ -482,7 +482,7 @@ async function worker(config) {
   await plain(config.stateRoot);
   const server = new URL(config.server);
   const api = async (route, body, method = "POST") => {
-    const response = await fetch(new URL(route, server), {
+    const response = await fetch(new URL(server.href.replace(/\/$/, "") + route), {
       method,
       headers: {
         authorization: "Bearer " + config.credential,

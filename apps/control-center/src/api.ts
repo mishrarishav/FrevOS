@@ -93,6 +93,9 @@ import {
   type PipelineState,
   PipelineStateSchema,
   PreviewBootstrapSchema,
+  type PreviewInspect,
+  type PreviewInspectResult,
+  PreviewInspectResultSchema,
   PreviewClosedSchema,
   type Project,
   type ProjectAutomationOperation,
@@ -317,6 +320,11 @@ export interface ControlCenterApi {
     workspaceId: string,
     input: { deviceId: string; serviceId: string },
   ): Promise<{ action: string; ticket: string }>;
+  previewInspect?(
+    workspaceId: string,
+    input: PreviewInspect,
+    signal?: AbortSignal,
+  ): Promise<PreviewInspectResult>;
   previewClose?(
     workspaceId: string,
     input: { deviceId: string; serviceId: string },
@@ -649,6 +657,13 @@ export function createControlCenterApi(
         `${workspacePath(workspaceId)}/local-development/preview/open`,
         input,
         PreviewBootstrapSchema,
+      ),
+    previewInspect: (workspaceId, input, signal) =>
+      post(
+        `${workspacePath(workspaceId)}/local-development/preview/inspect`,
+        input,
+        PreviewInspectResultSchema,
+        signal,
       ),
     previewClose: (workspaceId, input) =>
       post(

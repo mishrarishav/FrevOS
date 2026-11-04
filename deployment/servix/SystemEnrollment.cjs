@@ -30,17 +30,14 @@ const runtimeFiles = [
 ];
 const sha = (bytes) => crypto.createHash("sha256").update(bytes).digest("hex");
 function serverOrigin(value) {
-  const u = new URL(value);
-  if (
-    !["http:", "https:"].includes(u.protocol) ||
-    u.username ||
-    u.password ||
-    u.search ||
-    u.hash ||
-    u.pathname !== "/"
-  )
-    throw Error("server-url-invalid");
-  return u.origin;
+  return require("./Connector.cjs").serverEndpoint(value).href.replace(/\/$/, "");
+}
+function csrfCookieName(server) {
+  const url = new URL(server),
+    namespace = url.pathname.replace(/^\/|\/$/g, "");
+  return url.protocol === "https:"
+    ? "__Host-frevos-" + (namespace ? namespace + "-" : "") + "csrf"
+    : "frevos-internal-csrf";
 }
 async function plain(file) {
   for (let p = path.resolve(file); ; p = path.dirname(p)) {
@@ -201,7 +198,7 @@ async function serve(options = {}) {
       state.message = "Signing in to DevSetu…";
       let login = await fetcher(remote + "/auth/login", {
         method: "POST",
-        headers: { origin: remote, "content-type": "application/json" },
+        headers: { origin: new URL(remote).origin, "content-type": "application/json" },
         body: JSON.stringify({ username: body.username, password: body.password }),
         redirect: "manual",
         signal: AbortSignal.timeout(20000),
@@ -211,7 +208,11 @@ async function serve(options = {}) {
       if (login.status !== 204) throw Error("account-sign-in-failed");
       const cookies = login.headers.getSetCookie().map((v) => v.split(";")[0]);
       csrf = cookies
-        .find((v) => v.startsWith("frevos-internal-csrf=") || v.startsWith("__Host-frevos-csrf="))
+        .find(
+          (v) =>
+            v.startsWith(csrfCookieName(remote) + "=") ||
+            (new URL(remote).pathname === "/" && v.startsWith("frevos-internal-csrf=")),
+        )
         ?.split("=")
         .slice(1)
         .join("=");
@@ -221,7 +222,7 @@ async function serve(options = {}) {
         const r = await fetcher(remote + route, {
           method: input === undefined ? "GET" : "POST",
           headers: {
-            origin: remote,
+            origin: new URL(remote).origin,
             cookie: authCookie,
             "x-csrf-token": csrf,
             "content-type": "application/json",
@@ -321,7 +322,7 @@ async function serve(options = {}) {
             const timer = setTimeout(() => {
               c.kill();
               reject(Error("existing-connection-timeout"));
-            }, 45000);
+            }, 90000);
             c.once("error", () => {
               clearTimeout(timer);
               reject(Error("existing-connection-unavailable"));
@@ -518,7 +519,7 @@ async function serve(options = {}) {
   if (!options.noOpen) sessionHelper.open(entry.url);
   return { origin, pageUrl: entry.url, state, close };
 }
-module.exports = { serve, installRuntime, runtimeFiles, serverOrigin };
+module.exports = { serve, installRuntime, runtimeFiles, serverOrigin, csrfCookieName };
 if (require.main === module)
   serve()
     .then((setup) => {

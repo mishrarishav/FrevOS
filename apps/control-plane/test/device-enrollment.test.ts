@@ -145,6 +145,29 @@ it("preserves explicit legacy-code pairing and protected resume alongside the re
     expect(resumes).toBe(1);
     expect(installs).toBe(1);
     expect(await connectors.list("usr_owner")).toHaveLength(1);
+    await wizard.close();
+    wizard = await client.serve({
+      ...options,
+      resume: async (request: Record<string, unknown>) => {
+        expect(request["previousServer"]).toBe(body.server);
+        expect(request["server"]).toBe("https://public.fixture.invalid/workspace");
+        config = { ...config, server: request["server"] };
+        resumes++;
+      },
+    });
+    const migrated = await page(wizard);
+    await migrated.call("/connect", {
+      ...body,
+      server: "https://public.fixture.invalid/workspace",
+    });
+    await vi.waitFor(() => expect(wizard.state.phase).toBe("connected"), {
+      timeout: 5000,
+      interval: 10,
+    });
+    expect(installs).toBe(1);
+    expect(starts).toBe(1);
+    expect(resumes).toBe(2);
+    expect(await connectors.list("usr_owner")).toHaveLength(1);
   } finally {
     await wizard.close();
     connectors.close();

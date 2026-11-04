@@ -43,7 +43,9 @@ it.skipIf(process.platform !== "win32")(
     );
     expect(JSON.parse(stdout)).toMatchObject({
       status: "PASS",
-      checks: 13,
+      checks: 15,
+      publicConnectorDowngradeDenied: true,
+      publicConnectorRecoveryAccepted: true,
       previewDowngradeDenied: true,
       incompatibleDowngradeDenied: true,
       sameCapabilityRecoveryAccepted: true,

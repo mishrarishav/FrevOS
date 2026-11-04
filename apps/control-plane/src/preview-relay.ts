@@ -8,6 +8,8 @@ import {
   type PreviewJob,
   PreviewJobSchema,
   PreviewOpenSchema,
+  PreviewInspectSchema,
+  PreviewInspectResultSchema,
   type PreviewResult,
   PreviewResultSchema,
   WorkspaceIdSchema,
@@ -289,6 +291,105 @@ export class PreviewRelay {
     }
     return { action: lease.origin + "/.__devsetu/open", ticket };
   }
+  async inspect(
+    actor: string,
+    workspaceId: string,
+    input: unknown,
+    authorize: () => Promise<void>,
+    signal?: AbortSignal,
+  ) {
+    if (workspaceId !== this.config.workspaceId || this.closed) fail("workspace-denied");
+    const request = PreviewInspectSchema.parse(input);
+    await authorize();
+    const target = await this.target(actor, workspaceId, request.deviceId, request.serviceId);
+    const configured = this.config.targets.find(
+      (entry) =>
+        entry.deviceId === request.deviceId &&
+        entry.serviceId === request.serviceId &&
+        entry.profileId === target.snapshot.profileId,
+    );
+    if (!configured) fail("origin-not-configured", 503);
+    const body = Buffer.from(request.body);
+    if (body.length > this.config.maxRequestBytes) fail("request-too-large", 413);
+    if (this.pending.size >= this.config.maxPending) fail("capacity", 429);
+    const lease: Lease = {
+      actor,
+      deviceId: request.deviceId,
+      serviceId: request.serviceId,
+      origin: configured.origin,
+      profileId: target.snapshot.profileId,
+      revision: target.snapshot.revision,
+      fingerprint: target.snapshot.fingerprint,
+      expires: this.now() + this.config.timeoutMs + 1000,
+      authorize,
+    };
+    // No browser lease, ticket or application cookie is issued by this action.
+    await this.audit(lease, "inspect-request");
+    await this.check(lease);
+    if (signal?.aborted) fail("request-cancelled", 499);
+    if (this.pending.size >= this.config.maxPending) fail("capacity", 429);
+    const job = PreviewJobSchema.parse({
+      version: 1,
+      id: "prv_" + randomBytes(16).toString("hex"),
+      workspaceId,
+      deviceId: lease.deviceId,
+      profileId: lease.profileId,
+      serviceId: lease.serviceId,
+      revision: lease.revision,
+      fingerprint: lease.fingerprint,
+      origin: lease.origin,
+      method: request.method,
+      path: request.path,
+      headers: [
+        ["content-type", request.contentType],
+        ["accept", "application/json, text/plain, */*"],
+      ],
+      body: body.toString("base64"),
+      timeoutMs: this.config.timeoutMs,
+      maxResponseBytes: Math.min(this.config.maxResponseBytes, 262144),
+    });
+    const result = await new Promise<PreviewResult | undefined>((resolve) => {
+      const finish = (value?: PreviewResult) => {
+        if (!this.pending.delete(job.id)) return;
+        clearTimeout(timer);
+        signal?.removeEventListener("abort", cancel);
+        resolve(value);
+      };
+      const timer = setTimeout(() => finish(), this.config.timeoutMs),
+        cancel = () => finish();
+      this.pending.set(job.id, { job, lease, claimed: false, finish });
+      signal?.addEventListener("abort", cancel, { once: true });
+      if (signal?.aborted) finish();
+    });
+    if (!result)
+      fail(
+        signal?.aborted ? "request-cancelled" : "timeout-or-closed",
+        signal?.aborted ? 499 : 504,
+      );
+    await this.check(lease);
+    if (!result.ok) fail(result.error, 502);
+    const output = Buffer.from(result.body, "base64");
+    if (output.length > job.maxResponseBytes) fail("response-too-large", 413);
+    let text: string,
+      encoding: "utf8" | "base64" = "utf8";
+    try {
+      text = new TextDecoder("utf-8", { fatal: true }).decode(output);
+      if (text.includes("\0")) throw Error();
+    } catch {
+      text = output.toString("base64");
+      encoding = "base64";
+    }
+    await this.audit(lease, "inspect-response");
+    return PreviewInspectResultSchema.parse({
+      status: result.status,
+      contentType:
+        result.headers.find(([key]) => key.toLowerCase() === "content-type")?.[1] ??
+        "application/octet-stream",
+      body: text,
+      encoding,
+      bytes: output.length,
+    });
+  }
   async claim(credential: string, kind: "project" | "software" = "project") {
     const device = await this.connectors.checkCredential(credential);
     if (device.workspaceId !== this.config.workspaceId) fail("connector-denied");
@@ -354,7 +455,11 @@ export class PreviewRelay {
     )
       fail("request-not-found", 404);
     await this.check(pending.lease);
-    if (result.ok && Buffer.byteLength(result.body, "base64") > this.config.maxResponseBytes)
+    if (
+      result.ok &&
+      Buffer.byteLength(result.body, "base64") >
+        Math.min(this.config.maxResponseBytes, pending.job.maxResponseBytes)
+    )
       fail("response-too-large", 413);
     if (this.pending.get(result.id) !== pending) fail("request-not-found", 404);
     pending.finish(result);

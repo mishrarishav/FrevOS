@@ -64,6 +64,7 @@ public final class MainActivity extends Activity {
             catch(Exception error) { message(error.getMessage()); }
         });
         button(content,"Refresh status",() -> refresh());
+        button(content,"Change server address · keep pairing",() -> changeServer());
         button(content,"Reset an unfinished pairing",() -> {
             try {
                 if (state.read().optBoolean("paired")) { message("This device is paired. Ask an administrator before changing its connection."); return; }
@@ -79,6 +80,26 @@ public final class MainActivity extends Activity {
         refresh();
     }
     private void text(LinearLayout parent,String value) { TextView view = new TextView(this); view.setText(value); view.setPadding(0,16,0,16); parent.addView(view); }
+    private void changeServer() {
+        try {
+            JSONObject current=state.read();
+            if(!current.optBoolean("paired")){message("Finish the existing connection before changing its server address.");return;}
+            EditText next=new EditText(this);next.setSingleLine(true);next.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_URI);next.setText(current.getString("server"));
+            new android.app.AlertDialog.Builder(this).setTitle("Use a new HTTPS DevSetu address").setMessage("The selected server must recognize this device's existing pairing. Account, permissions and installation identity will be retained.").setView(next)
+                .setNegativeButton("Cancel",null).setPositiveButton("Verify and save",(dialog,which) -> {
+                    final String value=next.getText().toString();busy(true);
+                    worker.execute(() -> {try {
+                        JSONObject saved=state.read();if(!saved.optBoolean("paired"))throw new Exception("Existing pairing changed.");
+                        ConnectorApi api=new ConnectorApi(value,false);
+                        JSONObject recognized=api.post("/v1/connector/system-status",new JSONObject(),saved.getString("credential"));
+                        if(!saved.getString("deviceId").equals(recognized.getString("deviceId"))||!recognized.getBoolean("ready"))throw new Exception("The new address did not recognize this pairing.");
+                        JSONObject latest=state.read();if(!latest.getString("deviceId").equals(saved.getString("deviceId"))||!latest.getString("server").equals(saved.getString("server")))throw new Exception("Existing connection changed meanwhile.");
+                        latest.put("server",api.origin).put("internalHttp",false);state.write(latest);
+                        runOnUiThread(() -> {refresh();startMonitoring();message("Server address updated. The same pairing is retained; monitoring will reconnect.");});
+                    }catch(Exception error){message("Server address was not changed. Verify HTTPS, network access and that this is the same DevSetu workspace.");}finally{busy(false);}});
+                }).show();
+        }catch(Exception error){message("Private identity could not be read. Pairing was preserved.");}
+    }
     private EditText field(LinearLayout parent,String label,int type) { text(parent,label); EditText view = new EditText(this); view.setSingleLine(true); view.setInputType(type); view.setSaveEnabled(false); parent.addView(view); return view; }
     private Button button(LinearLayout parent,String label,Runnable action) { Button view=new Button(this); view.setText(label); view.setOnClickListener(v -> action.run()); parent.addView(view); return view; }
     private void message(String value) { if (!isFinishing()) runOnUiThread(() -> status.setText(value == null ? "Connection could not complete. Retry after checking VPN and approval." : value)); }

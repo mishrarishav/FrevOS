@@ -7,7 +7,7 @@ if($NonInteractiveEnrollment){
  $enrollment=$text|ConvertFrom-Json;$text=$null
  if(@($enrollment.PSObject.Properties.Name|Sort-Object) -join ',' -cne 'binding,paired,profileId,recipe,role,server'){throw 'Invalid enrollment envelope'}
  $server=[string]$enrollment.server;$uri=[uri]$server
- if($uri.Scheme -notin @('http','https') -or $uri.UserInfo -or $uri.Query -or $uri.Fragment -or $uri.AbsolutePath -ne '/'){throw 'Invalid server origin'}
+ if($uri.Scheme -notin @('http','https') -or $uri.UserInfo -or $uri.Query -or $uri.Fragment -or $uri.AbsolutePath -cnotmatch '^/(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)?$'){throw 'Invalid server origin'}
  $profileId=[string]$enrollment.profileId;$role=[string]$enrollment.role;$recipe=[string]$enrollment.recipe
  if($profileId -cnotmatch '^[a-z][a-z0-9-]{2,63}$' -or $role -cnotin @('builder','destination') -or $recipe -cnotin @('npm-static','node-source','dotnet-publish','devsetu-native')){throw 'Invalid enrollment role'}
  $binding=@{};foreach($property in $enrollment.binding.PSObject.Properties){$binding[$property.Name]=$property.Value}
@@ -21,11 +21,11 @@ if($NonInteractiveEnrollment){
  $enrollment=$null
 }else{
 $server=(Read-Host 'DevSetu server URL').TrimEnd('/');$uri=[uri]$server
-if($uri.Scheme -notin @('http','https') -or $uri.UserInfo -or $uri.Query -or $uri.Fragment -or $uri.AbsolutePath -ne '/'){throw 'Use a server origin without credentials or a path'}
+if($uri.Scheme -notin @('http','https') -or $uri.UserInfo -or $uri.Query -or $uri.Fragment -or $uri.AbsolutePath -cnotmatch '^/(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)?$'){throw 'Use a server origin without credentials or a path'}
 $username=Read-Host 'DevSetu username';$secure=Read-Host 'DevSetu password' -AsSecureString
 $session=New-Object Microsoft.PowerShell.Commands.WebRequestSession
-try{$password=[Net.NetworkCredential]::new('unused',$secure).Password;$login=Invoke-WebRequest ($server+'/auth/login') -UseBasicParsing -WebSession $session -Method Post -ContentType 'application/json' -Headers @{Origin=$server} -Body (@{username=$username;password=$password}|ConvertTo-Json -Compress);Import-Module (Join-Path $PSScriptRoot 'PairedLogin.psm1') -Force;Complete-DevSetuPairedLogin -Server $server -Response $login -Session $session}finally{$password=$null;$secure=$null}
-$csrfName=if($uri.Scheme -ceq 'https'){'__Host-frevos-csrf'}else{'frevos-internal-csrf'}
+try{$password=[Net.NetworkCredential]::new('unused',$secure).Password;$login=Invoke-WebRequest ($server+'/auth/login') -UseBasicParsing -WebSession $session -Method Post -ContentType 'application/json' -Headers @{Origin=$uri.GetLeftPart([UriPartial]::Authority)} -Body (@{username=$username;password=$password}|ConvertTo-Json -Compress);Import-Module (Join-Path $PSScriptRoot 'PairedLogin.psm1') -Force;Complete-DevSetuPairedLogin -Server $server -Response $login -Session $session}finally{$password=$null;$secure=$null}
+$namespace=$uri.AbsolutePath.Trim('/');$csrfName=if($uri.Scheme -ceq 'https'){'__Host-frevos-'+$(if($namespace){$namespace+'-'}else{''})+'csrf'}else{'frevos-internal-csrf'}
 $csrf=$session.Cookies.GetCookies([uri]$server)[$csrfName].Value
 $state=(Invoke-WebRequest ($server+'/v1/workspaces/ws_server20/component-deployments') -UseBasicParsing -WebSession $session).Content|ConvertFrom-Json
 $profiles=@($state.profiles|Where-Object {-not $_.archived});if(-not $profiles.Count){throw 'Save a component project in DevSetu first'}
@@ -59,7 +59,7 @@ if($recipe -ceq 'devsetu-native'){
  if($role -ceq 'builder'){$shortOutput=Read-Host 'Short local release output directory (existing specific folder, avoids Windows path limits)';$outputRoot=[IO.Path]::GetFullPath($shortOutput);if($outputRoot -ieq [IO.Path]::GetPathRoot($outputRoot) -or -not(Test-Path -LiteralPath $outputRoot -PathType Container) -or (Get-Item -LiteralPath $outputRoot).Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'Choose an existing plain output folder'};$binding.nativeOptions.releaseOutputRoot=$outputRoot}
  $binding.nativeOptions.artifactStore=Read-Host 'Enrolled immutable artifact directory (authenticated UNC on builder; corresponding local directory on destination)'
 }
-$paired=(Invoke-WebRequest ($server+'/v1/workspaces/ws_server20/component-deployments/executors') -UseBasicParsing -WebSession $session -Method Post -ContentType 'application/json' -Headers @{Origin=$server;'x-csrf-token'=$csrf} -Body (@{profileId=$profileId;role=$role;name=($env:COMPUTERNAME+' / '+$bindingId)}|ConvertTo-Json -Compress)).Content|ConvertFrom-Json
+$paired=(Invoke-WebRequest ($server+'/v1/workspaces/ws_server20/component-deployments/executors') -UseBasicParsing -WebSession $session -Method Post -ContentType 'application/json' -Headers @{Origin=$uri.GetLeftPart([UriPartial]::Authority);'x-csrf-token'=$csrf} -Body (@{profileId=$profileId;role=$role;name=($env:COMPUTERNAME+' / '+$bindingId)}|ConvertTo-Json -Compress)).Content|ConvertFrom-Json
 }
 $installBase=if($role -ceq 'destination'){$env:ProgramData}else{$env:LOCALAPPDATA}
 $install=Join-Path $installBase ('DevSetu\Executors\'+$paired.id);if(Test-Path -LiteralPath $install){throw 'Installation collision'}

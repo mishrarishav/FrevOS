@@ -42,6 +42,7 @@ try{
   $metadataEntry=@($manifest.files|Where-Object path -CEQ 'apps/control-center/dist-browser/browser-entry.json')
   $metadataHash=[BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($metadataBytes)).Replace('-','').ToLowerInvariant()
   $metadata=[Text.Encoding]::UTF8.GetString($metadataBytes)|ConvertFrom-Json
+  if(($browser.PSObject.Properties.Name -contains 'connectorTransport') -and $browser.connectorTransport -eq $true -and (-not($metadata.PSObject.Properties.Name -contains 'connectorTransport') -or $metadata.connectorTransport -ne 1)){throw 'Browser entry compatibility boundary: retain configured public connector transport; no changes applied'}
   if($metadataEntry.Count -ne 1 -or $metadataEntry[0].sha256 -cne $metadataHash -or $metadata.version -ne 1 -or $metadata.basePath -cne $browser.basePath){throw 'Browser entry compatibility boundary: built assets must match the retained browser entry; no changes applied'}
  }
 }finally{$zip.Dispose()}

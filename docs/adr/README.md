@@ -249,3 +249,10 @@ records the exact live one-millisecond rejection and strict, single-instant repa
 
 [0097: Configure private service listening](0097-configurable-private-service-listening.md)
 records the owner's direct-IP control request and bounded managed-service workflow.
+
+[0098: Public browser entry](0098-public-browser-entry-through-existing-gateway.md)
+records the existing HTTPS gateway route with Server20 application/data retained.
+
+[0099: Public device transport and system Explorer](0099-public-device-transport-and-system-explorer.md)
+records public connector/login transport, TLS repair, inert API inspection and
+the connected-system file browser. Raw application preview retains hostname isolation.

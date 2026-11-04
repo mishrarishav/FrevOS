@@ -65,6 +65,13 @@ export const defaultActivitySettings: ActivitySettings = {
     ".codex/vendor_imports",
     ".codex/tmp",
     ".vscode/extensions",
+    "Default/Network",
+    "Default/Service Worker",
+    "Default/Session Storage",
+    "Default/Local Storage",
+    "Default/Code Cache",
+    "Default/GPUCache",
+    "Crashpad",
   ],
   summarySeconds: 30,
   noiseRetentionDays: 2,
@@ -248,6 +255,10 @@ export const DiscoveryObservationSchema = z
       .strict(),
     events: z.array(DiscoveryEventSchema).max(20),
     collector: CollectorMetricsSchema.optional(),
+    fileExplorer: z
+      .object({ version: z.literal(1) })
+      .strict()
+      .optional(),
   })
   .strict();
 export type DiscoveryObservation = z.infer<typeof DiscoveryObservationSchema>;
@@ -344,6 +355,23 @@ export const FolderBrowseInputSchema = z
       .string()
       .regex(/^[a-f0-9]{64}$/)
       .optional(),
+    includeFiles: z.boolean().optional(),
+    create: z
+      .object({
+        kind: z.enum(["file", "directory"]),
+        name: text(255)
+          .min(1)
+          .refine(
+            (name) =>
+              !/[\\/:*?"<>|]/.test(name) &&
+              [...name].every((c) => c.charCodeAt(0) >= 32 && c.charCodeAt(0) !== 127) &&
+              !/[. ]$/.test(name) &&
+              !/^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(name) &&
+              ![".", ".."].includes(name),
+          ),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 export type FolderBrowseInput = z.infer<typeof FolderBrowseInputSchema>;
@@ -369,6 +397,9 @@ export const FolderBrowseJobSchema = z
                 name: text(255).min(1),
                 path: DiscoveryRelativeFolderSchema,
                 excluded: z.boolean(),
+                kind: z.enum(["directory", "file", "link"]).optional(),
+                size: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
+                modifiedAt: z.iso.datetime().optional(),
               })
               .strict(),
           )
@@ -376,6 +407,10 @@ export const FolderBrowseJobSchema = z
         nextPage: z.number().int().min(1).max(100).nullable(),
         truncated: z.boolean(),
         scannedEntries: z.number().int().nonnegative().max(10000),
+        created: z
+          .object({ kind: z.enum(["file", "directory"]), path: DiscoveryRelativeFolderSchema })
+          .strict()
+          .optional(),
       })
       .strict()
       .optional(),
@@ -388,6 +423,8 @@ export const FolderBrowseJobSchema = z
         "folder-consent-required",
         "folder-request-expired",
         "folder-browser-unavailable",
+        "folder-already-exists",
+        "folder-connector-update-required",
       ])
       .optional(),
   })

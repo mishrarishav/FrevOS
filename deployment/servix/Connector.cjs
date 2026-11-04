@@ -31,8 +31,42 @@ function repositoryBinding(config) {
   }
   return config.profileId === "servix-development" ? centralRepository : undefined;
 }
+// Preserve a configured entry prefix while keeping browser Origin authority-only.
+function serverEndpoint(value) {
+  if (
+    typeof value !== "string" ||
+    value.length > 2048 ||
+    /[\\\s%]/.test(value) ||
+    /\/\.{1,2}(?:\/|$)/.test(value)
+  )
+    throw Error("invalid-control-plane");
+  const server = new URL(value);
+  const prefix = server.pathname.replace(/\/$/, "");
+  if (
+    !["https:", "http:"].includes(server.protocol) ||
+    server.username ||
+    server.password ||
+    server.search ||
+    server.hash ||
+    (prefix && !/^\/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(prefix))
+  )
+    throw Error("invalid-control-plane");
+  return new URL(server.origin + prefix);
+}
+function serverRequestUrl(server, route) {
+  const base = serverEndpoint(typeof server === "string" ? server : server.href);
+  if (
+    typeof route !== "string" ||
+    !route.startsWith("/") ||
+    route.startsWith("//") ||
+    route.includes("\\") ||
+    route.includes("#")
+  )
+    throw Error("invalid-server-route");
+  return new URL(base.href.replace(/\/$/, "") + route);
+}
 function controlPlane(config) {
-  const server = new URL(config.server);
+  const server = serverEndpoint(config.server);
   if (
     server.username ||
     server.password ||
@@ -46,13 +80,16 @@ function controlPlane(config) {
   return server;
 }
 async function downloadBaseline(config, heads, file) {
-  const response = await fetch(new URL("/v1/connector/source-base", controlPlane(config)), {
-    method: "POST",
-    headers: { authorization: "Bearer " + config.credential, "content-type": "application/json" },
-    body: JSON.stringify({ heads }),
-    redirect: "error",
-    signal: AbortSignal.timeout(180000),
-  });
+  const response = await fetch(
+    serverRequestUrl(controlPlane(config), "/v1/connector/source-base"),
+    {
+      method: "POST",
+      headers: { authorization: "Bearer " + config.credential, "content-type": "application/json" },
+      body: JSON.stringify({ heads }),
+      redirect: "error",
+      signal: AbortSignal.timeout(180000),
+    },
+  );
   if (!response.ok || !response.body) {
     if (response.status === 409) {
       const body = await response.json();
@@ -153,17 +190,20 @@ async function bindCentralCheckout(config, baselineFile) {
       "seed-" + require("node:crypto").randomBytes(16).toString("hex") + ".bundle",
     );
     await git(["bundle", "create", seed, "HEAD"]);
-    const response = await fetch(new URL("/v1/connector/source-seed", controlPlane(config)), {
-      method: "POST",
-      headers: {
-        authorization: "Bearer " + config.credential,
-        "content-type": "application/x-git-bundle",
-        "x-frevos-source-head": head,
+    const response = await fetch(
+      serverRequestUrl(controlPlane(config), "/v1/connector/source-seed"),
+      {
+        method: "POST",
+        headers: {
+          authorization: "Bearer " + config.credential,
+          "content-type": "application/x-git-bundle",
+          "x-frevos-source-head": head,
+        },
+        body: await fs.readFile(seed),
+        redirect: "error",
+        signal: AbortSignal.timeout(180000),
       },
-      body: await fs.readFile(seed),
-      redirect: "error",
-      signal: AbortSignal.timeout(180000),
-    });
+    );
     // An interrupted response can follow a successful import. Observe the
     // authenticated central repository before deciding enrollment failed;
     // never replay the seed mutation or touch the local working tree here.
@@ -606,7 +646,10 @@ async function chooseRepository(config, selection) {
   };
 }
 
-async function startDeviceLoginProof(origin, attest, connectionStatus, softwareUrl) {
+async function startDeviceLoginProof(serverBase, attest, connectionStatus, softwareUrl) {
+  const configured = serverEndpoint(serverBase),
+    origin = configured.origin;
+  const target = configured.href.replace(/\/$/, "");
   const http = require("node:http");
   const crypto = require("node:crypto"),
     pages = new Map();
@@ -631,7 +674,7 @@ async function startDeviceLoginProof(origin, attest, connectionStatus, softwareU
         "content-security-policy": `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'`,
       });
       response.end(
-        `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DevSetu · Connection status</title><style>body{font:16px system-ui;background:#10171d;color:#edf6f8;margin:0;padding:24px}main{max-width:520px;margin:10vh auto}b{display:inline-block;background:#00cbd0;color:#10171d;padding:12px;border-radius:12px}h1{font-size:26px}[data-online=true]{color:#51dfa4}[data-online=false]{color:#ffba72}</style><main><b>D · DevSetu</b><h1 id="state">Checking this computer…</h1><p id="time"></p><p>The connector runs in the background. Keep VPN connected to reach your configured DevSetu server.</p>${softwareUrl ? `<p><a href="${softwareUrl}" target="_blank" rel="noopener" style="color:#51dfa4">Software inventory and management permissions</a></p>` : ""}</main><script nonce="${nonce}">const state=document.getElementById('state'),time=document.getElementById('time');async function check(){try{const r=await fetch('/connection-status/check',{cache:'no-store',signal:AbortSignal.timeout(10000)});if(!r.ok)throw Error();const s=await r.json();state.dataset.online=String(s.online===true);state.textContent=s.online?'This system is connected ✓':'Offline · Check VPN and connector';time.textContent='Checked: '+new Date(s.checkedAt).toLocaleString()}catch{state.dataset.online='false';state.textContent='Connection status unavailable';time.textContent='The connector or VPN may be offline.'}}check();setInterval(check,10000)</script>`,
+        `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DevSetu · Connection status</title><style>body{font:16px system-ui;background:#10171d;color:#edf6f8;margin:0;padding:24px}main{max-width:520px;margin:10vh auto}b{display:inline-block;background:#00cbd0;color:#10171d;padding:12px;border-radius:12px}h1{font-size:26px}[data-online=true]{color:#51dfa4}[data-online=false]{color:#ffba72}</style><main><b>D · DevSetu</b><h1 id="state">Checking this computer…</h1><p id="time"></p><p>The connector runs in the background. Keep this computer connected to the network to reach your configured DevSetu server.</p>${softwareUrl ? `<p><a href="${softwareUrl}" target="_blank" rel="noopener" style="color:#51dfa4">Software inventory and management permissions</a></p>` : ""}</main><script nonce="${nonce}">const state=document.getElementById('state'),time=document.getElementById('time');async function check(){try{const r=await fetch('/connection-status/check',{cache:'no-store',signal:AbortSignal.timeout(10000)});if(!r.ok)throw Error();const s=await r.json();state.dataset.online=String(s.online===true);state.textContent=s.online?'This system is connected ✓':'Offline · Check network and connector';time.textContent='Checked: '+new Date(s.checkedAt).toLocaleString()}catch{state.dataset.online='false';state.textContent='Connection status unavailable';time.textContent='The connector or network may be offline.'}}check();setInterval(check,10000)</script>`,
       );
       return;
     }
@@ -675,10 +718,10 @@ async function startDeviceLoginProof(origin, attest, connectionStatus, softwareU
         // Preserve the form's real Origin while sending no path, fragment or proof.
         "referrer-policy": "origin",
         "set-cookie": `devsetu-proof-page=${nonce}; Path=/device-login; HttpOnly; SameSite=Strict; Max-Age=120`,
-        "content-security-policy": `default-src 'none'; script-src 'nonce-${nonce}'; connect-src 'self'; form-action ${origin}/auth/device-login/receive; frame-ancestors 'none'; base-uri 'none'`,
+        "content-security-policy": `default-src 'none'; script-src 'nonce-${nonce}'; connect-src 'self'; form-action ${target}/auth/device-login/receive; frame-ancestors 'none'; base-uri 'none'`,
       });
       response.end(
-        `<!doctype html><meta charset="utf-8"><title>DevSetu · Confirm this computer</title><h1>Verify this paired computer</h1><p>Continue only if you just signed in to DevSetu at <strong></strong>.</p><button id="confirm">Confirm sign-in from this computer</button><p id="message" role="status"></p><script nonce="${nonce}">const transaction=location.hash.slice(1),target=${JSON.stringify(origin)},button=document.getElementById('confirm');document.querySelector('strong').textContent=target;history.replaceState(null,'','/device-login/start');button.onclick=async()=>{button.disabled=true;try{if(!/^dl_[a-f0-9]{64}$/.test(transaction))throw Error();const r=await fetch('/device-login/confirm',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json','x-devsetu-page':${JSON.stringify(nonce)}},body:JSON.stringify({version:1,challengeId:transaction})});if(!r.ok)throw Error();const proof=await r.json(),form=document.createElement('form');form.method='POST';form.action=target+'/auth/device-login/receive';for(const key of ['version','challengeId','proof']){const field=document.createElement('input');field.type='hidden';field.name=key;field.value=String(proof[key]);form.append(field)}document.body.append(form);form.submit()}catch{document.getElementById('message').textContent='Verification failed or expired. Return to DevSetu and sign in from your own paired computer.';button.disabled=false}}</script>`,
+        `<!doctype html><meta charset="utf-8"><title>DevSetu · Confirm this computer</title><h1>Verify this paired computer</h1><p>Continue only if you just signed in to DevSetu at <strong></strong>.</p><button id="confirm">Confirm sign-in from this computer</button><p id="message" role="status"></p><script nonce="${nonce}">const transaction=location.hash.slice(1),target=${JSON.stringify(target)},button=document.getElementById('confirm');document.querySelector('strong').textContent=target;history.replaceState(null,'','/device-login/start');button.onclick=async()=>{button.disabled=true;try{if(!/^dl_[a-f0-9]{64}$/.test(transaction))throw Error();const r=await fetch('/device-login/confirm',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json','x-devsetu-page':${JSON.stringify(nonce)}},body:JSON.stringify({version:1,challengeId:transaction})});if(!r.ok)throw Error();const proof=await r.json(),form=document.createElement('form');form.method='POST';form.action=target+'/auth/device-login/receive';for(const key of ['version','challengeId','proof']){const field=document.createElement('input');field.type='hidden';field.name=key;field.value=String(proof[key]);form.append(field)}document.body.append(form);form.submit()}catch{document.getElementById('message').textContent='Verification failed or expired. Return to DevSetu and sign in from your own paired computer.';button.disabled=false}}</script>`,
       );
       return;
     }
@@ -758,7 +801,7 @@ async function connector(config) {
   const server = controlPlane(config);
   await fs.mkdir(config.stateRoot, { recursive: true });
   const api = async (pathname, body, headers = {}) => {
-    const response = await fetch(new URL(pathname, server), {
+    const response = await fetch(serverRequestUrl(server, pathname), {
       method: "POST",
       headers: {
         authorization: "Bearer " + config.credential,
@@ -786,10 +829,10 @@ async function connector(config) {
     const gitDesktop =
       process.platform === "linux" ? { stop() {} } : require("./GitDesktop.cjs").start(config, api);
     const loginProof = await startDeviceLoginProof(
-      server.origin,
+      server.href.replace(/\/$/, ""),
       (body) => api("/v1/connector/login-proof", body),
       async () => {
-        const r = await fetch(new URL("/v1/connector/system-status", server), {
+        const r = await fetch(serverRequestUrl(server, "/v1/connector/system-status"), {
           method: "POST",
           headers: {
             authorization: "Bearer " + config.credential,
@@ -969,9 +1012,7 @@ async function connector(config) {
 }
 async function completeDeviceLogin(server, response, fetcher = fetch) {
   if (response.status !== 202) return response;
-  const origin = new URL(server);
-  if (!["https:", "http:"].includes(origin.protocol) || origin.origin !== server)
-    throw Error("invalid-login-origin");
+  const origin = serverEndpoint(server);
   const challenge = await response.json();
   if (
     challenge.status !== "device-verification-required" ||
@@ -991,7 +1032,7 @@ async function completeDeviceLogin(server, response, fetcher = fetch) {
       const local = await fetcher(`http://127.0.0.1:${port}/device-login`, {
         method: "POST",
         redirect: "error",
-        headers: { origin: server, "content-type": "application/json" },
+        headers: { origin: origin.origin, "content-type": "application/json" },
         body: JSON.stringify({ version: 1, challengeId: challenge.challengeId }),
         signal: AbortSignal.timeout(4000),
       });
@@ -1004,13 +1045,16 @@ async function completeDeviceLogin(server, response, fetcher = fetch) {
         !/^[a-f0-9]{64}$/.test(proof.proof)
       )
         continue;
-      const completed = await fetcher(server + "/auth/device-login/complete", {
-        method: "POST",
-        redirect: "error",
-        headers: { origin: server, cookie, "content-type": "application/json" },
-        body: JSON.stringify(proof),
-        signal: AbortSignal.timeout(15000),
-      });
+      const completed = await fetcher(
+        serverRequestUrl(origin, "/auth/device-login/complete").href,
+        {
+          method: "POST",
+          redirect: "error",
+          headers: { origin: origin.origin, cookie, "content-type": "application/json" },
+          body: JSON.stringify(proof),
+          signal: AbortSignal.timeout(15000),
+        },
+      );
       if (completed.status === 204) return completed;
     } catch {
       /* Try only another validated loopback port belonging to this user. */
@@ -1020,6 +1064,8 @@ async function completeDeviceLogin(server, response, fetcher = fetch) {
 }
 module.exports = {
   connectionOfflinePage,
+  serverEndpoint,
+  serverRequestUrl,
   completeDeviceLogin,
   startDeviceLoginProof,
   publishWorkingTree,

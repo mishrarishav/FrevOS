@@ -9,21 +9,22 @@ public final class ServerOrigin {
     public static String normalize(String input, boolean internalHttp) throws Exception {
         URI uri;
         try { uri = new URI(input.trim()); }
-        catch (java.net.URISyntaxException invalid) { throw new Exception("Enter a valid DevSetu server origin without credentials or a path."); }
+        catch (java.net.URISyntaxException invalid) { throw new Exception("Enter a valid DevSetu server origin without credentials, query or fragment."); }
         String host = uri.getHost();
         String scheme = uri.getScheme();
         if (host == null || uri.getRawUserInfo() != null || uri.getRawQuery() != null ||
                 uri.getRawFragment() != null || (uri.getRawPath() != null &&
-                !uri.getRawPath().isEmpty() && !"/".equals(uri.getRawPath())) ||
+                !uri.getRawPath().isEmpty() && !uri.getRawPath().matches("(?:/|/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?/?)")) ||
                 uri.getPort() == 0 || uri.getPort() > 65535) {
-            throw new Exception("Enter only your DevSetu server origin, without credentials or a path.");
+            throw new Exception("Enter your DevSetu server URL with at most one entry prefix.");
         }
         if (!"https".equals(scheme)) {
             if (!"http".equals(scheme) || !internalHttp || !isPrivateIpv4(host)) {
                 throw new Exception("Use HTTPS, or explicitly allow HTTP for a private IPv4 server.");
             }
         }
-        return new URI(scheme, null, host.toLowerCase(java.util.Locale.ROOT), uri.getPort(), null, null, null).toASCIIString();
+        String prefix = uri.getRawPath() == null ? "" : uri.getRawPath().replaceAll("/$", "");
+        return new URI(scheme, null, host.toLowerCase(java.util.Locale.ROOT), uri.getPort(), prefix, null, null).toASCIIString();
     }
 
     private static boolean isPrivateIpv4(String host) {

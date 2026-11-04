@@ -601,6 +601,7 @@ class SystemDiscovery {
   async configure(record) {
     this.notificationSupported = record.notifications?.version === 1;
     this.folderSearchSupported = record.folderSearch?.version === 1;
+    this.fileExplorerSupported = record.fileExplorer?.version === 1;
     // Old servers do not advertise this capability: omit new telemetry there.
     this.activity = record.activity?.settings ?? defaultActivitySettings;
     this.activitySupported = record.activity?.settings?.version === 1;
@@ -788,6 +789,7 @@ class SystemDiscovery {
         at: new Date().toISOString(),
         policyRevision: this.revision,
         system: await this.sample(),
+        ...(this.fileExplorerSupported ? { fileExplorer: { version: 1 } } : {}),
         ...(this.activitySupported
           ? {
               collector: {

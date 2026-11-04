@@ -1,4 +1,4 @@
-import { randomUUID, randomBytes, createHash } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -6,8 +6,8 @@ import {
   ClientSchema,
   type DeliveryPlanInput,
   type DiscoveryObservation,
-  defaultDiscoveryPolicy,
   defaultActivitySettings,
+  defaultDiscoveryPolicy,
   ProjectSchema,
 } from "@frevos/contracts";
 import { afterEach, expect, it } from "vitest";
@@ -338,6 +338,126 @@ it("denies unsupported collectors and redirected, unapproved or forged content r
 afterEach(async () => {
   for (const fn of cleanups.splice(0).reverse()) await fn();
 });
+it("negotiates file explorer without changing old observation records and scopes admin creation receipts", async () => {
+  const f = await fixture();
+  const input = {
+    version: 1,
+    deviceId: f.alice.deviceId,
+    root: "C:\\fixture",
+    path: "",
+    page: 0,
+    includeFiles: true,
+  };
+  await f.store.observe(f.alice.credential, f.observation);
+  await expect(f.store.requestFolders("usr_alice", input)).rejects.toThrow(
+    "folder-connector-update-required",
+  );
+  await f.store.observe(f.alice.credential, { ...f.observation, fileExplorer: { version: 1 } });
+  expect(
+    (await f.store.state("usr_windows_admin")).systems.find((s) => s.deviceId === f.alice.deviceId)
+      ?.observation?.fileExplorer,
+  ).toEqual({ version: 1 });
+  expect(
+    await readFile(join(f.store.root, f.alice.deviceId + ".observation.json"), "utf8"),
+  ).not.toContain("fileExplorer");
+  await expect(f.store.requestFolders("usr_bob", input)).rejects.toThrow(
+    "discovery-device-access-denied",
+  );
+  const requested = await f.store.requestFolders("usr_windows_admin", {
+    ...input,
+    create: { kind: "file", name: "notes.txt" },
+  });
+  expect(requested.actor).toBe("usr_windows_admin");
+  await expect(readFile(join(f.store.root, requested.requestId + ".json"))).rejects.toMatchObject({
+    code: "ENOENT",
+  });
+  expect(
+    await readFile(join(f.store.root, "explorer-" + requested.requestId + ".json"), "utf8"),
+  ).toContain('"includeFiles":true');
+  const claimed = (await f.store.claimFolders(f.alice.credential))!;
+  expect(claimed.requestId).toBe(requested.requestId);
+  const complete = {
+    ...claimed,
+    status: "succeeded",
+    result: {
+      root: input.root,
+      path: "",
+      fingerprint: "a".repeat(64),
+      entries: [{ name: "notes.txt", path: "notes.txt", excluded: false, kind: "file", size: 0 }],
+      nextPage: null,
+      truncated: false,
+      scannedEntries: 1,
+      created: { kind: "file", path: "notes.txt" },
+    },
+  };
+  await expect(f.store.finishFolders(f.bob.credential, complete)).rejects.toThrow(
+    "discovery-folder-scope-denied",
+  );
+  await expect(
+    f.store.finishFolders(f.alice.credential, {
+      ...complete,
+      result: { ...complete.result, created: { kind: "directory", path: "notes.txt" } },
+    }),
+  ).rejects.toThrow("discovery-folder-result-invalid");
+  await f.store.finishFolders(f.alice.credential, complete);
+  await expect(
+    f.store.selectedFolder("usr_windows_admin", f.alice.deviceId, {
+      browseRequestId: requested.requestId,
+      path: "notes.txt",
+    }),
+  ).rejects.toThrow("discovery-folder-selection-invalid");
+  await expect(f.store.folders("usr_alice", requested.requestId)).rejects.toThrow(
+    "discovery-folder-not-found",
+  );
+  await f.store.observe(f.alice.credential, f.observation);
+  expect((await f.store.state("usr_alice")).systems[0]?.observation?.fileExplorer).toBeUndefined();
+  await expect(f.store.requestFolders("usr_alice", input)).rejects.toThrow(
+    "folder-connector-update-required",
+  );
+});
+it("allows admin file-content requests while preserving local approval, target credential and request-actor isolation", async () => {
+  const f = await fixture();
+  await f.store.observe(f.alice.credential, {
+    ...f.observation,
+    collector: { version: 1, rss: 100, heapUsed: 50, pendingJobs: 0, maxPendingJobs: 1257 },
+  });
+  const request = { version: 1, deviceId: f.alice.deviceId, root: "C:\\fixture", path: "code.ts" };
+  await expect(f.store.requestContent("usr_bob", request)).rejects.toThrow(
+    "discovery-device-access-denied",
+  );
+  const queued = await f.store.requestContent("usr_windows_admin", request);
+  expect(queued.actor).toBe("usr_windows_admin");
+  expect(await f.store.claimContent(f.bob.credential)).toBeNull();
+  const claimed = (await f.store.claimContent(f.alice.credential))!;
+  expect(claimed.requestId).toBe(queued.requestId);
+  await expect(f.store.content("usr_alice", queued.requestId)).rejects.toThrow(
+    "discovery-content-not-found",
+  );
+  await expect(
+    f.store.finishContent(f.bob.credential, {
+      ...claimed,
+      status: "declined",
+      errorCode: "content-approval-declined",
+    }),
+  ).rejects.toThrow("discovery-content-scope-denied");
+  f.administrators.delete("usr_windows_admin");
+  await expect(
+    f.store.finishContent(f.alice.credential, {
+      ...claimed,
+      status: "declined",
+      errorCode: "content-approval-declined",
+    }),
+  ).rejects.toThrow("discovery-content-not-found");
+  f.administrators.add("usr_windows_admin");
+  await f.store.finishContent(f.alice.credential, {
+    ...claimed,
+    status: "declined",
+    errorCode: "content-approval-declined",
+  });
+  expect((await f.store.content("usr_windows_admin", queued.requestId)).status).toBe("declined");
+  const owner = await f.store.requestContent("usr_alice", request);
+  expect(owner.actor).toBe("usr_alice");
+});
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), "devsetu-discovery-store-"));
   cleanups.push(() => rm(root, { recursive: true, force: true }));
@@ -586,6 +706,7 @@ it("scopes observations/policies and project plans to verified workspace actors;
     activity: { revision: 0, settings: defaultActivitySettings },
     notifications: { version: 1 },
     folderSearch: { version: 1 },
+    fileExplorer: { version: 1 },
   });
   expect(
     await f.store.observe(f.alice.credential, { ...f.observation, policyRevision: 1 }),

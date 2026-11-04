@@ -12,7 +12,7 @@ if($NonInteractiveEnrollment){
  $enrollment=$text|ConvertFrom-Json;$text=$null
  if(@($enrollment.PSObject.Properties.Name|Sort-Object) -join ',' -cne 'paired,repository,server,username'){throw 'Invalid source enrollment envelope'}
  $server=[string]$enrollment.server;$serverUri=[uri]$server
- if($serverUri.Scheme -notin @('http','https') -or $serverUri.UserInfo -or $serverUri.Query -or $serverUri.Fragment -or $serverUri.AbsolutePath -ne '/'){throw 'Invalid server origin'}
+ if($serverUri.Scheme -notin @('http','https') -or $serverUri.UserInfo -or $serverUri.Query -or $serverUri.Fragment -or $serverUri.AbsolutePath -cnotmatch '^/(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)?$'){throw 'Invalid server origin'}
  $git=(Get-Command git.exe -ErrorAction Stop).Source;$username=[string]$enrollment.username;$paired=$enrollment.paired
  if($paired.deviceId -cnotmatch '^fc_[a-f0-9]{32}$' -or $paired.credential -cnotmatch ('^'+$paired.deviceId+'\.[A-Za-z0-9_-]{43}$') -or $paired.profileId -cnotmatch '^[a-z][a-z0-9-]{2,63}$'){throw 'Invalid paired source'}
  $profileId=[string]$paired.profileId;$repository=[IO.Path]::GetFullPath([string]$enrollment.repository)
@@ -23,7 +23,7 @@ if($NonInteractiveEnrollment){
 }else{
 $server=(Read-Host 'DevSetu server URL').TrimEnd('/')
 $serverUri=[uri]$server
-if($serverUri.Scheme -notin @('http','https') -or $serverUri.UserInfo -or $serverUri.Query -or $serverUri.Fragment -or $serverUri.AbsolutePath -ne '/'){throw 'Use the DevSetu server origin without credentials or a path'}
+if($serverUri.Scheme -notin @('http','https') -or $serverUri.UserInfo -or $serverUri.Query -or $serverUri.Fragment -or $serverUri.AbsolutePath -cnotmatch '^/(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)?$'){throw 'Use the DevSetu server origin without credentials or a path'}
 $username=Read-Host 'DevSetu username'
 $inviteSecure=Read-Host 'Invitation code (leave empty if your account already exists)' -AsSecureString
 $invite=[Net.NetworkCredential]::new('unused',$inviteSecure).Password
@@ -32,11 +32,11 @@ $password=[Net.NetworkCredential]::new('unused',$secure).Password
 $session=New-Object Microsoft.PowerShell.Commands.WebRequestSession
 try{
  if($invite){Invoke-WebRequest ($server+'/v1/developers/redeem') -UseBasicParsing -Method Post -ContentType 'application/json' -Body (@{version=1;code=$invite;password=$password}|ConvertTo-Json -Compress)|Out-Null}
- $login=Invoke-WebRequest ($server+'/auth/login') -UseBasicParsing -Method Post -ContentType 'application/json' -Headers @{Origin=$server} -WebSession $session -Body (@{username=$username;password=$password}|ConvertTo-Json -Compress)
+ $login=Invoke-WebRequest ($server+'/auth/login') -UseBasicParsing -Method Post -ContentType 'application/json' -Headers @{Origin=$serverUri.GetLeftPart([UriPartial]::Authority)} -WebSession $session -Body (@{username=$username;password=$password}|ConvertTo-Json -Compress)
  Import-Module (Join-Path $PSScriptRoot 'PairedLogin.psm1') -Force
  Complete-DevSetuPairedLogin -Server $server -Response $login -Session $session
 }finally{$password=$null;$invite=$null;$secure=$null;$inviteSecure=$null}
-$csrfName=if($serverUri.Scheme -ceq 'https'){'__Host-frevos-csrf'}else{'frevos-internal-csrf'}
+$namespace=$serverUri.AbsolutePath.Trim('/');$csrfName=if($serverUri.Scheme -ceq 'https'){'__Host-frevos-'+$(if($namespace){$namespace+'-'}else{''})+'csrf'}else{'frevos-internal-csrf'}
 $csrf=$session.Cookies.GetCookies([uri]$server)[$csrfName].Value
 $profiles=@(((Invoke-WebRequest ($server+'/v1/workspaces/ws_server20/deployment-settings') -UseBasicParsing -WebSession $session).Content|ConvertFrom-Json)|Where-Object {$_.runner -cne 'devsetu-platform' -and (-not ($_.PSObject.Properties.Name -contains 'archived') -or -not $_.archived)})
 $pipelines=(Invoke-WebRequest ($server+'/v1/workspaces/ws_server20/component-deployments') -UseBasicParsing -WebSession $session).Content|ConvertFrom-Json
@@ -66,7 +66,7 @@ $readiness=$readinessText|ConvertFrom-Json
 if(-not $readiness.ready){throw 'Complete the system check before pairing'}
 $env:PATH=[Environment]::GetEnvironmentVariable('PATH','Machine')+';'+[Environment]::GetEnvironmentVariable('PATH','User')+';'+$env:PATH
 $git=(Get-Command git.exe -ErrorAction Stop).Source
-$pair=Invoke-WebRequest ($server+'/v1/workspaces/ws_server20/connectors/pair') -UseBasicParsing -Method Post -ContentType 'application/json' -Headers @{Origin=$server;'x-csrf-token'=$csrf} -WebSession $session -Body (@{version=1;name=$env:COMPUTERNAME;profileId=$profileId}|ConvertTo-Json -Compress)
+$pair=Invoke-WebRequest ($server+'/v1/workspaces/ws_server20/connectors/pair') -UseBasicParsing -Method Post -ContentType 'application/json' -Headers @{Origin=$serverUri.GetLeftPart([UriPartial]::Authority);'x-csrf-token'=$csrf} -WebSession $session -Body (@{version=1;name=$env:COMPUTERNAME;profileId=$profileId}|ConvertTo-Json -Compress)
 $paired=$pair.Content|ConvertFrom-Json
 }
 $repositoryOrigin=[string]$paired.repositoryOrigin
@@ -74,7 +74,7 @@ $central=($paired.PSObject.Properties.Name -contains 'centralRepository')
 if(-not $clone -and $profileId -cne 'servix-development' -and -not $central){
  $remote=(& $git -C $repository remote get-url origin 2>$null)
  if($LASTEXITCODE -ne 0 -or $remote.Trim() -cnotin @($paired.repositoryOrigins)){
-  Invoke-WebRequest ($server+'/v1/workspaces/ws_server20/connectors/'+$paired.deviceId+'/revoke') -UseBasicParsing -Method Post -ContentType 'application/json' -Headers @{Origin=$server;'x-csrf-token'=$csrf} -WebSession $session -Body '{}'|Out-Null
+  Invoke-WebRequest ($server+'/v1/workspaces/ws_server20/connectors/'+$paired.deviceId+'/revoke') -UseBasicParsing -Method Post -ContentType 'application/json' -Headers @{Origin=$serverUri.GetLeftPart([UriPartial]::Authority);'x-csrf-token'=$csrf} -WebSession $session -Body '{}'|Out-Null
   throw 'The selected checkout does not match your authorized repository'
  }
  $repositoryOrigin=$remote.Trim()
@@ -114,7 +114,7 @@ if($clone -or $profileId -ceq 'servix-development' -or $central){
  $info=[Diagnostics.ProcessStartInfo]::new();$info.FileName=Join-Path $destination 'node.exe';$info.Arguments='"'+(Join-Path $destination 'Connector.cjs')+'" '+$mode;$info.UseShellExecute=$false;$info.CreateNoWindow=$true;$info.RedirectStandardInput=$true
  $child=[Diagnostics.Process]::new();$child.StartInfo=$info
  $configBytes=[Text.UTF8Encoding]::new($false).GetBytes($config)
- try{[void]$child.Start();$child.StandardInput.BaseStream.Write($configBytes,0,$configBytes.Length);$child.StandardInput.Close();if(-not $child.WaitForExit(240000)){$child.Kill();throw 'Checkout download timed out'};if($child.ExitCode -ne 0){throw 'Checkout could not be connected to server20; existing files were not replaced'}}catch{if(-not $NonInteractiveEnrollment){Invoke-WebRequest ($server+'/v1/workspaces/ws_server20/connectors/'+$paired.deviceId+'/revoke') -UseBasicParsing -Method Post -ContentType 'application/json' -Headers @{Origin=$server;'x-csrf-token'=$csrf} -WebSession $session -Body '{}'|Out-Null};throw}finally{[Array]::Clear($configBytes,0,$configBytes.Length);$child.Dispose()}
+ try{[void]$child.Start();$child.StandardInput.BaseStream.Write($configBytes,0,$configBytes.Length);$child.StandardInput.Close();if(-not $child.WaitForExit(240000)){$child.Kill();throw 'Checkout download timed out'};if($child.ExitCode -ne 0){throw 'Checkout could not be connected to server20; existing files were not replaced'}}catch{if(-not $NonInteractiveEnrollment){Invoke-WebRequest ($server+'/v1/workspaces/ws_server20/connectors/'+$paired.deviceId+'/revoke') -UseBasicParsing -Method Post -ContentType 'application/json' -Headers @{Origin=$serverUri.GetLeftPart([UriPartial]::Authority);'x-csrf-token'=$csrf} -WebSession $session -Body '{}'|Out-Null};throw}finally{[Array]::Clear($configBytes,0,$configBytes.Length);$child.Dispose()}
 }
 if(-not $NonInteractiveEnrollment){
  $projectCheckText= & (Join-Path $destination 'node.exe') (Join-Path $destination 'SystemSetup.cjs') --check $repository
@@ -131,7 +131,7 @@ if(-not $NonInteractiveEnrollment){
 if(-not $NonInteractiveEnrollment -and $readiness.discoveryConsent){
  [void][IO.Directory]::CreateDirectory((Join-Path $destination 'state'))
  [IO.File]::WriteAllText((Join-Path $destination 'state\discovery-consent.json'),(@{version=1;deviceId=$paired.deviceId;metadata=$true;approvedAt=[DateTimeOffset]::UtcNow.ToString('o')}|ConvertTo-Json -Compress),[Text.UTF8Encoding]::new($false))
- Invoke-WebRequest ($server+'/v1/workspaces/ws_server20/discovery/policy') -UseBasicParsing -Method Post -ContentType 'application/json' -Headers @{Origin=$server;'x-csrf-token'=$csrf} -WebSession $session -Body (@{version=1;deviceId=$paired.deviceId;expectedRevision=0;policy=$readiness.discoveryPolicy}|ConvertTo-Json -Depth 5 -Compress)|Out-Null
+ Invoke-WebRequest ($server+'/v1/workspaces/ws_server20/discovery/policy') -UseBasicParsing -Method Post -ContentType 'application/json' -Headers @{Origin=$serverUri.GetLeftPart([UriPartial]::Authority);'x-csrf-token'=$csrf} -WebSession $session -Body (@{version=1;deviceId=$paired.deviceId;expectedRevision=0;policy=$readiness.discoveryPolicy}|ConvertTo-Json -Depth 5 -Compress)|Out-Null
 }
 $branch=(& $git -C $repository symbolic-ref --short HEAD 2>$null)
 if($LASTEXITCODE -ne 0){throw 'Select an existing local branch before setup'}

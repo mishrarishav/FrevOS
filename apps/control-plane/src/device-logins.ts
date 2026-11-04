@@ -31,6 +31,7 @@ const Binding = z
   .strict();
 type Pending = {
   principal: IdentityPrincipal;
+  method: "loopback-fetch" | "connector-page";
   browserHash: string;
   expires: number;
   deviceId?: string;
@@ -54,7 +55,7 @@ export class DeviceLogins {
     ) => Promise<string | null> = async (principal) => principal.credentialVersion ?? null,
     private readonly method: "loopback-fetch" | "connector-page" = "loopback-fetch",
   ) {}
-  async begin(principal: IdentityPrincipal, browserState: string) {
+  async begin(principal: IdentityPrincipal, browserState: string, method = this.method) {
     if (await this.administrator(principal.userId)) return null;
     if (
       !principal.credentialVersion ||
@@ -81,15 +82,15 @@ export class DeviceLogins {
       throw new ServixDeploymentError("device-login-capacity", 429);
     const id = "dl_" + randomBytes(32).toString("hex"),
       expires = this.now().getTime() + 120000;
-    this.pending.set(id, { principal, browserHash: hash(browserState), expires });
+    this.pending.set(id, { principal, method, browserHash: hash(browserState), expires });
     return DeviceLoginChallengeSchema.parse({
       status: "device-verification-required",
       challengeId: id,
       ports,
       expiresAt: new Date(expires).toISOString(),
-      ...(this.method === "connector-page"
+      ...(method === "connector-page"
         ? {
-            method: this.method,
+            method,
             devices: ports.map((port) => ({
               port,
               name: devices.find((device) => device.loginProofPort === port)!.name,
@@ -143,8 +144,8 @@ export class DeviceLogins {
     const body = DeviceLoginCompletionSchema.parse(input),
       pending = this.pending.get(body.challengeId);
     if (
-      this.method !== "connector-page" ||
       !pending ||
+      pending.method !== "connector-page" ||
       pending.expires <= this.now().getTime() ||
       !pending.deviceId ||
       !pending.proofHash ||

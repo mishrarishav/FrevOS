@@ -86,6 +86,16 @@ async function fixture(options: Record<string, unknown> = {}) {
       body,
       headers: request.headers,
     });
+    if (request.url === "/unsafe-html") {
+      response.writeHead(200, {
+        "content-type": "text/html",
+        "set-cookie": "app-secret=not-for-portal",
+      });
+      response.end(
+        "<script>globalThis.untrustedPreviewExecuted=true</script><h1>From paired laptop</h1>",
+      );
+      return;
+    }
     if (request.url === "/redirect") {
       response.writeHead(302, { Location: `http://localhost:${appPort}/finished` });
       response.end();
@@ -270,6 +280,210 @@ async function fixture(options: Record<string, unknown> = {}) {
     members,
   };
 }
+it("inspects an enrolled laptop API through the real request-response queue without browser tickets, cookies or executable HTML", async () => {
+  const f = await fixture();
+  const binary = f.relay.inspect(
+    "usr_alice",
+    "ws_server20",
+    { deviceId: f.alice.deviceId, serviceId: "web", method: "GET", path: "/binary?q=one" },
+    async () => {},
+  );
+  const getJobs = await f.deliver();
+  expect(getJobs[0]?.path).toBe("/binary?q=one");
+  expect(await binary).toMatchObject({
+    status: 201,
+    encoding: "base64",
+    body: Buffer.from([0, 1, 128, 255]).toString("base64"),
+    bytes: 4,
+  });
+  const post = f.relay.inspect(
+    "usr_alice",
+    "ws_server20",
+    {
+      deviceId: f.alice.deviceId,
+      serviceId: "web",
+      method: "POST",
+      path: "/echo",
+      body: '{"hello":"नमस्ते"}',
+    },
+    async () => {},
+  );
+  await f.deliver();
+  expect(await post).toMatchObject({ status: 201, encoding: "utf8", body: '{"hello":"नमस्ते"}' });
+  expect(f.appRequests[1]?.headers["cookie"]).toBeUndefined();
+  expect(f.appRequests[1]?.headers["authorization"]).toBeUndefined();
+  const html = f.relay.inspect(
+    "usr_alice",
+    "ws_server20",
+    { deviceId: f.alice.deviceId, serviceId: "web", method: "GET", path: "/unsafe-html" },
+    async () => {},
+  );
+  await f.deliver();
+  const result = await html;
+  expect(result.contentType).toBe("text/html");
+  expect(result.body).toContain("<script>");
+  expect(result).not.toHaveProperty("ticket");
+  expect(result).not.toHaveProperty("headers");
+  expect((await f.request("/")).status).toBe(401);
+  const audit = await Promise.all(
+    (await readdir(f.audit))
+      .filter((name) => !name.startsWith("origin-"))
+      .map(async (name) => JSON.parse(await readFile(join(f.audit, name), "utf8"))),
+  );
+  expect(audit.filter((entry) => entry.operation === "inspect-request")).toHaveLength(3);
+  expect(JSON.stringify(audit)).not.toContain("नमस्ते");
+});
+it("bounds API inspection, rejects other owners/arbitrary targets and cancels without replaying a claimed POST", async () => {
+  const f = await fixture({ maxRequestBytes: 1024, maxPending: 1 });
+  const input = {
+    deviceId: f.alice.deviceId,
+    serviceId: "web",
+    method: "POST",
+    path: "/echo",
+    body: "once",
+  };
+  await expect(f.relay.inspect("usr_bob", "ws_server20", input, async () => {})).rejects.toThrow();
+  await expect(f.relay.inspect("usr_alice", "ws_other", input, async () => {})).rejects.toThrow();
+  await expect(
+    f.relay.inspect(
+      "usr_alice",
+      "ws_server20",
+      { ...input, path: "//outside.invalid" },
+      async () => {},
+    ),
+  ).rejects.toThrow();
+  await expect(
+    f.relay.inspect(
+      "usr_alice",
+      "ws_server20",
+      { ...input, headers: [["authorization", "secret"]] },
+      async () => {},
+    ),
+  ).rejects.toThrow();
+  await expect(
+    f.relay.inspect(
+      "usr_alice",
+      "ws_server20",
+      { ...input, body: "x".repeat(1025) },
+      async () => {},
+    ),
+  ).rejects.toThrow("request-too-large");
+  const abort = new AbortController(),
+    pending = f.relay.inspect("usr_alice", "ws_server20", input, async () => {}, abort.signal);
+  const rejected = expect(pending).rejects.toThrow("request-cancelled");
+  const { jobs } = await f.relay.claim(f.alice.credential);
+  expect(jobs).toHaveLength(1);
+  await expect(f.relay.inspect("usr_alice", "ws_server20", input, async () => {})).rejects.toThrow(
+    "capacity",
+  );
+  abort.abort();
+  await rejected;
+  await expect(
+    f.relay.complete(f.alice.credential, {
+      id: jobs[0]!.id,
+      ok: true,
+      status: 200,
+      body: "",
+      headers: [],
+    }),
+  ).rejects.toThrow("request-not-found");
+  expect(f.appRequests).toHaveLength(0);
+});
+it("returns redirects as data, rejects unsupported streams and bounds inspection time without creating browser access", async () => {
+  const f = await fixture({ timeoutMs: 1000 });
+  const input = { deviceId: f.alice.deviceId, serviceId: "web", method: "GET", path: "/external" };
+  const redirected = f.relay.inspect("usr_alice", "ws_server20", input, async () => {});
+  await f.deliver();
+  expect(await redirected).toMatchObject({ status: 302, body: "", encoding: "utf8" });
+  expect(f.appRequests).toHaveLength(1);
+  const stream = f.relay.inspect(
+      "usr_alice",
+      "ws_server20",
+      { ...input, path: "/stream" },
+      async () => {},
+    ),
+    streamFailure = expect(stream).rejects.toThrow("unsupported-stream");
+  await f.deliver();
+  await streamFailure;
+  const timeout = f.relay.inspect(
+    "usr_alice",
+    "ws_server20",
+    { ...input, path: "/slow" },
+    async () => {},
+  );
+  await expect(timeout).rejects.toThrow("timeout-or-closed");
+  const abort = new AbortController();
+  abort.abort();
+  await expect(
+    f.relay.inspect("usr_alice", "ws_server20", input, async () => {}, abort.signal),
+  ).rejects.toThrow("request-cancelled");
+  f.config.targets[0]!.profileId = "other-profile";
+  await expect(f.relay.inspect("usr_alice", "ws_server20", input, async () => {})).rejects.toThrow(
+    "origin-not-configured",
+  );
+  await f.relay.close();
+  await expect(f.relay.inspect("usr_alice", "ws_server20", input, async () => {})).rejects.toThrow(
+    "workspace-denied",
+  );
+});
+it("rechecks inspection sessions and per-request response budgets and represents NUL-containing output as binary", async () => {
+  const f = await fixture(),
+    input = { deviceId: f.alice.deviceId, serviceId: "web", method: "GET", path: "/" };
+  const binary = f.relay.inspect("usr_alice", "ws_server20", input, async () => {}),
+    jobs = (await f.relay.claim(f.alice.credential)).jobs;
+  await f.relay.complete(f.alice.credential, {
+    id: jobs[0]!.id,
+    ok: true,
+    status: 200,
+    headers: [],
+    body: Buffer.from("text\0binary").toString("base64"),
+  });
+  expect(await binary).toMatchObject({
+    contentType: "application/octet-stream",
+    encoding: "base64",
+  });
+  const abort = new AbortController(),
+    large = f.relay.inspect("usr_alice", "ws_server20", input, async () => {}, abort.signal),
+    cancelled = expect(large).rejects.toThrow("request-cancelled"),
+    claimed = (await f.relay.claim(f.alice.credential)).jobs;
+  expect(claimed[0]!.maxResponseBytes).toBe(262144);
+  await expect(
+    f.relay.complete(f.alice.credential, {
+      id: claimed[0]!.id,
+      ok: true,
+      status: 200,
+      headers: [],
+      body: Buffer.alloc(262145).toString("base64"),
+    }),
+  ).rejects.toThrow("response-too-large");
+  abort.abort();
+  await cancelled;
+  let allowed = true;
+  const revoke = new AbortController(),
+    pending = f.relay.inspect(
+      "usr_alice",
+      "ws_server20",
+      input,
+      async () => {
+        if (!allowed) throw Error("signed-out");
+      },
+      revoke.signal,
+    ),
+    revoked = expect(pending).rejects.toThrow("request-cancelled"),
+    owned = (await f.relay.claim(f.alice.credential)).jobs;
+  allowed = false;
+  await expect(
+    f.relay.complete(f.alice.credential, {
+      id: owned[0]!.id,
+      ok: true,
+      status: 200,
+      headers: [],
+      body: "",
+    }),
+  ).rejects.toThrow("signed-out");
+  revoke.abort();
+  await revoked;
+});
 it("relays a real binary HTTP response, status, query, app headers, POST body and application cookie without control-plane credentials", async () => {
   const f = await fixture();
   const { cookie, result } = await f.bootstrap();
@@ -700,6 +914,43 @@ it("enforces browser session, CSRF and workspace authority at the actual API rou
     },
     payload = { deviceId: f.alice.deviceId, serviceId: "web" },
     url = "/v1/workspaces/ws_server20/local-development/preview/open";
+  const inspectUrl = url.replace("/open", "/inspect"),
+    inspectPayload = { ...payload, method: "GET", path: "/unsafe-html" };
+  expect(
+    (await server.inject({ method: "POST", url: inspectUrl, payload: inspectPayload })).statusCode,
+  ).toBe(401);
+  expect(
+    (
+      await server.inject({
+        method: "POST",
+        url: inspectUrl,
+        payload: inspectPayload,
+        headers: { ...headers, "x-csrf-token": "wrong" },
+      })
+    ).statusCode,
+  ).toBe(403);
+  expect(
+    (
+      await server.inject({
+        method: "POST",
+        url: inspectUrl,
+        payload: inspectPayload,
+        headers: { ...headers, origin: "http://elsewhere.invalid" },
+      })
+    ).statusCode,
+  ).toBe(403);
+  const inspecting = server.inject({
+    method: "POST",
+    url: inspectUrl,
+    payload: inspectPayload,
+    headers,
+  });
+  await f.deliver();
+  const inspected = await inspecting;
+  expect(inspected.statusCode).toBe(200);
+  expect(inspected.headers["content-type"]).toContain("application/json");
+  expect(inspected.json().body).toContain("<script>");
+  expect(inspected.headers["set-cookie"]).toBeUndefined();
   expect((await server.inject({ method: "POST", url, payload })).statusCode).toBe(401);
   expect(
     (
