@@ -4,7 +4,73 @@ import {
   PairConnectorSchema,
   SystemEnrollmentStartSchema,
   SystemEnrollmentPreviewSchema,
+  DiscoveryIdentityOriginSchema,
+  ConnectorConnectionStatusSchema,
 } from "../src/index.js";
+
+it("accepts only canonical HTTP(S) origins as retained discovery namespaces", () => {
+  for (const origin of [
+    "http://private.fixture",
+    "https://public.fixture",
+    "https://public.fixture:8443",
+    "http://10.9.69.20",
+    "https://[::1]:8443",
+  ])
+    expect(DiscoveryIdentityOriginSchema.parse(origin)).toBe(origin);
+  for (const origin of [
+    "not a URL",
+    "",
+    "file:///fixture",
+    "ftp://fixture.example",
+    "https://user:password@public.fixture",
+    "https://public.fixture/",
+    "https://public.fixture/devsetu",
+    "https://public.fixture?query=value",
+    "https://public.fixture#fragment",
+    "https://public.fixture:443",
+    "http://private.fixture:80",
+    "https://PUBLIC.fixture",
+    "HTTPS://public.fixture",
+    " https://public.fixture",
+    "https://" + "a".repeat(2050) + ".fixture",
+  ])
+    expect(DiscoveryIdentityOriginSchema.safeParse(origin).success).toBe(false);
+});
+
+it("keeps connection status metadata strict, pairing-specific and free of credentials", () => {
+  const status = {
+    deviceId: `fc_${"a".repeat(32)}`,
+    actor: "usr_fixture",
+    workspaceId: "ws_fixture",
+    profileId: null,
+    mode: "system",
+    ready: true,
+  };
+  expect(ConnectorConnectionStatusSchema.parse(status)).toEqual(status);
+  const project = { ...status, mode: "project", profileId: "fixture-project" };
+  expect(ConnectorConnectionStatusSchema.parse(project)).toEqual(project);
+  const canonical = { ...project, discoveryIdentityOrigin: "http://private.fixture" };
+  expect(ConnectorConnectionStatusSchema.parse(canonical)).toEqual(canonical);
+  for (const patch of [
+    { credential: "forbidden" },
+    { credentialHash: "a".repeat(64) },
+    { password: "forbidden" },
+    { command: "forbidden" },
+    { mode: "executor" },
+    { ready: false },
+    { deviceId: "unpaired" },
+    { actor: "" },
+    { workspaceId: "" },
+    { profileId: "../outside" },
+    { discoveryIdentityOrigin: "https://public.fixture/devsetu" },
+  ])
+    expect(ConnectorConnectionStatusSchema.safeParse({ ...status, ...patch }).success).toBe(false);
+  for (const field of Object.keys(status)) {
+    const incomplete = { ...status };
+    Reflect.deleteProperty(incomplete, field);
+    expect(ConnectorConnectionStatusSchema.safeParse(incomplete).success).toBe(false);
+  }
+});
 
 it("accepts an unassigned computer and rejects every project capability in a system credential", () => {
   const id = `fc_${"a".repeat(32)}`;
