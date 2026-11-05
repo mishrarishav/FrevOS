@@ -1,5 +1,44 @@
 # DevSetu Current State
 
+2026-11-06 IST: Inventory/explorer source ffaa26fa5a9aea0d6561b58b699822805ccb6533
+is LIVE through authenticated DevSetu request su_a9af54d9f290028ee321ea97252be75e,
+actor usr_windows_admin. Manifest
+a28311c7b5175cd4ce77536d6fd19df5c25662f6503d69c60ae532ecbbe5c0c2;
+archive 8effbc35dd32ff1c2291d4cb4f73954da8e547357159e744b7e2b2fc549b663d.
+Original complete native CI passes 596 tests / 119 files. Packaged software and
+Code/auth/ZIP runtime, three installers and native Plan/Apply pass. Private/public
+health returns 200. The curated source inventory omits the new UI helper; a
+supplemental frozen-Git/module-graph proof and byte-identical read-only builds of
+both complete UI variants verify its provenance without changing the artifact,
+enrolled recipe or original CI. Credential proof remains qualified baseline/delta,
+without a fresh exact-provider-key comparison.
+
+L-1770's existing DevSetu project connector receives the artifact-bound Software
+sidecars. Its pairing bytes, task definition, transport, discovery identity and
+existing permissions are verified preserved. The owner's explicit inventory task
+then enables inventory sharing through the local companion API; install consent
+remains false. The real connector's audited initial job completes, acknowledges
+its receipt, and reports 278 registered software entries, ready and not truncated.
+The actual public T-Server UI shows 278 of 278 / six pages. Subsequent checks
+verify one initial inventory job and the unchanged saved inventory, not repeated
+scans. No installer download is required again on this updated L-1770 connection.
+
+Actual public DevSetu file-explorer acceptance also passes: a disposable Windows
+folder denies creation with the new actionable OS-permission message, while its
+writable parent creates an exclusive empty file through the real connector. A
+protected AppData path remains denied. Both disposable fixtures are cleaned up.
+ESDS remains offline, so its own live inventory/create acceptance is not claimed;
+its historical failed requests target C:\Users and return the same OS denial.
+
+Nine pairing records, seven settings, 17 pre-existing software records, 34 selected
+snapshot files and three IIS/relay/routing files are retained. No root/servix .env
+file existed in the selected snapshot; runtime/environment settings remain
+unchanged. The snapshot is not a full database backup. No schema migration,
+repository grant, generic shell or unrelated customer-app deployment occurs.
+Windows/Linux downloads match the latest artifact under strict TLS; Android keeps
+the same signing identity. No central-source/GitHub publication is implied.
+See INVENTORY_EXPLORER_RECOVERY.md for exact validation and remaining limits.
+
 2026-11-05: ADR0101 corrects missing first software inventory. A credential-bound
 connector endpoint schedules the existing audited inventory job only with fresh
 local inventory consent, an online authorized device, no current software job,
