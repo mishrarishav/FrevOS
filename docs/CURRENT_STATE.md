@@ -1,5 +1,34 @@
 # DevSetu Current State
 
+2026-11-05: Corrective Code release afb50afd3fe6a932ddfd0fd8ce80b1c36459cd78 is LIVE on Server20 through
+actual authenticated DevSetu maintenance request su_1412de1ec99c84fb5ca1d8dce5b29e6a, actor
+usr_windows_admin. Manifest 76870e5283e8c7350884defea69a7012b46f1eeb835626ef1efec134d308cfde;
+archive 3b44050df53c237e65cc984747d1e0487d68ad33cb3abcc579cc9a369a4c4a7e. The original complete enrolled
+native CI passes all 590 tests across 118 files; backend coverage is 95.03%
+statements, 91.78% branches, 97.01% functions and 96.93% lines. Actual packaged
+TCP acceptance holds an authenticated Code read for eleven seconds and succeeds.
+Authenticated Code response sockets allow 90 seconds; the global/default
+timeout and unrelated routes remain unchanged. Fetched Code HTTP 401 clears protected state
+and enters the existing session-expired boundary.
+
+Actual public administrator acceptance passes: the catalogue and both requested
+source trees load without Retry, and Servix/DevSetu ZIP downloads match their
+committed-source hashes. The observed public browser bundle matches this manifest.
+Eight pairings, seven settings, 17 software records, 33 selected snapshot files
+and three routing/configuration files are verified retained. No root or servix
+.env file existed in that selected snapshot; environment/runtime settings remain
+protected and unchanged. Native Apply and private/public health are PASS/200;
+all three actual installer downloads match the manifest under strict TLS and
+Android retains its signing certificate. No schema migration, operator database
+write or live repository grant is performed. Normal application/session/background
+activity continues. The snapshot is not a full database backup.
+
+The central source heads remain Servix 72cd488 and DevSetu 074b9e5; this operator-
+prepared artifact activation does not publish source to central Git or GitHub.
+Credential qualification uses a verified baseline and frozen delta, without a
+fresh exact-provider-key comparison. Actual ordinary-user acceptance remains
+separate from isolated RBAC/grant/revoke tests. See CODE_REPOSITORIES_HANDOFF.md.
+
 2026-11-05 corrective validation: source 3e4189b completes 589 of 590 tests.
 The unchanged ownership/catalogue case times out at 30 seconds in its initial
 Windows Git fixture. All other checks, including delayed authenticated Code TCP

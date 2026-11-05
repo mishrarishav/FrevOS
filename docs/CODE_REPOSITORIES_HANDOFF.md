@@ -1,30 +1,35 @@
 # Code repository workspace
 
-Status: Initial deployment and actual public repository/ZIP acceptance PASS;
-corrective idle-timeout/session-UX release in validation.
+Status: PASS — corrective release and actual public administrator acceptance.
 
-The e4f93ad artifact is live through authenticated DevSetu request
-su_80f4123670420609bab7033f72d27d2d; manifest
-fe9ba7ebb9e672736e24fcc37c56ad0dd96c9ef92e3cc575b71dd9d461642d9d.
-The complete native CI passes all 590 tests across 118 files. Native Apply,
-packaged runtime, preservation and actual public installer downloads pass.
-Actual administrator sign-in shows the three registered repositories. Both
-requested ZIPs download through the public Code UI and match real-source hashes:
-Servix 2,222,749 bytes (751 entries, two protected paths excluded), DevSetu
-1,612,015 bytes (585 entries, one excluded). Original refs remain unchanged.
-This is authenticated administrator acceptance; no live non-admin grants were
-created for testing. Isolated ownership/share/revoke checks remain separate.
+2026-11-05: Corrective Code release afb50afd3fe6a932ddfd0fd8ce80b1c36459cd78 is LIVE on Server20 through
+actual authenticated DevSetu maintenance request su_1412de1ec99c84fb5ca1d8dce5b29e6a, actor
+usr_windows_admin. Manifest 76870e5283e8c7350884defea69a7012b46f1eeb835626ef1efec134d308cfde;
+archive 3b44050df53c237e65cc984747d1e0487d68ad33cb3abcc579cc9a369a4c4a7e. The original complete enrolled
+native CI passes all 590 tests across 118 files; backend coverage is 95.03%
+statements, 91.78% branches, 97.01% functions and 96.93% lines. Actual packaged
+TCP acceptance holds an authenticated Code read for eleven seconds and succeeds.
+Authenticated Code response sockets allow 90 seconds; the global/default
+timeout and unrelated routes remain unchanged. Fetched Code HTTP 401 clears protected state
+and enters the existing session-expired boundary.
 
-Correlated public and Server20 IIS records identify intermittent Code failures
-as 502.3 / WinHTTP 12152 at the application's ten-second idle socket deadline.
-The correction extends only authenticated Code response sockets to 90 seconds,
-retaining Git's bounded subprocess execution and normal unauthenticated limits.
-A real TCP regression deliberately holds catalogue/tree/ZIP responses for eleven
-seconds and confirms successful delivery plus unchanged revoked-member denial.
-An accompanying UI fix clears protected state on HTTP 401 and reuses the existing
-session-expired/sign-in boundary. Focused regression, typecheck and an actual
-App/Code fixture pass; full native validation and corrective rollout are pending.
-No schema migration, operator database writes, source publication, live grants or pairing changes are made.
+Actual public administrator acceptance passes: the catalogue and both requested
+source trees load without Retry, and Servix/DevSetu ZIP downloads match their
+committed-source hashes. The observed public browser bundle matches this manifest.
+Eight pairings, seven settings, 17 software records, 33 selected snapshot files
+and three routing/configuration files are verified retained. No root or servix
+.env file existed in that selected snapshot; environment/runtime settings remain
+protected and unchanged. Native Apply and private/public health are PASS/200;
+all three actual installer downloads match the manifest under strict TLS and
+Android retains its signing certificate. No schema migration, operator database
+write or live repository grant is performed. Normal application/session/background
+activity continues. The snapshot is not a full database backup.
+
+The central source heads remain Servix 72cd488 and DevSetu 074b9e5; this operator-
+prepared artifact activation does not publish source to central Git or GitHub.
+Credential qualification uses a verified baseline and frozen delta, without a
+fresh exact-provider-key comparison. Actual ordinary-user acceptance remains
+separate from isolated RBAC/grant/revoke tests. See CODE_REPOSITORIES_HANDOFF.md.
 
 Repository: mishrarishav/FrevOS. Branch: `codex/code-repository-workspace`.
 Base: `dc429ddc033fd6346b5a7edcbac2d1ca0359c163`. ADR 0100 records the owner scope.
@@ -74,11 +79,11 @@ Read-only inspection on 2026-11-05 verified these registered bare stores:
 
 The optional `repository-hosting.json` is absent on this installation. The new
 view therefore starts from existing central stores. DevSetu's pushed head is
-older than the deployed b8d2e38 application. Operator release preparation did not
+older than the deployed afb50af application. Operator release preparation did not
 publish that application source; the UI must not present it as the latest push.
 Laptop-only, unpushed edits and compiled deployed bundles are not source commits.
 
-## Validation and release state
+## Validation history and release evidence
 
 2026-11-05 corrective validation: source 3e4189b completes 589 of 590 tests.
 The unchanged ownership/catalogue case times out at 30 seconds in its initial
@@ -137,7 +142,12 @@ gate unchanged. Full frozen CI must pass again before corrected activation.
   That targeted command filters the already separately exercised original native
   test; the upcoming complete frozen-source CI must execute both native tests.
 
-Commands and final changed-file inventory will be recorded in
-CODE_REPOSITORIES_CHANGESET.md after validation. Existing pairings, databases,
-uploads, environment and source refs must be snapshotted/verified for activation.
-No GitHub push, source migration or forge enrollment is implied by this handoff.
+The final commands, complete changed-file list and release identities are recorded
+in CODE_REPOSITORIES_CHANGESET.md. Frozen artifact source is afb50af; the final
+handoff documentation is a later local commit and is not a different deployed
+application. Existing source stores remain configured central bare repositories;
+the optional hosted forge is not enrolled on Server20. Actual non-admin UI,
+phone and Linux-desktop acceptance are not claimed. Isolated RBAC/native-engine
+acceptance is distinct from those live checks. Credential review inherits a
+verified qualified baseline and frozen-source delta; current exact-key journal
+comparison is unavailable. No GitHub push or central-source publication occurred.
