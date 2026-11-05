@@ -112,15 +112,17 @@ export function RecordWorkspace<T>({
 }) {
   const key = `frevos:${userId}:${workspaceId}:${page}:records:v1`;
   const listLabel =
-    noun === "software"
-      ? "Software list"
-      : noun === "systems"
-        ? "System list"
-        : noun === "agents"
-          ? "Agent list"
-          : noun === "requests"
-            ? "Join request list"
-            : "Project list";
+    noun === "repositories"
+      ? "Repository list"
+      : noun === "software"
+        ? "Software list"
+        : noun === "systems"
+          ? "System list"
+          : noun === "agents"
+            ? "Agent list"
+            : noun === "requests"
+              ? "Join request list"
+              : "Project list";
   const [preferences, setPreferences] = useState(() => readPreferences(key, defaultView));
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [pageIndex, setPageIndex] = useState(0);
@@ -261,13 +263,15 @@ export function RecordWorkspace<T>({
               value={preferences.search}
               onChange={(e) => update({ search: e.target.value })}
               placeholder={
-                noun === "software"
-                  ? "Search software, version or publisher…"
-                  : noun === "agents"
-                    ? "Search agent, role or model…"
-                    : noun === "requests"
-                      ? "Search account or request ID…"
-                      : "Search project, source folder or server…"
+                noun === "repositories"
+                  ? "Find a repository…"
+                  : noun === "software"
+                    ? "Search software, version or publisher…"
+                    : noun === "agents"
+                      ? "Search agent, role or model…"
+                      : noun === "requests"
+                        ? "Search account or request ID…"
+                        : "Search project, source folder or server…"
               }
             />
           </label>

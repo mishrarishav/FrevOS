@@ -36,6 +36,7 @@ import { z } from "zod";
 import type { AgentNotifications } from "./agent-notifications.js";
 import type { AgentWorkspace } from "./agent-workspace.js";
 import type { ArtifactPromotions } from "./artifact-promotions.js";
+import type { CodeRepositories } from "./code-repositories.js";
 import type { ComponentDeployments } from "./component-deployments.js";
 import { hashesMatch, type OidcTransaction, type OidcTransactionCodec } from "./crypto.js";
 import type { DeploymentSettingsStore } from "./deployment-settings.js";
@@ -152,6 +153,7 @@ const LocalLoginBodySchema = z
 const EmptyBodySchema = z.object({}).strict();
 
 interface BuildServerOptions {
+  readonly codeRepositories?: CodeRepositories;
   readonly software?: SoftwareManagement;
   readonly repositoryCenter?: RepositoryCenter;
   readonly gitDesktop?: GitDesktop;
@@ -1411,6 +1413,54 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
         request.params.jobId,
         String(request.headers["x-devsetu-source-head"] ?? ""),
         request.body as Buffer,
+      );
+    },
+  );
+  server.get<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/code-repositories"),
+    async (request) => {
+      const e = await requireWorkspace(request, options, "project:read", now());
+      if (!options.codeRepositories)
+        return { workspaceId: e.workspaceId, administrator: false, repositories: [] };
+      return options.codeRepositories.catalog(e.session.session.context.userId, e.workspaceId);
+    },
+  );
+  for (const operation of ["tree", "blob", "history", "access", "archive"] as const) {
+    server.get<{ Params: WorkspaceParams & { repositoryId: string } }>(
+      route("/v1/workspaces/:workspaceId/code-repositories/:repositoryId/" + operation),
+      async (request, reply) => {
+        const e = await requireWorkspace(request, options, "project:read", now());
+        const service = options.codeRepositories;
+        if (!service) throw new HttpError(503, "code-repositories-unavailable");
+        const actor = e.session.session.context.userId,
+          id = request.params.repositoryId;
+        reply.header("Cache-Control", "no-store");
+        reply.header("X-Content-Type-Options", "nosniff");
+        if (operation === "archive") {
+          const result = await service.archive(actor, e.workspaceId, id, request.query);
+          await requireWorkspace(request, options, "project:read", now());
+          reply.header("Content-Disposition", 'attachment; filename="' + result.filename + '"');
+          reply.header("X-DevSetu-Source-Commit", result.head);
+          reply.header("X-DevSetu-Excluded-Paths", String(result.excludedPaths));
+          return reply.type("application/zip").send(result.bytes);
+        }
+        return operation === "access"
+          ? service.access(actor, e.workspaceId, id)
+          : service[operation](actor, e.workspaceId, id, request.query);
+      },
+    );
+  }
+  server.post<{ Params: WorkspaceParams & { repositoryId: string } }>(
+    route("/v1/workspaces/:workspaceId/code-repositories/:repositoryId/access"),
+    async (request) => {
+      const e = await requireWorkspace(request, options, "project:read", now());
+      requireCsrf(request, e.session.session, options.publicOrigin, options.authCookies.csrf);
+      if (!options.codeRepositories) throw new HttpError(503, "code-repositories-unavailable");
+      return options.codeRepositories.share(
+        e.session.session.context.userId,
+        e.workspaceId,
+        request.params.repositoryId,
+        request.body,
       );
     },
   );

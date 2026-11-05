@@ -1,18 +1,18 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { link, lstat, mkdir, open, readdir, readFile, unlink } from "node:fs/promises";
-import { join, dirname, isAbsolute } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import {
   ConnectorIdSchema,
-  DiscoveryIdentityOriginSchema,
-  UserIdSchema,
   type ConnectorProbe,
   ConnectorProbeSchema,
-  ConnectorSchema,
   ConnectorRecordBaseSchema,
+  ConnectorSchema,
   type DeploymentChange,
   DeploymentChangeSchema,
   type DeploymentSettings,
+  DiscoveryIdentityOriginSchema,
+  defaultDiscoveryPolicy,
   type FolderSelection,
   FolderSelectionSchema,
   InviteDeveloperSchema,
@@ -20,13 +20,13 @@ import {
   PairConnectorSchema,
   PreservedPathSchema,
   RedeemDeveloperSchema,
-  SystemEnrollmentStartSchema,
-  SystemEnrollmentPreviewSchema,
-  defaultDiscoveryPolicy,
   SERVIX_REPOSITORY,
   ServixHeadSchema,
   ServixRequestIdSchema,
   type SourceBindingSchema,
+  SystemEnrollmentPreviewSchema,
+  SystemEnrollmentStartSchema,
+  UserIdSchema,
 } from "@frevos/contracts";
 import { z } from "zod";
 import { replaceDurableRecord } from "./atomic-record.js";
@@ -142,6 +142,11 @@ export class DeveloperConnectorStore {
       false,
     private readonly administratorPairing = false,
     private readonly identityOrigin?: string,
+    private readonly sourceAuthorization?: (
+      actor: string,
+      repositoryId: string,
+      write: boolean,
+    ) => Promise<void>,
   ) {
     if (identityOrigin !== undefined) DiscoveryIdentityOriginSchema.parse(identityOrigin);
   }
@@ -327,6 +332,9 @@ export class DeveloperConnectorStore {
     const device = await this.checkCredential(credential);
     if (device.mode === "system")
       throw new ServixDeploymentError("connector-project-binding-required", 403);
+    // Raw Git history is reserved for source owners/publishers. UI read grants
+    // use the filtered Code ZIP rather than bypassing protected-path exclusions.
+    await this.sourceAuthorization?.(device.userId, device.repositoryId!, true);
     const git = await this.repository(device.profileId ?? "servix-development");
     await git.head();
     const { heads } = z
@@ -341,17 +349,25 @@ export class DeveloperConnectorStore {
       throw new ServixDeploymentError("connector-bundle-capacity", 503);
     const file = join(this.root, "baseline-" + randomUUID() + ".bundle");
     this.baselineFiles.add(file);
-    await git.exportBundle(file, heads);
-    const info = await lstat(file);
-    if (info.isSymbolicLink() || !info.isFile() || info.size > 256 * 1024 * 1024)
-      throw new ServixDeploymentError("connector-bundle-capacity", 413);
-    return file;
+    try {
+      await git.exportBundle(file, heads);
+      const info = await lstat(file);
+      if (info.isSymbolicLink() || !info.isFile() || info.size > 256 * 1024 * 1024)
+        throw new ServixDeploymentError("connector-bundle-capacity", 413);
+      await this.checkCredential(credential);
+      await this.sourceAuthorization?.(device.userId, device.repositoryId!, true);
+      return file;
+    } catch (error) {
+      await this.releaseBaseline(file);
+      throw error;
+    }
   }
   async seed(credential: string, head: string, bytes: Buffer) {
     return this.serial(async () => {
       const device = await this.checkCredential(credential);
       if (device.mode === "system")
         throw new ServixDeploymentError("connector-project-binding-required", 403);
+      await this.sourceAuthorization?.(device.userId, device.repositoryId!, true);
       const profile = await this.configured?.connectorProfile(device.profileId!);
       if (!profile || profile.archived || bytes.length < 32 || bytes.length > 64 * 1024 * 1024)
         throw new ServixDeploymentError("connector-seed-denied", 403);
@@ -880,6 +896,7 @@ export class DeveloperConnectorStore {
       const device = await this.authenticate(credential);
       if (device.mode === "system")
         throw new ServixDeploymentError("connector-project-binding-required", 403);
+      await this.sourceAuthorization?.(device.userId, device.repositoryId!, true);
       ServixRequestIdSchema.parse(id);
       ServixHeadSchema.parse(head);
       const job = JobSchema.parse(await this.read(id + ".source.json"));

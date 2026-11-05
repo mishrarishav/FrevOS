@@ -1,12 +1,14 @@
 const changeDetails = { message: "Update development code", approvedBy: "Fixture owner / CHG-123" };
+
 import { createHash } from "node:crypto";
-import { createRequire } from "node:module";
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { DeveloperConnectorStore } from "../src/developer-connectors.js";
 import { ServixDeploymentStore } from "../src/servix-deployment.js";
+
 const { validateJob } = createRequire(import.meta.url)(
   "../../../deployment/servix/Connector.cjs",
 ) as { validateJob(config: { deviceId: string }, job: unknown): void };
@@ -20,6 +22,50 @@ beforeEach(async () => {
 });
 afterEach(async () => {
   await rm(root, { recursive: true, force: true });
+});
+it("rechecks repository grants on the legacy baseline route without revoking monitoring pairing", async () => {
+  let permitted = true,
+    revokeDuringExport = false;
+  const exported = vi.fn(async (file: string) => {
+    await writeFile(file, "fixture bundle");
+    if (revokeDuringExport) permitted = false;
+  });
+  const store = new DeveloperConnectorStore(
+    root,
+    async () => true,
+    { head: async () => base, importBundle: vi.fn(), exportBundle: exported },
+    vi.fn(),
+    () => new Date(),
+    async () => true,
+    undefined,
+    undefined,
+    undefined,
+    false,
+    undefined,
+    async (_actor, _repository, write) => {
+      if (!permitted || !write) throw Error("repository grant denied");
+    },
+  );
+  try {
+    const device = await store.pair("usr_alice", { version: 1, name: "Fixture computer" });
+    const baseline = await store.baseline(device.credential, { heads: [] });
+    await store.releaseBaseline(baseline);
+    permitted = false;
+    await expect(store.baseline(device.credential, { heads: [] })).rejects.toThrow(
+      "repository grant denied",
+    );
+    expect(exported).toHaveBeenCalledOnce();
+    permitted = true;
+    revokeDuringExport = true;
+    await expect(store.baseline(device.credential, { heads: [] })).rejects.toThrow(
+      "repository grant denied",
+    );
+    expect(exported).toHaveBeenCalledTimes(2);
+    expect((await readdir(root)).some((name) => name.startsWith("baseline-"))).toBe(false);
+    expect((await store.checkCredential(device.credential)).deviceId).toBe(device.deviceId);
+  } finally {
+    store.close();
+  }
 });
 it("waits for the selected device's immutable commit before building and binding activation", async () => {
   await mkdir(join(root, "requests"));

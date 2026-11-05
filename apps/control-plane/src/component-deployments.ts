@@ -1,30 +1,30 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { lstat, mkdir, open, readFile, readdir } from "node:fs/promises";
+import { lstat, mkdir, open, readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
+  BuildResolutionInputSchema,
+  type ComponentExecutor,
   ComponentIdSchema,
   componentOrder,
-  type ComponentExecutor,
+  type DeploymentConnectionTest,
+  type DeploymentSettings,
+  ExecutorIdSchema,
   ExecutorSchema,
   type Pipeline,
   PipelineInputSchema,
-  PipelineSchema,
   PipelineRequestSchema,
   type PipelineRun,
-  PipelineRunSchema,
   PipelineRunIdSchema,
-  BuildResolutionInputSchema,
-  ExecutorIdSchema,
-  type DeploymentSettings,
-  type DeploymentConnectionTest,
+  PipelineRunSchema,
+  PipelineSchema,
   type SourceBindingSchema,
 } from "@frevos/contracts";
 import { z } from "zod";
-import { componentGit } from "./component-git.js";
-import { ServixDeploymentError } from "./servix-deployment.js";
-import type { DeveloperConnectorStore } from "./developer-connectors.js";
-import { hashesMatch } from "./crypto.js";
 import { replaceDurableRecord } from "./atomic-record.js";
+import { componentGit } from "./component-git.js";
+import { hashesMatch } from "./crypto.js";
+import type { DeveloperConnectorStore } from "./developer-connectors.js";
+import { ServixDeploymentError } from "./servix-deployment.js";
 
 const digest = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
 const pending = (run: PipelineRun) =>
@@ -172,6 +172,19 @@ export class ComponentDeployments {
       updatedAt: profile.updatedAt,
       updatedBy: profile.updatedBy,
     };
+  }
+  // Trusted source registrations only; the Code service applies its own owner/grant policy.
+  async codeSources() {
+    const profiles = await this.list(/^profile-[a-z][a-z0-9-]{2,63}\.json$/, PipelineSchema);
+    return profiles.map((profile) => ({
+      id: profile.repository.id,
+      name: profile.displayName,
+      defaultBranch: profile.repository.branch,
+      directory: join(this.root, "repositories", profile.repository.id + ".git"),
+      executable: this.gitExecutable,
+      identityKey: "devsetu.repositoryId" as const,
+      protectedPaths: profile.sourcePreservedPaths,
+    }));
   }
   private sourceProtection(profile: Pipeline) {
     return profile.sourcePreservedPaths;

@@ -604,6 +604,35 @@ async function runNativeAcceptance(implementations = {}) {
       () => center.publish(ids.alice, "ws_team", repoId, "work/unsafe", rejectedHead, unsafeBytes),
       "repository-unsafe-tree",
     );
+    stage = "native-code-browser-and-sharing";
+    const summary = await center.codeSummary(ids.owner, "ws_team", repoId);
+    if (!summary.sha || !summary.subject) throw Error("code-summary-unavailable");
+    const codeSource = await center.codeSource(ids.owner, "ws_team", repoId);
+    if (!codeSource.canManageAccess || codeSource.ownerId !== ids.owner)
+      throw Error("code-owner-identity");
+    const codeProof = await center.readCode(
+      ids.reader,
+      "ws_team",
+      repoId,
+      "main",
+      async (git, branch) => {
+        const head = await git.resolve(branch);
+        const blob = await git.blob(head, "app.js");
+        const archive = await git.archive(head, "native-code-fixture");
+        return {
+          text: blob.text,
+          bytes: archive.bytes.length,
+          commits: (await git.history(head)).commits.length,
+        };
+      },
+    );
+    if (!codeProof.text.includes("answer=42") || codeProof.bytes < 100 || !codeProof.commits)
+      throw Error("code-committed-source-or-archive");
+    await center.shareCode(ids.owner, "ws_team", repoId, ids.reader, false);
+    await rejected(() => center.codeSource(ids.reader, "ws_team", repoId), "repository-not-found");
+    await center.shareCode(ids.owner, "ws_team", repoId, ids.reader, true);
+    if ((await center.codeSource(ids.reader, "ws_team", repoId)).canManageAccess)
+      throw Error("read-grant-elevated");
     stage = "full-quiesced-backup";
     const { GitRecovery, verifyIsolatedEngine } = require("../deployment/servix/GitRecovery.cjs");
     storage = await fs.mkdtemp(path.join(os.tmpdir(), "git-recovery-"));
@@ -708,6 +737,8 @@ async function runNativeAcceptance(implementations = {}) {
         "new-folder-clean-publish",
         "negative-bundle-boundaries",
         "environment-preserved",
+        "committed-code-browser-and-zip",
+        "provider-read-share-and-revoke",
         "full-quiesced-encrypted-backup",
         "isolated-native-restore",
         "offline-database-consistency",

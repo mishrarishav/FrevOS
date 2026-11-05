@@ -63,6 +63,7 @@ import {
   createControlCenterApi,
   DeviceVerificationRequired,
 } from "./api.js";
+import { CodePage } from "./CodePage.js";
 import { ComponentConfiguration } from "./ComponentDeployments.js";
 import { DeploymentSettingsPage } from "./DeploymentSettingsPage.js";
 import { DeploymentsPage } from "./DeploymentsPage.js";
@@ -84,7 +85,6 @@ import {
 } from "./experience.js";
 import { JoinRequestForm } from "./JoinRequestForm.js";
 import { LocalDevelopmentPage } from "./LocalDevelopmentPage.js";
-import { RepositoryCenterPage } from "./RepositoryCenterPage.js";
 import {
   addBasePath,
   isPathActive,
@@ -474,7 +474,8 @@ export function App({
             />
           ) : null}
           {route?.id === "repository-center" ? (
-            <RepositoryCenterPage
+            <CodePage
+              key={experience.workspace.workspaceId + ":" + experience.session.userId}
               api={api}
               workspaceId={experience.workspace.workspaceId}
               userId={experience.session.userId}
@@ -523,6 +524,7 @@ export function App({
           route.id !== "control-center" &&
           route.id !== "design-system" &&
           route.id !== "agents" &&
+          route.id !== "repository-center" &&
           route.id !== "projects" ? (
             route.id === "project-operations" ? null : (route.id === "deployments" ||
                 route.id === "deployment-setup" ||

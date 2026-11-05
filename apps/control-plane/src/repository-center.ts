@@ -1,30 +1,32 @@
-import { randomBytes, createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { lookup } from "node:dns/promises";
+import { lstat, mkdir, open, readdir, readFile } from "node:fs/promises";
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
-import { mkdir, open, readFile, lstat, readdir } from "node:fs/promises";
-import { join } from "node:path";
-import { z } from "zod";
 import { createRequire } from "node:module";
+import { join } from "node:path";
 import {
-  RepositoryHostingConfigSchema,
+  CodeCommitSchema,
+  type HostedPullRequest,
+  HostedPullRequestSchema,
   HostedRepositoryBindingSchema,
   HostedRepositoryCreateSchema,
-  RepositoryRecoveryActionSchema,
-  RepositoryRecoveryStateSchema,
-  RepositoryRecoveryResultSchema,
-  RepositoryActionSchema,
   HostedRepositorySchema,
-  HostedPullRequestSchema,
-  RepositoryActionResultSchema,
-  type RepositoryHostingConfig,
   type RepositoryAction,
-  type HostedPullRequest,
+  RepositoryActionResultSchema,
+  RepositoryActionSchema,
+  type RepositoryHostingConfig,
+  RepositoryHostingConfigSchema,
+  RepositoryRecoveryActionSchema,
+  RepositoryRecoveryResultSchema,
+  RepositoryRecoveryStateSchema,
 } from "@frevos/contracts";
-import { assertPlainPath } from "./model-secrets.js";
+import { z } from "zod";
 import { replaceDurableRecord } from "./atomic-record.js";
-import { ServixDeploymentError } from "./servix-deployment.js";
+import type { CodeGit } from "./code-git.js";
 import { GitEngine } from "./git-engine.js";
+import { assertPlainPath } from "./model-secrets.js";
+import { ServixDeploymentError } from "./servix-deployment.js";
 
 function fail(code: string, status = 403): never {
   throw new ServixDeploymentError("repository-" + code, status);
@@ -568,6 +570,134 @@ export class RepositoryCenter {
       () => this.transportAccess(actor, workspaceId, id, branch, false),
       branch,
     );
+  }
+  async codeSource(actor: string, workspaceId: string, id: string) {
+    const c = await this.context(actor, workspaceId, id);
+    const ownerId =
+      c.repo.bootstrap?.createdBy ??
+      this.config.accounts.find((a) => a.login === c.repo.owner)?.userId ??
+      null;
+    return {
+      id,
+      name: c.repo.owner + "/" + c.repo.name,
+      defaultBranch: c.repo.defaultBranch,
+      ownerId,
+      cloneUrl: this.web(c.repo, ".git"),
+      canManageAccess: c.remote.permissions.admin,
+      role:
+        ownerId === actor
+          ? ("owner" as const)
+          : c.remote.permissions.admin
+            ? ("maintainer" as const)
+            : c.remote.permissions.push
+              ? ("developer" as const)
+              : ("reader" as const),
+    };
+  }
+  async readCode<T>(
+    actor: string,
+    workspaceId: string,
+    id: string,
+    branch: string,
+    work: (git: CodeGit, branch: string) => Promise<T>,
+  ) {
+    return this.engine.readSource(
+      () => this.transportAccess(actor, workspaceId, id, branch, false),
+      branch,
+      work,
+    );
+  }
+  async codeSummary(actor: string, workspaceId: string, id: string) {
+    const c = await this.context(actor, workspaceId, id);
+    const branch = ProviderBranch.parse(
+      await c.call("GET", c.path + "/branches/" + encodeURIComponent(c.repo.defaultBranch)),
+    );
+    const value = z
+      .object({
+        sha: z.string(),
+        commit: z.object({
+          author: z.object({ name: z.string(), date: z.string() }),
+          message: z.string(),
+        }),
+      })
+      .parse(
+        await c.call(
+          "GET",
+          c.path +
+            "/git/commits/" +
+            encodeURIComponent(branch.commit.id) +
+            "?stat=false&files=false&verification=false",
+        ),
+      );
+    if (value.sha !== branch.commit.id) fail("commit-identity-changed", 502);
+    return CodeCommitSchema.parse({
+      sha: value.sha,
+      author: value.commit.author.name.slice(0, 300),
+      at: new Date(value.commit.author.date).toISOString(),
+      subject: value.commit.message.split("\n")[0]!.slice(0, 1000),
+    });
+  }
+  async codeBranches(actor: string, workspaceId: string, id: string) {
+    const c = await this.context(actor, workspaceId, id);
+    return z
+      .array(ProviderBranch)
+      .max(200)
+      .parse(await c.call("GET", c.path + "/branches?limit=200&page=1"))
+      .map((b) => ({ name: b.name, sha: b.commit.id }));
+  }
+  async shareCode(actor: string, workspaceId: string, id: string, target: string, allow: boolean) {
+    const c = await this.context(actor, workspaceId, id);
+    if (!c.remote.permissions.admin) fail("admin-required");
+    const account = this.config.accounts.find((a) => a.userId === target);
+    if (!account) fail("target-account-not-linked", 409);
+    if (account.login === c.repo.owner) fail("owner-access-is-inherited", 409);
+    const targetUser = ProviderUser.parse(
+      await c.call("GET", "/api/v1/users/" + encodeURIComponent(account.login)),
+    );
+    if (targetUser.id !== account.providerUserId || targetUser.login !== account.login)
+      fail("target-account-identity-changed");
+    if (allow) {
+      try {
+        await this.context(target, workspaceId, id);
+        return;
+      } catch (e) {
+        if (!(e instanceof ServixDeploymentError && [403, 404].includes(e.statusCode))) throw e;
+      }
+    }
+    // A grant is independently enforced by the forge for ordinary Git clients.
+    await c.call(
+      allow ? "PUT" : "DELETE",
+      c.path + "/collaborators/" + encodeURIComponent(account.login),
+      allow ? { permission: "read" } : undefined,
+    );
+    if (allow) {
+      await this.context(target, workspaceId, id);
+    } else {
+      try {
+        await this.context(target, workspaceId, id);
+      } catch (e) {
+        if (e instanceof ServixDeploymentError && [403, 404].includes(e.statusCode)) return;
+        throw e;
+      }
+      fail("access-inherited-from-provider-team", 409);
+    }
+  }
+  async codeMemberAccess(target: string, workspaceId: string, id: string) {
+    if (workspaceId !== this.config.workspaceId) fail("workspace-denied");
+    if (!this.config.accounts.some((a) => a.userId === target))
+      return { access: false, requiresAccountLink: true };
+    try {
+      await this.context(target, workspaceId, id);
+      return { access: true, requiresAccountLink: false };
+    } catch (error) {
+      if (
+        error instanceof ServixDeploymentError &&
+        [403, 404].includes(error.statusCode) &&
+        ["repository-not-found", "repository-access-denied"].includes(error.code)
+      )
+        return { access: false, requiresAccountLink: false };
+      throw error;
+    }
   }
   private web(repo: BoundRepository, suffix = "") {
     return (

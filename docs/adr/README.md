@@ -256,3 +256,6 @@ records the existing HTTPS gateway route with Server20 application/data retained
 [0099: Public device transport and system Explorer](0099-public-device-transport-and-system-explorer.md)
 records public connector/login transport, TLS repair, inert API inspection and
 the connected-system file browser. Raw application preview retains hostname isolation.
+
+[0100: Code repository browser and access](0100-code-repository-browser-and-access.md)
+records committed-source browsing, bounded ZIP downloads and per-repository grants.

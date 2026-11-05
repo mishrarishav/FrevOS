@@ -2,11 +2,12 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ProjectFolderSearchJob } from "@frevos/contracts";
+import { type ProjectFolderSearchJob, SERVIX_REPOSITORY } from "@frevos/contracts";
 import { AgentNotifications } from "./agent-notifications.js";
 import { AgentWorkspace } from "./agent-workspace.js";
 import { ArtifactPromotions } from "./artifact-promotions.js";
 import { buildBrowserEntry, loadBrowserEntry } from "./browser-entry.js";
+import { CodeRepositories } from "./code-repositories.js";
 import { ComponentDeployments } from "./component-deployments.js";
 import { loadConfig } from "./config.js";
 import { registerControlCenter } from "./control-center.js";
@@ -60,6 +61,7 @@ try {
   let artifactPromotions: ArtifactPromotions | undefined;
   let previewRelay: PreviewRelay | undefined;
   let repositoryCenter: RepositoryCenter | undefined;
+  let codeRepositories: CodeRepositories | undefined;
   let gitDesktop: GitDesktop | undefined;
   const agentWorkspaces = new Map<string, AgentWorkspace>();
   const notifications = new Map<string, AgentNotifications>();
@@ -216,11 +218,8 @@ try {
   };
   if (config.servixRoot) {
     const operator = fileURLToPath(new URL("../../../deployment/servix/", import.meta.url));
-    const execution = servixExecution(
-      config.servixRoot,
-      operator,
-      await loadServixExecutionProfile(operator),
-    );
+    const executionProfile = await loadServixExecutionProfile(operator);
+    const execution = servixExecution(config.servixRoot, operator, executionProfile);
     const allowed = async (actor: string) => {
       const evidence = await new WorkspaceRepository(pool).getEvidence("ws_server20", actor);
       return (
@@ -281,6 +280,11 @@ try {
       discoveryAdministrator,
       true,
       config.publicOrigin,
+      async (actor, repositoryId, write) => {
+        if (!codeRepositories)
+          throw new ServixDeploymentError("code-repositories-unavailable", 503);
+        await codeRepositories.authorize(actor, discoveryPolicy.workspaceId, repositoryId, write);
+      },
     );
     componentDeployments.connect(developerConnectors);
     deviceLogins = new DeviceLogins(
@@ -324,6 +328,52 @@ try {
         join(config.servixRoot, "jobs", "repository-center"),
       );
     }
+    const codeAccounts = new LocalAccounts(
+      pool,
+      new IdentitySessionRepository(pool),
+      join(config.servixRoot, "jobs", "account-actions"),
+    );
+    const codeMember = async (actor: string) => {
+      const e = await new WorkspaceRepository(pool).getEvidence(discoveryPolicy.workspaceId, actor);
+      return {
+        active:
+          e?.workspace.status === "active" &&
+          e.membership?.status === "active" &&
+          e.membership.grantedScopes.some((s) => s === "project:read"),
+        administrator: await discoveryAdministrator(actor),
+      };
+    };
+    codeRepositories = new CodeRepositories(
+      join(config.servixRoot, "jobs", "code-repositories"),
+      discoveryPolicy.workspaceId,
+      async () => [
+        {
+          id: executionProfile.repositoryId,
+          name: (await approvedSettings.profile("servix-development")).displayName,
+          defaultBranch: SERVIX_REPOSITORY.branch,
+          directory: executionProfile.repository,
+          executable: executionProfile.git,
+          identityKey: "frevos.repositoryId",
+          protectedPaths: (await approvedSettings.profile("servix-development")).preservedPaths,
+        },
+        ...(await componentDeployments!.codeSources()),
+      ],
+      codeMember,
+      async () => {
+        const users = [];
+        for (const account of await codeAccounts.list(discoveryPolicy.workspaceId)) {
+          const member = await codeMember(account.userId);
+          if (account.status === "active" && member.active)
+            users.push({
+              userId: account.userId,
+              name: account.displayName ?? account.username,
+              administrator: member.administrator,
+            });
+        }
+        return users;
+      },
+      repositoryCenter,
+    );
     const previewConfig = await loadPreviewConfig(
       join(config.servixRoot, "config", "preview-relay.json"),
       config.publicOrigin,
@@ -417,6 +467,7 @@ try {
     ...(software === undefined ? {} : { software }),
     ...(previewRelay === undefined ? {} : { previewRelay }),
     ...(repositoryCenter === undefined ? {} : { repositoryCenter }),
+    ...(codeRepositories === undefined ? {} : { codeRepositories }),
     ...(gitDesktop === undefined ? {} : { gitDesktop }),
     ...(systemDiscovery === undefined ? {} : { systemDiscovery }),
     ...(deviceLogins === undefined ? {} : { deviceLogins }),

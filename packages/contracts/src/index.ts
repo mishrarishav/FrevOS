@@ -114,6 +114,7 @@ export {
   ProjectAutomationStatusSchema,
 } from "./project-automation.js";
 export * from "./repository-center.js";
+export * from "./code-repositories.js";
 export * from "./servix-deployment.js";
 export * from "./software-management.js";
 export * from "./system-discovery.js";

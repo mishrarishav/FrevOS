@@ -21,6 +21,17 @@ import {
   type BuildResolutionInput,
   type Client,
   ClientSchema,
+  type CodeAccess,
+  type CodeAccessInput,
+  CodeAccessSchema,
+  type CodeBlob,
+  CodeBlobSchema,
+  type CodeCatalog,
+  CodeCatalogSchema,
+  type CodeHistory,
+  CodeHistorySchema,
+  type CodeTree,
+  CodeTreeSchema,
   type ConnectGithubRepositoryRequest,
   ConnectorListSchema,
   ConnectorRevocationSchema,
@@ -93,10 +104,10 @@ import {
   type PipelineState,
   PipelineStateSchema,
   PreviewBootstrapSchema,
+  PreviewClosedSchema,
   type PreviewInspect,
   type PreviewInspectResult,
   PreviewInspectResultSchema,
-  PreviewClosedSchema,
   type Project,
   type ProjectAutomationOperation,
   ProjectAutomationOperationSchema,
@@ -170,6 +181,28 @@ export interface WorkspaceSnapshot {
 }
 
 export interface ControlCenterApi {
+  codeCatalog?(workspaceId: string, signal?: AbortSignal): Promise<CodeCatalog>;
+  codeTree?(
+    workspaceId: string,
+    id: string,
+    query: Record<string, string>,
+    signal?: AbortSignal,
+  ): Promise<CodeTree>;
+  codeBlob?(
+    workspaceId: string,
+    id: string,
+    query: Record<string, string>,
+    signal?: AbortSignal,
+  ): Promise<CodeBlob>;
+  codeHistory?(
+    workspaceId: string,
+    id: string,
+    query: Record<string, string>,
+    signal?: AbortSignal,
+  ): Promise<CodeHistory>;
+  codeAccess?(workspaceId: string, id: string, signal?: AbortSignal): Promise<CodeAccess>;
+  shareCode?(workspaceId: string, id: string, input: CodeAccessInput): Promise<CodeAccess>;
+  codeArchiveUrl?(workspaceId: string, id: string, query: Record<string, string>): string;
   repositoryRecoveryState?(
     workspaceId: string,
     signal?: AbortSignal,
@@ -493,6 +526,43 @@ export function createControlCenterApi(
   };
 
   return {
+    codeCatalog: (ws, signal) =>
+      get(`${workspacePath(ws)}/code-repositories`, CodeCatalogSchema, signal),
+    codeTree: (ws, id, query, signal) =>
+      get(
+        `${workspacePath(ws)}/code-repositories/${encodeURIComponent(id)}/tree?${new URLSearchParams(query)}`,
+        CodeTreeSchema,
+        signal,
+      ),
+    codeBlob: (ws, id, query, signal) =>
+      get(
+        `${workspacePath(ws)}/code-repositories/${encodeURIComponent(id)}/blob?${new URLSearchParams(query)}`,
+        CodeBlobSchema,
+        signal,
+      ),
+    codeHistory: (ws, id, query, signal) =>
+      get(
+        `${workspacePath(ws)}/code-repositories/${encodeURIComponent(id)}/history?${new URLSearchParams(query)}`,
+        CodeHistorySchema,
+        signal,
+      ),
+    codeAccess: (ws, id, signal) =>
+      get(
+        `${workspacePath(ws)}/code-repositories/${encodeURIComponent(id)}/access`,
+        CodeAccessSchema,
+        signal,
+      ),
+    shareCode: (ws, id, input) =>
+      post(
+        `${workspacePath(ws)}/code-repositories/${encodeURIComponent(id)}/access`,
+        input,
+        CodeAccessSchema,
+      ),
+    codeArchiveUrl: (ws, id, query) =>
+      addBasePath(
+        `${workspacePath(ws)}/code-repositories/${encodeURIComponent(id)}/archive?${new URLSearchParams(query)}`,
+        basePath,
+      ),
     promotionState: (ws, signal) =>
       get(`${workspacePath(ws)}/artifact-promotions`, PromotionStateSchema, signal),
     preparePromotion: (ws, input) =>

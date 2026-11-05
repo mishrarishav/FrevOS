@@ -1,5 +1,22 @@
 # DevSetu Current State
 
+2026-11-05: ADR 0100 implements the owner's GitHub-style Code workspace on
+`codex/code-repository-workspace`, based on dc429dd. It enumerates approved,
+identity-verified central stores and optional hosted repositories, with branches,
+committed files/README/history and protected-path-filtered ZIP downloads. Legacy
+stores start administrator-only; active members receive revisioned read grants.
+Workspace/owner/provider checks protect direct APIs and legacy connector source
+exports, independently of UI visibility. Read grants do not grant publication
+or deployment rights. Actual Server20 inspection confirms Servix and DevSetu
+bare stores; the optional forge is not enrolled there. Published DevSetu source
+is older than the active operator-prepared release, and must be shown honestly.
+Focused real-Git/HTTP and native private-engine checks pass; isolated browser
+layout/navigation/access controls are exercised at desktop/tablet/mobile widths.
+Full regression and native release preparation are in progress. The public
+T-Server entry still serves b8d2e38 until a new exact artifact is activated.
+No repository refs, live grants, credentials, pairing or retained data have
+been changed by this task. See CODE_REPOSITORIES_HANDOFF.md for current limits.
+
 2026-11-04: Public-device release b8d2e38 is LIVE on Server20 through the
 authenticated DevSetu maintenance UI. Manifest
 ae5f7f0ee8e95d7bd1e6b069474e1cbf04e8e40e9b14d549bcc80492c737ed58,

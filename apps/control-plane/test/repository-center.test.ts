@@ -1,21 +1,21 @@
+import { mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
-import { mkdtemp, readFile, readdir, rm, writeFile, symlink } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, expect, it, vi } from "vitest";
-import { createRequire } from "node:module";
 import {
-  RepositoryHostingConfigSchema,
   RepositoryActionSchema,
+  RepositoryHostingConfigSchema,
   SafeGitBranchSchema,
   UserIdSchema,
 } from "@frevos/contracts";
+import { afterEach, expect, it, vi } from "vitest";
 import {
-  RepositoryCenter,
   giteaRequest,
-  validateRepositoryHosting,
   loadRepositoryHosting,
   privateGitAddress,
+  RepositoryCenter,
+  validateRepositoryHosting,
 } from "../src/repository-center.js";
 
 const cleanup: (() => Promise<unknown>)[] = [];
@@ -38,7 +38,8 @@ async function fixture() {
     changedUser = false,
     denied = false,
     checksReady = true,
-    protectedBranch = true;
+    protectedBranch = true,
+    readerAccess = true;
   let reviews = [{ user: users[1], state: "APPROVED", commit_id: sha, stale: false }];
   let rule = {
     rule_name: "main",
@@ -88,6 +89,10 @@ async function fixture() {
       send({}, 403);
       return;
     }
+    if (path.startsWith("/api/v1/users/")) {
+      send(users.find((u) => u.login === decodeURIComponent(path.slice("/api/v1/users/".length))));
+      return;
+    }
     const prefix = "/api/v1/repos/team/project";
     if (path === prefix) {
       send({
@@ -95,8 +100,27 @@ async function fixture() {
         name: "project",
         owner: { id: 5, login: "team" },
         default_branch: "main",
-        permissions: { pull: true, push: user.id !== 3, admin: user.id === 2 },
+        permissions: {
+          pull: user.id !== 3 || readerAccess,
+          push: user.id !== 3,
+          admin: user.id === 2,
+        },
       });
+      return;
+    }
+    if (path.startsWith(prefix + "/git/commits/")) {
+      send({
+        sha: baseSha,
+        commit: {
+          author: { name: "Fixture author", date: "2026-11-05T06:00:00+05:30" },
+          message: "Published commit\n\nDetails",
+        },
+      });
+      return;
+    }
+    if (path === prefix + "/collaborators/reader") {
+      readerAccess = request.method === "PUT";
+      send(null, 204);
       return;
     }
     if (path === prefix + "/branch_protections") {
@@ -210,6 +234,9 @@ async function fixture() {
     deny: () => {
       denied = true;
     },
+    readerAccess: (value: boolean) => {
+      readerAccess = value;
+    },
     checks: (ready: boolean) => {
       checksReady = ready;
     },
@@ -224,6 +251,48 @@ async function fixture() {
     },
   };
 }
+it("reads hosted source metadata and shares through verified provider accounts without downgrading existing developers", async () => {
+  const f = await fixture();
+  expect((await f.center.codeSource("usr_alice", "ws_team", repoId)).role).toBe("developer");
+  expect((await f.center.codeSource("usr_bob", "ws_team", repoId)).canManageAccess).toBe(true);
+  expect((await f.center.codeSource("usr_reader", "ws_team", repoId)).role).toBe("reader");
+  expect(await f.center.codeSummary("usr_alice", "ws_team", repoId)).toEqual({
+    sha: baseSha,
+    author: "Fixture author",
+    at: "2026-11-05T00:30:00.000Z",
+    subject: "Published commit",
+  });
+  expect((await f.center.codeBranches("usr_reader", "ws_team", repoId)).map((b) => b.name)).toEqual(
+    ["main", "feature/work"],
+  );
+  expect(await f.center.codeMemberAccess("usr_unknown", "ws_team", repoId)).toEqual({
+    access: false,
+    requiresAccountLink: true,
+  });
+  await expect(
+    f.center.shareCode("usr_alice", "ws_team", repoId, "usr_reader", false),
+  ).rejects.toThrow("admin-required");
+  await expect(
+    f.center.shareCode("usr_bob", "ws_team", repoId, "usr_unknown", true),
+  ).rejects.toThrow("target-account-not-linked");
+  await f.center.shareCode("usr_bob", "ws_team", repoId, "usr_alice", true);
+  expect(f.calls.some((c) => c.path.includes("/collaborators/alice"))).toBe(false);
+  await f.center.shareCode("usr_bob", "ws_team", repoId, "usr_reader", false);
+  expect(await f.center.codeMemberAccess("usr_reader", "ws_team", repoId)).toEqual({
+    access: false,
+    requiresAccountLink: false,
+  });
+  await f.center.shareCode("usr_bob", "ws_team", repoId, "usr_reader", true);
+  expect(await f.center.codeMemberAccess("usr_reader", "ws_team", repoId)).toEqual({
+    access: true,
+    requiresAccountLink: false,
+  });
+  f.userIdentity();
+  await expect(f.center.codeMemberAccess("usr_reader", "ws_team", repoId)).rejects.toThrow(
+    "account-identity-changed",
+  );
+});
+
 it("requires a live engine administrator for full recovery, binds its key and records idempotent single-use receipts", async () => {
   const f = await fixture();
   let keyBoundary: (() => Promise<Buffer>) | undefined,

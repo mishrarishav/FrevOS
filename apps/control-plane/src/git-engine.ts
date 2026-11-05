@@ -1,13 +1,14 @@
 import { execFile } from "node:child_process";
 import { lookup } from "node:dns/promises";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { join, resolve, sep } from "node:path";
 import { promisify } from "node:util";
-import { createRequire } from "node:module";
 import { GitObjectIdSchema, SafeGitBranchSchema } from "@frevos/contracts";
+import { CodeGit } from "./code-git.js";
 import { assertPlainPath } from "./model-secrets.js";
-import { ServixDeploymentError } from "./servix-deployment.js";
 import { privateGitAddress } from "./repository-center.js";
+import { ServixDeploymentError } from "./servix-deployment.js";
 
 const run = promisify(execFile);
 function fail(code: string): never {
@@ -202,6 +203,27 @@ export class GitEngine {
       if (bytes.length > 67108864) fail("bundle-capacity");
       await authorize();
       return { head, bytes };
+    });
+  }
+  async readSource<T>(
+    authorize: () => Promise<GitEngineAccess>,
+    branch: string,
+    work: (git: CodeGit, branch: string) => Promise<T>,
+  ) {
+    SafeGitBranchSchema.parse(branch);
+    return this.temporary(async (folder) => {
+      const access = await authorize();
+      await this.git(folder, ["init", "--bare", "."]);
+      await this.git(
+        folder,
+        ["fetch", "--no-tags", access.url, `refs/heads/${branch}:refs/heads/${branch}`],
+        access,
+      );
+      const fresh = await authorize();
+      if (fresh.url !== access.url || fresh.login !== access.login) fail("access-changed");
+      const value = await work(new CodeGit(folder, this.executable), branch);
+      await authorize();
+      return value;
     });
   }
 }
