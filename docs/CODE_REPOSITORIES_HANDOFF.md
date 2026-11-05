@@ -24,7 +24,7 @@ seconds and confirms successful delivery plus unchanged revoked-member denial.
 An accompanying UI fix clears protected state on HTTP 401 and reuses the existing
 session-expired/sign-in boundary. Focused regression, typecheck and an actual
 App/Code fixture pass; full native validation and corrective rollout are pending.
-No database writes, source publication, live grants or pairing changes are made.
+No schema migration, operator database writes, source publication, live grants or pairing changes are made.
 
 Repository: mishrarishav/FrevOS. Branch: `codex/code-repository-workspace`.
 Base: `dc429ddc033fd6346b5a7edcbac2d1ca0359c163`. ADR 0100 records the owner scope.
@@ -79,6 +79,15 @@ publish that application source; the UI must not present it as the latest push.
 Laptop-only, unpushed edits and compiled deployed bundles are not source commits.
 
 ## Validation and release state
+
+2026-11-05 corrective validation: source 3e4189b completes 589 of 590 tests.
+The unchanged ownership/catalogue case times out at 30 seconds in its initial
+Windows Git fixture. All other checks, including delayed authenticated Code TCP
+responses and both native Git/PR/RBAC/encrypted-recovery workflows, pass. No
+artifact is packaged or activated. Seed the same two revisions, protected files,
+binary/large metadata and branch in one real fast-import, then clone its working
+copy. Keep every assertion, test deadline, runtime implementation and coverage
+gate unchanged. Full frozen CI must pass again before corrected activation.
 
 - Focused contracts/API/render tests exercise typed paths, URL prefixes, CSRF,
   source escaping and navigation references. Full coverage is running.

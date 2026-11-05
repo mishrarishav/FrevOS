@@ -36,30 +36,61 @@ async function fixture() {
   const working = join(root, "working"),
     directory = join(root, "central.git"),
     id = "gitrepo_" + "a".repeat(32);
-  await mkdir(working);
   const git = (...args: string[]) =>
-    execute("git", ["-C", working, ...args], { windowsHide: true });
-  await git("init", "-b", "main");
-  await git("config", "user.name", "Code fixture");
-  await git("config", "user.email", "fixture@example.invalid");
-  await mkdir(join(working, "src"));
-  await mkdir(join(working, "runtime"));
-  await writeFile(
-    join(working, "README.md"),
-    "# Example project\n\nRead-only source browser fixture.",
+    execute(
+      "git",
+      [
+        "-C",
+        working,
+        "-c",
+        "user.name=Code fixture",
+        "-c",
+        "user.email=fixture@example.invalid",
+        ...args,
+      ],
+      { windowsHide: true },
+    );
+  // Seed the same real two-commit history in one import. Repeated init/config/
+  // add/commit processes made the first cold Windows fixture exceed its deadline.
+  await execute("git", ["init", "--bare", "--initial-branch=main", directory], {
+    windowsHide: true,
+  });
+  const entry = (name: string, bytes: Buffer) =>
+    Buffer.concat([
+      Buffer.from("M 100644 inline " + name + "\ndata " + bytes.length + "\n"),
+      bytes,
+      Buffer.from("\n"),
+    ]);
+  const commit = (subject: string, time: number) =>
+    Buffer.from(
+      "commit refs/heads/main\ncommitter Code fixture <fixture@example.invalid> " +
+        time +
+        " +0000\ndata " +
+        Buffer.byteLength(subject) +
+        "\n" +
+        subject +
+        "\n",
+    );
+  const imported = execute("git", ["--git-dir=" + directory, "fast-import", "--quiet"], {
+    windowsHide: true,
+  });
+  imported.child.stdin!.end(
+    Buffer.concat([
+      commit("Initial source", 1700000000),
+      entry("README.md", Buffer.from("# Example project\n\nRead-only source browser fixture.")),
+      entry("src/app.ts", Buffer.from("export const value = 'first';\n")),
+      entry(".env", Buffer.from("NOT_A_REAL_SECRET=fixture\n")),
+      entry("runtime/retained.txt", Buffer.from("Protected runtime fixture")),
+      entry("image.bin", Buffer.from([0, 1, 2])),
+      entry("large.txt", Buffer.alloc(524289, 65)),
+      Buffer.from("\nreset refs/heads/feature/example\nfrom refs/heads/main\n\n"),
+      commit("Update app behavior", 1700000001),
+      entry("src/app.ts", Buffer.from("export const value = 'second';\n")),
+      Buffer.from("\ndone\n"),
+    ]),
   );
-  await writeFile(join(working, "src", "app.ts"), "export const value = 'first';\n");
-  await writeFile(join(working, ".env"), "NOT_A_REAL_SECRET=fixture\n");
-  await writeFile(join(working, "runtime", "retained.txt"), "Protected runtime fixture");
-  await writeFile(join(working, "image.bin"), Buffer.from([0, 1, 2]));
-  await writeFile(join(working, "large.txt"), Buffer.alloc(524289, 65));
-  await git("add", ".");
-  await git("commit", "-m", "Initial source");
-  await git("branch", "feature/example");
-  await writeFile(join(working, "src", "app.ts"), "export const value = 'second';\n");
-  await git("add", "src/app.ts");
-  await git("commit", "-m", "Update app behavior");
-  await execute("git", ["clone", "--bare", working, directory], { windowsHide: true });
+  await imported;
+  await execute("git", ["clone", directory, working], { windowsHide: true });
   await execute("git", ["--git-dir=" + directory, "config", "devsetu.repositoryId", id], {
     windowsHide: true,
   });

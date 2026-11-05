@@ -1,5 +1,14 @@
 # DevSetu Current State
 
+2026-11-05 corrective validation: source 3e4189b completes 589 of 590 tests.
+The unchanged ownership/catalogue case times out at 30 seconds in its initial
+Windows Git fixture. All other checks, including delayed authenticated Code TCP
+responses and both native Git/PR/RBAC/encrypted-recovery workflows, pass. No
+artifact is packaged or activated. Seed the same two revisions, protected files,
+binary/large metadata and branch in one real fast-import, then clone its working
+copy. Keep every assertion, test deadline, runtime implementation and coverage
+gate unchanged. Full frozen CI must pass again before corrected activation.
+
 2026-11-05: Code source e4f93ad is deployed through authenticated DevSetu request
 su_80f4123670420609bab7033f72d27d2d. Manifest
 fe9ba7ebb9e672736e24fcc37c56ad0dd96c9ef92e3cc575b71dd9d461642d9d,
