@@ -4,13 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { inflateRawSync } from "node:zlib";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { CodeGit } from "../src/code-git.js";
 import { type CentralCodeSource, CodeRepositories } from "../src/code-repositories.js";
 
 const execute = promisify(execFile),
   cleanups: (() => Promise<unknown>)[] = [];
 afterEach(async () => {
+  vi.restoreAllMocks();
   for (const f of cleanups.splice(0).reverse()) await f();
 });
 function zipFiles(zip: Buffer) {
@@ -209,6 +210,11 @@ it("grants once with a revision, denies sharing by readers, and revokes tree/blo
     allow: true,
   });
   expect(shared.revision).toBe(1);
+  await f.service.authorize("usr_alice", "ws_fixture", f.id, true);
+  await f.service.authorize("usr_bob", "ws_fixture", f.id);
+  await expect(f.service.authorize("usr_bob", "ws_fixture", f.id, true)).rejects.toThrow(
+    "publication-denied",
+  );
   expect((await f.service.catalog("usr_bob", "ws_fixture")).repositories[0]?.role).toBe("reader");
   expect((await f.service.tree("usr_bob", "ws_fixture", f.id, {})).entries.length).toBeGreaterThan(
     1,
@@ -255,9 +261,19 @@ it("grants once with a revision, denies sharing by readers, and revokes tree/blo
         path: action === "blob" ? "README.md" : "",
       }),
     ).rejects.toThrow("not-found");
+  f.setRegistry([{ ...f.source, ownerId: "usr_bob" }]);
+  await expect(f.service.catalog("usr_admin", "ws_fixture")).rejects.toThrow(
+    "access-identity-changed",
+  );
 });
 it("refuses swapped repository markers and paths, empty sources and unknown object requests honestly", async () => {
   const f = await fixture();
+  f.setRegistry([f.source, f.source]);
+  await expect(f.service.catalog("usr_admin", "ws_fixture")).rejects.toThrow("registry-conflict");
+  await expect(f.service.tree("usr_admin", "ws_fixture", f.id, {})).rejects.toThrow(
+    "registry-conflict",
+  );
+  f.setRegistry([f.source]);
   await execute(
     "git",
     ["--git-dir=" + f.directory, "config", "devsetu.repositoryId", "gitrepo_" + "c".repeat(32)],
@@ -272,6 +288,9 @@ it("refuses swapped repository markers and paths, empty sources and unknown obje
   await expect(
     f.service.tree("usr_admin", "ws_fixture", "gitrepo_" + "d".repeat(32), {}),
   ).rejects.toThrow("not-found");
+  await expect(
+    f.service.tree("usr_admin", "ws_fixture", "repo_" + "d".repeat(32), {}),
+  ).rejects.toThrow("not-found");
   const empty = join(f.root, "empty.git");
   await execute("git", ["init", "--bare", empty], { windowsHide: true });
   await execute("git", ["--git-dir=" + empty, "config", "devsetu.repositoryId", f.id], {
@@ -284,6 +303,66 @@ it("refuses swapped repository markers and paths, empty sources and unknown obje
   await expect(
     f.service.blob("usr_admin", "ws_fixture", f.id, { path: "README.md" }),
   ).rejects.toThrow("branch-not-found");
+});
+it("refuses oversized access records and excess branches instead of returning partial or broadened access", async () => {
+  const f = await fixture();
+  await f.service.share("usr_alice", "ws_fixture", f.id, {
+    version: 1,
+    expectedRevision: 0,
+    userId: "usr_bob",
+    allow: true,
+  });
+  await writeFile(join(f.root, "state/access", f.id + ".json"), Buffer.alloc(131073, 32));
+  await expect(f.service.tree("usr_admin", "ws_fixture", f.id, {})).rejects.toThrow(
+    "access-unavailable",
+  );
+  const head = (await f.git("rev-parse", "HEAD")).stdout.trim();
+  const refs = execute("git", ["--git-dir=" + f.directory, "update-ref", "--stdin"], {
+    windowsHide: true,
+  });
+  refs.child.stdin!.end(
+    Array.from({ length: 201 }, (_, i) => `create refs/heads/branch-${i} ${head}\n`).join(""),
+  );
+  await refs;
+  await expect(new CodeGit(f.directory, "git").branches()).rejects.toThrow("branch-capacity");
+});
+it("bounds concurrent ZIP work and refuses a completed export after its user's access is withdrawn", async () => {
+  const f = await fixture();
+  let started!: () => void, release!: () => void;
+  const entered = new Promise<void>((resolve) => {
+      started = resolve;
+    }),
+    gate = new Promise<void>((resolve) => {
+      release = resolve;
+    }),
+    original = CodeGit.prototype.archive;
+  const spy = vi.spyOn(CodeGit.prototype, "archive").mockImplementation(async function (
+    this: CodeGit,
+    head,
+    name,
+  ) {
+    started();
+    await gate;
+    return original.call(this, head, name);
+  });
+  const first = f.service.archive("usr_alice", "ws_fixture", f.id, {});
+  const denied = expect(first).rejects.toThrow("access-denied");
+  try {
+    await entered;
+    await expect(f.service.archive("usr_alice", "ws_fixture", f.id, {})).rejects.toThrow(
+      "download-busy",
+    );
+    f.setActive(false);
+    release();
+    await denied;
+  } finally {
+    release();
+    spy.mockRestore();
+  }
+  f.setActive(true);
+  expect(
+    (await f.service.archive("usr_alice", "ws_fixture", f.id, {})).bytes.length,
+  ).toBeGreaterThan(100);
 });
 it("paginates actual folders and commit history without skipping the final entries", async () => {
   const f = await fixture();

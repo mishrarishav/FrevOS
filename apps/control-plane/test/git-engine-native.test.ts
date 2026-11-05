@@ -1,9 +1,11 @@
-import { createRequire } from "node:module";
 import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
-import { RepositoryCenter } from "../src/repository-center.js";
+import { CodeRepositories } from "../src/code-repositories.js";
 import { GitEngine } from "../src/git-engine.js";
+import { RepositoryCenter } from "../src/repository-center.js";
+
 const binary =
   process.env["DEVSETU_TEST_GITEA"] ??
   fileURLToPath(
@@ -18,9 +20,15 @@ const { runNativeAcceptance } = createRequire(import.meta.url)(
 it.skipIf(!existsSync(binary))(
   "uses the pinned native engine for real Git/PR/RBAC and encrypted full recovery including metadata",
   async () => {
-    const result = await runNativeAcceptance({ RepositoryCenter, GitEngine, binary });
+    const result = await runNativeAcceptance({
+      RepositoryCenter,
+      GitEngine,
+      CodeRepositories,
+      binary,
+    });
     expect(result.status).toBe("PASS");
     expect(result.checks).toContain("restored-refs-roles-pr-reviews");
+    expect(result.checks).toContain("code-workspace-provider-sharing-and-browsing");
     expect(existsSync(result.root)).toBe(false);
   },
   180000,

@@ -27,6 +27,7 @@ receipt before the original enrolled native build begins.
 - `apps/control-plane/test/code-repositories.test.ts`
 - `apps/control-plane/test/code-routes.test.ts`
 - `apps/control-plane/test/developer-connectors.test.ts`
+- `apps/control-plane/test/git-engine-native.test.ts`
 - `apps/control-plane/test/repository-center.test.ts`
 - `deployment/server20/HttpCommon.ps1`
 - `deployment/server20/New-ServixDashboardRelease.ps1`
@@ -63,12 +64,28 @@ environment. Existing tests/timeouts/coverage thresholds are retained.
 | Contract coverage suite | 103 tests pass; global thresholds pass |
 | Frontend coverage suite | 118 tests pass; API/experience/routing coverage 100% |
 | Full backend coverage attempt | Interrupted after Docker container creation failed, before a complete report |
+| First frozen native CI, a59d6ee | All 587 tests pass; statement coverage 94.69% fails the unchanged 95% gate |
+| Code workspace/native-engine combined coverage | 10 tests pass; new-module statements 95.56%, branches 91.21%, lines 98.53%, functions 100% |
 
 The Docker runtime failure reproduces independently of application code. After
 Docker Desktop restart, the original four preview container IDs/images/mounts
 match and all are healthy. The same actual account integration test passes.
 The enrolled native builder must still run the complete frozen-source CI. No
 partial local run is accepted as the final artifact gate.
+
+The first complete frozen run is retained as failed validation; it created no
+deployable artifact and performed no activation. Additional acceptance exercises
+the Code workspace service itself against the real pinned Git engine for
+catalog/tree/file/history/ZIP and revisioned provider grants/revocation. The
+central-store cases additionally verify publication denial for read grants,
+policy identity changes, conflicting registrations, concurrent ZIP capacity and
+revocation while a ZIP is generated, oversized policies and branch quotas.
+Hosted catalog/tree and grants use the actual workspace service. The existing
+engine read proof checks file contents/history/ZIP in one fetched checkout;
+central service tests exercise their full API paths. Duplicate newly added
+fetches are removed after the expanded fixture times out; the final 10-test
+combined run passes within the existing deadlines and all scoped gates. Existing
+assertions and global gates are retained. Full frozen native CI must still pass.
 
 Browser checks use labeled isolated design data in actual App/Code components.
 See the handoff for dimensions, scrolling, navigation and access-control checks.

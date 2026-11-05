@@ -1,5 +1,16 @@
 # DevSetu Current State
 
+2026-11-05: The first Code release source a59d6ee completes all 587 native CI
+tests, but statement coverage is 94.69%, below the existing 95% gate. The original
+enrolled build stops before packaging/activation. Preserve that failed attempt.
+Add real Code-workspace/provider browsing and share/revoke acceptance, plus
+central permission, identity and concurrent-export checks. Do not lower gates
+or reuse a partial result as a release. Existing application remains b8d2e38;
+eight pairings, seven stable settings/config files and 17 software records are
+observed intact. The builder-side packaging update preserves its sealed
+configuration, adapter, scheduled task and ACL. Docker restart retains all four
+preview IDs/images/mount mappings and restores healthy state.
+
 2026-11-05: ADR 0100 implements the owner's GitHub-style Code workspace on
 `codex/code-repository-workspace`, based on dc429dd. It enumerates approved,
 identity-verified central stores and optional hosted repositories, with branches,

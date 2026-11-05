@@ -80,6 +80,16 @@ Laptop-only, unpushed edits and compiled deployed bundles are not source commits
   subsequently pass. The frozen native build must still run every original gate;
   no timeout, coverage threshold or test was weakened. Native artifact/live
   acceptance remain pending.
+- First complete frozen native CI on a59d6ee passes all 587 tests, but its 94.69%
+  statement coverage fails the unchanged 95% gate. This attempt is retained as
+  failed validation, with no artifact activation. The next validation adds the
+  actual Code workspace/provider flow and permission/storage/concurrency cases;
+  application implementation and coverage thresholds are unchanged.
+- Final focused Code/native-engine acceptance passes 10 tests, including real
+  hosted catalog/tree/roles, grant/revoke, provider file/history/ZIP and central
+  policy/identity/quota/concurrent-export checks. Scoped new-module coverage is
+  95.56% statements, 91.21% branches, 98.53% lines and 100% functions. The original
+  global frozen-source CI is still required; this scoped report does not replace it.
 
 Commands and final changed-file inventory will be recorded in
 CODE_REPOSITORIES_CHANGESET.md after validation. Existing pairings, databases,

@@ -633,6 +633,67 @@ async function runNativeAcceptance(implementations = {}) {
     await center.shareCode(ids.owner, "ws_team", repoId, ids.reader, true);
     if ((await center.codeSource(ids.reader, "ws_team", repoId)).canManageAccess)
       throw Error("read-grant-elevated");
+    stage = "native-code-workspace-integration";
+    const { CodeRepositories } = implementations.CodeRepositories
+      ? implementations
+      : await import("../apps/control-plane/dist/code-repositories.js");
+    const members = Object.entries(ids).map(([name, userId]) => ({
+      userId,
+      name,
+      administrator: name === "owner",
+    }));
+    const code = new CodeRepositories(
+      path.join(root, "code-workspace-state"),
+      "ws_team",
+      async () => [],
+      async (actor) => ({
+        active: members.some((m) => m.userId === actor),
+        administrator: actor === ids.owner,
+      }),
+      async () => members,
+      center,
+    );
+    const visible = await code.catalog(ids.reader, "ws_team");
+    if (!visible.repositories.some((r) => r.id === repoId && r.status === "ready"))
+      throw Error("code-workspace-catalog");
+    const page = await code.tree(ids.reader, "ws_team", repoId, {});
+    if (
+      !page.branches.length ||
+      !page.entries.some((entry) => entry.name === "app.js" && entry.kind === "file") ||
+      page.head !== summary.sha
+    )
+      throw Error("code-workspace-source");
+    // Blob/history/ZIP share the read bridge exercised above in one fetched
+    // checkout; their Code-service paths also run against real bare Git tests.
+    const initialAccess = await code.access(ids.owner, "ws_team", repoId);
+    if (
+      !initialAccess.users.find((u) => u.userId === ids.bob)?.inherited ||
+      !initialAccess.users.find((u) => u.userId === ids.reader)?.access
+    )
+      throw Error("code-provider-access-not-visible");
+    await center.shareCode(ids.owner, "ws_team", repoId, ids.reader, false);
+    const granted = await code.share(ids.owner, "ws_team", repoId, {
+      version: 1,
+      expectedRevision: 0,
+      userId: ids.reader,
+      allow: true,
+    });
+    if (
+      !granted.users.find((u) => u.userId === ids.reader)?.access ||
+      granted.users.find((u) => u.userId === ids.reader)?.inherited
+    )
+      throw Error("code-workspace-grant");
+    const revoked = await code.share(ids.owner, "ws_team", repoId, {
+      version: 1,
+      expectedRevision: 1,
+      userId: ids.reader,
+      allow: false,
+    });
+    if (revoked.users.find((u) => u.userId === ids.reader)?.access)
+      throw Error("code-workspace-revoke");
+    await rejected(() => code.tree(ids.reader, "ws_team", repoId, {}), "repository-not-found");
+    // Restore the original engine role before the existing full recovery checks.
+    await center.shareCode(ids.owner, "ws_team", repoId, ids.reader, true);
     stage = "full-quiesced-backup";
     const { GitRecovery, verifyIsolatedEngine } = require("../deployment/servix/GitRecovery.cjs");
     storage = await fs.mkdtemp(path.join(os.tmpdir(), "git-recovery-"));
@@ -739,6 +800,7 @@ async function runNativeAcceptance(implementations = {}) {
         "environment-preserved",
         "committed-code-browser-and-zip",
         "provider-read-share-and-revoke",
+        "code-workspace-provider-sharing-and-browsing",
         "full-quiesced-encrypted-backup",
         "isolated-native-restore",
         "offline-database-consistency",
