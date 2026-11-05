@@ -1,6 +1,30 @@
 # Code repository workspace
 
-Status: Validation in progress; application activation is pending.
+Status: Initial deployment and actual public repository/ZIP acceptance PASS;
+corrective idle-timeout/session-UX release in validation.
+
+The e4f93ad artifact is live through authenticated DevSetu request
+su_80f4123670420609bab7033f72d27d2d; manifest
+fe9ba7ebb9e672736e24fcc37c56ad0dd96c9ef92e3cc575b71dd9d461642d9d.
+The complete native CI passes all 590 tests across 118 files. Native Apply,
+packaged runtime, preservation and actual public installer downloads pass.
+Actual administrator sign-in shows the three registered repositories. Both
+requested ZIPs download through the public Code UI and match real-source hashes:
+Servix 2,222,749 bytes (751 entries, two protected paths excluded), DevSetu
+1,612,015 bytes (585 entries, one excluded). Original refs remain unchanged.
+This is authenticated administrator acceptance; no live non-admin grants were
+created for testing. Isolated ownership/share/revoke checks remain separate.
+
+Correlated public and Server20 IIS records identify intermittent Code failures
+as 502.3 / WinHTTP 12152 at the application's ten-second idle socket deadline.
+The correction extends only authenticated Code response sockets to 90 seconds,
+retaining Git's bounded subprocess execution and normal unauthenticated limits.
+A real TCP regression deliberately holds catalogue/tree/ZIP responses for eleven
+seconds and confirms successful delivery plus unchanged revoked-member denial.
+An accompanying UI fix clears protected state on HTTP 401 and reuses the existing
+session-expired/sign-in boundary. Focused regression, typecheck and an actual
+App/Code fixture pass; full native validation and corrective rollout are pending.
+No database writes, source publication, live grants or pairing changes are made.
 
 Repository: mishrarishav/FrevOS. Branch: `codex/code-repository-workspace`.
 Base: `dc429ddc033fd6346b5a7edcbac2d1ca0359c163`. ADR 0100 records the owner scope.

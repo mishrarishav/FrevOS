@@ -1418,10 +1418,14 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
   );
   server.get<{ Params: WorkspaceParams }>(
     route("/v1/workspaces/:workspaceId/code-repositories"),
-    async (request) => {
+    async (request, reply) => {
       const e = await requireWorkspace(request, options, "project:read", now());
       if (!options.codeRepositories)
         return { workspaceId: e.workspaceId, administrator: false, repositories: [] };
+      // Cold Git reads on Windows can exceed the normal ten-second idle socket
+      // limit. Extend only authenticated Code reads; Git execution stays bounded.
+      if (typeof reply.raw.setTimeout === "function")
+        reply.raw.setTimeout(90_000, () => reply.raw.destroy());
       return options.codeRepositories.catalog(e.session.session.context.userId, e.workspaceId);
     },
   );
@@ -1432,6 +1436,8 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
         const e = await requireWorkspace(request, options, "project:read", now());
         const service = options.codeRepositories;
         if (!service) throw new HttpError(503, "code-repositories-unavailable");
+        if (typeof reply.raw.setTimeout === "function")
+          reply.raw.setTimeout(90_000, () => reply.raw.destroy());
         const actor = e.session.session.context.userId,
           id = request.params.repositoryId;
         reply.header("Cache-Control", "no-store");

@@ -255,6 +255,12 @@ export function App({
       });
   }, [api]);
 
+  const expireCodeSession = useCallback(() => {
+    initialRequest.current?.abort();
+    selectionRequest.current?.abort();
+    setExperience({ kind: "session-expired" });
+  }, []);
+
   useEffect(() => {
     if (initialExperience === undefined) {
       loadExperience();
@@ -481,6 +487,7 @@ export function App({
               userId={experience.session.userId}
               scopeName={workspaceDisplayName(experience.workspace)}
               navigate={navigate}
+              onSessionExpired={expireCodeSession}
             />
           ) : null}
           {route?.id === "local-development" &&

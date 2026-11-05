@@ -129,6 +129,42 @@ it("protects every code/download route with live workspace authentication and ac
       (await server.inject({ method: "GET", url: `${root}/${id}/archive`, headers })).statusCode,
     ).toBe(403);
     expect(archive).toHaveBeenCalledOnce();
+
+    // Exercise actual TCP sockets: injection cannot reproduce the ten-second
+    // connection timeout which interrupted cold catalogue/tree/ZIP reads in IIS.
+    active = true;
+    const originalCatalog = vi.mocked(service.catalog).getMockImplementation()!,
+      originalTree = vi.mocked(service.tree).getMockImplementation()!,
+      originalArchive = vi.mocked(service.archive).getMockImplementation()!;
+    const pause = () => new Promise<void>((resolve) => setTimeout(resolve, 11_000));
+    vi.spyOn(service, "catalog").mockImplementation(async (...args) => {
+      await pause();
+      return originalCatalog(...args);
+    });
+    vi.spyOn(service, "tree").mockImplementation(async (...args) => {
+      await pause();
+      return originalTree(...args);
+    });
+    vi.spyOn(service, "archive").mockImplementation(async (...args) => {
+      await pause();
+      return originalArchive(...args);
+    });
+    await server.listen({ host: "127.0.0.1", port: 0 });
+    const address = server.server.address();
+    if (!address || typeof address === "string") throw Error("No Code fixture TCP listener");
+    const base = `http://127.0.0.1:${address.port}`;
+    const responses = await Promise.all(
+      [root, `${root}/${id}/tree`, `${root}/${id}/archive`].map((url) =>
+        fetch(base + url, { headers, signal: AbortSignal.timeout(20_000) }),
+      ),
+    );
+    expect(responses.map((response) => response.status)).toEqual([200, 200, 200]);
+    expect(await responses[0]!.json()).toMatchObject({ workspaceId: ws });
+    expect(await responses[1]!.json()).toEqual({ fixture: true });
+    expect(await responses[2]!.text()).toBe("PK-fixture");
+    active = false;
+    expect((await fetch(base + `${root}/${id}/archive`, { headers })).status).toBe(403);
+    expect(archive).toHaveBeenCalledTimes(2);
   } finally {
     await server.close();
   }

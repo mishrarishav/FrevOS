@@ -1,5 +1,37 @@
 # DevSetu Current State
 
+2026-11-05: Code source e4f93ad is deployed through authenticated DevSetu request
+su_80f4123670420609bab7033f72d27d2d. Manifest
+fe9ba7ebb9e672736e24fcc37c56ad0dd96c9ef92e3cc575b71dd9d461642d9d,
+archive f22bbe9ed82d7fe4653f946b3ed075bd6cc1126ed7f84828409220d288bfb5a6.
+All 590 tests across 118 files and the unchanged full native CI pass; backend
+coverage is 95.05% statements, 91.81% branches, 97.14% functions and 96.93% lines.
+Packaged Code/auth/ZIP/revocation and all three installer reviews pass. Actual
+public Windows/Linux/Android downloads match the manifest under strict TLS.
+Native Apply and private/public health pass. Eight pairings, seven settings,
+17 software records, 33 selected snapshot files and three routing/config files
+are retained. No schema migration or live access grant is performed.
+
+Authenticated public Code acceptance now confirms all three registered repositories
+and actual browser downloads of both requested source ZIPs. Downloaded bytes match
+the real-source export hashes: Servix 2,222,749 bytes / 751 entries, DevSetu
+1,612,015 bytes / 585 entries, with protected environment/runtime paths excluded.
+Their pushed heads remain 72cd488 and 074b9e5; no source publication is implied.
+
+The intermittent loading failure is traced through correlated IIS logs: Server20
+returns 502.3 / WinHTTP 12152 at approximately 10,031 ms, while a subsequent
+identical authenticated read succeeds. The application's normal connection idle
+timeout is ten seconds. Extend only authenticated Code catalogue/tree/blob/
+history/access/archive response sockets to 90 seconds; retain normal unauthenticated
+limits, bounded Git subprocesses, authorization, export quotas and post-export
+access checks. A real TCP regression delays catalogue, tree and ZIP for eleven
+seconds concurrently and verifies all complete, then checks revoked membership
+still denies download. That focused test passes. The frontend also discards
+protected Code state and enters the existing session-expired boundary on HTTP 401;
+actual App/Code fixture acceptance and typecheck pass. This corrective artifact
+is not deployed yet; full frozen-source CI and exact-artifact activation follow.
+Pairing, roles, source refs, retained files, database and IIS remain unchanged.
+
 2026-11-05: Final focused Code acceptance passes 10 tests with new-module
 coverage 95.56% statements, 91.21% branches, 98.53% lines and 100% functions.
 The original full native Git/recovery test separately passes its unchanged

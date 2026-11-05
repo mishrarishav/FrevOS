@@ -21,8 +21,8 @@ import {
   Search,
   Users,
 } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
-import type { ControlCenterApi } from "./api.js";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
+import { ApiFailure, type ControlCenterApi } from "./api.js";
 import { RecordBadge, RecordWorkspace } from "./RecordWorkspace.js";
 import { RepositoryCenterPage } from "./RepositoryCenterPage.js";
 import { WorkspaceDialog } from "./WorkspaceDialog.js";
@@ -92,8 +92,25 @@ export function CodePage(props: {
   userId: string;
   scopeName: string;
   navigate: (url: string) => void;
+  onSessionExpired?: () => void;
 }) {
-  const { api, workspaceId, userId, scopeName } = props;
+  const { api, workspaceId, userId, scopeName, onSessionExpired } = props;
+  const sessionFailed = useCallback(
+    (reason: unknown) => {
+      if (!(reason instanceof ApiFailure) || reason.kind !== "unauthenticated") return false;
+      setCatalog(null);
+      setTree(null);
+      setBlob(null);
+      setHistory(null);
+      setBranches([]);
+      setAccess(null);
+      setAccessOpen(false);
+      setError("Your session has expired. Sign in again to load your repositories.");
+      onSessionExpired?.();
+      return true;
+    },
+    [onSessionExpired],
+  );
   const [location, setLocation] = useState<Location>(() =>
     typeof window === "undefined" ? emptyLocation : codeLocation(window.location.search),
   );
@@ -162,8 +179,8 @@ export function CodePage(props: {
       .then((value) => {
         if (!abort.signal.aborted) setCatalog(value);
       })
-      .catch(() => {
-        if (!abort.signal.aborted)
+      .catch((reason: unknown) => {
+        if (!abort.signal.aborted && !sessionFailed(reason))
           setError(
             "Repositories could not be loaded. Check your session and connection, then Retry.",
           );
@@ -172,7 +189,7 @@ export function CodePage(props: {
         if (!abort.signal.aborted) setLoading(false);
       });
     return () => abort.abort();
-  }, [api, workspaceId, reload]);
+  }, [api, workspaceId, reload, sessionFailed]);
   const repo = selected?.id ?? "",
     branch = location.branch || selected?.defaultBranch || "",
     path = location.path,
@@ -213,8 +230,8 @@ export function CodePage(props: {
           setBranches((value as CodeTree).branches);
         }
       })
-      .catch(() => {
-        if (!abort.signal.aborted)
+      .catch((reason: unknown) => {
+        if (!abort.signal.aborted && !sessionFailed(reason))
           setReadError(
             "Source could not be loaded. The branch may have changed or your access may have been removed. Refresh to check again.",
           );
@@ -223,7 +240,7 @@ export function CodePage(props: {
         if (!abort.signal.aborted) setReading(false);
       });
     return () => abort.abort();
-  }, [api, workspaceId, repo, branch, path, file, page, tab, empty, reload]);
+  }, [api, workspaceId, repo, branch, path, file, page, tab, empty, reload, sessionFailed]);
   useEffect(() => {
     if (!accessOpen || !repo) return;
     const abort = new AbortController();
@@ -233,11 +250,12 @@ export function CodePage(props: {
       .then((value) => {
         if (!abort.signal.aborted) setAccess(value);
       })
-      .catch(() => {
-        if (!abort.signal.aborted) setAccessError("Access information could not be loaded.");
+      .catch((reason: unknown) => {
+        if (!abort.signal.aborted && !sessionFailed(reason))
+          setAccessError("Access information could not be loaded.");
       });
     return () => abort.abort();
-  }, [api, workspaceId, repo, accessOpen]);
+  }, [api, workspaceId, repo, accessOpen, sessionFailed]);
   async function share(target: CodeAccess["users"][number]["userId"], allow: boolean) {
     if (!access || !api.shareCode) return;
     setAccessBusy(true);
@@ -251,10 +269,11 @@ export function CodePage(props: {
           allow,
         }),
       );
-    } catch {
-      setAccessError(
-        "Access was not confirmed. Close and reopen this panel to check current permissions before retrying.",
-      );
+    } catch (reason: unknown) {
+      if (!sessionFailed(reason))
+        setAccessError(
+          "Access was not confirmed. Close and reopen this panel to check current permissions before retrying.",
+        );
     } finally {
       setAccessBusy(false);
     }
