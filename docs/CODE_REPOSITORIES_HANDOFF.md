@@ -90,6 +90,19 @@ Laptop-only, unpushed edits and compiled deployed bundles are not source commits
   policy/identity/quota/concurrent-export checks. Scoped new-module coverage is
   95.56% statements, 91.21% branches, 98.53% lines and 100% functions. The original
   global frozen-source CI is still required; this scoped report does not replace it.
+- The next frozen source, 383e58f, passes 587 of 589 tests but hits the original
+  pagination/native-engine time limits. Preserve that failed attempt. The fixture
+  now imports the same real 135-file/35-commit Git history in one process and
+  removes duplicate added provider round trips, preserving the Code-service
+  grant/revoke and existing recovery assertions. Full acceptance must pass with
+  the original deadlines and global coverage thresholds before packaging.
+- The new hosted-Code workflow is now a separate native acceptance fixture;
+  the full original Git/PR/RBAC/encrypted-recovery workflow is preserved and
+  separately passes at 177 seconds with its original 180-second deadline.
+  The Code fixture passes at 21.8 seconds. Final targeted Code acceptance passes
+  10 tests with 95.56% statements, 91.21% branches, 98.53% lines and 100% functions.
+  That targeted command filters the already separately exercised original native
+  test; the upcoming complete frozen-source CI must execute both native tests.
 
 Commands and final changed-file inventory will be recorded in
 CODE_REPOSITORIES_CHANGESET.md after validation. Existing pairings, databases,

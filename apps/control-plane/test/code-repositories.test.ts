@@ -366,22 +366,20 @@ it("bounds concurrent ZIP work and refuses a completed export after its user's a
 });
 it("paginates actual folders and commit history without skipping the final entries", async () => {
   const f = await fixture();
-  await mkdir(join(f.working, "many"));
-  await Promise.all(
-    Array.from({ length: 135 }, (_, i) =>
-      writeFile(join(f.working, "many", String(i).padStart(3, "0") + ".txt"), "Source fixture"),
-    ),
-  );
-  await f.git("add", "many");
-  await f.git("commit", "-m", "Many source files");
-  await execute("git", ["--git-dir=" + f.directory, "fetch", f.working, "main:main"], {
-    windowsHide: true,
-  });
   const parent = (await f.git("rev-parse", "HEAD")).stdout.trim();
-  const data = Array.from({ length: 32 }, (_, i) => {
-    const subject = "History change " + i;
-    return `commit refs/heads/history\nmark :${i + 1}\ncommitter Fixture <fixture@example.invalid> ${1700000000 + i} +0000\ndata ${Buffer.byteLength(subject)}\n${subject}\nfrom ${i === 0 ? parent : ":" + i}\n\n`;
-  }).join("");
+  // Import real committed objects in one Git process. This avoids creating
+  // 135 OS files and another working-tree checkout merely to test Git paging.
+  const files = Array.from(
+    { length: 135 },
+    (_, i) => `M 100644 inline many/${String(i).padStart(3, "0")}.txt\ndata 14\nSource fixture\n`,
+  ).join("");
+  const initial = `commit refs/heads/main\nmark :1\ncommitter Fixture <fixture@example.invalid> 1699999999 +0000\ndata 17\nMany source files\nfrom ${parent}\n${files}\n`;
+  const data =
+    initial +
+    Array.from({ length: 32 }, (_, i) => {
+      const subject = "History change " + i;
+      return `commit refs/heads/history\nmark :${i + 2}\ncommitter Fixture <fixture@example.invalid> ${1700000000 + i} +0000\ndata ${Buffer.byteLength(subject)}\n${subject}\nfrom :${i + 1}\n\n`;
+    }).join("");
   const imported = execute("git", ["--git-dir=" + f.directory, "fast-import", "--quiet"], {
     windowsHide: true,
   });

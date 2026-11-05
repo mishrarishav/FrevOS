@@ -6,11 +6,108 @@ const fs = require("node:fs/promises"),
   { execFile, spawn } = require("node:child_process"),
   { promisify } = require("node:util");
 const run = promisify(execFile);
+async function verifyNativeCodeWorkspace({ root, ids, repoId, center, CodeRepositories }) {
+  const rejected = async (work, code) => {
+    try {
+      await work();
+    } catch (error) {
+      if (error.code === code || error.message === code) return;
+      throw Error("unexpected-code-workspace-rejection");
+    }
+    throw Error("missing-code-workspace-rejection");
+  };
+  const codeProof = await center.readCode(
+    ids.reader,
+    "ws_team",
+    repoId,
+    "main",
+    async (git, branch) => {
+      const head = await git.resolve(branch);
+      const blob = await git.blob(head, "README.md");
+      const archive = await git.archive(head, "native-code-fixture");
+      return {
+        text: blob.text,
+        bytes: archive.bytes.length,
+        commits: (await git.history(head)).commits.length,
+      };
+    },
+  );
+  if (!codeProof.text.includes("desktop-project") || codeProof.bytes < 100 || !codeProof.commits)
+    throw Error("code-committed-source-or-archive");
+  const members = Object.entries(ids).map(([name, userId]) => ({
+    userId,
+    name,
+    administrator: name === "owner",
+  }));
+  const code = new CodeRepositories(
+    path.join(root, "code-workspace-state"),
+    "ws_team",
+    async () => [],
+    async (actor) => ({
+      active: members.some((m) => m.userId === actor),
+      administrator: actor === ids.owner,
+    }),
+    async () => members,
+    center,
+  );
+  const visible = await code.catalog(ids.reader, "ws_team");
+  const visibleSource = visible.repositories.find((r) => r.id === repoId);
+  if (
+    visibleSource?.status !== "ready" ||
+    visibleSource.canManageAccess ||
+    !visibleSource.head?.sha ||
+    !visibleSource.head.subject
+  )
+    throw Error("code-workspace-catalog");
+  const page = await code.tree(ids.reader, "ws_team", repoId, {});
+  if (
+    !page.branches.length ||
+    !page.entries.some((entry) => entry.name === "README.md" && entry.kind === "file") ||
+    page.head !== visibleSource.head.sha
+  )
+    throw Error("code-workspace-source");
+  // Blob/history/ZIP share the read bridge exercised above in one fetched
+  // checkout; their Code-service paths also run against real bare Git tests.
+  const initialAccess = await code.access(ids.owner, "ws_team", repoId);
+  if (
+    initialAccess.ownerId !== ids.owner ||
+    !initialAccess.users.find((u) => u.userId === ids.bob)?.inherited ||
+    !initialAccess.users.find((u) => u.userId === ids.reader)?.access
+  )
+    throw Error("code-provider-access-not-visible");
+  await center.shareCode(ids.owner, "ws_team", repoId, ids.reader, false);
+  const granted = await code.share(ids.owner, "ws_team", repoId, {
+    version: 1,
+    expectedRevision: 0,
+    userId: ids.reader,
+    allow: true,
+  });
+  if (
+    !granted.users.find((u) => u.userId === ids.reader)?.access ||
+    granted.users.find((u) => u.userId === ids.reader)?.inherited
+  )
+    throw Error("code-workspace-grant");
+  const revoked = await code.share(ids.owner, "ws_team", repoId, {
+    version: 1,
+    expectedRevision: 1,
+    userId: ids.reader,
+    allow: false,
+  });
+  if (revoked.users.find((u) => u.userId === ids.reader)?.access)
+    throw Error("code-workspace-revoke");
+  await rejected(() => code.tree(ids.reader, "ws_team", repoId, {}), "repository-not-found");
+  // Leave the fixture provider role as it was before the managed grant.
+  await center.shareCode(ids.owner, "ws_team", repoId, ids.reader, true);
+}
 async function runNativeAcceptance(implementations = {}) {
   let stage = "initialize",
     child,
     root,
     storage;
+  const mark = (next) => {
+    stage = next;
+    implementations.onStage?.(stage);
+  };
   return (async () => {
     const { testEnginePins } = await import("./prepare-private-git-test.mjs");
     const pin = testEnginePins[process.platform];
@@ -54,10 +151,10 @@ async function runNativeAcceptance(implementations = {}) {
         timeout: 60000,
         maxBuffer: 131072,
       });
-    stage = "migrate";
+    mark("migrate");
     await cli(["migrate"]);
     const tokens = {};
-    stage = "fixture-identities";
+    mark("fixture-identities");
     for (const name of ["owner", "alice", "bob", "reader"]) {
       await cli([
         "admin",
@@ -87,7 +184,7 @@ async function runNativeAcceptance(implementations = {}) {
       if (!/^[a-f0-9]{40,128}$/.test(token)) throw Error("fixture-token-output");
       tokens[name] = token;
     }
-    stage = "web-start";
+    mark("web-start");
     child = spawn(binary, ["--work-path", root, "--config", config, "web"], {
       env,
       windowsHide: true,
@@ -127,14 +224,14 @@ async function runNativeAcceptance(implementations = {}) {
       }
       return text ? JSON.parse(text) : null;
     };
-    stage = "create-repository";
+    mark("create-repository");
     const repo = await api("owner", "POST", "/user/repos", {
       name: "desktop-project",
       private: true,
       auto_init: true,
       default_branch: "main",
     });
-    stage = "collaborator-roles";
+    mark("collaborator-roles");
     for (const [name, permission] of [
       ["alice", "write"],
       ["bob", "admin"],
@@ -143,7 +240,7 @@ async function runNativeAcceptance(implementations = {}) {
       await api("owner", "PUT", "/repos/owner/desktop-project/collaborators/" + name, {
         permission,
       });
-    stage = "read-identities";
+    mark("read-identities");
     const users = {};
     for (const name of Object.keys(tokens)) users[name] = await api(name, "GET", "/user");
     const roles = {};
@@ -151,7 +248,7 @@ async function runNativeAcceptance(implementations = {}) {
       const value = await api(name, "GET", "/repos/owner/desktop-project");
       roles[name] = { id: value.id, permissions: value.permissions };
     }
-    stage = "branch-protection";
+    mark("branch-protection");
     await api("owner", "POST", "/repos/owner/desktop-project/branch_protections", {
       rule_name: "main",
       enable_push: false,
@@ -165,7 +262,7 @@ async function runNativeAcceptance(implementations = {}) {
     const rules = await api("bob", "GET", "/repos/owner/desktop-project/branch_protections");
     const branch = await api("alice", "GET", "/repos/owner/desktop-project/branches/main");
 
-    stage = "adapter";
+    mark("adapter");
     const { RepositoryCenter } = implementations.RepositoryCenter
       ? implementations
       : await import("../apps/control-plane/dist/repository-center.js");
@@ -205,10 +302,34 @@ async function runNativeAcceptance(implementations = {}) {
       path.join(root, "control"),
     );
     const repoId = cfg.repositories[0].id;
+    if (implementations.codeOnly) {
+      mark("native-code-workspace");
+      const { CodeRepositories } = implementations.CodeRepositories
+        ? implementations
+        : await import("../apps/control-plane/dist/code-repositories.js");
+      await verifyNativeCodeWorkspace({ root, ids, repoId, center, CodeRepositories });
+      const report = {
+        status: "PASS",
+        engine: "28.2.0",
+        root,
+        repositoryId: repo.id,
+        checks: [
+          "committed-code-browser-and-zip",
+          "provider-read-share-and-revoke",
+          "code-workspace-provider-sharing-and-browsing",
+        ],
+      };
+      await fs.mkdir(".local", { recursive: true });
+      await fs.writeFile(".local/native-code-acceptance.json", JSON.stringify(report, null, 2));
+      Object.keys(tokens).forEach((key) => {
+        tokens[key] = "";
+      });
+      return report;
+    }
     const requestId = () => "git_" + crypto.randomBytes(16).toString("hex");
     const alice = await center.details(ids.alice, "ws_team", repoId);
     if (alice.role !== "developer") throw Error("role");
-    stage = "native-create";
+    mark("native-create");
     const createIntent = requestId();
     const created = await center.create(ids.alice, "ws_team", {
       version: 1,
@@ -222,7 +343,7 @@ async function runNativeAcceptance(implementations = {}) {
       name: "new-private",
     });
     if (same.id !== created.id) throw Error("duplicate-repository-creation");
-    stage = "runtime-initial-commit";
+    mark("runtime-initial-commit");
     const project = path.join(root, "project");
     await fs.mkdir(project);
     await fs.writeFile(path.join(project, "app.js"), "export const answer=42;\n");
@@ -269,7 +390,7 @@ async function runNativeAcceptance(implementations = {}) {
       },
     });
     if (result.snapshot.head !== publishedHead) throw Error("publication-head");
-    stage = "read-only-denied";
+    mark("read-only-denied");
     let denied = false;
     try {
       await center.publish(
@@ -284,7 +405,7 @@ async function runNativeAcceptance(implementations = {}) {
       denied = true;
     }
     if (!denied) throw Error("reader-write");
-    stage = "native-pr";
+    mark("native-pr");
     await center.action(ids.alice, "ws_team", {
       version: 1,
       requestId: requestId(),
@@ -304,7 +425,7 @@ async function runNativeAcceptance(implementations = {}) {
     }
     const pull = details.pullRequests[0];
     if (!pull?.mergeable) throw Error("pull-not-mergeable");
-    stage = "review";
+    mark("review");
     await center.action(ids.bob, "ws_team", {
       version: 1,
       requestId: requestId(),
@@ -315,7 +436,7 @@ async function runNativeAcceptance(implementations = {}) {
       verdict: "APPROVED",
       body: "Verified fixture",
     });
-    stage = "merge";
+    mark("merge");
     await center.action(ids.bob, "ws_team", {
       version: 1,
       requestId: requestId(),
@@ -325,7 +446,7 @@ async function runNativeAcceptance(implementations = {}) {
       expectedHead: publishedHead,
       expectedBase: pull.baseSha,
     });
-    stage = "native-clone";
+    mark("native-clone");
     const cloneRoot = path.join(root, "clone");
     await fs.mkdir(cloneRoot);
     const cloneBinding = { ...binding, id: "gfolder_" + "e".repeat(32), root: cloneRoot };
@@ -343,7 +464,7 @@ async function runNativeAcceptance(implementations = {}) {
     );
     if (!(await fs.readFile(path.join(cloneRoot, "app.js"), "utf8")).includes("answer=42"))
       throw Error("clone-content");
-    stage = "native-remote-branch";
+    mark("native-remote-branch");
     const remoteBranch = "work/remote-switch";
     const remoteSource = await center.branchHead(ids.alice, "ws_team", repoId, "main");
     await center.action(ids.alice, "ws_team", {
@@ -373,7 +494,7 @@ async function runNativeAcceptance(implementations = {}) {
     if ((await fs.readFile(path.join(project, ".env"), "utf8")) !== "synthetic-fixture-value")
       throw Error("environment-preservation");
 
-    stage = "publish-existing-history";
+    mark("publish-existing-history");
     const existingRoot = path.join(root, "existing-history");
     await fs.mkdir(existingRoot);
     await fs.writeFile(path.join(existingRoot, "service.js"), "export const original=true;\n");
@@ -448,7 +569,7 @@ async function runNativeAcceptance(implementations = {}) {
       bootstrap.bootstrapSeed
     )
       throw Error("default-branch-written");
-    stage = "new-folder-clean-publish";
+    mark("new-folder-clean-publish");
     const freshIntent = requestId(),
       freshRepo = await center.create(ids.alice, "ws_team", {
         version: 1,
@@ -491,7 +612,7 @@ async function runNativeAcceptance(implementations = {}) {
     )
       throw Error("new-folder-not-clean-or-preserved");
 
-    stage = "negative-transfer-boundaries";
+    mark("negative-transfer-boundaries");
     const { GitEngine } = implementations.GitEngine
       ? implementations
       : await import("../apps/control-plane/dist/git-engine.js");
@@ -604,97 +725,7 @@ async function runNativeAcceptance(implementations = {}) {
       () => center.publish(ids.alice, "ws_team", repoId, "work/unsafe", rejectedHead, unsafeBytes),
       "repository-unsafe-tree",
     );
-    stage = "native-code-browser-and-sharing";
-    const summary = await center.codeSummary(ids.owner, "ws_team", repoId);
-    if (!summary.sha || !summary.subject) throw Error("code-summary-unavailable");
-    const codeSource = await center.codeSource(ids.owner, "ws_team", repoId);
-    if (!codeSource.canManageAccess || codeSource.ownerId !== ids.owner)
-      throw Error("code-owner-identity");
-    const codeProof = await center.readCode(
-      ids.reader,
-      "ws_team",
-      repoId,
-      "main",
-      async (git, branch) => {
-        const head = await git.resolve(branch);
-        const blob = await git.blob(head, "app.js");
-        const archive = await git.archive(head, "native-code-fixture");
-        return {
-          text: blob.text,
-          bytes: archive.bytes.length,
-          commits: (await git.history(head)).commits.length,
-        };
-      },
-    );
-    if (!codeProof.text.includes("answer=42") || codeProof.bytes < 100 || !codeProof.commits)
-      throw Error("code-committed-source-or-archive");
-    await center.shareCode(ids.owner, "ws_team", repoId, ids.reader, false);
-    await rejected(() => center.codeSource(ids.reader, "ws_team", repoId), "repository-not-found");
-    await center.shareCode(ids.owner, "ws_team", repoId, ids.reader, true);
-    if ((await center.codeSource(ids.reader, "ws_team", repoId)).canManageAccess)
-      throw Error("read-grant-elevated");
-    stage = "native-code-workspace-integration";
-    const { CodeRepositories } = implementations.CodeRepositories
-      ? implementations
-      : await import("../apps/control-plane/dist/code-repositories.js");
-    const members = Object.entries(ids).map(([name, userId]) => ({
-      userId,
-      name,
-      administrator: name === "owner",
-    }));
-    const code = new CodeRepositories(
-      path.join(root, "code-workspace-state"),
-      "ws_team",
-      async () => [],
-      async (actor) => ({
-        active: members.some((m) => m.userId === actor),
-        administrator: actor === ids.owner,
-      }),
-      async () => members,
-      center,
-    );
-    const visible = await code.catalog(ids.reader, "ws_team");
-    if (!visible.repositories.some((r) => r.id === repoId && r.status === "ready"))
-      throw Error("code-workspace-catalog");
-    const page = await code.tree(ids.reader, "ws_team", repoId, {});
-    if (
-      !page.branches.length ||
-      !page.entries.some((entry) => entry.name === "app.js" && entry.kind === "file") ||
-      page.head !== summary.sha
-    )
-      throw Error("code-workspace-source");
-    // Blob/history/ZIP share the read bridge exercised above in one fetched
-    // checkout; their Code-service paths also run against real bare Git tests.
-    const initialAccess = await code.access(ids.owner, "ws_team", repoId);
-    if (
-      !initialAccess.users.find((u) => u.userId === ids.bob)?.inherited ||
-      !initialAccess.users.find((u) => u.userId === ids.reader)?.access
-    )
-      throw Error("code-provider-access-not-visible");
-    await center.shareCode(ids.owner, "ws_team", repoId, ids.reader, false);
-    const granted = await code.share(ids.owner, "ws_team", repoId, {
-      version: 1,
-      expectedRevision: 0,
-      userId: ids.reader,
-      allow: true,
-    });
-    if (
-      !granted.users.find((u) => u.userId === ids.reader)?.access ||
-      granted.users.find((u) => u.userId === ids.reader)?.inherited
-    )
-      throw Error("code-workspace-grant");
-    const revoked = await code.share(ids.owner, "ws_team", repoId, {
-      version: 1,
-      expectedRevision: 1,
-      userId: ids.reader,
-      allow: false,
-    });
-    if (revoked.users.find((u) => u.userId === ids.reader)?.access)
-      throw Error("code-workspace-revoke");
-    await rejected(() => code.tree(ids.reader, "ws_team", repoId, {}), "repository-not-found");
-    // Restore the original engine role before the existing full recovery checks.
-    await center.shareCode(ids.owner, "ws_team", repoId, ids.reader, true);
-    stage = "full-quiesced-backup";
+    mark("full-quiesced-backup");
     const { GitRecovery, verifyIsolatedEngine } = require("../deployment/servix/GitRecovery.cjs");
     storage = await fs.mkdtemp(path.join(os.tmpdir(), "git-recovery-"));
     const key = crypto.randomBytes(32);
@@ -746,7 +777,7 @@ async function runNativeAcceptance(implementations = {}) {
     );
     const backup = await recovery.backup();
     if (!(await healthy())) throw Error("backup-restart");
-    stage = "isolated-full-restore";
+    mark("isolated-full-restore");
     const offline = await recovery.restoreIsolated(backup.id, backup.sha256);
     const offlineResult = await verifyIsolatedEngine(recoveryConfig, offline);
     if (offlineResult.databaseHealth !== "consistent") throw Error("offline-consistency-check");
@@ -798,9 +829,6 @@ async function runNativeAcceptance(implementations = {}) {
         "new-folder-clean-publish",
         "negative-bundle-boundaries",
         "environment-preserved",
-        "committed-code-browser-and-zip",
-        "provider-read-share-and-revoke",
-        "code-workspace-provider-sharing-and-browsing",
         "full-quiesced-encrypted-backup",
         "isolated-native-restore",
         "offline-database-consistency",

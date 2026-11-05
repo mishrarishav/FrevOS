@@ -1,5 +1,24 @@
 # DevSetu Current State
 
+2026-11-05: Final focused Code acceptance passes 10 tests with new-module
+coverage 95.56% statements, 91.21% branches, 98.53% lines and 100% functions.
+The original full native Git/recovery test separately passes its unchanged
+180-second deadline under coverage. The new hosted-Code fixture runs separately
+and passes in 21.8 seconds. A normalized comparison verifies that the original
+native workflow is unchanged after removing the added fixture/phase observer.
+The complete enrolled frozen-source CI must still run all tests, without the
+focused filter, before packaging or activation. Existing application stays live.
+
+2026-11-05: Frozen Code source 383e58f completes 587 of 589 tests, with two
+fixture timeouts: real-folder/history pagination at 30 seconds and the full
+native Git-engine workflow at 180 seconds. No artifact is activated. Import the
+same 135 real Git entries and 35 history commits in one Git process, and remove
+duplicate newly added provider grant/revoke round trips while keeping the
+Code-service ownership/reader checks, actual blob/history/ZIP, sharing/revocation
+and original encrypted recovery assertions. Runtime implementation, test
+deadlines and coverage gates remain unchanged. Re-run the affected acceptance
+and then the original complete frozen-source build.
+
 2026-11-05: The first Code release source a59d6ee completes all 587 native CI
 tests, but statement coverage is 94.69%, below the existing 95% gate. The original
 enrolled build stops before packaging/activation. Preserve that failed attempt.

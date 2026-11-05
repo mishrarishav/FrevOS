@@ -66,12 +66,30 @@ environment. Existing tests/timeouts/coverage thresholds are retained.
 | Full backend coverage attempt | Interrupted after Docker container creation failed, before a complete report |
 | First frozen native CI, a59d6ee | All 587 tests pass; statement coverage 94.69% fails the unchanged 95% gate |
 | Code workspace/native-engine combined coverage | 10 tests pass; new-module statements 95.56%, branches 91.21%, lines 98.53%, functions 100% |
+| Second frozen native CI, 383e58f | 587 of 589 tests pass; pagination and native-engine workflows reach original 30/180-second limits; no activation |
+| Original native workflow with separate Code fixture | Original workflow passes at 177 seconds under coverage; original assertions and 180-second deadline retained |
+| Final focused Code coverage | Exit 0, 10 tests pass; statements 95.56%, branches 91.21%, lines 98.53%, functions 100%; original native test deliberately filtered only in this targeted command |
 
 The Docker runtime failure reproduces independently of application code. After
 Docker Desktop restart, the original four preview container IDs/images/mounts
 match and all are healthy. The same actual account integration test passes.
 The enrolled native builder must still run the complete frozen-source CI. No
 partial local run is accepted as the final artifact gate.
+
+The second attempt retains every application implementation and original CI
+gate. Its fixture optimization imports the same real pagination objects in one
+Git process and removes duplicate newly added provider grant/revoke round trips.
+Code-service ownership, reader rights, source/history/ZIP, access changes and
+the original encrypted backup/restore assertions remain exercised.
+
+The new Code workflow now uses a separate native fixture and 180-second test.
+A normalized comparison with the base verifies the complete original native
+workflow is unchanged after removing the added fixture and phase observer.
+The first extraction exposed a fixture-local rejection helper reference; that
+test-helper error was corrected and the dedicated hosted test passes, followed
+by the successful final combined Code coverage command. Original full-suite
+deadlines, coverage thresholds and recovery assertions are unchanged. No focused
+filter is used by the enrolled complete CI.
 
 The first complete frozen run is retained as failed validation; it created no
 deployable artifact and performed no activation. Additional acceptance exercises
