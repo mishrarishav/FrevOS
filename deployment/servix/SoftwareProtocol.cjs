@@ -42,6 +42,17 @@ function privateInterfaces(interfaces) {
   return [...found.values()].sort((a, b) => a.address.localeCompare(b.address)).slice(0, 64);
 }
 function binding(j) {
+  if (j.service)
+    return JSON.stringify([
+      1,
+      "software.service.job.v1",
+      j.workspaceId,
+      j.actor,
+      j.request,
+      j.service,
+      j.createdAt,
+      j.expiresAt,
+    ]);
   return JSON.stringify([
     1,
     "software.job.v1",
@@ -67,7 +78,14 @@ function validateJob(j, identity, now = Date.now()) {
     j.request.version !== 1 ||
     !/^sw_[a-f0-9]{32}$/.test(j.request.requestId) ||
     j.request.deviceId !== identity.deviceId ||
-    !["inventory", "install", "stop-demo"].includes(j.request.operation) ||
+    ![
+      "inventory",
+      "install",
+      "stop-demo",
+      "services-inventory",
+      "start-service",
+      "stop-service",
+    ].includes(j.request.operation) ||
     !Number.isFinite(Date.parse(j.createdAt)) ||
     !Number.isFinite(Date.parse(j.expiresAt)) ||
     Date.parse(j.createdAt) > now ||
@@ -78,10 +96,49 @@ function validateJob(j, identity, now = Date.now()) {
     fail();
   const r = j.request;
   if (
-    r.operation === "inventory" &&
+    ["inventory", "services-inventory"].includes(r.operation) &&
     Object.keys(r).sort().join() !== "deviceId,operation,requestId,version"
   )
     fail();
+  if (["start-service", "stop-service"].includes(r.operation)) {
+    const s = j.service,
+      a = j.approval;
+    if (
+      Object.keys(r).sort().join() !==
+        "deviceId,operation,policyRevision,requestId,serviceId,version" ||
+      !Number.isInteger(r.policyRevision) ||
+      r.policyRevision < 1 ||
+      !s ||
+      s.id !== r.serviceId ||
+      !/^[a-f0-9]{64}$/.test(s.id) ||
+      !/^[a-f0-9]{64}$/.test(s.definitionSha256) ||
+      !["windows-scm", "systemd-user", "systemd-system"].includes(s.manager) ||
+      typeof s.name !== "string" ||
+      !s.name ||
+      s.name.length > 180 ||
+      s.name.startsWith("-") ||
+      !(s.manager === "windows-scm"
+        ? /^[A-Za-z0-9][A-Za-z0-9_.@$ -]{0,179}$/.test(s.name)
+        : /^[A-Za-z0-9][A-Za-z0-9_.@:-]*\.service$/.test(s.name)) ||
+      s.protected !== false ||
+      !a ||
+      a.version !== 1 ||
+      a.action !== "software.service.v1" ||
+      a.workspaceId !== j.workspaceId ||
+      a.actor !== j.actor ||
+      a.target !== r.deviceId ||
+      a.correlationId !== r.requestId ||
+      a.digest !== j.digest ||
+      a.artifactSha256 !== s.definitionSha256 ||
+      [a.issuedAt, a.expiresAt, a.consumedAt].some((v) => !Number.isFinite(Date.parse(v))) ||
+      Date.parse(a.issuedAt) < Date.parse(j.createdAt) ||
+      Date.parse(a.issuedAt) > Date.parse(a.consumedAt) ||
+      Date.parse(a.consumedAt) > now ||
+      Date.parse(a.expiresAt) <= now ||
+      Date.parse(a.expiresAt) - Date.parse(a.issuedAt) > 300000
+    )
+      fail();
+  } else if (j.service) fail();
   if (
     r.operation === "stop-demo" &&
     (!/^[a-z][a-z0-9-]{0,59}$/.test(r.serviceId) ||

@@ -1,5 +1,14 @@
 # DevSetu Current State
 
+2026-11-06 IST: ADR0102 Apps & services work is in progress on
+`codex/apps-services-manager` from 8ec671cc86fc0f721875894bfea0c02f15b199c1.
+Windows-style apps/services navigation, typed admin-only per-service Start/Stop,
+independent local control opt-in and bounded service snapshots are implemented.
+Native Windows inventory and scoped server/client/Linux/UI checks pass; complete
+native build, immutable activation and disposable native service acceptance are
+pending. See [Apps and services manager](APPS_SERVICES_MANAGER.md). This entry
+does not claim a new live deployment or enable existing connections' OS control.
+
 2026-11-06 IST: Inventory/explorer source ffaa26fa5a9aea0d6561b58b699822805ccb6533
 is LIVE through authenticated DevSetu request su_a9af54d9f290028ee321ea97252be75e,
 actor usr_windows_admin. Manifest

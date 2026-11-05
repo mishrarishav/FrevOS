@@ -540,6 +540,19 @@ function context(options = {}) {
       await installed(config);
       const folder = path.join(directory(input.deviceId), "state", "software");
       await privateDirectory(folder);
+      let serviceControl = false;
+      try {
+        const previous = await readPrivate(path.join(folder, "consent.json"));
+        if (
+          previous.version !== 1 ||
+          previous.deviceId !== input.deviceId ||
+          (previous.serviceControl !== undefined && typeof previous.serviceControl !== "boolean")
+        )
+          throw Error("linux-software-consent-invalid");
+        serviceControl = previous.serviceControl === true;
+      } catch (error) {
+        if (error.code !== "ENOENT") throw error;
+      }
       await writePrivate(
         path.join(folder, "consent.json"),
         {
@@ -547,6 +560,7 @@ function context(options = {}) {
           deviceId: input.deviceId,
           inventory: input.inventory,
           install: input.install,
+          serviceControl,
           approvedAt: new Date().toISOString(),
         },
         false,

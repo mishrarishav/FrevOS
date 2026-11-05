@@ -1270,7 +1270,7 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
   };
   server.get<{
     Params: WorkspaceParams & { deviceId: string };
-    Querystring: { inventorySince?: string };
+    Querystring: { inventorySince?: string; servicesSince?: string };
   }>(route("/v1/workspaces/:workspaceId/software/:deviceId"), async (request) => {
     const actor = await connectorActor(request);
     if (!options.software) throw new HttpError(503, "software-unavailable");
@@ -1279,9 +1279,10 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
       request.params.workspaceId,
       request.params.deviceId,
       request.query.inventorySince,
+      request.query.servicesSince,
     );
   });
-  for (const action of ["catalog", "requests", "decisions"] as const)
+  for (const action of ["catalog", "requests", "decisions", "service-policy"] as const)
     server.post<{ Params: WorkspaceParams }>(
       route("/v1/workspaces/:workspaceId/software/" + action),
       async (request) => {
@@ -1289,9 +1290,11 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
         if (!options.software) throw new HttpError(503, "software-unavailable");
         return action === "catalog"
           ? options.software.saveCatalog(actor, request.params.workspaceId, request.body)
-          : action === "requests"
-            ? options.software.request(actor, request.params.workspaceId, request.body)
-            : options.software.decide(actor, request.params.workspaceId, request.body);
+          : action === "service-policy"
+            ? options.software.saveServicePolicy(actor, request.params.workspaceId, request.body)
+            : action === "requests"
+              ? options.software.request(actor, request.params.workspaceId, request.body)
+              : options.software.decide(actor, request.params.workspaceId, request.body);
       },
     );
   for (const action of [

@@ -136,6 +136,68 @@ export const SoftwareInventorySchema = z
   .strict()
   .refine((r) => r.status !== "unavailable" || r.items.length === 0);
 export type SoftwareInventory = z.infer<typeof SoftwareInventorySchema>;
+export const ManagedServiceSchema = z
+  .object({
+    id: Digest,
+    name: Name,
+    displayName: Name,
+    manager: z.enum(["windows-scm", "systemd-system", "systemd-user"]),
+    definitionSha256: Digest,
+    status: z.enum([
+      "running",
+      "stopped",
+      "paused",
+      "start-pending",
+      "stop-pending",
+      "failed",
+      "unknown",
+    ]),
+    startupType: Name,
+    description: z.string().max(600).optional(),
+    canStart: z.boolean(),
+    canStop: z.boolean(),
+    protected: z.boolean(),
+  })
+  .strict();
+export type ManagedService = z.infer<typeof ManagedServiceSchema>;
+export const ServiceInventorySchema = z
+  .object({
+    version: z.literal(1),
+    observedAt: z.iso.datetime(),
+    platform: z.enum(["win32", "linux"]),
+    status: z.enum(["ready", "partial", "unavailable"]),
+    truncated: z.boolean(),
+    items: z
+      .array(ManagedServiceSchema)
+      .max(5000)
+      .refine((rows) => new Set(rows.map((s) => s.id)).size === rows.length),
+  })
+  .strict()
+  .refine((v) => v.status !== "unavailable" || !v.items.length);
+export type ServiceInventory = z.infer<typeof ServiceInventorySchema>;
+const ServiceRule = z
+  .object({ id: Digest, definitionSha256: Digest, enabled: z.boolean() })
+  .strict();
+export const ServicePolicySchema = z
+  .object({
+    version: z.literal(1),
+    workspaceId: WorkspaceIdSchema,
+    deviceId: ConnectorIdSchema,
+    revision: z.number().int().nonnegative(),
+    rules: z
+      .array(ServiceRule)
+      .max(512)
+      .refine((rows) => new Set(rows.map((s) => s.id)).size === rows.length),
+  })
+  .strict();
+export const ServicePolicyInputSchema = z
+  .object({
+    version: z.literal(1),
+    deviceId: ConnectorIdSchema,
+    expectedRevision: z.number().int().nonnegative(),
+    rule: ServiceRule,
+  })
+  .strict();
 const RequestBase = {
   version: z.literal(1),
   requestId: SoftwareRequestIdSchema,
@@ -143,6 +205,15 @@ const RequestBase = {
 };
 export const SoftwareRequestSchema = z.discriminatedUnion("operation", [
   z.object({ ...RequestBase, operation: z.literal("inventory") }).strict(),
+  z.object({ ...RequestBase, operation: z.literal("services-inventory") }).strict(),
+  z
+    .object({
+      ...RequestBase,
+      operation: z.enum(["start-service", "stop-service"]),
+      serviceId: Digest,
+      policyRevision: z.number().int().positive(),
+    })
+    .strict(),
   z
     .object({
       ...RequestBase,
@@ -173,7 +244,7 @@ export const SoftwareDecisionSchema = z
 export const SoftwareApprovalSchema = z
   .object({
     version: z.literal(1),
-    action: z.literal("software.install.v1"),
+    action: z.enum(["software.install.v1", "software.service.v1"]),
     workspaceId: WorkspaceIdSchema,
     actor: UserIdSchema,
     target: ConnectorIdSchema,
@@ -205,6 +276,7 @@ export const SoftwareJobSchema = z
       "expired",
     ]),
     package: SoftwarePackageSchema.optional(),
+    service: ManagedServiceSchema.optional(),
     approval: SoftwareApprovalSchema.optional(),
     restartRequired: z.boolean().optional(),
     result: z
@@ -213,6 +285,12 @@ export const SoftwareJobSchema = z
         "inventory-updated",
         "demo-started",
         "demo-stopped",
+        "services-updated",
+        "service-started",
+        "service-stopped",
+        "os-permission-denied",
+        "service-changed",
+        "dependents-running",
         "declined",
         "failed",
         "interrupted",
@@ -224,9 +302,20 @@ export type SoftwareJob = z.infer<typeof SoftwareJobSchema>;
 export function softwareJobBinding(
   job: Pick<
     SoftwareJob,
-    "workspaceId" | "actor" | "request" | "package" | "createdAt" | "expiresAt"
+    "workspaceId" | "actor" | "request" | "package" | "service" | "createdAt" | "expiresAt"
   >,
 ) {
+  if (job.service)
+    return JSON.stringify([
+      1,
+      "software.service.job.v1",
+      job.workspaceId,
+      job.actor,
+      job.request,
+      job.service,
+      job.createdAt,
+      job.expiresAt,
+    ]);
   return JSON.stringify([
     1,
     "software.job.v1",
@@ -254,10 +343,23 @@ export const SoftwareObservationSchema = z
     platform: z.enum(["win32", "linux"]),
     inventoryConsent: z.boolean(),
     installConsent: z.boolean(),
+    serviceManagement: z
+      .object({ version: z.literal(1), controlConsent: z.boolean() })
+      .strict()
+      .optional(),
     operation: z
       .object({
         requestId: SoftwareRequestIdSchema,
-        stage: z.enum(["scanning", "downloading", "verifying", "waiting-for-os", "starting-demo"]),
+        stage: z.enum([
+          "scanning",
+          "downloading",
+          "verifying",
+          "waiting-for-os",
+          "starting-demo",
+          "reading-services",
+          "starting-service",
+          "stopping-service",
+        ]),
         startedAt: z.iso.datetime(),
       })
       .strict()
@@ -274,6 +376,7 @@ export const SoftwareObservationSchema = z
       .strict()
       .optional(),
     services: z.array(SoftwareServiceSchema).max(1),
+    serviceInventory: ServiceInventorySchema.optional(),
   })
   .strict();
 export const SoftwareCompleteSchema = z
@@ -283,6 +386,7 @@ export const SoftwareCompleteSchema = z
     result: SoftwareJobSchema.shape.result.unwrap(),
     restartRequired: z.boolean().optional(),
     inventory: SoftwareInventorySchema.optional(),
+    serviceInventory: ServiceInventorySchema.optional(),
   })
   .strict();
 export const SoftwareStateSchema = z
@@ -292,6 +396,7 @@ export const SoftwareStateSchema = z
     demoProgramSha256: Digest.nullable(),
     packageDigests: z.record(SoftwarePackageIdSchema, Digest),
     catalog: SoftwareCatalogSchema,
+    servicePolicy: ServicePolicySchema.optional(),
     device: z
       .object({
         id: ConnectorIdSchema,
@@ -308,6 +413,17 @@ export const SoftwareStateSchema = z
           .nullable(),
         inventoryObservedAt: z.iso.datetime().nullable(),
         inventory: SoftwareInventorySchema.nullable(),
+        serviceInventory: ServiceInventorySchema.nullable().optional(),
+        serviceInventoryObservedAt: z.iso.datetime().nullable().optional(),
+        serviceScan: z
+          .object({
+            observedAt: z.iso.datetime(),
+            status: z.enum(["ready", "partial", "unavailable"]),
+            truncated: z.boolean(),
+          })
+          .strict()
+          .nullable()
+          .optional(),
       })
       .strict(),
     jobs: z.array(SoftwareJobSchema).max(100),

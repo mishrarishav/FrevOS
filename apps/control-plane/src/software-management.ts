@@ -2,6 +2,9 @@ import { createHash, randomBytes } from "node:crypto";
 import { lstat, mkdir, open, readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
+  ServiceInventorySchema,
+  ServicePolicyInputSchema,
+  ServicePolicySchema,
   SoftwareCatalogInputSchema,
   SoftwareCatalogSchema,
   SoftwareCompleteSchema,
@@ -90,7 +93,11 @@ export class SoftwareManagement {
     const bytes = JSON.stringify(value);
     if (
       Buffer.byteLength(bytes) >
-      (name === "catalog.json" ? 262144 : name.startsWith("inventory-") ? 3000000 : 32768)
+      (name === "catalog.json" || name.startsWith("service-policy-")
+        ? 262144
+        : /^(?:inventory|service-inventory)-/.test(name)
+          ? 3000000
+          : 32768)
     )
       this.fail("storage-capacity", 503);
     await this.directory();
@@ -202,15 +209,24 @@ export class SoftwareManagement {
       return null;
     return record.value;
   }
-  async state(actor: string, workspaceId: string, id: string, inventorySince?: string) {
+  async state(
+    actor: string,
+    workspaceId: string,
+    id: string,
+    inventorySince?: string,
+    servicesSince?: string,
+  ) {
     this.scope(workspaceId);
     const d = await this.device(actor, id),
       administrator = await this.administrator(actor);
     const capability = d.online ? await this.observation(id) : null,
       catalog = await this.catalog();
     z.iso.datetime().optional().parse(inventorySince);
+    z.iso.datetime().optional().parse(servicesSince);
     const rawInventory = await this.read("inventory-" + id + ".json", 3000000),
       inventory = rawInventory ? SoftwareInventorySchema.parse(rawInventory) : null;
+    const rawServices = await this.read("service-inventory-" + id + ".json", 3000000),
+      serviceInventory = rawServices ? ServiceInventorySchema.parse(rawServices) : null;
     return SoftwareStateSchema.parse({
       workspaceId,
       administrator,
@@ -219,6 +235,7 @@ export class SoftwareManagement {
         catalog.packages.map((p) => [p.id, digest(JSON.stringify(p))]),
       ),
       catalog,
+      servicePolicy: await this.servicePolicy(id),
       device: {
         id,
         name: d.name,
@@ -227,6 +244,9 @@ export class SoftwareManagement {
         scan: await this.read("scan-" + id + ".json"),
         inventoryObservedAt: inventory?.observedAt ?? null,
         inventory: inventory?.observedAt === inventorySince ? null : inventory,
+        serviceInventoryObservedAt: serviceInventory?.observedAt ?? null,
+        serviceInventory: serviceInventory?.observedAt === servicesSince ? null : serviceInventory,
+        serviceScan: await this.read("service-scan-" + id + ".json"),
       },
       jobs: (await this.jobs())
         .filter(
@@ -239,39 +259,166 @@ export class SoftwareManagement {
     });
   }
   async observe(credential: string, input: unknown) {
-    const d = await this.credential(credential),
-      value = SoftwareObservationSchema.parse(input);
-    if (!value.installConsent && value.services.length) this.fail("consent-required");
-    for (const service of value.services) {
-      const job = await this.job(service.jobId),
-        r = job.request,
-        listen = service.listen;
-      if (
-        job.workspaceId !== this.workspaceId ||
-        r.deviceId !== d.deviceId ||
-        r.operation !== "install" ||
-        job.package?.recipe !== "demo-api" ||
-        job.package.id !== service.id ||
-        job.package.programSha256 !== value.programSha256 ||
-        job.digest !== service.digest ||
-        job.result !== "demo-started" ||
-        job.status !== "succeeded" ||
-        r.port !== service.port ||
-        JSON.stringify(r.listen ?? null) !== JSON.stringify(service.listen ?? null) ||
-        (listen !== undefined &&
-          !value.network?.addresses.some((row) => row.address === listen.address)) ||
-        !job.approval?.consumedAt ||
-        Date.parse(service.expiresAt) >
-          Date.parse(job.approval.consumedAt) + (r.lifetimeSeconds ?? 0) * 1000 ||
-        Date.parse(service.expiresAt) <= this.now().getTime()
-      )
-        this.fail("demo-observation-denied");
-    }
-    await this.write("device-" + d.deviceId + ".json", {
-      receivedAt: this.now().toISOString(),
-      value,
+    return this.serial(async () => {
+      const d = await this.credential(credential),
+        value = SoftwareObservationSchema.parse(input);
+      if (value.serviceInventory) {
+        if (
+          !value.inventoryConsent ||
+          !value.serviceManagement ||
+          value.serviceInventory.platform !== value.platform ||
+          Date.parse(value.serviceInventory.observedAt) > this.now().getTime() + 5000 ||
+          this.now().getTime() - Date.parse(value.serviceInventory.observedAt) > 180000
+        )
+          this.fail("service-inventory-denied");
+        await this.saveServiceInventory(d.deviceId, value.serviceInventory);
+      }
+      if (!value.installConsent && value.services.length) this.fail("consent-required");
+      for (const service of value.services) {
+        const job = await this.job(service.jobId),
+          r = job.request,
+          listen = service.listen;
+        if (
+          job.workspaceId !== this.workspaceId ||
+          r.deviceId !== d.deviceId ||
+          r.operation !== "install" ||
+          job.package?.recipe !== "demo-api" ||
+          job.package.id !== service.id ||
+          job.package.programSha256 !== value.programSha256 ||
+          job.digest !== service.digest ||
+          job.result !== "demo-started" ||
+          job.status !== "succeeded" ||
+          r.port !== service.port ||
+          JSON.stringify(r.listen ?? null) !== JSON.stringify(service.listen ?? null) ||
+          (listen !== undefined &&
+            !value.network?.addresses.some((row) => row.address === listen.address)) ||
+          !job.approval?.consumedAt ||
+          Date.parse(service.expiresAt) >
+            Date.parse(job.approval.consumedAt) + (r.lifetimeSeconds ?? 0) * 1000 ||
+          Date.parse(service.expiresAt) <= this.now().getTime()
+        )
+          this.fail("demo-observation-denied");
+      }
+      await this.write("device-" + d.deviceId + ".json", {
+        receivedAt: this.now().toISOString(),
+        value: { ...value, serviceInventory: undefined },
+      });
+      return { observed: true as const };
     });
-    return { observed: true as const };
+  }
+  private async servicePolicy(id: string) {
+    const policy = ServicePolicySchema.parse(
+      (await this.read("service-policy-" + id + ".json", 262144)) ?? {
+        version: 1,
+        workspaceId: this.workspaceId,
+        deviceId: id,
+        revision: 0,
+        rules: [],
+      },
+    );
+    if (policy.workspaceId !== this.workspaceId || policy.deviceId !== id)
+      this.fail("service-policy-scope-denied");
+    return policy;
+  }
+  async saveServicePolicy(actor: string, workspaceId: string, input: unknown) {
+    this.scope(workspaceId);
+    return this.serial(async () => {
+      if (!(await this.administrator(actor))) this.fail("administrator-required");
+      const r = ServicePolicyInputSchema.parse(input);
+      await this.device(actor, r.deviceId);
+      const policy = await this.servicePolicy(r.deviceId),
+        raw = await this.read("service-inventory-" + r.deviceId + ".json", 3000000),
+        snapshot = raw ? ServiceInventorySchema.parse(raw) : null,
+        service = snapshot?.items.find((s) => s.id === r.rule.id);
+      if (
+        policy.workspaceId !== workspaceId ||
+        policy.deviceId !== r.deviceId ||
+        policy.revision !== r.expectedRevision
+      )
+        this.fail("service-policy-changed", 409);
+      if (
+        r.rule.enabled &&
+        (!service || service.protected || service.definitionSha256 !== r.rule.definitionSha256)
+      )
+        this.fail("service-unavailable", 409);
+      const next = ServicePolicySchema.parse({
+        ...policy,
+        revision: policy.revision + 1,
+        rules: [...policy.rules.filter((s) => s.id !== r.rule.id), r.rule],
+      });
+      await this.audit("service-policy-save", actor, {
+        target: r.deviceId,
+        digest: digest(JSON.stringify(next)),
+      });
+      await this.write("service-policy-" + r.deviceId + ".json", next);
+      return next;
+    });
+  }
+  private async saveServiceInventory(id: string, input: unknown) {
+    const snapshot = ServiceInventorySchema.parse(input);
+    const previous = await this.read("service-inventory-" + id + ".json", 3000000);
+    const scan = (await this.read("service-scan-" + id + ".json")) as { observedAt: string } | null;
+    if (scan && Date.parse(scan.observedAt) > Date.parse(snapshot.observedAt)) return;
+    if (
+      previous &&
+      Date.parse(ServiceInventorySchema.parse(previous).observedAt) >
+        Date.parse(snapshot.observedAt)
+    )
+      return;
+    await this.write("service-scan-" + id + ".json", {
+      observedAt: snapshot.observedAt,
+      status: snapshot.status,
+      truncated: snapshot.truncated,
+    });
+    if (snapshot.status !== "unavailable")
+      await this.write("service-inventory-" + id + ".json", snapshot);
+  }
+  private async serviceAuthority(
+    job: SoftwareJob,
+    observed: Awaited<ReturnType<SoftwareManagement["observation"]>>,
+  ) {
+    const r = job.request;
+    if (r.operation !== "start-service" && r.operation !== "stop-service")
+      this.fail("service-execution-denied");
+    const p = await this.servicePolicy(r.deviceId),
+      raw = await this.read("service-inventory-" + r.deviceId + ".json", 3000000),
+      snapshot = raw ? ServiceInventorySchema.parse(raw) : null,
+      s = snapshot?.items.find((s) => s.id === r.serviceId),
+      rule = p.rules.find((v) => v.id === r.serviceId),
+      a = job.approval;
+    if (
+      !snapshot ||
+      this.now().getTime() - Date.parse(snapshot.observedAt) > 90000 ||
+      Date.parse(snapshot.observedAt) > this.now().getTime() + 5000
+    )
+      this.fail("service-snapshot-stale");
+    if (
+      !(await this.administrator(job.actor)) ||
+      !observed?.serviceManagement?.controlConsent ||
+      !s ||
+      s.protected ||
+      !job.service ||
+      s.id !== job.service.id ||
+      s.definitionSha256 !== job.service.definitionSha256 ||
+      !rule?.enabled ||
+      rule.definitionSha256 !== s.definitionSha256 ||
+      p.workspaceId !== this.workspaceId ||
+      p.deviceId !== r.deviceId ||
+      p.revision !== r.policyRevision ||
+      !a ||
+      a.action !== "software.service.v1" ||
+      a.actor !== job.actor ||
+      a.workspaceId !== this.workspaceId ||
+      a.target !== r.deviceId ||
+      a.correlationId !== r.requestId ||
+      a.digest !== job.digest ||
+      a.artifactSha256 !== s.definitionSha256 ||
+      Date.parse(a.issuedAt) > this.now().getTime() ||
+      Date.parse(a.expiresAt) <= this.now().getTime() ||
+      Date.parse(a.expiresAt) - Date.parse(a.issuedAt) > 300000
+    )
+      this.fail("service-execution-denied");
+    return a;
   }
   async request(actor: string, workspaceId: string, input: unknown) {
     this.scope(workspaceId);
@@ -292,8 +439,41 @@ export class SoftwareManagement {
       if (!device.online) this.fail("device-offline", 409);
       const observed = await this.observation(device.deviceId);
       if (!observed) this.fail("connector-update-required", 409);
-      if (request.operation === "inventory" ? !observed.inventoryConsent : !observed.installConsent)
+      const readOnly =
+          request.operation === "inventory" || request.operation === "services-inventory",
+        control = request.operation === "start-service" || request.operation === "stop-service";
+      if (
+        readOnly
+          ? !observed.inventoryConsent
+          : control
+            ? !observed.serviceManagement?.controlConsent
+            : !observed.installConsent
+      )
         this.fail("local-consent-required", 409);
+      if ((control || request.operation === "services-inventory") && !observed.serviceManagement)
+        this.fail("connector-update-required", 409);
+      let service: SoftwareJob["service"];
+      if (control) {
+        if (!(await this.administrator(actor))) this.fail("administrator-required");
+        const raw = await this.read("service-inventory-" + device.deviceId + ".json", 3000000),
+          snapshot = raw ? ServiceInventorySchema.parse(raw) : null,
+          policy = await this.servicePolicy(device.deviceId);
+        service = snapshot?.items.find((s) => s.id === request.serviceId);
+        if (
+          !snapshot ||
+          this.now().getTime() - Date.parse(snapshot.observedAt) > 90000 ||
+          !service ||
+          service.protected ||
+          policy.revision !== request.policyRevision ||
+          !policy.rules.some(
+            (s) =>
+              s.id === service?.id && s.definitionSha256 === service.definitionSha256 && s.enabled,
+          )
+        )
+          this.fail("service-unavailable", 409);
+        if (request.operation === "start-service" ? !service.canStart : !service.canStop)
+          this.fail("os-permission-required", 409);
+      }
       let pkg: SoftwarePackage | undefined;
       if (request.operation === "install") {
         pkg = (await this.catalog()).packages.find((p) => p.id === request.packageId && p.enabled);
@@ -340,11 +520,27 @@ export class SoftwareManagement {
         expiresAt: new Date(createdAt.getTime() + 3600000).toISOString(),
         status: request.operation === "install" ? "pending-approval" : "approved",
         ...(pkg ? { package: pkg } : {}),
+        ...(service ? { service } : {}),
       });
       job.digest = digest(softwareJobBinding(job));
       if (pkg && (await this.administrator(actor))) {
         job.status = "approved";
         job.approval = this.approval(actor, job, pkg);
+      }
+      if (service) {
+        const issuedAt = this.now();
+        job.approval = {
+          version: 1,
+          action: "software.service.v1",
+          workspaceId: this.workspaceId,
+          actor: SoftwareJobSchema.shape.actor.parse(actor),
+          target: request.deviceId,
+          correlationId: request.requestId,
+          artifactSha256: service.definitionSha256,
+          digest: job.digest,
+          issuedAt: issuedAt.toISOString(),
+          expiresAt: new Date(issuedAt.getTime() + 300000).toISOString(),
+        };
       }
       await this.audit("request", actor, {
         target: request.deviceId,
@@ -443,11 +639,34 @@ export class SoftwareManagement {
           continue;
         }
         if (
-          job.request.operation === "inventory"
+          ["inventory", "services-inventory"].includes(job.request.operation)
             ? !observed.inventoryConsent
-            : !observed.installConsent
+            : ["start-service", "stop-service"].includes(job.request.operation)
+              ? !observed.serviceManagement?.controlConsent
+              : !observed.installConsent
         )
           continue;
+        if (
+          job.service ||
+          job.request.operation === "start-service" ||
+          job.request.operation === "stop-service"
+        ) {
+          try {
+            const a = await this.serviceAuthority(job, observed);
+            if (a.consumedAt) this.fail("service-replay-denied");
+            a.consumedAt = this.now().toISOString();
+          } catch {
+            job.status = "failed";
+            job.result = "declined";
+            await this.audit("service-claim-denied", job.actor, {
+              target: d.deviceId,
+              correlationId: job.request.requestId,
+              digest: job.digest,
+            });
+            await this.write(job.request.requestId + ".json", job);
+            continue;
+          }
+        }
         if (job.request.operation === "install") {
           const listen = job.request.listen;
           if (
@@ -510,7 +729,12 @@ export class SoftwareManagement {
   }
   async identity(credential: string) {
     const d = await this.credential(credential);
-    return { workspaceId: this.workspaceId, deviceId: d.deviceId, serviceNetworkVersion: 1 };
+    return {
+      workspaceId: this.workspaceId,
+      deviceId: d.deviceId,
+      serviceNetworkVersion: 1,
+      serviceManagementVersion: 1,
+    };
   }
   async initialInventory(credential: string) {
     return this.serial(async () => {
@@ -565,6 +789,29 @@ export class SoftwareManagement {
       request = SoftwareDecisionSchema.pick({ requestId: true, digest: true }).parse(input),
       job = await this.job(request.requestId);
     await this.device(job.actor, d.deviceId);
+    if (job.service) {
+      if (
+        job.workspaceId !== this.workspaceId ||
+        job.request.deviceId !== d.deviceId ||
+        job.status !== "working" ||
+        job.digest !== request.digest ||
+        job.digest !== digest(softwareJobBinding(job))
+      )
+        this.fail("service-execution-denied");
+      const a = await this.serviceAuthority(job, await this.observation(d.deviceId));
+      if (
+        !a.consumedAt ||
+        Date.parse(a.consumedAt) > this.now().getTime() ||
+        Date.parse(a.consumedAt) < Date.parse(a.issuedAt)
+      )
+        this.fail("service-execution-denied");
+      await this.audit("service-execution-authorized", job.actor, {
+        target: d.deviceId,
+        correlationId: request.requestId,
+        digest: job.digest,
+      });
+      return { authorized: true as const };
+    }
     const observed = await this.observation(d.deviceId),
       a = job.approval,
       pkg = job.package;
@@ -625,18 +872,46 @@ export class SoftwareManagement {
       const success =
         operation === "inventory"
           ? result.result === "inventory-updated"
-          : operation === "stop-demo"
-            ? result.result === "demo-stopped"
-            : job.package?.recipe === "demo-api"
-              ? result.result === "demo-started"
-              : result.result === "installed";
-      if (!success && !["declined", "failed", "interrupted"].includes(result.result))
+          : operation === "services-inventory"
+            ? result.result === "services-updated"
+            : operation === "start-service"
+              ? result.result === "service-started"
+              : operation === "stop-service"
+                ? result.result === "service-stopped"
+                : operation === "stop-demo"
+                  ? result.result === "demo-stopped"
+                  : job.package?.recipe === "demo-api"
+                    ? result.result === "demo-started"
+                    : result.result === "installed";
+      if (
+        !success &&
+        ![
+          "declined",
+          "failed",
+          "interrupted",
+          ...(job.service ? ["os-permission-denied", "service-changed", "dependents-running"] : []),
+        ].includes(result.result)
+      )
         this.fail("completion-result-denied");
       if (operation === "inventory" && success) {
         if (!result.inventory || !(await this.observation(d.deviceId))?.inventoryConsent)
           this.fail("inventory-denied");
         SoftwareInventorySchema.parse(result.inventory);
       } else if (result.inventory) this.fail("inventory-denied");
+      if (result.serviceInventory) {
+        const observed = await this.observation(d.deviceId);
+        if (
+          !["services-inventory", "start-service", "stop-service"].includes(operation) ||
+          !observed?.inventoryConsent ||
+          result.serviceInventory.platform !== observed.platform ||
+          Date.parse(result.serviceInventory.observedAt) > this.now().getTime() + 5000 ||
+          this.now().getTime() - Date.parse(result.serviceInventory.observedAt) > 180000
+        )
+          this.fail("service-inventory-denied");
+        await this.saveServiceInventory(d.deviceId, result.serviceInventory);
+      }
+      if (operation === "services-inventory" && success && !result.serviceInventory)
+        this.fail("service-inventory-denied");
       if (result.restartRequired !== undefined && result.result !== "installed")
         this.fail("completion-result-denied");
       if (result.restartRequired !== undefined) job.restartRequired = result.restartRequired;

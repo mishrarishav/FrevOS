@@ -11,8 +11,15 @@ try{$config=[Text.Encoding]::UTF8.GetString($clear)|ConvertFrom-Json;if($config.
 $state=Join-Path $root 'state';Plain $state;$directory=Join-Path $state 'software'
 if(Test-Path -LiteralPath $directory){Plain $directory}else{[void][IO.Directory]::CreateDirectory($directory);Plain $directory}
 $destination=Join-Path $directory 'consent.json';if(Test-Path -LiteralPath $destination){Plain $destination}
+$serviceControl=$false
+if(Test-Path -LiteralPath $destination){
+ $previousBytes=[IO.File]::ReadAllBytes($destination);if($previousBytes.Length -gt 4096){throw 'Software consent capacity'}
+ $previous=[Text.Encoding]::UTF8.GetString($previousBytes)|ConvertFrom-Json
+ if($previous.version -ne 1 -or $previous.deviceId -cne $inputValue.deviceId){throw 'Software consent scope differs'}
+ $field=$previous.PSObject.Properties['serviceControl'];if($null -ne $field){if($field.Value -isnot [bool]){throw 'Software consent type differs'};$serviceControl=$field.Value}
+}
 $temp=Join-Path $directory ('consent-'+[guid]::NewGuid().ToString('N')+'.tmp')
-$bytes=[Text.UTF8Encoding]::new($false).GetBytes((@{version=1;deviceId=$inputValue.deviceId;inventory=$inputValue.inventory;install=$inputValue.install;approvedAt=[DateTimeOffset]::UtcNow.ToString('o')}|ConvertTo-Json -Compress))
+$bytes=[Text.UTF8Encoding]::new($false).GetBytes((@{version=1;deviceId=$inputValue.deviceId;inventory=$inputValue.inventory;install=$inputValue.install;serviceControl=$serviceControl;approvedAt=[DateTimeOffset]::UtcNow.ToString('o')}|ConvertTo-Json -Compress))
 $stream=[IO.File]::Open($temp,[IO.FileMode]::CreateNew);try{$stream.Write($bytes,0,$bytes.Length);$stream.Flush($true)}finally{$stream.Dispose()}
 if(Test-Path -LiteralPath $destination){[IO.File]::Replace($temp,$destination,[NullString]::Value)}else{[IO.File]::Move($temp,$destination)}
 [Console]::Out.Write('{"saved":true}')

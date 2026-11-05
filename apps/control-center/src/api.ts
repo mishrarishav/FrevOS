@@ -129,6 +129,7 @@ import {
   RepositoryRecoveryResultSchema,
   type RepositoryRecoveryState,
   RepositoryRecoveryStateSchema,
+  ServicePolicySchema,
   type ServixDeployment,
   ServixDeploymentSchema,
   type ServixDeploymentState,
@@ -261,7 +262,12 @@ export interface ControlCenterApi {
     deviceId: string,
     signal?: AbortSignal,
     inventorySince?: string,
+    servicesSince?: string,
   ): Promise<SoftwareState>;
+  softwareServicePolicy?(
+    workspaceId: string,
+    input: unknown,
+  ): Promise<import("@frevos/contracts").SoftwareState["servicePolicy"]>;
   softwareCatalog?(
     workspaceId: string,
     input: unknown,
@@ -634,17 +640,25 @@ export function createControlCenterApi(
       ),
     localDevelopmentState: (workspaceId, signal) =>
       get(`${workspacePath(workspaceId)}/local-development`, LocalDevStateSchema, signal),
-    softwareState: (workspaceId, deviceId, signal, inventorySince) =>
+    softwareState: (workspaceId, deviceId, signal, inventorySince, servicesSince) =>
       get(
         workspacePath(workspaceId) +
           "/software/" +
           encodeURIComponent(deviceId) +
-          (inventorySince ? "?inventorySince=" + encodeURIComponent(inventorySince) : ""),
+          (inventorySince || servicesSince
+            ? "?" +
+              new URLSearchParams({
+                ...(inventorySince ? { inventorySince } : {}),
+                ...(servicesSince ? { servicesSince } : {}),
+              }).toString()
+            : ""),
         SoftwareStateSchema,
         signal,
       ),
     softwareCatalog: (workspaceId, input) =>
       post(workspacePath(workspaceId) + "/software/catalog", input, SoftwareCatalogSchema),
+    softwareServicePolicy: (workspaceId, input) =>
+      post(workspacePath(workspaceId) + "/software/service-policy", input, ServicePolicySchema),
     softwareRequest: (workspaceId, input) =>
       post(workspacePath(workspaceId) + "/software/requests", input, SoftwareJobSchema),
     softwareDecision: (workspaceId, input) =>

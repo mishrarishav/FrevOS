@@ -4211,12 +4211,256 @@ kbd,
   min-height: 0;
   min-width: 0;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  background: var(--background);
 }
-.software-workspace > .record-workspace {
+.software-content {
+  flex: 1;
+  display: flex;
+  gap: 16px;
+  padding: 18px;
+  min-width: 0;
+  min-height: 0;
+}
+.software-content > .record-workspace {
   height: 100%;
   min-height: 0;
   min-width: 0;
+}
+.software-sidebar {
+  flex: 0 0 184px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+  padding: 22px 10px 16px;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+.software-computer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 6px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.software-computer > svg {
+  flex-shrink: 0;
+  color: var(--signal);
+}
+.software-computer strong,
+.software-computer span {
+  display: block;
+}
+.software-computer span {
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 5px;
+}
+.software-sidebar nav {
+  display: grid;
+  gap: 5px;
+}
+.software-sidebar nav button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 9px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.software-sidebar nav button svg {
+  flex-shrink: 0;
+}
+.software-sidebar nav button:hover {
+  background: var(--surface-2);
+  color: var(--foreground);
+}
+.software-sidebar nav button[aria-current="page"] {
+  background: var(--surface-2);
+  color: var(--foreground);
+  border-color: var(--border-strong);
+  box-shadow: inset 3px 0 var(--signal);
+}
+.software-access {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 6px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.software-content .record-workspace {
+  gap: 12px;
+}
+.software-content .record-header {
+  gap: 10px;
+}
+.software-content .record-title-row h1 {
+  font-size: 24px;
+}
+.software-content .record-title-row {
+  gap: 8px;
+}
+.software-content .record-notice {
+  padding: 9px 12px;
+  font-size: 11px;
+}
+.software-content .record-toolbar {
+  padding: 10px 12px;
+  gap: 8px;
+}
+.software-content .record-table {
+  min-width: 780px;
+}
+.software-content .record-table td {
+  padding: 11px 12px;
+}
+.software-content .record-table th {
+  padding: 10px 12px;
+}
+.software-content .record-table th[data-column="name"] {
+  min-width: 210px;
+}
+.software-content .record-table tr:has(.software-service-name[aria-pressed="true"]) td {
+  background: var(--surface-3);
+}
+.software-service-name {
+  display: block;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  font: inherit;
+  color: var(--foreground);
+  background: transparent;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.software-service-name:hover {
+  color: var(--signal);
+  text-decoration: underline;
+}
+.software-service-name:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 3px;
+}
+.software-app-group select {
+  max-width: 200px;
+  min-height: 36px;
+  font-size: 12px;
+}
+.software-service-details {
+  flex: 0 0 270px;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.software-service-details header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.software-service-details header > svg {
+  flex-shrink: 0;
+  color: var(--signal);
+}
+.software-service-details header h2 {
+  flex: 1;
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.4;
+}
+.software-service-details header .button {
+  padding: 0;
+  min-height: 24px;
+}
+.software-service-details dl {
+  display: grid;
+  gap: 4px;
+  margin: 18px 0;
+}
+.software-service-details dt {
+  color: var(--muted);
+  font-size: 10px;
+}
+.software-service-details dd {
+  margin: 0 0 8px;
+}
+.software-service-description {
+  line-height: 1.6;
+}
+.software-service-buttons {
+  display: flex;
+  gap: 8px;
+  padding: 10px 0;
+}
+.software-service-help {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.software-service-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+  line-height: 1.6;
+}
+.software-service-toggle input {
+  margin-top: 3px;
+  flex-shrink: 0;
+  accent-color: var(--signal);
+}
+.software-service-result {
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+  margin-top: 14px;
+  line-height: 1.6;
+}
+.software-service-result small {
+  color: var(--muted);
+}
+@media (max-width: 1100px) {
+  .software-sidebar {
+    flex-basis: 155px;
+  }
+  .software-content.with-service-details {
+    flex-direction: column;
+  }
+  .software-service-details {
+    flex: 0 1 auto;
+    max-height: 35%;
+  }
+  .software-content.with-service-details > .record-workspace {
+    height: auto;
+    flex: 1 1 0;
+    min-height: 200px;
+  }
+  .software-service-details dl {
+    grid-template-columns: auto 1fr;
+    gap: 6px 12px;
+    margin: 10px 0;
+  }
+  .software-service-details dd {
+    margin: 0;
+  }
 }
 .software-workspace .record-actions,
 .software-workspace .record-row-actions {
@@ -4306,5 +4550,65 @@ kbd,
   }
   .software-editor {
     padding: 14px;
+  }
+  .software-workspace {
+    flex-direction: column;
+  }
+  .software-sidebar {
+    flex: 0 0 auto;
+    padding: 8px;
+    gap: 8px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .software-computer,
+  .software-access {
+    display: none;
+  }
+  .software-sidebar nav {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+  }
+  .software-sidebar nav button {
+    flex-shrink: 0;
+    padding: 8px;
+    gap: 5px;
+    font-size: 11px;
+  }
+  .software-sidebar nav button svg {
+    width: 15px;
+  }
+  .software-content {
+    padding: 10px;
+    gap: 10px;
+  }
+  .software-content .record-title-row h1 {
+    font-size: 21px;
+  }
+  .software-content .record-breadcrumb {
+    font-size: 10px;
+  }
+  .software-content .record-notice {
+    padding: 7px 10px;
+    line-height: 1.5;
+    max-height: 100px;
+    overflow: auto;
+  }
+  .software-content .record-header-actions {
+    flex-wrap: wrap;
+  }
+  .software-content [aria-label="Record pages"] {
+    font-size: 11px;
+    gap: 6px;
+  }
+  .software-content [aria-label="Record pages"] .button {
+    padding: 6px 8px;
+    min-height: 30px;
+    font-size: 11px;
+  }
+  .software-service-details {
+    max-height: 32%;
+    padding: 12px;
   }
 }

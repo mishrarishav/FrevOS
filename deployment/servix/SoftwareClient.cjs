@@ -9,6 +9,19 @@ const native = require("./SoftwareNative.cjs"),
   protocol = require("./SoftwareProtocol.cjs"),
   { forward } = require("./PreviewRelay.cjs");
 const page = `<!doctype html><meta charset="utf-8"><title>DevSetu software management</title><style>body{font:16px system-ui;max-width:850px;margin:35px auto;padding:18px;background:#101820;color:#e5f5f8}section{border:1px solid #38505a;border-radius:10px;padding:16px;margin:16px 0}label{display:block;margin:15px 0}button{padding:10px 18px}pre{white-space:pre-wrap;word-break:break-word}</style><h1>Software management on this computer</h1><p>Monitoring pairing and existing projects stay unchanged.</p><section><label><input id="inventory" type="checkbox"> Share installed-program inventory with my DevSetu account and workspace administrators</label><p>Windows: machine and this user's registered programs/app packages. Linux: installed package-manager records. Portable programs and other users' private apps may not appear.</p><label><input id="install" type="checkbox"> Trust administrator-approved catalogue installs and temporary demo services on this computer</label><p>One-time DevSetu permission. Administrators can act without another DevSetu confirmation. Native OS installer or privilege prompts may still appear. You can turn this permission off here.</p><button id="save">Save permissions</button></section><p id="status" role="status">Loading…</p><pre id="progress"></pre><script>const nonce=__NONCE__;let initial=true;async function refresh(){try{const r=await fetch('/status');const s=await r.json();if(initial){document.getElementById('inventory').checked=s.consent.inventory;document.getElementById('install').checked=s.consent.install;initial=false}document.getElementById('status').textContent=s.connected?'Connector reporting software capability':'Waiting for DevSetu connection';document.getElementById('progress').textContent=s.progress}catch{document.getElementById('status').textContent='Connector unavailable; keep it running'}}document.getElementById('save').onclick=async()=>{const r=await fetch('/consent',{method:'POST',headers:{'content-type':'application/json','x-devsetu-local':nonce},body:JSON.stringify({inventory:document.getElementById('inventory').checked,install:document.getElementById('install').checked})});if(r.ok){initial=true;refresh()}else document.getElementById('status').textContent='Permission change failed'};refresh();setInterval(refresh,2500)</script>`;
+const servicesPage = page
+  .replace(
+    '<button id="save">',
+    '<label><input id="serviceControl" type="checkbox"> Trust administrator-approved Start/Stop for explicitly enabled OS services</label><p>Service controls use this connector’s OS account. Existing OS permissions, protected services and active dependencies remain enforced.</p><button id="save">',
+  )
+  .replace(
+    "initial=false}",
+    "document.getElementById('serviceControl').checked=s.consent.serviceControl===true;initial=false}",
+  )
+  .replace(
+    "install:document.getElementById('install').checked}",
+    "install:document.getElementById('install').checked,serviceControl:document.getElementById('serviceControl').checked}",
+  );
 async function atomic(file, value) {
   await native.plain(file);
   const temp = file + "." + crypto.randomBytes(16).toString("hex") + ".tmp",
@@ -29,7 +42,7 @@ async function start(config, api, options = {}) {
   const consentFile = path.join(root, "consent.json"),
     program = path.join(__dirname, "DemoApi.cjs"),
     programSha256 = native.sha(await fs.readFile(program));
-  let consent = { inventory: false, install: false },
+  let consent = { inventory: false, install: false, serviceControl: false },
     connected = false,
     progress = "Enable software permissions once to use the catalogue.",
     identity,
@@ -40,6 +53,9 @@ async function start(config, api, options = {}) {
     observing = false,
     previewBusy = false;
   let operation;
+  let pendingServices,
+    servicesAt = 0,
+    servicesBusy = false;
   const demos = new Map(),
     nonce = crypto.randomBytes(24).toString("hex");
   try {
@@ -52,7 +68,11 @@ async function start(config, api, options = {}) {
       typeof s.install !== "boolean"
     )
       throw Error("software-consent-invalid");
-    consent = { inventory: s.inventory, install: s.install };
+    consent = {
+      inventory: s.inventory,
+      install: s.install,
+      serviceControl: s.serviceControl === true,
+    };
   } catch (e) {
     if (e.code !== "ENOENT") throw e;
   }
@@ -69,9 +89,15 @@ async function start(config, api, options = {}) {
         typeof value.install !== "boolean"
       )
         throw Error();
-      consent = { inventory: value.inventory, install: value.install };
+      if (value.serviceControl !== undefined && typeof value.serviceControl !== "boolean")
+        throw Error();
+      consent = {
+        inventory: value.inventory,
+        install: value.install,
+        serviceControl: value.serviceControl === true,
+      };
     } catch {
-      consent = { inventory: false, install: false };
+      consent = { inventory: false, install: false, serviceControl: false };
     }
     if (!consent.install)
       for (const demo of demos.values()) demo.child.send?.({ operation: "stop" });
@@ -106,7 +132,7 @@ async function start(config, api, options = {}) {
       return send(403, { error: "local-origin-required" });
     if (req.method === "GET" && req.url === "/") {
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-      res.end(page.replace("__NONCE__", JSON.stringify(nonce)));
+      res.end(servicesPage.replace("__NONCE__", JSON.stringify(nonce)));
       return;
     }
     if (req.method === "GET" && req.url === "/status")
@@ -126,18 +152,22 @@ async function start(config, api, options = {}) {
       }
       const s = JSON.parse(body);
       if (
-        Object.keys(s).sort().join() !== "install,inventory" ||
+        !["install,inventory", "install,inventory,serviceControl"].includes(
+          Object.keys(s).sort().join(),
+        ) ||
         typeof s.inventory !== "boolean" ||
-        typeof s.install !== "boolean"
+        typeof s.install !== "boolean" ||
+        (s.serviceControl !== undefined && typeof s.serviceControl !== "boolean")
       )
         throw Error();
       await atomic(consentFile, {
         version: 1,
         deviceId: config.deviceId,
         ...s,
+        serviceControl: s.serviceControl ?? consent.serviceControl,
         approvedAt: new Date().toISOString(),
       });
-      consent = s;
+      consent = { ...s, serviceControl: s.serviceControl ?? consent.serviceControl };
       if (!s.install) for (const demo of demos.values()) demo.child.send?.({ operation: "stop" });
       progress = "Permissions saved. Use DevSetu Software on this system card.";
       send(200, { saved: true });
@@ -162,6 +192,12 @@ async function start(config, api, options = {}) {
     platform: process.platform,
     inventoryConsent: consent.inventory,
     installConsent: consent.install,
+    ...(identity?.serviceManagementVersion === 1
+      ? {
+          serviceManagement: { version: 1, controlConsent: consent.serviceControl },
+          ...(consent.inventory && pendingServices ? { serviceInventory: pendingServices } : {}),
+        }
+      : {}),
     programSha256,
     ...(identity?.serviceNetworkVersion === 1
       ? { network: { version: 1, addresses: protocol.privateInterfaces(os.networkInterfaces()) } }
@@ -174,7 +210,8 @@ async function start(config, api, options = {}) {
   const authorize = async (job) => {
     await reloadConsent();
     protocol.validateJob(job, identity);
-    if (!consent.install) throw Error("software-consent-revoked");
+    if (job.service ? !consent.serviceControl : !consent.install)
+      throw Error("software-consent-revoked");
     if (
       job.request.listen &&
       (identity.serviceNetworkVersion !== 1 ||
@@ -190,12 +227,13 @@ async function start(config, api, options = {}) {
     if (result.authorized !== true) throw Error("software-execution-denied");
   };
   const receiptFile = (id) => path.join(root, id + ".json");
-  const complete = async (job, result, inventory, restartRequired) =>
+  const complete = async (job, result, inventory, restartRequired, serviceInventory) =>
     api(endpoint + "complete", {
       requestId: job.request.requestId,
       digest: job.digest,
       result,
       ...(inventory ? { inventory } : {}),
+      ...(serviceInventory ? { serviceInventory } : {}),
       ...(restartRequired !== undefined ? { restartRequired } : {}),
     });
   async function execute(job) {
@@ -227,15 +265,22 @@ async function start(config, api, options = {}) {
     }
     let result = "failed",
       inventory,
+      serviceInventory,
       restartRequired;
     operation = {
       requestId: request.requestId,
       stage:
         request.operation === "inventory"
           ? "scanning"
-          : job.package?.recipe === "demo-api"
-            ? "starting-demo"
-            : "downloading",
+          : request.operation === "services-inventory"
+            ? "reading-services"
+            : request.operation === "start-service"
+              ? "starting-service"
+              : request.operation === "stop-service"
+                ? "stopping-service"
+                : job.package?.recipe === "demo-api"
+                  ? "starting-demo"
+                  : "downloading",
       startedAt: new Date().toISOString(),
     };
     try {
@@ -246,6 +291,31 @@ async function start(config, api, options = {}) {
         await reloadConsent();
         if (!consent.inventory) throw Error("software-consent-revoked");
         result = "inventory-updated";
+      } else if (request.operation === "services-inventory") {
+        if (!consent.inventory) throw Error("software-consent-revoked");
+        serviceInventory = await (options.serviceInventory ?? native.serviceInventory)({
+          deviceId: config.deviceId,
+        });
+        await reloadConsent();
+        if (!consent.inventory) throw Error("software-consent-revoked");
+        result = "services-updated";
+      } else if (request.operation === "start-service" || request.operation === "stop-service") {
+        if (!consent.serviceControl) throw Error("software-consent-revoked");
+        progress =
+          request.operation === "start-service"
+            ? "Starting the approved service…"
+            : "Stopping the approved service…";
+        const outcome = await (options.serviceAction ?? native.serviceAction)(
+          job.service,
+          request.operation,
+          { deviceId: config.deviceId, beforeExecute: () => authorize(job) },
+        );
+        result = outcome.result;
+        await reloadConsent();
+        if (consent.inventory)
+          serviceInventory = await (options.serviceInventory ?? native.serviceInventory)({
+            deviceId: config.deviceId,
+          });
       } else if (request.operation === "stop-demo") {
         const demo = demos.get(request.serviceId);
         demo?.child.send?.({ operation: "stop" });
@@ -332,6 +402,7 @@ async function start(config, api, options = {}) {
     } catch (e) {
       result = /interrupted|timeout/.test(e.message) ? "interrupted" : "failed";
       if (!consent.inventory) inventory = undefined;
+      if (!consent.inventory) serviceInventory = undefined;
     }
     operation = undefined;
     const completedReceipt = {
@@ -340,7 +411,7 @@ async function start(config, api, options = {}) {
       ...(restartRequired !== undefined ? { restartRequired } : {}),
     };
     await atomic(file, completedReceipt);
-    await complete(job, result, inventory, restartRequired);
+    await complete(job, result, inventory, restartRequired, serviceInventory);
     await atomic(file, { ...completedReceipt, reconciled: true });
     progress =
       result === "installed"
@@ -353,8 +424,42 @@ async function start(config, api, options = {}) {
             ? "Software inventory reported."
             : result === "demo-stopped"
               ? "Temporary API stopped."
-              : "Operation did not complete; check DevSetu history. No automatic retry.";
+              : result === "services-updated"
+                ? "Windows/Linux services reported."
+                : result === "service-started"
+                  ? "Service started."
+                  : result === "service-stopped"
+                    ? "Service stopped."
+                    : result === "os-permission-denied"
+                      ? "OS permission denied. Service controls require an authorized OS account."
+                      : "Operation did not complete; check DevSetu history. No automatic retry.";
     await api(endpoint + "observe", observations());
+  }
+  async function collectServices() {
+    if (stopped || servicesBusy || identity?.serviceManagementVersion !== 1) return;
+    if (!consent.inventory) {
+      pendingServices = undefined;
+      servicesAt = 0;
+      return;
+    }
+    const seconds = Number(config.serviceRefreshSeconds),
+      interval =
+        Number.isFinite(seconds) && seconds > 0
+          ? Math.min(300000, Math.max(15000, seconds * 1000))
+          : 30000;
+    if (Date.now() - servicesAt < interval) return;
+    servicesBusy = true;
+    servicesAt = Date.now();
+    try {
+      const snapshot = await (options.serviceInventory ?? native.serviceInventory)({
+        deviceId: config.deviceId,
+      });
+      await reloadConsent();
+      if (!stopped && consent.inventory) pendingServices = snapshot;
+    } catch {
+    } finally {
+      servicesBusy = false;
+    }
   }
   const poll = async () => {
     if (stopped || busy) return;
@@ -366,7 +471,10 @@ async function start(config, api, options = {}) {
         identityAt = Date.now();
       }
       if (identity.deviceId !== config.deviceId) throw Error("software-identity-denied");
+      void collectServices();
+      const sentServices = pendingServices;
       await api(endpoint + "observe", observations());
+      if (pendingServices === sentServices) pendingServices = undefined;
       connected = true;
       if (!consent.inventory) initialInventoryAt = 0;
       else if (!initialInventoryAt || Date.now() - initialInventoryAt >= 60000) {
@@ -386,10 +494,20 @@ async function start(config, api, options = {}) {
             receipt.result === "inventory-updated" && consent.inventory
               ? { inventory: await (options.inventory ?? native.inventory)() }
               : {};
+          if (
+            consent.inventory &&
+            ["services-updated", "service-started", "service-stopped"].includes(receipt.result)
+          )
+            extra.serviceInventory = await (options.serviceInventory ?? native.serviceInventory)({
+              deviceId: config.deviceId,
+            });
           await api(endpoint + "complete", {
             requestId: receipt.id,
             digest: receipt.digest,
-            result: receipt.result ?? "interrupted",
+            result:
+              receipt.result === "services-updated" && !consent.inventory
+                ? "interrupted"
+                : (receipt.result ?? "interrupted"),
             ...(receipt.restartRequired !== undefined
               ? { restartRequired: receipt.restartRequired }
               : {}),
@@ -421,7 +539,10 @@ async function start(config, api, options = {}) {
     observing = true;
     try {
       await reloadConsent();
+      void collectServices();
+      const sentServices = pendingServices;
       await api(endpoint + "observe", observations());
+      if (pendingServices === sentServices) pendingServices = undefined;
       connected = true;
     } catch {
       connected = false;

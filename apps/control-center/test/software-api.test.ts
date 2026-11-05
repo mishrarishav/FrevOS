@@ -1,6 +1,7 @@
+import { SoftwareStateSchema } from "@frevos/contracts";
 import { expect, it } from "vitest";
 import { createControlCenterApi } from "../src/api.js";
-import { SoftwareStateSchema } from "@frevos/contracts";
+
 const deviceId = "fc_" + "a".repeat(32),
   workspaceId = "ws_server20";
 const state = SoftwareStateSchema.parse({
@@ -32,6 +33,33 @@ it("loads software state through the workspace API and sends the inventory curso
     `/v1/workspaces/${workspaceId}/software/${deviceId}?inventorySince=${encodeURIComponent(since)}`,
   );
   expect(calls[0]?.init?.credentials).toBe("same-origin");
+  await api.softwareState?.(workspaceId, deviceId, undefined, undefined, since);
+  expect(calls[1]?.url).toBe(
+    `/v1/workspaces/${workspaceId}/software/${deviceId}?servicesSince=${encodeURIComponent(since)}`,
+  );
+  await api.softwareState?.(workspaceId, deviceId, undefined, since, since);
+  expect(calls[2]?.url).toContain(`&servicesSince=${encodeURIComponent(since)}`);
+  await api.softwareState?.(workspaceId, deviceId);
+  expect(calls[3]?.url).toBe(`/v1/workspaces/${workspaceId}/software/${deviceId}`);
+});
+it("saves a revisioned per-device service policy through the same CSRF-protected API", async () => {
+  const input = {
+    version: 1,
+    deviceId,
+    expectedRevision: 0,
+    rule: { id: "a".repeat(64), definitionSha256: "b".repeat(64), enabled: true },
+  };
+  const api = createControlCenterApi(
+    async (url, init) => {
+      expect(String(url)).toBe(`/v1/workspaces/${workspaceId}/software/service-policy`);
+      expect(JSON.parse(String(init?.body))).toEqual(input);
+      expect(new Headers(init?.headers).get("x-csrf-token")).toBe("synthetic-csrf");
+      return Response.json({ version: 1, workspaceId, deviceId, revision: 1, rules: [input.rule] });
+    },
+    undefined,
+    () => "synthetic-csrf",
+  );
+  expect((await api.softwareServicePolicy?.(workspaceId, input))?.revision).toBe(1);
 });
 it("CSRF-protects catalogue and typed software requests and propagates failures", async () => {
   const calls: { url: string; body: unknown; headers: HeadersInit | undefined }[] = [];

@@ -109,6 +109,26 @@ it("enforces actual session, workspace, CSRF and administrator boundaries on sof
       ).statusCode,
     ).toBe(400);
     const catalog = { version: 1, expectedRevision: 0, packages: [] };
+    const servicePolicy = {
+      version: 1,
+      deviceId,
+      expectedRevision: 0,
+      rule: { id: "a".repeat(64), definitionSha256: "b".repeat(64), enabled: false },
+    };
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: path + "service-policy",
+          headers: { cookie: headers.cookie, origin: headers.origin },
+          payload: servicePolicy,
+        })
+      ).statusCode,
+    ).toBe(403);
+    expect(
+      (await server.inject({ method: "GET", url: path + deviceId + "?servicesSince=bad", headers }))
+        .statusCode,
+    ).toBe(400);
     expect(
       (
         await server.inject({
@@ -128,6 +148,16 @@ it("enforces actual session, workspace, CSRF and administrator boundaries on sof
       (
         await server.inject({
           method: "POST",
+          url: path + "service-policy",
+          headers,
+          payload: servicePolicy,
+        })
+      ).statusCode,
+    ).toBe(403);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
           url: path + "catalog",
           headers,
           payload: { ...catalog, expectedRevision: 1 },
@@ -135,6 +165,14 @@ it("enforces actual session, workspace, CSRF and administrator boundaries on sof
       ).statusCode,
     ).toBe(403);
     administrator = true;
+    const savedServicePolicy = await server.inject({
+      method: "POST",
+      url: path + "service-policy",
+      headers,
+      payload: servicePolicy,
+    });
+    expect(savedServicePolicy.statusCode).toBe(200);
+    expect(savedServicePolicy.json().revision).toBe(1);
     expect(
       (
         await server.inject({

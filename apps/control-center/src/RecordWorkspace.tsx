@@ -73,6 +73,7 @@ export function RecordWorkspace<T>({
   statuses,
   renderCard,
   renderActions,
+  hideActions = false,
   renderSurface,
   actions,
   defaultView = "cards",
@@ -98,6 +99,7 @@ export function RecordWorkspace<T>({
   statuses: { id: string; label: string }[];
   renderCard: (record: T) => ReactNode;
   renderActions: (record: T) => ReactNode;
+  hideActions?: boolean;
   renderSurface?: ((records: T[]) => ReactNode) | undefined;
   actions?: ReactNode;
   defaultView?: Preferences["view"];
@@ -108,7 +110,15 @@ export function RecordWorkspace<T>({
   loading?: boolean;
   error?: string;
   onRetry?: () => void;
-  noun?: "projects" | "systems" | "agents" | "requests" | "repositories" | "folders" | "software";
+  noun?:
+    | "projects"
+    | "systems"
+    | "agents"
+    | "requests"
+    | "repositories"
+    | "folders"
+    | "software"
+    | "services";
 }) {
   const key = `frevos:${userId}:${workspaceId}:${page}:records:v1`;
   const listLabel =
@@ -116,13 +126,15 @@ export function RecordWorkspace<T>({
       ? "Repository list"
       : noun === "software"
         ? "Software list"
-        : noun === "systems"
-          ? "System list"
-          : noun === "agents"
-            ? "Agent list"
-            : noun === "requests"
-              ? "Join request list"
-              : "Project list";
+        : noun === "services"
+          ? "Services list"
+          : noun === "systems"
+            ? "System list"
+            : noun === "agents"
+              ? "Agent list"
+              : noun === "requests"
+                ? "Join request list"
+                : "Project list";
   const [preferences, setPreferences] = useState(() => readPreferences(key, defaultView));
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [pageIndex, setPageIndex] = useState(0);
@@ -237,7 +249,13 @@ export function RecordWorkspace<T>({
         {cards ? (
           <section
             className="record-summary"
-            aria-label={noun === "software" ? "Software status summary" : "Project status summary"}
+            aria-label={
+              noun === "services"
+                ? "Services status summary"
+                : noun === "software"
+                  ? "Software status summary"
+                  : "Project status summary"
+            }
           >
             {[{ id: "all", label: `All ${noun}` }, ...statuses].map((s) => (
               <button
@@ -267,11 +285,13 @@ export function RecordWorkspace<T>({
                   ? "Find a repository…"
                   : noun === "software"
                     ? "Search software, version or publisher…"
-                    : noun === "agents"
-                      ? "Search agent, role or model…"
-                      : noun === "requests"
-                        ? "Search account or request ID…"
-                        : "Search project, source folder or server…"
+                    : noun === "services"
+                      ? "Search service, status or startup type…"
+                      : noun === "agents"
+                        ? "Search agent, role or model…"
+                        : noun === "requests"
+                          ? "Search account or request ID…"
+                          : "Search project, source folder or server…"
               }
             />
           </label>
@@ -414,9 +434,11 @@ export function RecordWorkspace<T>({
                           />
                         </th>
                       ))}
-                      <th scope="col" className="record-actions-column">
-                        Actions
-                      </th>
+                      {!hideActions ? (
+                        <th scope="col" className="record-actions-column">
+                          Actions
+                        </th>
+                      ) : null}
                     </tr>
                   </thead>
                   <tbody>
@@ -427,7 +449,9 @@ export function RecordWorkspace<T>({
                             {c.render ? c.render(r) : c.value(r)}
                           </td>
                         ))}
-                        <td className="record-actions-column">{renderActions(r)}</td>
+                        {!hideActions ? (
+                          <td className="record-actions-column">{renderActions(r)}</td>
+                        ) : null}
                       </tr>
                     ))}
                   </tbody>
@@ -444,7 +468,13 @@ export function RecordWorkspace<T>({
       </div>
       {cards && filtersOpen ? (
         <WorkspaceDialog
-          label={noun === "software" ? "Software filters" : "Project filters"}
+          label={
+            noun === "services"
+              ? "Service filters"
+              : noun === "software"
+                ? "Software filters"
+                : "Project filters"
+          }
           onClose={() => setFiltersOpen(false)}
         >
           <section className="record-filter-drawer">{filterPanel}</section>
