@@ -139,6 +139,58 @@ async function fixture(clockStep = 0) {
   };
 }
 describe("workspace and artifact bound approved software", () => {
+  it("queues one consented initial inventory, backs off failures and keeps the successful snapshot", async () => {
+    const f = await fixture();
+    await f.observe({ inventoryConsent: false });
+    expect(await f.store.initialInventory(alice)).toEqual({ scheduled: false });
+    await f.observe({ inventoryConsent: true, installConsent: false });
+    const concurrent = await Promise.all(
+      Array.from({ length: 8 }, () => f.store.initialInventory(alice)),
+    );
+    expect(concurrent.filter((r) => r.scheduled)).toHaveLength(1);
+    const first = (await f.store.claim(alice)).job!;
+    expect(first.request).toMatchObject({ deviceId: a, operation: "inventory" });
+    expect(first.actor).toBe(alice);
+    expect(first.approval).toBeUndefined();
+    expect((await f.store.state(alice, workspace, a)).device.capability?.installConsent).toBe(
+      false,
+    );
+    await f.store.complete(alice, {
+      requestId: first.request.requestId,
+      digest: first.digest,
+      result: "failed",
+    });
+    expect(await f.store.initialInventory(alice)).toEqual({ scheduled: false });
+    f.advance(600001);
+    // Stale consent cannot authorize a scan, even after the retry interval.
+    expect(await f.store.initialInventory(alice)).toEqual({ scheduled: false });
+    await f.observe({ inventoryConsent: true, installConsent: false });
+    expect(await f.store.initialInventory(alice)).toEqual({ scheduled: true });
+    const second = (await f.store.claim(alice)).job!;
+    const inventory = {
+      version: 1,
+      observedAt: new Date(f.now()).toISOString(),
+      platform: "win32",
+      scope: "windows-machine-and-connector-user",
+      status: "ready",
+      truncated: false,
+      items: [{ id: hash("fixture program"), name: "Fixture program", source: "registry" }],
+    };
+    await f.store.complete(alice, {
+      requestId: second.request.requestId,
+      digest: second.digest,
+      result: "inventory-updated",
+      inventory,
+    });
+    f.advance(86400000);
+    await f.observe();
+    expect(await f.store.initialInventory(alice)).toEqual({ scheduled: false });
+    expect((await f.store.state(alice, workspace, a)).device.inventory).toEqual(inventory);
+    f.devices[0]!.status = "revoked";
+    await expect(f.store.initialInventory(alice)).rejects.toThrow("device-denied");
+    expect((await f.store.state(bob, workspace, b)).device.inventory).toBeNull();
+    await expect(f.store.initialInventory("unrecognized")).rejects.toThrow("credential denied");
+  });
   it("binds private listening to the reported interface and exact administrator-approved client list", async () => {
     const f = await fixture();
     const listen = { address: "10.20.30.40", allowedClients: ["10.20.30.41"] };

@@ -1294,23 +1294,33 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
             : options.software.decide(actor, request.params.workspaceId, request.body);
       },
     );
-  for (const action of ["identity", "observe", "claim", "authorize", "complete"] as const)
+  for (const action of [
+    "identity",
+    "observe",
+    "claim",
+    "initial-inventory",
+    "authorize",
+    "complete",
+  ] as const)
     server.post(
       route("/v1/connector/software/" + action),
       { bodyLimit: 3000000 },
       async (request) => {
         if (!options.software) throw new HttpError(503, "software-unavailable");
         const credential = connectorCredential(request);
-        if (action === "identity" || action === "claim") EmptyBodySchema.parse(request.body);
+        if (action === "identity" || action === "claim" || action === "initial-inventory")
+          EmptyBodySchema.parse(request.body);
         return action === "identity"
           ? options.software.identity(credential)
           : action === "observe"
             ? options.software.observe(credential, request.body)
-            : action === "claim"
-              ? options.software.claim(credential)
-              : action === "authorize"
-                ? options.software.authorize(credential, request.body)
-                : options.software.complete(credential, request.body);
+            : action === "initial-inventory"
+              ? options.software.initialInventory(credential)
+              : action === "claim"
+                ? options.software.claim(credential)
+                : action === "authorize"
+                  ? options.software.authorize(credential, request.body)
+                  : options.software.complete(credential, request.body);
       },
     );
   server.get<{ Params: WorkspaceParams }>(

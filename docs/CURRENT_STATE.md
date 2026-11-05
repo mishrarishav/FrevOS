@@ -1,5 +1,29 @@
 # DevSetu Current State
 
+2026-11-05: ADR0101 corrects missing first software inventory. A credential-bound
+connector endpoint schedules the existing audited inventory job only with fresh
+local inventory consent, an online authorized device, no current software job,
+no successful snapshot and a ten-minute retry interval. New clients check at most
+once a minute. Successful receipts are marked reconciled immediately after server
+acknowledgement, avoiding redundant scans after normal completion/restart. Manual
+refresh, revoked-consent checks and retained successful snapshots remain intact.
+
+The project-sidecar updater gains a closed Software capability bundle with its
+native/protocol/demo/relay/Git dependencies and unchanged pairing/task/consent
+checks. L-1770's legacy project connection is confirmed missing those software
+files. Direct read-only OS inspection returns 278 registered programs/app packages,
+ready and not truncated; this is not yet a live DevSetu inventory observation.
+
+ESDS's actual failed create requests target C:\Users and report OS permission
+denied. An isolated Windows ACL fixture reproduces denied file/folder creation,
+while ordinary writable-folder creation passes without elevation. Explorer now
+explains that error and collisions/protected paths. Equal-presence verified
+system connections prefer an explorer-capable binding over a legacy duplicate.
+Software states distinguish offline, outdated connector, disabled consent,
+queued/scanning, unavailable and successful snapshots. Full immutable release
+validation and actual DevSetu activation/connector acceptance follow; current live
+application baseline remains afb50afd / manifest 76870e52.
+
 2026-11-05: Corrective Code release afb50afd3fe6a932ddfd0fd8ce80b1c36459cd78 is LIVE on Server20 through
 actual authenticated DevSetu maintenance request su_1412de1ec99c84fb5ca1d8dce5b29e6a, actor
 usr_windows_admin. Manifest 76870e5283e8c7350884defea69a7012b46f1eeb835626ef1efec134d308cfde;

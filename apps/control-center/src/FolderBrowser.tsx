@@ -33,6 +33,20 @@ export interface FolderChoice {
 }
 type Entry = NonNullable<FolderBrowseJob["result"]>["entries"][number];
 type Location = { root: string; path: string };
+export function explorerError(error: unknown, creating = false): string {
+  const code = error instanceof Error ? error.message : "";
+  if (code.includes("folder-permission-denied"))
+    return creating
+      ? "Windows/Linux denied writing in this folder for the connector's signed-in user. Choose a writable personal or project folder, such as your own Documents. A system folder like C:\\Users is not writable for ordinary users. No file was created."
+      : "The connector's signed-in user cannot read this folder. Choose a folder that this user can access on the connected computer.";
+  if (code.includes("folder-already-exists"))
+    return "An item with this name already exists. Choose another name; existing files are never overwritten.";
+  if (code.includes("folder-scope-denied"))
+    return "This path is protected, linked, or outside the selected drive. Choose an ordinary accessible folder and a valid new name.";
+  return code
+    ? code.replaceAll("-", " ")
+    : "Could not read this folder. Check the connection and refresh.";
+}
 export function explorerLocation(value: string, roots: string[]): Location | null {
   if (!value || /^[\\/]{2}/.test(value) || [...value].some((c) => c.charCodeAt(0) < 32))
     return null;
@@ -260,10 +274,7 @@ export function FolderBrowser({
         if (!abort.signal.aborted) setJob(result);
       })
       .catch((e: unknown) => {
-        if (!abort.signal.aborted)
-          setError(
-            e instanceof Error ? e.message.replaceAll("-", " ") : "Could not read this folder.",
-          );
+        if (!abort.signal.aborted) setError(explorerError(e));
       })
       .finally(() => {
         if (!abort.signal.aborted) setBusy(false);
@@ -322,12 +333,7 @@ export function FolderBrowser({
         `${creation === "directory" ? "Folder" : "Empty file"} created on ${system?.observation?.system.systemName ?? "the connected system"}.`,
       );
     } catch (e) {
-      if (mounted.current)
-        setError(
-          e instanceof Error
-            ? e.message.replaceAll("-", " ")
-            : "Could not create this item. Existing items are never overwritten.",
-        );
+      if (mounted.current) setError(explorerError(e, true));
     } finally {
       if (mounted.current) setBusy(false);
     }

@@ -1,6 +1,21 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it } from "vitest";
-import { explorerLocation, FileExplorerEntries, folderEntryType } from "../src/FolderBrowser.js";
+import {
+  explorerError,
+  explorerLocation,
+  FileExplorerEntries,
+  folderEntryType,
+} from "../src/FolderBrowser.js";
+
+it("explains OS-denied creation and keeps collision/scope errors actionable", () => {
+  expect(explorerError(Error("folder-permission-denied"), true)).toContain(
+    "writable personal or project folder",
+  );
+  expect(explorerError(Error("folder-permission-denied"), true)).toContain("No file was created");
+  expect(explorerError(Error("folder-permission-denied"))).toContain("cannot read");
+  expect(explorerError(Error("folder-already-exists"), true)).toContain("never overwritten");
+  expect(explorerError(Error("folder-scope-denied"), true)).toContain("protected");
+});
 
 it("navigates typed locations only inside listed roots with platform case rules and no traversal or network shares", () => {
   expect(explorerLocation("c:\\Project\\src", ["C:\\", "C:\\Project"])).toEqual({

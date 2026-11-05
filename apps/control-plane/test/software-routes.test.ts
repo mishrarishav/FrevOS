@@ -1,18 +1,19 @@
-import { expect, it } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
-import { join, dirname, resolve } from "node:path";
 import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import {
   authCookiePolicy,
   SessionContextSchema,
-  WorkspaceSchema,
   WorkspaceMembershipSchema,
+  WorkspaceSchema,
 } from "@frevos/contracts";
-import { SoftwareManagement } from "../src/software-management.js";
-import { buildServer } from "../src/server.js";
+import { expect, it } from "vitest";
 import { sha256 } from "../src/crypto.js";
-import { ServixDeploymentError } from "../src/servix-deployment.js";
 import type { IdentitySessionRepository, WorkspaceRepository } from "../src/repositories.js";
+import { buildServer } from "../src/server.js";
+import { ServixDeploymentError } from "../src/servix-deployment.js";
+import { SoftwareManagement } from "../src/software-management.js";
+
 async function cleanup(root: string) {
   if (dirname(resolve(root)) !== resolve(tmpdir()) || !root.includes("frevos-software-routes-"))
     throw Error("cleanup scope");
@@ -171,6 +172,20 @@ it("enforces actual session, workspace, CSRF and administrator boundaries on sof
       deviceId,
       operation: "inventory",
     };
+    const initialRoute = "/v1/connector/software/initial-inventory";
+    expect(
+      (await server.inject({ method: "POST", url: initialRoute, payload: {} })).statusCode,
+    ).toBe(401);
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: initialRoute,
+          headers: native,
+          payload: { deviceId: "fc_" + "b".repeat(32) },
+        })
+      ).statusCode,
+    ).toBe(400);
     const requested = await server.inject({
       method: "POST",
       url: path + "requests",

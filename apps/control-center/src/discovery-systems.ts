@@ -66,6 +66,7 @@ export function discoverySystems(sources: DiscoverySource[]): DiscoverySystem[] 
         Number(b.online) - Number(a.online) ||
         Number(!!b.observation) - Number(!!a.observation) ||
         Number(!b.profileId) - Number(!a.profileId) ||
+        Number(!!b.observation?.fileExplorer) - Number(!!a.observation?.fileExplorer) ||
         Number(b.policy?.policy.enabled ?? false) - Number(a.policy?.policy.enabled ?? false) ||
         seenAt(b) - seenAt(a) ||
         a.deviceId.localeCompare(b.deviceId),

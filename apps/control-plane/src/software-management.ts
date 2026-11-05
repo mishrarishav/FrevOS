@@ -512,6 +512,54 @@ export class SoftwareManagement {
     const d = await this.credential(credential);
     return { workspaceId: this.workspaceId, deviceId: d.deviceId, serviceNetworkVersion: 1 };
   }
+  async initialInventory(credential: string) {
+    return this.serial(async () => {
+      const d = await this.credential(credential),
+        device = await this.device(d.userId, d.deviceId),
+        observed = await this.observation(d.deviceId);
+      if (!device.online || !observed?.inventoryConsent) return { scheduled: false };
+      // A completed snapshot survives restarts. Manual refresh remains explicit;
+      // capability heartbeats must not trigger an inventory scan every few seconds.
+      const saved = await this.read("inventory-" + d.deviceId + ".json", 3000000);
+      if (saved && SoftwareInventorySchema.parse(saved).status !== "unavailable")
+        return { scheduled: false };
+      const now = this.now(),
+        jobs = (await this.jobs()).filter((j) => j.request.deviceId === d.deviceId);
+      if (
+        jobs.some(
+          (j) =>
+            (["approved", "working"].includes(j.status) &&
+              Date.parse(j.expiresAt) > now.getTime()) ||
+            (j.request.operation === "inventory" &&
+              now.getTime() - Date.parse(j.createdAt) < 600000),
+        )
+      )
+        return { scheduled: false };
+      const job = SoftwareJobSchema.parse({
+        version: 1,
+        workspaceId: this.workspaceId,
+        actor: d.userId,
+        request: {
+          version: 1,
+          requestId: "sw_" + randomBytes(16).toString("hex"),
+          deviceId: d.deviceId,
+          operation: "inventory",
+        },
+        digest: "0".repeat(64),
+        createdAt: now.toISOString(),
+        expiresAt: new Date(now.getTime() + 3600000).toISOString(),
+        status: "approved",
+      });
+      job.digest = digest(softwareJobBinding(job));
+      await this.audit("initial-inventory-request", d.userId, {
+        target: d.deviceId,
+        correlationId: job.request.requestId,
+        digest: job.digest,
+      });
+      await this.write(job.request.requestId + ".json", job);
+      return { scheduled: true };
+    });
+  }
   async authorize(credential: string, input: unknown) {
     const d = await this.credential(credential),
       request = SoftwareDecisionSchema.pick({ requestId: true, digest: true }).parse(input),

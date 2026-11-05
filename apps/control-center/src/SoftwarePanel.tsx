@@ -11,6 +11,7 @@ import type { ControlCenterApi } from "./api.js";
 import { deploymentRequestId } from "./deployment-request-id.js";
 import { RecordBadge, type RecordColumn, RecordWorkspace } from "./RecordWorkspace.js";
 import { ServiceListenControls, serviceListenInput } from "./ServiceListenControls.js";
+import { softwareInventoryStatus } from "./software-inventory-status.js";
 import { VpnPreviewButton } from "./VpnPreviewButton.js";
 import { WorkspaceDialog } from "./WorkspaceDialog.js";
 
@@ -97,7 +98,7 @@ export function SoftwarePanel({
       } catch {
         if (!abort.signal.aborted)
           setError(
-            "Software information could not be loaded. Check your account, connector and VPN.",
+            "Software information could not be loaded. Check your account and connector connection.",
           );
       } finally {
         if (!abort.signal.aborted) timer = setTimeout(poll, 5000);
@@ -469,13 +470,14 @@ export function SoftwarePanel({
       </>
     );
   };
+  const inventoryStatus = softwareInventoryStatus(state);
   const statusNotice = !state
     ? "Loading software capability…"
     : !capability
-      ? "This connector has not reported software capability. Update it once; existing pairing is retained."
+      ? inventoryStatus.description
       : !capability.inventoryConsent && !capability.installConsent
         ? "Enable software permissions once using the DevSetu desktop connection-status icon on this computer."
-        : `Inventory: ${inventory ? `${inventory.status} · ${new Date(inventory.observedAt).toLocaleString()}${inventory.truncated ? " · truncated" : ""}` : "not collected"}. ${capability.installConsent ? "Trusted software management enabled." : "Installation disabled."}`;
+        : `Inventory: ${inventory ? `${inventory.items.length} programs · ${inventory.status} · ${new Date(inventory.observedAt).toLocaleString()}${inventory.truncated ? " · truncated" : ""}` : inventoryStatus.title}. ${capability.installConsent ? "Trusted software management enabled." : "Installation disabled."}`;
   return (
     <WorkspaceDialog label={`Software on ${name}`} onClose={onClose}>
       <div className="software-workspace">
@@ -660,18 +662,14 @@ export function SoftwarePanel({
               .join(" ")}
             emptyTitle={
               tab === "inventory"
-                ? state?.device.scan?.status === "unavailable"
-                  ? "Inventory unavailable"
-                  : inventory
-                    ? "No registered programs reported"
-                    : "Inventory not collected"
+                ? inventoryStatus.title
                 : tab === "catalog"
                   ? "No approved packages"
                   : "No installation requests"
             }
             emptyDescription={
               tab === "inventory"
-                ? "Use Refresh inventory after this computer enables inventory sharing. This is a bounded snapshot of registered packages, not every portable executable."
+                ? inventoryStatus.description
                 : tab === "catalog"
                   ? "An administrator can add approved packages. Sources, versions and artifact hashes are configurable."
                   : "No software requests are recorded for your authorized view."
@@ -702,10 +700,17 @@ export function SoftwarePanel({
                   <button
                     type="button"
                     className="button secondary"
-                    disabled={busy || !state?.device.online || !capability?.inventoryConsent}
+                    disabled={
+                      busy ||
+                      inventoryStatus.pending ||
+                      !state?.device.online ||
+                      !capability?.inventoryConsent
+                    }
                     onClick={() => void request({ version: 1, deviceId, operation: "inventory" })}
                   >
-                    Refresh inventory
+                    {inventoryStatus.pending
+                      ? "Inventory / software request in progress…"
+                      : "Refresh inventory"}
                   </button>
                 ) : null}
                 {tab === "catalog" ? (

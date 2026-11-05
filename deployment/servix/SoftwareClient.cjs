@@ -34,6 +34,7 @@ async function start(config, api, options = {}) {
     progress = "Enable software permissions once to use the catalogue.",
     identity,
     identityAt = 0,
+    initialInventoryAt = 0,
     busy = false,
     stopped = false,
     observing = false,
@@ -333,12 +334,14 @@ async function start(config, api, options = {}) {
       if (!consent.inventory) inventory = undefined;
     }
     operation = undefined;
-    await atomic(file, {
+    const completedReceipt = {
       ...receipt,
       result,
       ...(restartRequired !== undefined ? { restartRequired } : {}),
-    });
+    };
+    await atomic(file, completedReceipt);
     await complete(job, result, inventory, restartRequired);
+    await atomic(file, { ...completedReceipt, reconciled: true });
     progress =
       result === "installed"
         ? restartRequired
@@ -365,6 +368,13 @@ async function start(config, api, options = {}) {
       if (identity.deviceId !== config.deviceId) throw Error("software-identity-denied");
       await api(endpoint + "observe", observations());
       connected = true;
+      if (!consent.inventory) initialInventoryAt = 0;
+      else if (!initialInventoryAt || Date.now() - initialInventoryAt >= 60000) {
+        initialInventoryAt = Date.now();
+        // Older servers may not expose this endpoint yet. Keep ordinary jobs
+        // available during a rolling update; the server serializes/bounds scans.
+        await api(endpoint + "initial-inventory", {}).catch(() => undefined);
+      }
       for (const name of (await fs.readdir(root))
         .filter((n) => /^sw_[a-f0-9]{32}\.json$/.test(n))
         .slice(0, 256)) {

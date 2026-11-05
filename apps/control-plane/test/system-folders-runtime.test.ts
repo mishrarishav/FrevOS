@@ -12,6 +12,66 @@ const require = createRequire(import.meta.url),
   { discover } = require("../../../deployment/servix/LocalDevelopment.cjs"),
   { projectFolders } = require("../../../deployment/servix/SystemPrerequisites.cjs");
 const roots: string[] = [];
+it.skipIf(process.platform !== "win32")(
+  "reports real Windows write denial while allowing ordinary-user creation elsewhere",
+  async () => {
+    const root = await mkdtemp(join(tmpdir(), "devsetu-permission-runtime-"));
+    roots.push(root);
+    const restricted = join(root, "restricted"),
+      state = join(root, "agent", "state");
+    await mkdir(restricted);
+    await mkdir(state, { recursive: true });
+    const fixture = fileURLToPath(new URL("./fixtures/explorer-permission.ps1", import.meta.url));
+    const ps = join(process.env["WINDIR"]!, "System32/WindowsPowerShell/v1.0/powershell.exe");
+    const args = [
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "RemoteSigned",
+      "-File",
+      fixture,
+      "-Directory",
+      restricted,
+    ];
+    const config = { deviceId: "fc_" + "f".repeat(32), repository: root, stateRoot: state };
+    const request = (path: string, kind: string, name: string) =>
+      browse(
+        config,
+        {
+          version: 1,
+          requestId: "fb_" + "e".repeat(32),
+          workspaceId: "ws_server20",
+          actor: "usr_fixture",
+          request: {
+            version: 1,
+            deviceId: config.deviceId,
+            root,
+            path,
+            page: 0,
+            includeFiles: true,
+            create: { kind, name },
+          },
+        },
+        [],
+        true,
+      );
+    try {
+      await promisify(execFile)(ps, args, { windowsHide: true, timeout: 15000 });
+      expect((await request("restricted", "file", "notes.txt")).errorCode).toBe(
+        "folder-permission-denied",
+      );
+      expect((await request("restricted", "directory", "New folder")).errorCode).toBe(
+        "folder-permission-denied",
+      );
+      await expect(stat(join(restricted, "notes.txt"))).rejects.toMatchObject({ code: "ENOENT" });
+      expect((await request("", "file", "notes.txt")).status).toBe("succeeded");
+      expect((await stat(join(root, "notes.txt"))).size).toBe(0);
+    } finally {
+      await promisify(execFile)(ps, [...args, "-Restore"], { windowsHide: true, timeout: 15000 });
+    }
+  },
+  60000,
+);
 it("executes Linux explorer metadata and exclusive creation with actual non-root files", async () => {
   const env = require("../../../deployment/servix/NativePlatform.cjs").buildEnvironment();
   const { stdout } = await promisify(execFile)(

@@ -3,6 +3,24 @@ import { expect, it } from "vitest";
 import { discoverySystems, lastSeenLabel } from "../src/discovery-systems.js";
 
 type Source = DiscoveryState["systems"][number];
+it("prefers an explorer-capable verified connection without merging another owner's system", () => {
+  const capable = {
+    ...source("fc_" + "a".repeat(32)),
+    profileId: null,
+    observedAt: "2026-11-05T13:14:51Z",
+  };
+  capable.observation!.fileExplorer = { version: 1 };
+  const legacy = {
+    ...source("fc_" + "b".repeat(32)),
+    profileId: null,
+    observedAt: "2026-11-05T13:15:10Z",
+  };
+  expect(discoverySystems([legacy, capable])[0]?.deviceId).toBe(capable.deviceId);
+  expect(discoverySystems([{ ...capable, online: false }, legacy])[0]?.deviceId).toBe(
+    legacy.deviceId,
+  );
+  expect(discoverySystems([{ ...capable, userId: "usr_other" }, legacy])).toHaveLength(2);
+});
 function source(
   device: string,
   user = "usr_alice",

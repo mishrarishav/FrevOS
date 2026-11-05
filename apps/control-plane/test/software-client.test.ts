@@ -1,14 +1,15 @@
-import { expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { createRequire } from "node:module";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer, request as httpRequest } from "node:http";
-import { join, dirname, resolve } from "node:path";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { SoftwareManagement } from "../src/software-management.js";
-import { PreviewConfigSchema, PreviewRelay } from "../src/preview-relay.js";
+import { dirname, join, resolve } from "node:path";
+import { expect, it, vi } from "vitest";
 import type { DeveloperConnectorStore } from "../src/developer-connectors.js";
 import type { LocalDevelopment } from "../src/local-development.js";
+import { PreviewConfigSchema, PreviewRelay } from "../src/preview-relay.js";
+import { SoftwareManagement } from "../src/software-management.js";
+
 const require = createRequire(import.meta.url),
   client = require("../../../deployment/servix/SoftwareClient.cjs"),
   protocol = require("../../../deployment/servix/SoftwareProtocol.cjs"),
@@ -34,6 +35,106 @@ async function until(fn: () => Promise<boolean>, ms = 20000) {
   }
   throw Error("native client observation deadline");
 }
+
+it("collects the first consented inventory through the real client/job protocol and retains it after restart", async () => {
+  const root = await mkdtemp(join(tmpdir(), "frevos-software-client-")),
+    deviceId = "fc_" + "c".repeat(32),
+    workspaceId = "ws_fixture",
+    actor = "usr_owner";
+  const device = {
+    deviceId,
+    userId: actor,
+    workspaceId,
+    name: "Inventory fixture",
+    online: true,
+    status: "active",
+    workspaceAuthorized: true,
+  };
+  const store = new SoftwareManagement(
+    join(root, "server"),
+    workspaceId,
+    {
+      discoveryDevices: async (user) => (user === actor ? [device] : []),
+      checkCredential: async () => device,
+    },
+    async () => false,
+  );
+  const stateRoot = join(root, "client"),
+    consent = {
+      version: 1,
+      deviceId,
+      inventory: true,
+      install: false,
+      approvedAt: new Date().toISOString(),
+    };
+  await mkdir(join(stateRoot, "software"), { recursive: true });
+  await writeFile(join(stateRoot, "software", "consent.json"), JSON.stringify(consent));
+  let scans = 0,
+    initialRequests = 0;
+  const api = async (route: string, input: unknown) => {
+    const op = route.split("/").at(-1);
+    if (op === "identity") return store.identity("fixture");
+    if (op === "observe") return store.observe("fixture", input);
+    if (op === "initial-inventory") {
+      initialRequests++;
+      return store.initialInventory("fixture");
+    }
+    if (op === "claim") return store.claim("fixture");
+    if (op === "complete") return store.complete("fixture", input);
+    throw Error("unregistered fixture operation");
+  };
+  const options = {
+    inventory: async () => {
+      scans++;
+      return {
+        version: 1,
+        observedAt: new Date().toISOString(),
+        platform: "win32",
+        scope: "windows-machine-and-connector-user",
+        status: "ready",
+        truncated: false,
+        items: [
+          {
+            id: "d".repeat(64),
+            name: "Fixture registered software",
+            version: "1",
+            source: "registry",
+          },
+        ],
+      };
+    },
+  };
+  let companion: { stop: () => Promise<void> } | undefined;
+  try {
+    companion = await client.start({ deviceId, stateRoot }, api, options);
+    await until(async () => !!(await store.state(actor, workspaceId, deviceId)).device.inventory);
+    expect(scans).toBe(1);
+    expect(
+      (await store.state(actor, workspaceId, deviceId)).device.capability?.installConsent,
+    ).toBe(false);
+    await until(async () => {
+      const job = (await store.state(actor, workspaceId, deviceId)).jobs[0]!;
+      return (
+        JSON.parse(
+          await readFile(join(stateRoot, "software", job.request.requestId + ".json"), "utf8"),
+        ).reconciled === true
+      );
+    });
+    await companion!.stop();
+    companion = await client.start({ deviceId, stateRoot }, api, options);
+    await until(async () => initialRequests >= 2);
+    expect(scans).toBe(1);
+    expect((await store.state(actor, workspaceId, deviceId)).device.inventory?.items[0]?.name).toBe(
+      "Fixture registered software",
+    );
+    expect(JSON.parse(await readFile(join(stateRoot, "software", "consent.json"), "utf8"))).toEqual(
+      consent,
+    );
+  } finally {
+    await companion?.stop();
+    await cleanFixture(root);
+  }
+});
 
 it.each([false, true])(
   "runs the actual owned demo with negotiated private listening=%s and preserves relay/consent",

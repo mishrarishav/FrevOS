@@ -1,4 +1,4 @@
-param([string]$PlanReference,[string]$DescribeDevice,[switch]$PlanOnly,[ValidateSet('Preview','Git','Discovery','Transport')][string]$Capability='Preview')
+param([string]$PlanReference,[string]$DescribeDevice,[switch]$PlanOnly,[ValidateSet('Preview','Git','Discovery','Transport','Software')][string]$Capability='Preview')
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
 Add-Type -AssemblyName System.Security
 function Hash([string]$File){(Get-FileHash -LiteralPath $File -Algorithm SHA256).Hash.ToLowerInvariant()}
@@ -49,8 +49,8 @@ function TaskIdentity([string]$Root,[string]$Id){
  if($owner -cne [Security.Principal.WindowsIdentity]::GetCurrent().User.Value -or $task.Principal.RunLevel -cne 'Limited' -or $task.Principal.LogonType -cne 'Interactive' -or $task.Actions.Count -ne 1 -or $task.Actions[0].Execute -ine (Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe') -or ($task.Actions[0].Arguments -cne $expected -and $task.Actions[0].Arguments -cne $expected.Replace('RemoteSigned','Bypass')) -or -not $task.Settings.Enabled){throw 'Preview connector task identity differs'}
  return $task
 }
-$extended=$Capability -cin @('Discovery','Transport');$transport=$Capability -ceq 'Transport'
-$names=if($extended){@('Connector.cjs','SystemDiscovery.cjs','DiscoverySafety.cjs','FolderBrowse.cjs','Browse-Folders.ps1')}elseif($Capability -ceq 'Git'){@('Connector.cjs','GitDesktop.cjs','FrevOS.FolderPicker.exe')}else{@('LocalDevelopment.cjs','PreviewRelay.cjs')}
+$extended=$Capability -cin @('Discovery','Transport','Software');$transport=$Capability -ceq 'Transport'
+$names=if($Capability -ceq 'Software'){@('Connector.cjs','SoftwareClient.cjs','SoftwareNative.cjs','SoftwareNative.ps1','SoftwareProtocol.cjs','DemoApi.cjs','PreviewRelay.cjs','DiscoverySafety.cjs','GitDesktop.cjs','FrevOS.FolderPicker.exe')}elseif($extended){@('Connector.cjs','SystemDiscovery.cjs','DiscoverySafety.cjs','FolderBrowse.cjs','Browse-Folders.ps1')}elseif($Capability -ceq 'Git'){@('Connector.cjs','GitDesktop.cjs','FrevOS.FolderPicker.exe')}else{@('LocalDevelopment.cjs','PreviewRelay.cjs')}
 $expectedAction=if($extended){'devsetu.'+$Capability.ToLowerInvariant()+'.connector-update.v1'}elseif($Capability -ceq 'Git'){'devsetu.git.connector-update.v1'}else{'devsetu.preview.connector-update.v1'}
 $identityEndpoint=if($extended){'/v1/connector/connection-status'}elseif($Capability -ceq 'Git'){'/v1/connector/git-desktop/identity'}else{'/v1/connector/preview/identity'}
 function VerifyProof($Proof,$Plan){
