@@ -23,6 +23,8 @@
     "local:logs": "node scripts/local-preview.mjs logs",
     "local:backup": "node scripts/local-preview.mjs backup",
     "local:restore": "node scripts/local-preview.mjs restore",
+    "local:waf": "node scripts/waf.mjs",
+    "test:waf": "node --test scripts/waf-config.test.mjs && node scripts/waf-smoke.mjs",
     "build:contracts": "pnpm --filter @frevos/contracts run build",
     "test": "pnpm run build:contracts && pnpm --recursive --if-present run test",
     "test:coverage": "pnpm run build:contracts && pnpm --recursive --workspace-concurrency=1 --if-present run test:coverage",

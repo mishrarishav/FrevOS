@@ -1,5 +1,6 @@
 "use strict";
 const fs = require("node:fs/promises"),
+  { constants } = require("node:fs"),
   path = require("node:path"),
   crypto = require("node:crypto"),
   { spawn } = require("node:child_process");
@@ -199,10 +200,99 @@ function serviceMetadata(value, max = 180) {
     .trim()
     .slice(0, max);
 }
-function linuxService(row, manager, options) {
+const serviceInventoryNameValid = (name) =>
+  typeof name === "string" &&
+  name.length <= 180 &&
+  !name.startsWith("-") &&
+  name.endsWith(".service") &&
+  !/[\s/]/.test(name) &&
+  ![...name].some((c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127);
+async function readServiceDefinition(file, capacity) {
+  const resolved = await fs.realpath(file),
+    handle = await fs.open(resolved, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    const before = await handle.stat();
+    if (!before.isFile() || before.size > Math.min(262144, capacity))
+      throw Error("service-definition-capacity");
+    const bytes = Buffer.alloc(before.size + 1),
+      read = await handle.read(bytes, 0, bytes.length, 0),
+      after = await handle.stat();
+    if (
+      read.bytesRead !== before.size ||
+      after.size !== before.size ||
+      after.mtimeMs !== before.mtimeMs ||
+      after.ctimeMs !== before.ctimeMs
+    )
+      throw Error("service-definition-changed");
+    return { path: resolved, bytes: bytes.subarray(0, read.bytesRead) };
+  } finally {
+    await handle.close();
+  }
+}
+async function linuxDefinition(row, manager, options, cache) {
+  const paths = [row.FragmentPath, ...(row.DropInPaths || "").split(/\s+/).filter(Boolean)];
+  if (
+    !paths[0] ||
+    row.NeedDaemonReload !== "no" ||
+    paths.length > 32 ||
+    paths.some(
+      (p) =>
+        !/^\/[^\s]+\.(?:service|conf)$/.test(p) ||
+        [...p].some((c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127),
+    )
+  )
+    return;
+  try {
+    const definitions = [];
+    for (const file of paths) {
+      if (!cache.files.has(file)) {
+        if (cache.exhausted || cache.bytes >= 16777216) throw Error("service-definition-capacity");
+        cache.files.set(
+          file,
+          (async () => {
+            const remaining = 16777216 - cache.bytes,
+              content = await (options.readServiceDefinition ?? readServiceDefinition)(
+                file,
+                remaining,
+              );
+            if (
+              !Buffer.isBuffer(content.bytes) ||
+              content.bytes.length > Math.min(262144, remaining)
+            ) {
+              cache.exhausted = true;
+              throw Error("service-definition-capacity");
+            }
+            cache.bytes += content.bytes.length;
+            return [content.path, sha(content.bytes)];
+          })(),
+        );
+      }
+      definitions.push(await cache.files.get(file));
+    }
+    // ExecStart's displayed value contains runtime PIDs/timestamps. Bind static
+    // unit/drop-in bytes instead; no definition contents leave this process.
+    return sha(
+      JSON.stringify([
+        manager,
+        row.Id,
+        definitions,
+        row.User ?? "",
+        row.Group ?? "",
+        row.Type ?? "",
+        row.RefuseManualStart ?? "",
+        row.RefuseManualStop ?? "",
+      ]),
+    );
+  } catch {
+    return;
+  }
+}
+function linuxService(row, manager, options, definition) {
   const name = row.Id,
     protectedService =
+      !definition ||
       !serviceNameValid(name, manager) ||
+      /@\.service$/.test(name) ||
       /^(?:systemd-|(?:dbus|NetworkManager|networking|sshd?|polkit|auditd|firewalld)(?:[.@-]|$))/i.test(
         name,
       ) ||
@@ -212,9 +302,7 @@ function linuxService(row, manager, options) {
     name: serviceMetadata(name),
     displayName: serviceMetadata(row.Description || name),
     manager,
-    definitionSha256: sha(
-      JSON.stringify([manager, name, row.ExecStart ?? "", row.User ?? "", row.FragmentPath ?? ""]),
-    ),
+    definitionSha256: definition ?? sha(JSON.stringify([manager, name, "read-only"])),
     status:
       row.ActiveState === "active"
         ? "running"
@@ -237,7 +325,8 @@ async function linuxServices(manager, options = {}, selected) {
   const exec = options.run ?? run,
     scope = manager === "systemd-user" ? "--user" : "--system",
     base = [scope, "--no-ask-password", "--no-pager"];
-  let names = selected ? [selected] : [];
+  let names = selected ? [selected] : [],
+    partial = false;
   if (!selected) {
     const collected = [];
     for (const command of [
@@ -252,20 +341,26 @@ async function linuxServices(manager, options = {}, selected) {
             .split(/\r?\n/)
             .map((l) => l.trim().split(/\s+/)[0]),
         );
-      } catch {}
+      } catch {
+        partial = true;
+      }
     }
-    names = [...new Set(collected.filter((n) => serviceNameValid(n, manager)))].sort();
+    const reported = collected.filter(Boolean);
+    partial ||= reported.some((n) => !serviceInventoryNameValid(n));
+    names = [...new Set(reported.filter(serviceInventoryNameValid))].sort();
   }
-  if (!names.length) return { items: [], available: false, truncated: false };
+  if (!names.length) return { items: [], available: false, truncated: false, partial };
   const truncated = names.length > 5000,
-    items = [];
+    items = [],
+    seen = new Set(),
+    cache = { files: new Map(), bytes: 0, exhausted: false };
   for (let i = 0; i < Math.min(names.length, 5000); i += 64) {
     const r = await exec(
       "/usr/bin/systemctl",
       [
         ...base,
         "show",
-        "--property=Id,Description,ActiveState,SubState,UnitFileState,FragmentPath,ExecStart,User,CanStart,CanStop,RefuseManualStart,RefuseManualStop",
+        "--property=Id,Description,ActiveState,SubState,UnitFileState,FragmentPath,DropInPaths,NeedDaemonReload,User,Group,Type,CanStart,CanStop,RefuseManualStart,RefuseManualStop",
         "--",
         ...names.slice(i, Math.min(i + 64, 5000)),
       ],
@@ -278,11 +373,18 @@ async function linuxServices(manager, options = {}, selected) {
           .filter((l) => l.includes("="))
           .map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)]),
       );
-      if (row.Id && serviceNameValid(row.Id, manager))
-        items.push(linuxService(row, manager, options));
+      if (!serviceInventoryNameValid(row.Id)) {
+        partial = true;
+        continue;
+      }
+      if (seen.has(row.Id)) continue;
+      seen.add(row.Id);
+      const definition = await linuxDefinition(row, manager, options, cache);
+      partial ||= !definition || !serviceNameValid(row.Id, manager);
+      items.push(linuxService(row, manager, options, definition));
     }
   }
-  return { items, available: true, truncated };
+  return { items, available: true, truncated, partial };
 }
 async function serviceInventory(options = {}) {
   const platform = options.platform ?? process.platform,
@@ -311,7 +413,7 @@ async function serviceInventory(options = {}) {
         platform,
         status: results.every((r) => !r.available)
           ? "unavailable"
-          : results.some((r) => !r.available || r.truncated)
+          : results.some((r) => !r.available || r.truncated || r.partial)
             ? "partial"
             : "ready",
         truncated: results.some((r) => r.truncated),

@@ -21,8 +21,8 @@ import { JoinRequestsInbox } from "./JoinRequestsInbox.js";
 import { RecordBadge, type RecordColumn, RecordWorkspace } from "./RecordWorkspace.js";
 import { addBasePath } from "./routing.js";
 import { SoftwarePanel } from "./SoftwarePanel.js";
-import { SystemPairingDialog } from "./SystemPairingDialog.js";
 import { SystemConnections } from "./SystemConnections.js";
+import { SystemPairingDialog } from "./SystemPairingDialog.js";
 import { WorkspaceDialog } from "./WorkspaceDialog.js";
 
 type System = DiscoveryState["systems"][number];
@@ -344,7 +344,7 @@ export function DiscoveryPage({
       <button type="button" className="button secondary" onClick={() => openActivity(s.deviceId)}>
         Activity &amp; health
       </button>
-      {s.platform !== "android" && s.observation?.system.platform !== "android" ? (
+      {
         <button
           type="button"
           className="button secondary"
@@ -355,9 +355,9 @@ export function DiscoveryPage({
             })
           }
         >
-          Software
+          Apps &amp; services
         </button>
-      ) : null}
+      }
       {canBrowseSystem(s) ? (
         <button
           type="button"
@@ -919,9 +919,20 @@ export function DiscoveryPage({
                   {selectedIsAndroid ? (
                     <section aria-label="Android monitoring scope">
                       <h3>Android monitoring</h3>
+                      <button
+                        type="button"
+                        className="button secondary"
+                        onClick={() =>
+                          setSoftware({ deviceId: selected.deviceId, name: selected.name })
+                        }
+                      >
+                        Apps &amp; services
+                      </button>
                       <p>
-                        Device health and presence are shared. Desktop tools, project execution,
-                        folder browsing and file tracking are unavailable.
+                        Optional installed-app inventory and DevSetu-owned health-sampling controls
+                        are available from the updated Android connector. Other apps' services,
+                        desktop tools, project execution, folder browsing and file tracking are
+                        unavailable.
                       </p>
                       <p>
                         The Android app's ongoing notification has a Stop action. Android may pause

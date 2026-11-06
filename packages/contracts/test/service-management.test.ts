@@ -4,6 +4,7 @@ import {
   ManagedServiceSchema,
   ServiceInventorySchema,
   ServicePolicySchema,
+  SoftwareInventorySchema,
   SoftwareJobSchema,
   SoftwareObservationSchema,
   SoftwareRequestSchema,
@@ -21,6 +22,77 @@ const service = ManagedServiceSchema.parse({
   canStart: true,
   canStop: true,
   protected: false,
+});
+it("limits Android snapshots to current-user packages and the two known connector-owned services", () => {
+  const sampler = {
+    ...service,
+    name: "org.devsetu.connector.HealthSamplingService",
+    manager: "android-connector",
+  };
+  const snapshot = {
+    version: 1,
+    platform: "android",
+    observedAt: at,
+    status: "ready",
+    truncated: false,
+    items: [sampler],
+  };
+  expect(ServiceInventorySchema.safeParse(snapshot).success).toBe(true);
+  const connection = {
+    ...sampler,
+    name: "org.devsetu.connector.MonitorService",
+    protected: true,
+    canStart: false,
+    canStop: false,
+  };
+  expect(ServiceInventorySchema.safeParse({ ...snapshot, items: [connection] }).success).toBe(true);
+  for (const row of [
+    { ...sampler, name: "another.app.Service" },
+    { ...connection, protected: false },
+    { ...connection, canStop: true },
+    { ...connection, canStart: true },
+    service,
+  ])
+    expect(ServiceInventorySchema.safeParse({ ...snapshot, items: [row] }).success).toBe(false);
+  expect(ServiceInventorySchema.safeParse({ ...snapshot, platform: "win32" }).success).toBe(false);
+  expect(ServiceInventorySchema.safeParse({ ...snapshot, platform: "linux" }).success).toBe(false);
+  expect(
+    ServiceInventorySchema.safeParse({
+      ...snapshot,
+      platform: "linux",
+      items: [{ ...service, manager: "systemd-system" }],
+    }).success,
+  ).toBe(true);
+  expect(
+    ServiceInventorySchema.safeParse({
+      ...snapshot,
+      platform: "linux",
+      items: [{ ...service, manager: "systemd-user" }],
+    }).success,
+  ).toBe(true);
+  const packages = {
+    ...snapshot,
+    scope: "android-current-user",
+    items: [{ id: "b".repeat(64), name: "Fixture app", source: "android-user" }],
+  };
+  expect(SoftwareInventorySchema.safeParse(packages).success).toBe(true);
+  expect(
+    SoftwareInventorySchema.safeParse({
+      ...packages,
+      items: [{ ...packages.items[0], source: "android-system" }],
+    }).success,
+  ).toBe(true);
+  expect(
+    SoftwareInventorySchema.safeParse({ ...packages, scope: "windows-machine-and-connector-user" })
+      .success,
+  ).toBe(false);
+  expect(
+    SoftwareInventorySchema.safeParse({
+      ...packages,
+      items: [{ ...packages.items[0], source: "registry" }],
+    }).success,
+  ).toBe(false);
+  expect(SoftwareInventorySchema.safeParse({ ...packages, platform: "win32" }).success).toBe(false);
 });
 const at = new Date().toISOString(),
   deviceId = `fc_${"c".repeat(32)}`,

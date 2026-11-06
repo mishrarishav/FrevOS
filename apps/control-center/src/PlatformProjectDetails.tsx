@@ -43,12 +43,12 @@ export function PlatformProjectDetails({
             </dd>
           </dl>
           <p>
-            Deploy opens the platform updater, where you can review and activate the exact prepared
-            release.
+            No configured source-to-build pipeline is available for this project. Configure its
+            source, builder and destination to enable the complete deployment flow.
           </p>
           <p>
-            Automatic commit, push and build from local edits is not connected for DevSetu yet. This
-            project uses its independent server20 updater, not a customer-app system connector.
+            The prepared-release updater is a separate fallback. It activates only an already
+            reviewed artifact; it does not publish local changes or run a new build.
           </p>
           <p>
             Existing configuration, database and application data stay in place. These protections
@@ -59,9 +59,14 @@ export function PlatformProjectDetails({
             recovery workflow.
           </p>
           {owner ? (
-            <a className="button primary" href={addBasePath("/maintenance")}>
-              Open platform deployment
-            </a>
+            <div className="record-row-actions">
+              <a className="button primary" href={addBasePath("/projects/components")}>
+                Configure deployment
+              </a>
+              <a className="button secondary" href={addBasePath("/maintenance")}>
+                Review prepared release
+              </a>
+            </div>
           ) : (
             <p>The server20 owner manages platform updates.</p>
           )}

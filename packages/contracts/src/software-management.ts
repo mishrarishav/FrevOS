@@ -111,9 +111,13 @@ export const SoftwareInventorySchema = z
   .object({
     version: z.literal(1),
     observedAt: z.iso.datetime(),
-    platform: z.enum(["win32", "linux"]),
+    platform: z.enum(["win32", "linux", "android"]),
     status: z.enum(["ready", "partial", "unavailable"]),
-    scope: z.enum(["windows-machine-and-connector-user", "linux-package-manager"]),
+    scope: z.enum([
+      "windows-machine-and-connector-user",
+      "linux-package-manager",
+      "android-current-user",
+    ]),
     truncated: z.boolean(),
     items: z
       .array(
@@ -123,7 +127,7 @@ export const SoftwareInventorySchema = z
             name: Name,
             version: Name.optional(),
             publisher: Name.optional(),
-            source: z.enum(["registry", "appx", "dpkg", "rpm"]),
+            source: z.enum(["registry", "appx", "dpkg", "rpm", "android-user", "android-system"]),
             installedOn: z
               .string()
               .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -134,14 +138,21 @@ export const SoftwareInventorySchema = z
       .max(5000),
   })
   .strict()
-  .refine((r) => r.status !== "unavailable" || r.items.length === 0);
+  .refine((r) => r.status !== "unavailable" || r.items.length === 0)
+  .refine((r) =>
+    r.platform === "android"
+      ? r.scope === "android-current-user" &&
+        r.items.every((s) => s.source === "android-user" || s.source === "android-system")
+      : r.scope !== "android-current-user" &&
+        r.items.every((s) => s.source !== "android-user" && s.source !== "android-system"),
+  );
 export type SoftwareInventory = z.infer<typeof SoftwareInventorySchema>;
 export const ManagedServiceSchema = z
   .object({
     id: Digest,
     name: Name,
     displayName: Name,
-    manager: z.enum(["windows-scm", "systemd-system", "systemd-user"]),
+    manager: z.enum(["windows-scm", "systemd-system", "systemd-user", "android-connector"]),
     definitionSha256: Digest,
     status: z.enum([
       "running",
@@ -164,7 +175,7 @@ export const ServiceInventorySchema = z
   .object({
     version: z.literal(1),
     observedAt: z.iso.datetime(),
-    platform: z.enum(["win32", "linux"]),
+    platform: z.enum(["win32", "linux", "android"]),
     status: z.enum(["ready", "partial", "unavailable"]),
     truncated: z.boolean(),
     items: z
@@ -173,7 +184,21 @@ export const ServiceInventorySchema = z
       .refine((rows) => new Set(rows.map((s) => s.id)).size === rows.length),
   })
   .strict()
-  .refine((v) => v.status !== "unavailable" || !v.items.length);
+  .refine((v) => v.status !== "unavailable" || !v.items.length)
+  .refine((v) =>
+    v.items.every((s) =>
+      v.platform === "android"
+        ? s.manager === "android-connector" &&
+          (s.name === "org.devsetu.connector.HealthSamplingService" ||
+            (s.name === "org.devsetu.connector.MonitorService" &&
+              s.protected &&
+              !s.canStart &&
+              !s.canStop))
+        : v.platform === "win32"
+          ? s.manager === "windows-scm"
+          : s.manager === "systemd-system" || s.manager === "systemd-user",
+    ),
+  );
 export type ServiceInventory = z.infer<typeof ServiceInventorySchema>;
 const ServiceRule = z
   .object({ id: Digest, definitionSha256: Digest, enabled: z.boolean() })
@@ -340,7 +365,7 @@ export const SoftwareServiceSchema = z
 export const SoftwareObservationSchema = z
   .object({
     version: z.literal(1),
-    platform: z.enum(["win32", "linux"]),
+    platform: z.enum(["win32", "linux", "android"]),
     inventoryConsent: z.boolean(),
     installConsent: z.boolean(),
     serviceManagement: z

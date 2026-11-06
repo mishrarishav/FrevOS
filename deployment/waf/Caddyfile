@@ -1,0 +1,65 @@
+{
+	admin off
+	auto_https off
+	order coraza_waf first
+	order request_body before coraza_waf
+	# Engine diagnostics can contain matched source/credentials. Keep raw logs off.
+	log default {
+		output discard
+	}
+	servers {
+		trusted_proxies static {$FREVOS_WAF_TRUSTED_PROXIES}
+		trusted_proxies_strict
+	}
+}
+
+http://:8080 {
+	request_body {
+		max_size {$FREVOS_WAF_TRANSPORT_LIMIT}
+	}
+	coraza_waf {
+		load_owasp_crs
+		directives `
+			Include @coraza.conf-recommended
+			SecRuleEngine {$FREVOS_WAF_MODE}
+			SecAuditEngine Off
+			SecDebugLog /dev/null
+			SecDebugLogLevel 0
+			SecTmpDir /tmp
+			SecRequestBodyLimit {$FREVOS_WAF_BODY_LIMIT}
+			SecRequestBodyNoFilesLimit {$FREVOS_WAF_NOFILES_LIMIT}
+			SecRequestBodyLimitAction Reject
+			SecResponseBodyAccess Off
+			Include @crs-setup.conf.example
+			SecAction "id:100100,phase:1,pass,nolog,setvar:tx.paranoia_level={$FREVOS_WAF_PARANOIA},setvar:tx.blocking_paranoia_level={$FREVOS_WAF_PARANOIA},setvar:tx.inbound_anomaly_score_threshold={$FREVOS_WAF_INBOUND_SCORE}"
+			# Fixed binary business routes retain URI/header rules and backend auth.
+			# Their signed Git/artifact payloads are not text/SQL; don't buffer them.
+			SecRule REQUEST_METHOD "@streq POST" "id:100101,phase:1,pass,nolog,chain"
+			SecRule REQUEST_URI "@rx ^{$FREVOS_WAF_BASE_PATH}/v1/(?:executor/jobs/[a-zA-Z0-9_-]{1,80}/artifact|connector/git-desktop/[a-zA-Z0-9_-]{1,80}/publish)(?:[?].*)?$" "chain"
+			SecRule REQUEST_HEADERS:Content-Type "@rx ^application/octet-stream(?:;.*)?$" "ctl:requestBodyAccess=Off,ctl:ruleRemoveById=920420"
+			SecRule REQUEST_METHOD "@streq POST" "id:100102,phase:1,pass,nolog,chain"
+			SecRule REQUEST_URI "@rx ^{$FREVOS_WAF_BASE_PATH}/v1/connector/(?:source-seed|jobs/[a-zA-Z0-9_-]{1,80}/bundle)(?:[?].*)?$" "chain"
+			SecRule REQUEST_HEADERS:Content-Type "@rx ^application/x-git-bundle(?:;.*)?$" "ctl:requestBodyAccess=Off,ctl:ruleRemoveById=920420"
+			Include @owasp_crs/*.conf
+		`
+	}
+	# Preserve paths, cookies, streaming and WebSocket upgrades. No app-body rewrite.
+	reverse_proxy {$FREVOS_WAF_UPSTREAM}
+	# Operational counters only: never record URI/query, headers or request bodies.
+	log {
+		output stdout
+		format filter {
+			wrap json
+			fields {
+				request delete
+				resp_headers delete
+				user_id delete
+			}
+		}
+	}
+}
+
+# A loopback-only readiness check is not an application/security bypass.
+http://127.0.0.1:8081 {
+	respond /ready "ready" 200
+}

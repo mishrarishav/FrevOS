@@ -14,6 +14,9 @@ const sourcePaths = [
     "MainActivity",
     "MonitorService",
     "LoginProofServer",
+    "AndroidSoftware",
+    "AndroidSoftwarePolicy",
+    "HealthSamplingService",
   ].map((name) => `src/org/devsetu/connector/${name}.java`),
 ];
 async function plain(file) {
@@ -151,6 +154,7 @@ function validateRequest(value, config, now = Date.now()) {
     "android.permission.FOREGROUND_SERVICE",
     "android.permission.FOREGROUND_SERVICE_SPECIAL_USE",
     "android.permission.POST_NOTIFICATIONS",
+    "android.permission.QUERY_ALL_PACKAGES",
   ]);
   if (
     !manifest.includes('package="org.devsetu.connector"') ||

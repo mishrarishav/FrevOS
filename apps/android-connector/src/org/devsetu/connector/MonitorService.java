@@ -11,22 +11,25 @@ import java.util.concurrent.*;
 import org.json.*;
 
 public final class MonitorService extends Service {
+    static volatile boolean running;
     private static final String CHANNEL="devsetu-monitoring";
     private static final int ID=28101;
     private final ScheduledExecutorService worker=Executors.newSingleThreadScheduledExecutor();
     private final String bootId=UUID.randomUUID().toString();
     private PrivateState state;
     private LoginProofServer proof;
+    private AndroidSoftware software;
     private String proofBase;
     private volatile boolean stopping;
     private int retrySeconds=5;
 
     @Override public void onCreate() {
-        super.onCreate(); state=new PrivateState(this);
+        super.onCreate(); state=new PrivateState(this);software=new AndroidSoftware(this);running=true;
         NotificationManager manager=getSystemService(NotificationManager.class);
         manager.createNotificationChannel(new NotificationChannel(CHANNEL,"DevSetu monitoring",NotificationManager.IMPORTANCE_LOW));
         if (Build.VERSION.SDK_INT>=34) startForeground(ID,notification("Starting monitoring"),ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
         else startForeground(ID,notification("Starting monitoring"));
+        if(AndroidSoftware.samplingEnabled(this))startService(new Intent(this,HealthSamplingService.class));
         status("Starting monitoring");
         worker.execute(() -> {
             try {
@@ -65,10 +68,15 @@ public final class MonitorService extends Service {
             if(!api.origin.equals(proofBase)) { if(proof!=null)proof.close();proof=new LoginProofServer(api,credential);proof.start();proofBase=api.origin; }
             api.post("/v1/connector/heartbeat",new JSONObject().put("loginProofPort",proof.port()),credential);
             JSONObject policy=api.post("/v1/connector/discovery/policy",new JSONObject(),credential);
-            JSONObject accepted=api.post("/v1/connector/discovery/observe",sample(saved,policy.getInt("revision")),credential);
-            if (!accepted.optBoolean("accepted")) throw new Exception("Monitoring policy changed. Rechecking.");
+            if(HealthSamplingService.running&&HealthSamplingService.latestSystem!=null){
+                JSONObject accepted=api.post("/v1/connector/discovery/observe",sample(saved,policy.getInt("revision")),credential);
+                if (!accepted.optBoolean("accepted")) throw new Exception("Monitoring policy changed. Rechecking.");
+            }
+            // An older server may not support software jobs yet. Health and login remain independent.
+            try { software.tick(api,saved); } catch(ConnectorApi.AccessDenied denied) { throw denied; }
+            catch(Exception unavailable) { getSharedPreferences("monitor-status",MODE_PRIVATE).edit().putString("software","Apps/services sync unavailable; health connection is retained.").apply(); }
             retrySeconds=5;
-            status("Online · Last sync "+java.text.DateFormat.getDateTimeInstance().format(new java.util.Date()));
+            status("Online · "+(HealthSamplingService.running?"":"Health sampling paused · ")+"Last sync "+java.text.DateFormat.getDateTimeInstance().format(new java.util.Date()));
         } catch(ConnectorApi.AccessDenied denied) {
             status("Pairing is expired, revoked or unauthorized. Contact your administrator."); stopSelf(); return;
         } catch(Exception unavailable) {
@@ -77,21 +85,25 @@ public final class MonitorService extends Service {
         }
         if (!stopping) worker.schedule(this::tick,retrySeconds,TimeUnit.SECONDS);
     }
-    private JSONObject sample(JSONObject saved,int revision) throws Exception {
+    static JSONObject systemSample(android.content.Context context,JSONObject saved) throws Exception {
         ActivityManager.MemoryInfo memory=new ActivityManager.MemoryInfo();
-        getSystemService(ActivityManager.class).getMemoryInfo(memory);
-        StatFs volume=new StatFs(getFilesDir().getAbsolutePath());
-        Intent battery=registerReceiver(null,new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+        context.getSystemService(ActivityManager.class).getMemoryInfo(memory);
+        StatFs volume=new StatFs(context.getFilesDir().getAbsolutePath());
+        Intent battery=context.registerReceiver(null,new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
         Object batteryPercent=JSONObject.NULL;
         if (battery!=null && battery.getIntExtra(BatteryManager.EXTRA_SCALE,0)>0) {
             batteryPercent=Math.max(0,Math.min(100,100.0*battery.getIntExtra(BatteryManager.EXTRA_LEVEL,0)/battery.getIntExtra(BatteryManager.EXTRA_SCALE,100)));
         }
-        JSONObject system=new JSONObject().put("systemName",saved.getString("name")).put("installationId",saved.getString("installationId"))
+        return new JSONObject().put("systemName",saved.getString("name")).put("installationId",saved.getString("installationId"))
                 .put("platform","android").put("os","Android "+Build.VERSION.RELEASE+" · API "+Build.VERSION.SDK_INT)
                 .put("architecture",ConnectorApi.architecture()).put("cpuPercent",JSONObject.NULL).put("cpuCount",Math.max(1,Runtime.getRuntime().availableProcessors()))
                 .put("memoryTotal",memory.totalMem).put("memoryAvailable",memory.availMem).put("uptimeSeconds",SystemClock.elapsedRealtime()/1000.0)
                 .put("batteryPercent",batteryPercent).put("tools",new JSONArray())
                 .put("disks",new JSONArray().put(new JSONObject().put("root","App data volume").put("total",volume.getTotalBytes()).put("available",volume.getAvailableBytes())));
+    }
+    private JSONObject sample(JSONObject saved,int revision) throws Exception {
+        JSONObject system=HealthSamplingService.latestSystem;
+        if(system==null)throw new Exception("Health sample unavailable.");
         JSONObject coverage=new JSONObject().put("status","disabled").put("roots",new JSONArray()).put("watchedDirectories",0)
                 .put("gaps",new JSONArray()).put("attribution","unavailable").put("droppedEvents",0);
         return new JSONObject().put("version",1).put("deviceId",saved.getString("deviceId")).put("profileId",JSONObject.NULL)
@@ -103,7 +115,7 @@ public final class MonitorService extends Service {
     }
     @Override public void onDestroy() {
         getSharedPreferences("monitor-status",MODE_PRIVATE).edit().putBoolean("online",false).apply();
-        stopping=true; worker.shutdownNow(); if(proof!=null) proof.close(); stopForeground(STOP_FOREGROUND_REMOVE); super.onDestroy();
+        running=false;stopping=true; worker.shutdownNow();stopService(new Intent(this,HealthSamplingService.class));if(proof!=null) proof.close(); stopForeground(STOP_FOREGROUND_REMOVE); super.onDestroy();
     }
     @Override public IBinder onBind(Intent intent) { return null; }
 }

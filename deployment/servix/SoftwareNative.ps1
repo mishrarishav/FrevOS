@@ -33,7 +33,7 @@ public static class DevSetuScm {
   foreach($s in @($all|Sort-Object DisplayName,Name|Select-Object -First 5000)){
    $protected=Protected $s
    $state=switch([string]$s.State){'Running'{'running'}'Stopped'{'stopped'}'Paused'{'paused'}'Start Pending'{'start-pending'}'Stop Pending'{'stop-pending'}default{'unknown'}}
-   $row=@{id=(SHash @('windows-scm',([string]$s.Name).ToLowerInvariant()));name=(SText $s.Name);displayName=(SText $s.DisplayName);manager='windows-scm';definitionSha256=(Definition $s);status=$state;startupType=(SText $s.StartMode);canStart=(-not $protected -and [DevSetuScm]::Can($s.Name,16));canStop=(-not $protected -and [bool]$s.AcceptStop -and [DevSetuScm]::Can($s.Name,32));protected=$protected}
+   $row=@{id=(SHash @('windows-scm',([string]$s.Name).ToLowerInvariant()));name=(SText $s.Name);displayName=(SText $s.DisplayName);manager='windows-scm';definitionSha256=(Definition $s);status=$state;startupType=(SText $s.StartMode);canStart=(-not $protected -and $s.StartMode -ne 'Disabled' -and [DevSetuScm]::Can($s.Name,16));canStop=(-not $protected -and [bool]$s.AcceptStop -and [DevSetuScm]::Can($s.Name,32));protected=$protected}
    if($s.Description){$row.description=SText $s.Description 600};$items.Add($row)
   }
   [Console]::Out.Write((@{version=1;observedAt=[DateTimeOffset]::UtcNow.ToString('o');platform='win32';status=if($truncated){'partial'}else{'ready'};truncated=$truncated;items=@($items.ToArray())}|ConvertTo-Json -Depth 5 -Compress));exit

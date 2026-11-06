@@ -34,6 +34,7 @@ interface Device {
   online: boolean;
   status: string;
   workspaceAuthorized: boolean;
+  platform?: "win32" | "linux" | "android" | undefined;
 }
 export interface SoftwareDevices {
   discoveryDevices(actor: string): Promise<Device[]>;
@@ -149,8 +150,8 @@ export class SoftwareManagement {
   private async credential(value: string) {
     const d = await this.devices.checkCredential(value);
     if (d.workspaceId !== this.workspaceId) this.fail("workspace-denied");
-    await this.device(d.userId, d.deviceId);
-    return d;
+    const device = await this.device(d.userId, d.deviceId);
+    return { ...d, platform: device.platform };
   }
   private async jobs() {
     await this.directory();
@@ -262,6 +263,9 @@ export class SoftwareManagement {
     return this.serial(async () => {
       const d = await this.credential(credential),
         value = SoftwareObservationSchema.parse(input);
+      if (d.platform && d.platform !== value.platform) this.fail("platform-denied");
+      if (value.platform === "android" && (value.installConsent || value.services.length))
+        this.fail("android-scope-denied");
       if (value.serviceInventory) {
         if (
           !value.inventoryConsent ||
@@ -894,7 +898,12 @@ export class SoftwareManagement {
       )
         this.fail("completion-result-denied");
       if (operation === "inventory" && success) {
-        if (!result.inventory || !(await this.observation(d.deviceId))?.inventoryConsent)
+        const observed = await this.observation(d.deviceId);
+        if (
+          !result.inventory ||
+          !observed?.inventoryConsent ||
+          result.inventory.platform !== observed.platform
+        )
           this.fail("inventory-denied");
         SoftwareInventorySchema.parse(result.inventory);
       } else if (result.inventory) this.fail("inventory-denied");

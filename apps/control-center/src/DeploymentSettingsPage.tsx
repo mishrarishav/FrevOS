@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiFailure, type ControlCenterApi } from "./api.js";
+import { configuredDeploymentHref } from "./ComponentDeployments.js";
 import { DeveloperAccess } from "./DeveloperAccess.js";
 import { FolderBrowser, type FolderChoice } from "./FolderBrowser.js";
 import { PlatformProjectDetails } from "./PlatformProjectDetails.js";
@@ -348,6 +349,11 @@ export function DeploymentSettingsPage({
   };
   const rowActions = (p: DeploymentSettings) => (
     <div className="record-row-actions">
+      {p.runner === "configured-components" ? (
+        <a className="button primary" href={configuredDeploymentHref(p.profileId)}>
+          Open deployment
+        </a>
+      ) : null}
       {hasPromotionBinding(p, promotions, workspaceId) ? (
         <a
           className="button primary"

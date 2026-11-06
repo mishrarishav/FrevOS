@@ -49,6 +49,7 @@ export function serviceControlState(
   const snapshot = state?.device.serviceInventory;
   const rule = state?.servicePolicy?.rules.find((r) => r.id === service.id);
   const enabled = rule?.enabled === true && rule.definitionSha256 === service.definitionSha256;
+  const disabledStartup = service.manager === "windows-scm" && service.startupType === "Disabled";
   const pending = state?.jobs.some(jobPending) === true;
   const reason = !state?.administrator
     ? "Only an administrator can control services."
@@ -57,7 +58,9 @@ export function serviceControlState(
       : !state.device.capability?.serviceManagement
         ? "Update this computer’s connector to enable Services."
         : !state.device.capability.serviceManagement.controlConsent
-          ? "Enable service control once in this computer’s DevSetu Software permissions."
+          ? state.device.capability.platform === "android"
+            ? "On this Android device, open DevSetu Connector, enable health-sampling control and Save apps and services permissions."
+            : "Enable service control once in this computer’s DevSetu Software permissions."
           : service.protected
             ? "This service is protected. Start and Stop are unavailable."
             : !snapshot ||
@@ -68,7 +71,9 @@ export function serviceControlState(
                 ? "Allow control for this service once to enable Start and Stop."
                 : pending
                   ? "Another software or service request is in progress."
-                  : "Actions use this computer’s connector account and its operating-system permissions.";
+                  : disabledStartup && service.status === "stopped"
+                    ? "This service has Disabled startup in Windows. Change its startup setting locally before starting it."
+                    : "Actions use this computer’s connector account and its operating-system permissions.";
   const ready =
     !!state?.administrator &&
     state.device.online &&
@@ -83,7 +88,11 @@ export function serviceControlState(
     enabled,
     pending,
     reason,
-    start: ready && service.canStart && ["stopped", "failed"].includes(service.status),
+    start:
+      ready &&
+      !disabledStartup &&
+      service.canStart &&
+      ["stopped", "failed"].includes(service.status),
     stop: ready && service.canStop && ["running", "paused"].includes(service.status),
   };
 }
@@ -121,6 +130,8 @@ const appSource: Record<string, string> = {
   appx: "Microsoft Store",
   dpkg: "Debian package",
   rpm: "RPM package",
+  "android-user": "Android user app",
+  "android-system": "Android system app",
 };
 const appColumns: RecordColumn<Row>[] = [
   { id: "name", label: "Name", value: (r) => r.name },
@@ -291,6 +302,8 @@ export function SoftwarePanel({
     inventory = state?.device.inventory,
     serviceInventory = state?.device.serviceInventory,
     listenInput = serviceListenInput(listenAddress, allowedClients, capability?.network);
+  const android =
+    (capability?.platform ?? inventory?.platform ?? serviceInventory?.platform) === "android";
   const records: Row[] =
     tab === "inventory"
       ? (inventory?.items
@@ -319,15 +332,17 @@ export function SoftwarePanel({
             service: s,
           })) ?? [])
         : tab === "catalog"
-          ? (state?.catalog.packages.map((p) => ({
-              id: p.id,
-              name: p.name,
-              version: p.version,
-              publisher: p.publisher,
-              status: p.enabled ? p.recipe : "disabled",
-              date: "",
-              package: p,
-            })) ?? [])
+          ? (state?.catalog.packages
+              .filter(() => !android)
+              .map((p) => ({
+                id: p.id,
+                name: p.name,
+                version: p.version,
+                publisher: p.publisher,
+                status: p.enabled ? p.recipe : "disabled",
+                date: "",
+                package: p,
+              })) ?? [])
           : (state?.jobs.map((j) => ({
               id: j.request.requestId,
               name: j.service?.displayName ?? j.package?.name ?? j.request.operation,
@@ -684,9 +699,13 @@ export function SoftwarePanel({
     ? "Loading software capability…"
     : !capability
       ? inventoryStatus.description
-      : !capability.inventoryConsent && !capability.installConsent
-        ? "Enable software permissions once using the DevSetu desktop connection-status icon on this computer."
-        : `Inventory: ${inventory ? `${inventory.items.length} programs · ${inventory.status} · ${new Date(inventory.observedAt).toLocaleString()}${inventory.truncated ? " · truncated" : ""}` : inventoryStatus.title}. ${capability.installConsent ? "Trusted software management enabled." : "Installation disabled."}`;
+      : android
+        ? capability.inventoryConsent
+          ? `Android user: ${inventory ? `${inventory.items.length} apps · ${inventory.status} · ${new Date(inventory.observedAt).toLocaleString()}` : inventoryStatus.title}. Other users/work profiles and other apps' running services are not collected.`
+          : inventoryStatus.description
+        : !capability.inventoryConsent && !capability.installConsent
+          ? "Enable software permissions once using the DevSetu desktop connection-status icon on this computer."
+          : `Inventory: ${inventory ? `${inventory.items.length} programs · ${inventory.status} · ${new Date(inventory.observedAt).toLocaleString()}${inventory.truncated ? " · truncated" : ""}` : inventoryStatus.title}. ${capability.installConsent ? "Trusted software management enabled." : "Installation disabled."}`;
   const serviceNotice = !state
     ? "Loading services…"
     : !state.device.online
@@ -697,7 +716,7 @@ export function SoftwarePanel({
           ? "Enable inventory sharing in this computer’s DevSetu Software permissions to read services."
           : !serviceInventory
             ? "The connector is collecting services. Use Refresh services to request a new scan."
-            : `Last updated ${new Date(serviceInventory.observedAt).toLocaleString()} · ${serviceInventory.status}${serviceInventory.truncated ? " · list truncated" : ""}`;
+            : `Last updated ${new Date(serviceInventory.observedAt).toLocaleString()} · ${serviceInventory.status}${serviceInventory.truncated ? " · list truncated" : ""}${serviceInventory.platform === "android" ? " · DevSetu-owned services only. Android does not expose other apps' running services or allow their remote control." : ""}`;
   return (
     <WorkspaceDialog label={`Apps and services on ${name}`} onClose={onClose}>
       <div className="software-workspace">
@@ -717,21 +736,23 @@ export function SoftwarePanel({
                 ["catalog", "Approved catalogue", Boxes],
                 ["history", "History", History],
               ] as const
-            ).map(([id, label, Icon]) => (
-              <button
-                key={id}
-                type="button"
-                aria-current={tab === id ? "page" : undefined}
-                onClick={() => {
-                  setTab(id);
-                  setEditing(false);
-                  setNotice("");
-                }}
-              >
-                <Icon size={18} />
-                <span>{label}</span>
-              </button>
-            ))}
+            )
+              .filter(([id]) => !android || id !== "catalog")
+              .map(([id, label, Icon]) => (
+                <button
+                  key={id}
+                  type="button"
+                  aria-current={tab === id ? "page" : undefined}
+                  onClick={() => {
+                    setTab(id);
+                    setEditing(false);
+                    setNotice("");
+                  }}
+                >
+                  <Icon size={18} />
+                  <span>{label}</span>
+                </button>
+              ))}
           </nav>
           <div className="software-access">
             <ShieldCheck size={16} />
@@ -878,7 +899,15 @@ export function SoftwarePanel({
               page={`software-${deviceId}-${tab}${tab === "inventory" ? `-${appGroup}` : ""}`}
               records={records}
               columns={
-                tab === "services" ? serviceColumns : tab === "inventory" ? appColumns : columns
+                tab === "services"
+                  ? serviceColumns
+                  : tab === "inventory"
+                    ? appColumns.map((column) =>
+                        android && column.id === "publisher"
+                          ? { ...column, label: "Package ID" }
+                          : column,
+                      )
+                    : columns
               }
               identify={(r) => r.id}
               statusOf={(r) => r.status}
@@ -1066,7 +1095,7 @@ export function SoftwarePanel({
                           onChange={(e) => setLifetime(e.target.value)}
                         />
                       </label>
-                      {capability ? (
+                      {capability && capability.platform !== "android" ? (
                         <ServiceListenControls
                           network={capability.network}
                           platform={capability.platform}

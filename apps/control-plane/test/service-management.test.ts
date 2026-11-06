@@ -146,7 +146,7 @@ it("retains a bounded services snapshot, independent cursors and failures withou
     f.observe({ inventoryConsent: false, serviceInventory: f.snapshot() }),
   ).rejects.toThrow("service-inventory-denied");
   await expect(
-    f.observe({ serviceInventory: { ...f.snapshot(), platform: "linux" } }),
+    f.observe({ serviceInventory: { ...f.snapshot(), platform: "linux", items: [] } }),
   ).rejects.toThrow("service-inventory-denied");
 });
 it("requires admin, one-time local service consent and exact per-device catalogue authority", async () => {

@@ -69,6 +69,9 @@ export function currentComponent(runs: PipelineRun[], profileId: string, id: str
       (a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.createdAt.localeCompare(a.createdAt),
     )[0];
 }
+export function configuredDeploymentHref(profileId: string, basePath?: string) {
+  return addBasePath(`/deployments/deploy-72?project=${encodeURIComponent(profileId)}`, basePath);
+}
 export function ConfiguredProject({
   api,
   workspaceId,
@@ -76,6 +79,7 @@ export function ConfiguredProject({
   state,
   devices,
   userId,
+  onClose,
 }: {
   api: ControlCenterApi;
   workspaceId: string;
@@ -83,6 +87,7 @@ export function ConfiguredProject({
   state: PipelineState;
   devices: DeveloperConnector[];
   userId: string;
+  onClose?: () => void;
 }) {
   const [connectorId, setConnectorId] = useState("");
   const [closing, setClosing] = useState<PipelineRun | null>(null);
@@ -114,6 +119,16 @@ export function ConfiguredProject({
     selected.source.repositoryId === profile.repository.id &&
     selected.source.remoteName === profile.repository.remoteName &&
     !["main", "master"].includes(selected.source.branch);
+  const platform = profile.components.some((c) => c.recipe === "devsetu-native");
+  const targets = new Map<string, number>();
+  if (platform)
+    for (const component of profile.components) {
+      const target = state.executors.find((d) => d.id === component.destinationId);
+      const label = target?.systemName ?? target?.name ?? "Unassigned";
+      targets.set(label, (targets.get(label) ?? 0) + 1);
+    }
+  // Mirrors the existing native-platform owner restriction; the API remains authoritative.
+  const permitted = !platform || userId === "usr_windows_admin";
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     if (!active) return;
@@ -233,7 +248,15 @@ export function ConfiguredProject({
       <button
         className="button primary"
         type="button"
-        disabled={busy || !!active || !sourceReady || !ready(id) || profile.archived}
+        disabled={
+          !api.runPipeline ||
+          !permitted ||
+          busy ||
+          !!active ||
+          !sourceReady ||
+          !ready(id) ||
+          profile.archived
+        }
         onClick={() => setConfirmation({ operation: "deploy", ...(id ? { componentId: id } : {}) })}
       >
         Deploy{id ? "" : " all"}
@@ -241,7 +264,14 @@ export function ConfiguredProject({
       <button
         className="button secondary"
         type="button"
-        disabled={busy || !!active || !rollbackReady(id) || profile.archived}
+        disabled={
+          !api.runPipeline ||
+          !permitted ||
+          busy ||
+          !!active ||
+          !rollbackReady(id) ||
+          profile.archived
+        }
         onClick={() =>
           setConfirmation({ operation: "rollback", ...(id ? { componentId: id } : {}) })
         }
@@ -250,7 +280,19 @@ export function ConfiguredProject({
       </button>
     </div>
   );
-  return (
+  const controls = (
+    <div className="deployment-card-footer">
+      <DeploymentSourceSelect
+        projectName={profile.displayName}
+        devices={source}
+        disabled={busy || !!active || !permitted}
+        value={selected?.deviceId ?? ""}
+        onChange={setConnectorId}
+      />
+      {actions()}
+    </div>
+  );
+  const content = (
     <>
       <div className="record-facts">
         <RecordBadge
@@ -263,17 +305,48 @@ export function ConfiguredProject({
         </RecordBadge>
         <RecordBadge>{profile.components.length} components</RecordBadge>
         <RecordBadge>Revision {profile.revision}</RecordBadge>
+        {[...targets].map(([label, count]) => (
+          <RecordBadge key={label}>
+            Target: {label} · {count} {count === 1 ? "component" : "components"}
+          </RecordBadge>
+        ))}
       </div>
-      <div className="deployment-card-footer">
-        <DeploymentSourceSelect
-          projectName={profile.displayName}
-          devices={source}
-          disabled={busy || !!active}
-          value={selected?.deviceId ?? ""}
-          onChange={setConnectorId}
-        />
-        {actions()}
-      </div>
+      {selected?.source ? (
+        <dl className="deployment-source-details">
+          <dt>Source folder</dt>
+          <dd>
+            <code>{selected.source.repository}</code>
+          </dd>
+          <dt>Branch</dt>
+          <dd>
+            <code>{selected.source.branch}</code>
+          </dd>
+          <dt>Last observed commit</dt>
+          <dd>
+            <code>{selected.source.head.slice(0, 12)}</code> ·{" "}
+            {new Date(selected.source.checkedAt).toLocaleString()}
+          </dd>
+        </dl>
+      ) : null}
+      <p className="record-muted">
+        {permitted
+          ? "Confirm Deploy to publish the selected source, run its configured checks and build, then deploy the resulting artifact. Nothing is started when you open this page."
+          : "Only the platform owner can deploy this native platform."}
+      </p>
+      {platform ? (
+        <p className="record-muted">
+          Deployment updates the configured application target. A gateway entry continues routing to
+          that application; it does not require a second application release.
+        </p>
+      ) : null}
+      {!sourceReady ? (
+        <p role="status">
+          Connect your registered project source and verify its repository binding before deploying.
+        </p>
+      ) : null}
+      {!ready() ? (
+        <p role="status">The configured builder and destination must be enrolled and online.</p>
+      ) : null}
       {active ? (
         <p role="status">
           <LoaderCircle size={14} className="deployment-spinner" /> {active.status} ·{" "}
@@ -374,6 +447,44 @@ export function ConfiguredProject({
       >
         Component configuration
       </a>
+    </>
+  );
+  const canClose = !busy && !frozen.current && !closeDetails.current;
+  return (
+    <>
+      {onClose ? (
+        <WorkspaceDialog
+          label={`${profile.displayName} deployment`}
+          onClose={() => {
+            if (canClose) onClose();
+          }}
+        >
+          <section className="deployment-settings account-panel">
+            <header className="settings-header">
+              <div>
+                <p className="eyebrow">Operations / Deployment</p>
+                <h2>{profile.displayName}</h2>
+              </div>
+              <button
+                type="button"
+                className="button ghost"
+                aria-label="Close project deployment"
+                disabled={!canClose}
+                onClick={onClose}
+              >
+                <X size={18} />
+              </button>
+            </header>
+            {controls}
+            <div className="account-panel-scroll">{content}</div>
+          </section>
+        </WorkspaceDialog>
+      ) : (
+        <>
+          {controls}
+          {content}
+        </>
+      )}
       {confirmation ? (
         <DeploymentActionDialog
           projectName={
@@ -618,9 +729,14 @@ export function ComponentConfiguration({
           </>
         }
         renderActions={(p) => (
-          <button className="button secondary" type="button" onClick={() => edit(p)}>
-            {owner ? "Configure" : "View"}
-          </button>
+          <div className="record-row-actions">
+            <a className="button primary" href={configuredDeploymentHref(p.profileId)}>
+              Open deployment
+            </a>
+            <button className="button secondary" type="button" onClick={() => edit(p)}>
+              {owner ? "Configure" : "View"}
+            </button>
+          </div>
         )}
         renderCard={(p) => (
           <article className="record-card">
@@ -628,6 +744,9 @@ export function ComponentConfiguration({
             <p>
               {p.components.length} components · {p.sourceFolder}
             </p>
+            <a className="button primary" href={configuredDeploymentHref(p.profileId)}>
+              Open deployment
+            </a>
             <button className="button secondary" type="button" onClick={() => edit(p)}>
               Configure
             </button>

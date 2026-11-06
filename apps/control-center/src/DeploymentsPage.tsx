@@ -34,6 +34,16 @@ export function DeploymentsPage({
   const [deviceId, setDeviceId] = useState("");
   const [profiles, setProfiles] = useState<DeploymentSettings[]>([]);
   const [userId, setUserId] = useState("");
+  const [configuredProjectId, setConfiguredProjectId] = useState<string | null>(null);
+  const openedConfigured = useRef(false);
+  useEffect(() => {
+    if (openedConfigured.current || typeof location === "undefined") return;
+    const id = new URLSearchParams(location.search).get("project");
+    if (id && configured.state.profiles.some((p) => p.profileId === id)) {
+      setConfiguredProjectId(id);
+      openedConfigured.current = true;
+    }
+  }, [configured.state.profiles]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [reload, setReload] = useState(0);
@@ -275,14 +285,14 @@ export function DeploymentsPage({
   const configuredCard = (p: DeploymentSettings) => {
     const profile = configured.state.profiles.find((c) => c.profileId === p.profileId);
     return profile ? (
-      <ConfiguredProject
-        api={api}
-        workspaceId={workspaceId}
-        profile={profile}
-        state={configured.state}
-        devices={devices}
-        userId={userId}
-      />
+      <div className="record-identity">
+        <span>
+          {devices.find((d) => d.profileId === p.profileId && d.userId === userId)?.name ??
+            "No source system"}
+        </span>
+        <small>{profile.sourceFolder}</small>
+        <RecordBadge>{profile.components.length} configured components</RecordBadge>
+      </div>
     ) : null;
   };
   const sourceDevice = devices.find((d) => d.deviceId === deviceId && d.status === "active");
@@ -397,18 +407,32 @@ export function DeploymentsPage({
   };
   const deploymentActions = (p: DeploymentSettings) =>
     configured.state.profiles.some((c) => c.profileId === p.profileId) ? (
-      <a
-        className="button secondary"
-        href={addBasePath(`/projects/components?project=${p.profileId}`)}
-      >
-        Configuration
-      </a>
+      <div className="record-row-actions">
+        <button
+          className="button primary"
+          type="button"
+          onClick={() => setConfiguredProjectId(p.profileId)}
+        >
+          <Rocket size={14} /> Open deployment
+        </button>
+        <a
+          className="button secondary"
+          href={addBasePath(`/projects/components?project=${encodeURIComponent(p.profileId)}`)}
+        >
+          Configuration
+        </a>
+      </div>
     ) : isPlatform(p) ? (
       <div className="record-row-actions">
         {userId === "usr_windows_admin" ? (
-          <a className="button primary" href={addBasePath("/maintenance")}>
-            <Rocket size={14} /> Deploy
-          </a>
+          <>
+            <a className="button primary" href={addBasePath("/projects/components")}>
+              Configure deployment
+            </a>
+            <a className="button secondary" href={addBasePath("/maintenance")}>
+              Review prepared release
+            </a>
+          </>
         ) : (
           <span className="record-muted">Owner managed</span>
         )}
@@ -541,7 +565,7 @@ export function DeploymentsPage({
   const history = (p: DeploymentSettings) =>
     isPlatform(p) ? (
       <p className="record-muted">
-        Deploy opens the prepared release and update status. Local edit publication/build and
+        Review prepared release opens the activation status. Local edit publication/build and
         self-service rollback are not connected.
       </p>
     ) : isServix(p) ? (
@@ -797,7 +821,11 @@ export function DeploymentsPage({
               </a>
             </div>
             {configured.state.profiles.some((c) => c.profileId === p.profileId) ? (
-              configuredCard(p)
+              <>
+                {badges(p)}
+                {configuredCard(p)}
+                {deploymentActions(p)}
+              </>
             ) : (
               <>
                 {badges(p)}
@@ -811,6 +839,20 @@ export function DeploymentsPage({
           </article>
         )}
       />
+      {configured.state.profiles
+        .filter((p) => p.profileId === configuredProjectId)
+        .map((profile) => (
+          <ConfiguredProject
+            key={profile.profileId}
+            api={api}
+            workspaceId={workspaceId}
+            profile={profile}
+            state={configured.state}
+            devices={devices}
+            userId={userId}
+            onClose={() => setConfiguredProjectId(null)}
+          />
+        ))}
       {confirmation ? (
         <DeploymentActionDialog
           operation={confirmation.operation}

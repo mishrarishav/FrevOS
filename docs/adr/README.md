@@ -259,3 +259,18 @@ the connected-system file browser. Raw application preview retains hostname isol
 
 [0100: Code repository browser and access](0100-code-repository-browser-and-access.md)
 records committed-source browsing, bounded ZIP downloads and per-repository grants.
+
+[0101: Inventory and explorer recovery](0101-initial-inventory-and-explorer-permissions.md)
+records initial inventory collection and actual OS permission handling.
+
+[0102: Apps and services](0102-desktop-apps-and-services-manager.md) records the
+Windows-style workspace and typed OS service controls.
+
+[0103: Android apps and owned services](0103-android-apps-and-owned-services.md)
+records public-API inventory and connector-owned health sampling.
+
+[0104: Owner-operated deployment](0104-owner-operated-configured-platform-deployment.md)
+records local validation with final activation left to the owner.
+
+[0105: Configurable WAF](0105-configurable-coraza-waf-gateway.md) records the
+pinned Coraza/CRS gateway and isolated local acceptance.

@@ -1,5 +1,15 @@
 # DevSetu Current State
 
+2026-11-06 IST: Owner changes this task to local implementation/testing; final
+Server20/T-Server deployment is owner-operated (ADR0104). No new application
+activation, live connector replacement or gateway mutation is performed. Android
+public-API apps and connector-owned health sampling are added (ADR0103); this
+does not provide OS-wide third-party Android service control. The configured
+deployment workspace reuses the existing publication/build/native activation
+pipeline. A pinned Coraza/CRS Docker gateway is implemented and locally tested
+(ADR0105), without installation on either live server. See
+[Apps and services](APPS_SERVICES_MANAGER.md) and [WAF gateway](WAF_GATEWAY.md).
+
 2026-11-06 IST: ADR0102 Apps & services work is in progress on
 `codex/apps-services-manager` from 8ec671cc86fc0f721875894bfea0c02f15b199c1.
 Windows-style apps/services navigation, typed admin-only per-service Start/Stop,

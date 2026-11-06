@@ -58,6 +58,11 @@ it("shows service actions only for a fresh allowed administrator view with local
     );
   expect(serviceControlState(state, { ...service, protected: true }, now).start).toBe(false);
   expect(serviceControlState(state, { ...service, canStart: false }, now).start).toBe(false);
+  expect(serviceControlState(state, { ...service, startupType: "Disabled" }, now)).toMatchObject({
+    start: false,
+    reason:
+      "This service has Disabled startup in Windows. Change its startup setting locally before starting it.",
+  });
   expect(
     serviceControlState(state, { ...service, definitionSha256: "c".repeat(64) }, now).start,
   ).toBe(false);

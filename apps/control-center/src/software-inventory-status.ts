@@ -6,7 +6,9 @@ export function softwareInventoryStatus(state: SoftwareState | null) {
     inventory = device?.inventory,
     pending = state?.jobs.some((job) => ["approved", "working"].includes(job.status)) ?? false;
   const scope =
-    "Registered software only: Windows machine/user programs and app packages, or Linux package-manager records. Portable executables are not scanned.";
+    capability?.platform === "android" || inventory?.platform === "android"
+      ? "Android packages installed for the current Android user and visible to the connector. Other users/work profiles, APK contents and other apps' running services are not collected."
+      : "Registered software only: Windows machine/user programs and app packages, or Linux package-manager records. Portable executables are not scanned.";
   if (!device)
     return {
       title: "Loading installed software…",
@@ -31,7 +33,9 @@ export function softwareInventoryStatus(state: SoftwareState | null) {
     return {
       title: "Inventory sharing is off",
       description:
-        "On this computer, open the DevSetu connection-status icon → Software permissions → Share installed-program inventory → Save permissions. The first scan then starts automatically.",
+        capability.platform === "android"
+          ? "On this Android device, open DevSetu Connector → Share this Android user's installed apps → Save apps and services permissions. Keep monitoring running; the first scan starts automatically."
+          : "On this computer, open the DevSetu connection-status icon → Software permissions → Share installed-program inventory → Save permissions. The first scan then starts automatically.",
       pending,
     };
   if (pending)

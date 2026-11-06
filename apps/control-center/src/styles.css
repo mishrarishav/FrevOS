@@ -4612,3 +4612,18 @@ kbd,
     padding: 12px;
   }
 }
+.deployment-source-details {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.35rem 0.75rem;
+  margin: 0.75rem 0;
+  font-size: 0.85rem;
+}
+.deployment-source-details dt {
+  color: var(--muted);
+}
+.deployment-source-details dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

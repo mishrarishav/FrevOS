@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  ServicePrivateListenSchema,
   SoftwareCatalogInputSchema,
   SoftwareInventorySchema,
   SoftwareObservationSchema,
   SoftwareRequestSchema,
-  ServicePrivateListenSchema,
 } from "../src/software-management.js";
 
 const asset = { url: "https://example.org/app.msi", sha256: "a".repeat(64), bytes: 100 };
@@ -122,7 +122,7 @@ describe("software management wire contracts", () => {
       }).success,
     ).toBe(true);
   });
-  it("reports partial and unavailable scope explicitly and rejects unsupported desktop capabilities", () => {
+  it("reports partial/unavailable scope and admits the bounded Android software observation", () => {
     const observation = {
       version: 1,
       platform: "win32",
@@ -134,6 +134,9 @@ describe("software management wire contracts", () => {
     expect(SoftwareObservationSchema.safeParse(observation).success).toBe(true);
     expect(
       SoftwareObservationSchema.safeParse({ ...observation, platform: "android" }).success,
+    ).toBe(true);
+    expect(
+      SoftwareObservationSchema.safeParse({ ...observation, platform: "darwin" }).success,
     ).toBe(false);
     const inventory = {
       version: 1,

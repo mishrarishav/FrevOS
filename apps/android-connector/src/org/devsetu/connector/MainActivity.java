@@ -16,7 +16,7 @@ import org.json.JSONObject;
 
 public final class MainActivity extends Activity {
     private EditText server, code, name, username, password, displayName;
-    private CheckBox http, consent, newAccount, legacy;
+    private CheckBox http, consent, newAccount, legacy, inventory, serviceControl;
     private TextView status;
     private Button connect, start, stop, check;
     private PrivateState state;
@@ -36,7 +36,7 @@ public final class MainActivity extends Activity {
         int padding = (int) (20 * getResources().getDisplayMetrics().density); content.setPadding(padding,padding,padding,padding);
         scroll.addView(content); setContentView(scroll);
         TextView title = new TextView(this); title.setText("DevSetu · Connect this Android"); title.setTextSize(24); content.addView(title);
-        text(content, "System health and presence only. No admin password or project required. A server-scoped device identifier groups your connections. No personal files, location, contacts, camera or microphone are collected.");
+        text(content, "Device health and presence, with optional installed-app inventory and connector-owned service controls. No admin password or project required. No personal files, location, contacts, camera or microphone are collected.");
         server = field(content,"DevSetu server URL",android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_URI);
         name = field(content,"Device name",android.text.InputType.TYPE_CLASS_TEXT); name.setText(Build.MANUFACTURER + " " + Build.MODEL);
         username = field(content,"Your DevSetu username",android.text.InputType.TYPE_CLASS_TEXT);
@@ -59,6 +59,17 @@ public final class MainActivity extends Activity {
         check = button(content,"Check approval",() -> checkApproval());
         start = button(content,"Start monitoring",() -> startMonitoring());
         stop = button(content,"Stop monitoring",() -> { stopService(new Intent(this, MonitorService.class)); getSharedPreferences("monitor-status",MODE_PRIVATE).edit().putBoolean("online",false).putString("message","Monitoring stopped by you.").apply(); message("Monitoring stopped. DevSetu will show Offline / stale after the heartbeat expires."); });
+        text(content,"Apps and services permissions · optional, one-time and reversible. Android exposes this user's installed packages. Other apps' running services cannot be read or controlled. Your connection service stays protected.");
+        inventory=new CheckBox(this);inventory.setText("Share this Android user's installed apps and DevSetu service status");inventory.setChecked(AndroidSoftware.inventoryConsent(this));content.addView(inventory);
+        serviceControl=new CheckBox(this);serviceControl.setText("Trust workspace administrators to pause/resume DevSetu health sampling for explicitly enabled services");serviceControl.setChecked(AndroidSoftware.controlConsent(this));content.addView(serviceControl);
+        button(content,"Save apps and services permissions",() -> {
+            boolean saved=getSharedPreferences("software-permissions",MODE_PRIVATE).edit().putBoolean("inventory",inventory.isChecked()).putBoolean("serviceControl",serviceControl.isChecked()).commit();
+            message(saved?"Apps/services permissions saved. Pairing and account are unchanged; keep monitoring running to sync.":"Permissions could not be saved. Try again.");
+        });
+        button(content,"Resume health sampling locally",() -> {
+            if(!MonitorService.running){message("Start monitoring first.");return;}
+            if(getSharedPreferences("software-permissions",MODE_PRIVATE).edit().putBoolean("samplingEnabled",true).commit()){startService(new Intent(this,HealthSamplingService.class));message("Health sampling resumed. Your connection stays paired.");}
+        });
         button(content,"Request to join in browser",() -> {
             try { String origin = ServerOrigin.normalize(server.getText().toString(),http.isChecked()); startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(origin))); }
             catch(Exception error) { message(error.getMessage()); }
