@@ -1,12 +1,12 @@
-import { createRequire } from "node:module";
-import { readFile, mkdtemp, mkdir, writeFile, readdir, rm, rename } from "node:fs/promises";
-import { createHash } from "node:crypto";
-import { expect, it } from "vitest";
 import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-import { fileURLToPath } from "node:url";
-import { join, dirname, basename, resolve } from "node:path";
+import { createHash } from "node:crypto";
+import { mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
+import { basename, dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
+import { expect, it } from "vitest";
 
 const builder = createRequire(import.meta.url)("../../../deployment/android/AndroidBuild.cjs");
 const client = createRequire(import.meta.url)("../../../deployment/android/AndroidBuildClient.cjs");
@@ -86,6 +86,22 @@ async function request() {
   };
 }
 it("binds Android build requests to workspace, project, provider repository, exact source inventory and expiring job identity", async () => {
+  expect([...client.sourcePaths].sort()).toEqual([...builder.sourcePaths].sort());
+  const packaging = await readFile(
+    new URL("../../../deployment/server20/New-ServixDashboardRelease.ps1", import.meta.url),
+    "utf8",
+  );
+  const names = packaging.match(
+    /foreach\(\$name in @\(([^\r\n]+)\)\)\{\$relative='src\/org\/devsetu\/connector\//,
+  )?.[1];
+  expect(names).toBeTruthy();
+  const packagedSources = [
+    "AndroidManifest.xml",
+    ...[...(names ?? "").matchAll(/'([^']+)'/g)].map(
+      (match) => `src/org/devsetu/connector/${match[1]}.java`,
+    ),
+  ];
+  expect(packagedSources.sort()).toEqual([...builder.sourcePaths].sort());
   const value = await request();
   expect(builder.validateRequest(value, scope, now)).toEqual(value);
   for (const patch of [

@@ -86,6 +86,11 @@ not append file-activity events or unbounded history.
 - Actual pinned Coraza smoke: 19 checks pass. Three WAF configuration tests pass.
   See [WAF gateway](WAF_GATEWAY.md). Existing four Docker preview containers
   remain healthy; the separate local WAF sidecar is healthy too.
+- Compatibility follow-up: 49 tests across eight affected backend files pass,
+  including 11 new real-store format-floor tests and the native 12-check recovery
+  fixture. The final four format tests also exercise actual metadata generation
+  from real compiled schemas in an isolated package layout. The existing sidecar
+  update fixture passes ten checks. Backend build and workspace typecheck pass.
 
 ## Release and operational acceptance
 
@@ -104,9 +109,13 @@ The current local Windows token cannot create a disposable SCM service (OS error
 as a test. Native Windows reads are real; action/receipt paths are typed fixtures.
 Android phone lifecycle/signed APK and ESDS/L-1465 live acceptance remain untested.
 
-Before the owner's release, bind the intended source checkout/branch, update the
-Android builder through its reviewed hash-enrollment flow, and retain the existing
-signing identity. The current live profile's source folder points to the parent
+Before the owner's release, bind the intended source checkout/branch and review
+the Android/platform builder and destination sidecar enrollment updates; retain
+the existing signing identity. ADR0106 binds reader metadata to actual packaged
+schemas, persists a monotonic data-format floor and rejects incompatible
+activation/recovery after new state is written. Pre-write legacy recovery stays
+available. No enrollment guard is bypassed. The current live profile's source
+folder points to the parent
 checkout, not this task's nested worktree; this task does not switch that binding.
 Publishing the older folder must not be described as releasing these new edits.
 
@@ -159,13 +168,26 @@ after the local handoff commit.
 - `apps/control-center/test/software-api.test.ts`
 - `apps/control-plane/src/server.ts`
 - `apps/control-plane/src/software-management.ts`
+- `apps/control-plane/test/android-build.test.ts`
 - `apps/control-plane/test/android-software.test.ts`
 - `apps/control-plane/test/service-client.test.ts`
 - `apps/control-plane/test/service-management.test.ts`
 - `apps/control-plane/test/service-native.test.ts`
+- `apps/control-plane/test/software-format-floor.test.ts`
+- `apps/control-plane/test/software-format.test.ts`
 - `apps/control-plane/test/software-routes.test.ts`
 - `compose.waf.yaml`
 - `deployment/android/AndroidBuild.cjs`
+- `deployment/android/AndroidBuildClient.cjs`
+- `deployment/server20/Apply-ServixDashboard.ps1`
+- `deployment/server20/HttpCommon.ps1`
+- `deployment/server20/New-ServixDashboardRelease.ps1`
+- `deployment/server20/SoftwareDataFormat.mjs`
+- `deployment/server20/Test-PreviewExecutorUpdate.ps1`
+- `deployment/server20/Test-SoftwareCompatibility.ps1`
+- `deployment/server20/Update-PreviewExecutor.ps1`
+- `deployment/server20/Verify-AndroidCompatibility.ps1`
+- `deployment/servix/ComponentPlatform.ps1`
 - `deployment/servix/Software-Consent.ps1`
 - `deployment/servix/SoftwareClient.cjs`
 - `deployment/servix/SoftwareNative.cjs`
@@ -183,6 +205,7 @@ after the local handoff commit.
 - `docs/adr/0103-android-apps-and-owned-services.md`
 - `docs/adr/0104-owner-operated-configured-platform-deployment.md`
 - `docs/adr/0105-configurable-coraza-waf-gateway.md`
+- `docs/adr/0106-software-data-format-recovery-boundary.md`
 - `docs/adr/README.md`
 - `package.json`
 - `packages/contracts/src/software-management.ts`

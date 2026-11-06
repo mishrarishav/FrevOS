@@ -9,6 +9,40 @@ function Read-BoundedEntry($Zip,[string]$Name,[int]$Maximum){
  try{while(($count=$source.Read($buffer,0,$buffer.Length)) -gt 0){if($destination.Length+$count -gt $Maximum){throw 'Android compatibility metadata capacity'};$destination.Write($buffer,0,$count)};return ,$destination.ToArray()}finally{$source.Dispose();$destination.Dispose()}
 }
 function Includes-Android($Inventory){return @($Inventory.files|Where-Object path -CEQ 'apps/android-connector/AndroidManifest.xml').Count -eq 1}
+function Read-BoundedInstalled([string]$Root,[string]$Name,[int]$Maximum){
+ $file=Join-Path $Root $Name
+ for($cursor=$file;$cursor -cne $Root;$cursor=[IO.Path]::GetDirectoryName($cursor)){if((Get-Item -LiteralPath $cursor -Force).Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'Software compatibility linked metadata denied'}}
+ if((Get-Item -LiteralPath $file).Length -gt $Maximum){throw 'Software compatibility metadata capacity'}
+ return ,[IO.File]::ReadAllBytes($file)
+}
+function Get-SoftwareFormat($Manifest,[scriptblock]$ReadFile,[scriptblock]$Exists){
+ $name='deployment/server20/software-data-format.json';$schema='apps/control-plane/node_modules/@frevos/contracts/dist/software-management.js'
+ $entries=@($Manifest.files|Where-Object path -CEQ $name)
+ if($entries.Count -eq 0){if(& $Exists $name){throw 'Software compatibility metadata is not manifest-bound'};return 1}
+ if($entries.Count -ne 1){throw 'Software compatibility metadata repeated'}
+ [byte[]]$bytes=& $ReadFile $name 4096
+ $hash=[BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($bytes)).Replace('-','').ToLowerInvariant()
+ if($hash -cne $entries[0].sha256){throw 'Software compatibility metadata identity differs'}
+ $text=[Text.Encoding]::UTF8.GetString($bytes);$value=$text|ConvertFrom-Json
+ if((@($value.PSObject.Properties.Name|Sort-Object)-join ',') -cne 'schemaSha256,softwareState,version' -or $value.version -ne 1 -or ($value.softwareState -isnot [int] -and $value.softwareState -isnot [long]) -or $value.softwareState -lt 1 -or $value.softwareState -gt 999 -or $value.schemaSha256 -cnotmatch '^[a-f0-9]{64}$'){throw 'Software compatibility format metadata invalid'}
+ $canonical='{"version":1,"softwareState":'+$value.softwareState+',"schemaSha256":"'+$value.schemaSha256+'"}'
+ if($text -cne $canonical){throw 'Software compatibility format metadata is not canonical'}
+ $schemaEntry=@($Manifest.files|Where-Object path -CEQ $schema)
+ if($schemaEntry.Count -ne 1 -or $schemaEntry[0].sha256 -cne $value.schemaSha256){throw 'Software compatibility schema identity differs'}
+ [byte[]]$schemaBytes=& $ReadFile $schema 1000000
+ $schemaHash=[BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($schemaBytes)).Replace('-','').ToLowerInvariant()
+ if($schemaHash -cne $value.schemaSha256){throw 'Software compatibility schema bytes differ'}
+ return [int]$value.softwareState
+}
+function Get-SoftwareRequiredFormat([string]$root){
+ $requiredFormat=1;$floorPath='servix/jobs/software/data-format.json'
+ if(Test-Path -LiteralPath (Join-Path $root $floorPath)){
+  [byte[]]$floorBytes=Read-BoundedInstalled $root $floorPath 4096;$floorText=[Text.Encoding]::UTF8.GetString($floorBytes);$floor=$floorText|ConvertFrom-Json
+  if((@($floor.PSObject.Properties.Name|Sort-Object)-join ',') -cne 'softwareState,version' -or $floor.version -ne 1 -or ($floor.softwareState -isnot [int] -and $floor.softwareState -isnot [long]) -or $floor.softwareState -lt 1 -or $floor.softwareState -gt 999 -or $floorText -cne ('{"version":1,"softwareState":'+$floor.softwareState+'}')){throw 'Software compatibility persisted format floor invalid'}
+  $requiredFormat=[int]$floor.softwareState
+ }
+ return $requiredFormat
+}
 if($ArchiveSha256 -cnotmatch '^[a-f0-9]{64}$' -or $SourceHead -cnotmatch '^[a-f0-9]{40}$' -or (Get-Item -LiteralPath $Archive).Attributes -band [IO.FileAttributes]::ReparsePoint -or (Get-FileHash -LiteralPath $Archive).Hash.ToLowerInvariant() -cne $ArchiveSha256){throw 'Android compatibility archive identity mismatch'}
 $root=[IO.Path]::GetFullPath($InstallationRoot)
 if($root -ieq [IO.Path]::GetPathRoot($root) -or (Get-Item -LiteralPath $root).Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'Android compatibility installation scope denied'}
@@ -30,6 +64,10 @@ try{
  if($manifest.applicationSource -cne $SourceHead -or $entry.Count -ne 1 -or $entry[0].sha256 -cne $inventoryHash){throw 'Android compatibility candidate source identity mismatch'}
  $inventory=[Text.Encoding]::UTF8.GetString($inventoryBytes)|ConvertFrom-Json
  if($inventory.sourceBase -cne $SourceHead -or $inventory.state -cne 'committed'){throw 'Android compatibility candidate source is not committed'}
+ $beforeFormat=Get-SoftwareFormat $before {param($name,$maximum) Read-BoundedInstalled $previous $name $maximum} {param($name) Test-Path -LiteralPath (Join-Path $previous $name)}
+ $candidateFormat=Get-SoftwareFormat $manifest {param($name,$maximum) Read-BoundedEntry $zip $name $maximum} {param($name) @($zip.Entries|Where-Object FullName -CEQ $name).Count -gt 0}
+ $requiredFormat=Get-SoftwareRequiredFormat $root
+ if($candidateFormat -lt $requiredFormat){throw 'Software compatibility boundary: retain a release that reads existing software observations, service jobs and Android inventories; no changes applied'}
  if((Includes-Android $beforeInventory) -and -not(Includes-Android $inventory)){throw 'Android compatibility boundary: use a release that supports existing Android records; no changes applied'}
  $previewMarker='packages/contracts/src/preview-relay.ts'
  if(@($beforeInventory.files|Where-Object path -CEQ $previewMarker).Count -and -not @($inventory.files|Where-Object path -CEQ $previewMarker).Count){throw 'Preview compatibility boundary: use a release that supports retained preview service plans; no changes applied'}

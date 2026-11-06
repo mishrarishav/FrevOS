@@ -10,6 +10,13 @@ pipeline. A pinned Coraza/CRS Docker gateway is implemented and locally tested
 (ADR0105), without installation on either live server. See
 [Apps and services](APPS_SERVICES_MANAGER.md) and [WAF gateway](WAF_GATEWAY.md).
 
+ADR0106 adds schema-hash-bound software reader qualification and a protected
+monotonic data-format floor. Native plan, post-stop activation and automatic
+recovery reject an old reader after new service/Android state is written; safe
+pre-write recovery remains allowed. Local real-store, actual metadata-generation
+and native filesystem compatibility checks pass. Reviewed builder/destination
+sidecar enrollment remains a prerequisite for the owner's final deployment.
+
 2026-11-06 IST: ADR0102 Apps & services work is in progress on
 `codex/apps-services-manager` from 8ec671cc86fc0f721875894bfea0c02f15b199c1.
 Windows-style apps/services navigation, typed admin-only per-service Start/Stop,

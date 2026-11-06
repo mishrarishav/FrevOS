@@ -274,3 +274,6 @@ records local validation with final activation left to the owner.
 
 [0105: Configurable WAF](0105-configurable-coraza-waf-gateway.md) records the
 pinned Coraza/CRS gateway and isolated local acceptance.
+
+[0106: Software state compatibility](0106-software-data-format-recovery-boundary.md)
+records the persisted reader boundary and safe activation/recovery checks.

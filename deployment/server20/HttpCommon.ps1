@@ -33,7 +33,7 @@ function Assert-ServixDelta($Previous,$Candidate) {
     $before=@{};foreach($file in $Previous.files){$before[$file.path]=$file.sha256}
     $after=@{};foreach($file in $Candidate.files){$after[$file.path]=$file.sha256}
     foreach($path in @(@($before.Keys)+@($after.Keys)|Sort-Object -Unique)){
-        if($path -ceq 'deployment/server20/Update-PreviewExecutor.ps1'){continue}
+        if($path -cin @('deployment/server20/Update-PreviewExecutor.ps1','deployment/server20/SoftwareDataFormat.mjs','deployment/server20/software-data-format.json')){continue}
         if($path -match '^apps/control-plane/node_modules/@frevos/contracts/dist/auth-cookies\.(js|js\.map|d\.ts|d\.ts\.map)$'){continue}
         if($path -match '^apps/control-plane/dist/browser-entry\.(js|js\.map|d\.ts|d\.ts\.map)$' -or $path -match '^apps/control-center/dist-browser/' -or $path -cin @('deployment/server20/BrowserEntryIisModel.psm1','deployment/server20/Plan-BrowserEntryIis.ps1','deployment/server20/Apply-BrowserEntryIis.ps1','deployment/server20/Configure-BrowserEntryIis.ps1','deployment/server20/Configure-BrowserEntry.ps1','deployment/server20/Validate-BrowserEntry.mjs','deployment/server20/BrowserEntry.example.json')){continue}
         if($path -cin @('deployment/server20/Verify-AndroidCompatibility.ps1','deployment/server20/Configure-PrivatePreview.ps1','deployment/server20/Validate-PreviewConfig.mjs') -or $path -match '^apps/control-plane/node_modules/@frevos/contracts/dist/preview-relay\.(js|js\.map|d\.ts|d\.ts\.map)$'){continue}
@@ -68,4 +68,47 @@ function Assert-ServixDeploymentIdle([string]$Root){
   $result=Get-Content -LiteralPath (Join-Path $Root ('results\'+$claim.Name+'.json')) -Raw|ConvertFrom-Json
   if($approval.requestId -cne $claim.Name -or $approval.workspaceId -cne 'ws_server20' -or $approval.target -cne 'server21-servix-development' -or $result.requestId -cne $claim.Name -or $result.sourceHead -cne $approval.sourceHead -or $result.artifactDigest -cne $approval.artifactDigest -or $result.status -notin @('succeeded','failed')){throw 'Consumed activation is unresolved'}
  }
+}
+
+# Software format checks also protect post-stop activation and automatic recovery.
+function Read-BoundedInstalled([string]$Root,[string]$Name,[int]$Maximum){
+ $file=Join-Path $Root $Name
+ for($cursor=$file;$cursor -cne $Root;$cursor=[IO.Path]::GetDirectoryName($cursor)){if((Get-Item -LiteralPath $cursor -Force).Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'Software compatibility linked metadata denied'}}
+ if((Get-Item -LiteralPath $file).Length -gt $Maximum){throw 'Software compatibility metadata capacity'}
+ return ,[IO.File]::ReadAllBytes($file)
+}
+function Get-SoftwareFormat($Manifest,[scriptblock]$ReadFile,[scriptblock]$Exists){
+ $name='deployment/server20/software-data-format.json';$schema='apps/control-plane/node_modules/@frevos/contracts/dist/software-management.js'
+ $entries=@($Manifest.files|Where-Object path -CEQ $name)
+ if($entries.Count -eq 0){if(& $Exists $name){throw 'Software compatibility metadata is not manifest-bound'};return 1}
+ if($entries.Count -ne 1){throw 'Software compatibility metadata repeated'}
+ [byte[]]$bytes=& $ReadFile $name 4096
+ $hash=[BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($bytes)).Replace('-','').ToLowerInvariant()
+ if($hash -cne $entries[0].sha256){throw 'Software compatibility metadata identity differs'}
+ $text=[Text.Encoding]::UTF8.GetString($bytes);$value=$text|ConvertFrom-Json
+ if((@($value.PSObject.Properties.Name|Sort-Object)-join ',') -cne 'schemaSha256,softwareState,version' -or $value.version -ne 1 -or ($value.softwareState -isnot [int] -and $value.softwareState -isnot [long]) -or $value.softwareState -lt 1 -or $value.softwareState -gt 999 -or $value.schemaSha256 -cnotmatch '^[a-f0-9]{64}$'){throw 'Software compatibility format metadata invalid'}
+ $canonical='{"version":1,"softwareState":'+$value.softwareState+',"schemaSha256":"'+$value.schemaSha256+'"}'
+ if($text -cne $canonical){throw 'Software compatibility format metadata is not canonical'}
+ $schemaEntry=@($Manifest.files|Where-Object path -CEQ $schema)
+ if($schemaEntry.Count -ne 1 -or $schemaEntry[0].sha256 -cne $value.schemaSha256){throw 'Software compatibility schema identity differs'}
+ [byte[]]$schemaBytes=& $ReadFile $schema 1000000
+ $schemaHash=[BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($schemaBytes)).Replace('-','').ToLowerInvariant()
+ if($schemaHash -cne $value.schemaSha256){throw 'Software compatibility schema bytes differ'}
+ return [int]$value.softwareState
+}
+function Get-SoftwareRequiredFormat([string]$root){
+ $requiredFormat=1;$floorPath='servix/jobs/software/data-format.json'
+ if(Test-Path -LiteralPath (Join-Path $root $floorPath)){
+  [byte[]]$floorBytes=Read-BoundedInstalled $root $floorPath 4096;$floorText=[Text.Encoding]::UTF8.GetString($floorBytes);$floor=$floorText|ConvertFrom-Json
+  if((@($floor.PSObject.Properties.Name|Sort-Object)-join ',') -cne 'softwareState,version' -or $floor.version -ne 1 -or ($floor.softwareState -isnot [int] -and $floor.softwareState -isnot [long]) -or $floor.softwareState -lt 1 -or $floor.softwareState -gt 999 -or $floorText -cne ('{"version":1,"softwareState":'+$floor.softwareState+'}')){throw 'Software compatibility persisted format floor invalid'}
+  $requiredFormat=[int]$floor.softwareState
+ }
+ return $requiredFormat
+}
+function Assert-SoftwareDataCompatible([string]$Root,[string]$Release,[string]$ManifestSha256){
+ $manifestFile=Join-Path $Release 'release-manifest.json'
+ if((Get-FileHash -LiteralPath $manifestFile).Hash.ToLowerInvariant() -cne $ManifestSha256){throw 'Software compatibility release identity differs'}
+ $manifest=Get-Content -LiteralPath $manifestFile -Raw|ConvertFrom-Json
+ $candidateFormat=Get-SoftwareFormat $manifest {param($name,$maximum) Read-BoundedInstalled $Release $name $maximum} {param($name) Test-Path -LiteralPath (Join-Path $Release $name)}
+ if($candidateFormat -lt (Get-SoftwareRequiredFormat $Root)){throw 'Software compatibility boundary: this saved release cannot read the retained software state; use a compatible recovery release'}
 }

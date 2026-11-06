@@ -6,6 +6,7 @@ param([ValidateSet('Plan','Apply')][string]$Action='Plan',
     [switch]$Restore,[ValidatePattern('^[a-f0-9]{64}$')][string]$ExpectedCurrentManifestSha256)
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
+if(Test-Path -LiteralPath (Join-Path $PSScriptRoot 'HttpCommon.ps1')){. (Join-Path $PSScriptRoot 'HttpCommon.ps1')}
 $root='E:\FrevOS';$oldHash=$null
 $stage='preflight';$consumed=$false;$stopped=$false;$runtimeChanged=$false;$stateChanged=$false;$actionChanged=$false;$bindingAdded=$false;$runnerCreated=$false;$runnerStopped=$false
 $oldRuntimeBytes=$null;$newRuntimeBytes=$null;$runtime=$null
@@ -163,6 +164,7 @@ try {
     $stage='switch-runtime';Write-Journal 'started'
     Stop-ScheduledTask -TaskName 'FrevOS-ServixDev-Activation';$runnerStopped=$true
     Stop-ScheduledTask -TaskName FrevOS-ControlPlane;$stopped=$true;Wait-Stopped
+    Assert-SoftwareDataCompatible $root $release $ManifestSha256
     $runtime.FREVOS_SERVIX_DEPLOYMENT_ROOT='E:\FrevOS\servix'
     $newRuntimeBytes=[Text.UTF8Encoding]::new($false).GetBytes(($runtime|ConvertTo-Json));$runtime=$null
     [IO.File]::WriteAllBytes((Join-Path $PSScriptRoot 'runtime-after.json'),$newRuntimeBytes)
@@ -200,6 +202,7 @@ try {
                 $ownedArguments=if($actionChanged){$newArguments}else{$oldArguments}
                 if($currentTask.Actions[0].Arguments -cne $ownedArguments -or $currentTask.Principal.UserId -cne 'LOCAL SERVICE'){throw 'Task ownership changed during recovery'}
                 Stop-ScheduledTask -TaskName FrevOS-ControlPlane;Wait-Stopped
+                Assert-SoftwareDataCompatible $root $oldRelease $oldHash
                 if($runtimeChanged){if((Get-Hash $runtimeFile) -cne (Get-Hash (Join-Path $PSScriptRoot 'runtime-after.json'))){throw 'Runtime changed outside this operation'};Replace-Private $runtimeFile $oldRuntimeBytes 'runtime-recovery'}
                 if($stateChanged){if(([IO.File]::ReadAllText($stateFile)|ConvertFrom-Json).manifestSha256 -cne $ManifestSha256){throw 'Active identity changed'};Replace-Private $stateFile $oldStateBytes 'active-recovery'}
                 Set-ScheduledTask -TaskName FrevOS-ControlPlane -Action $task.Actions[0]|Out-Null

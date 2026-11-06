@@ -12,7 +12,7 @@ function Get-PreviewExecutorFileInventory {
  param([ValidateSet('builder','destination')][string]$Role,[object[]]$Files)
  if($Role -cnotin @('builder','destination')){throw 'Preview executor role differs'}
  $allowed=if($Role -ceq 'builder'){@('HttpCommon.ps1','New-ServixDashboardRelease.ps1')}else{@('HttpCommon.ps1','Verify-AndroidCompatibility.ps1')}
- $optional=if($Role -ceq 'builder'){@('Verify-AndroidCompatibility.ps1','Verify-HttpManifest.mjs')}else{@('Verify-HttpManifest.mjs')}
+ $optional=if($Role -ceq 'builder'){@('Verify-AndroidCompatibility.ps1','Verify-HttpManifest.mjs')}else{@('Verify-HttpManifest.mjs','Apply-ServixDashboard.ps1','ComponentPlatform.ps1')}
  foreach($name in $optional){if(@($Files.name|Where-Object {$_ -ceq $name}).Count -eq 1){$allowed+=$name}}
  if(@($Files).Count -ne $allowed.Count -or (@($Files.name|Sort-Object)-join ',') -cne (($allowed|Sort-Object)-join ',')){throw 'Preview executor file inventory differs'}
  return $allowed

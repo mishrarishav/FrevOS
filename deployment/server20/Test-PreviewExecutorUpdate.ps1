@@ -35,6 +35,7 @@ try{
  Assert (@(& $inventory -Role builder -Files $builder).Count -eq 2) 'Builder baseline inventory denied'
  Assert (@(& $inventory -Role destination -Files $destination).Count -eq 2) 'Destination baseline inventory denied'
  Assert (@(& $inventory -Role builder -Files ($builder+@(@{name='Verify-AndroidCompatibility.ps1'},@{name='Verify-HttpManifest.mjs'}))).Count -eq 4) 'Builder fixed sidecars denied'
+ Assert (@(& $inventory -Role destination -Files ($destination+@(@{name='Apply-ServixDashboard.ps1'},@{name='ComponentPlatform.ps1'}))).Count -eq 4) 'Destination software-compatible apply sidecars denied'
  Assert (@(& $inventory -Role destination -Files ($destination+@(@{name='Verify-HttpManifest.mjs'}))).Count -eq 3) 'Destination fixed verifier denied'
  foreach($bad in @(
   @{role='destination';files=($destination+@(@{name='New-ServixDashboardRelease.ps1'}))},

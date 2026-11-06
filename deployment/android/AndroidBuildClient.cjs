@@ -12,6 +12,9 @@ const sourcePaths = [
     "MainActivity",
     "MonitorService",
     "LoginProofServer",
+    "AndroidSoftware",
+    "AndroidSoftwarePolicy",
+    "HealthSamplingService",
   ].map((name) => `src/org/devsetu/connector/${name}.java`),
 ];
 async function read(file, maximum = 8192) {

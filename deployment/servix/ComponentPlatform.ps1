@@ -14,6 +14,7 @@ foreach($sid in @($actorSid,'S-1-5-18','S-1-5-32-544')|Select-Object -Unique){$a
 [void][IO.Directory]::CreateDirectory($job,$acl)
 Copy-Item -LiteralPath $request.archive -Destination (Join-Path $job 'package.zip')
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Apply-ServixDashboard.ps1') -Destination (Join-Path $job 'Apply-ServixDashboard.ps1')
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'HttpCommon.ps1') -Destination (Join-Path $job 'HttpCommon.ps1')
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $archive=[IO.Compression.ZipFile]::OpenRead((Join-Path $job 'package.zip'))
 try{

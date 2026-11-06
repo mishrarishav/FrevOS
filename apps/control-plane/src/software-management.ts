@@ -166,6 +166,17 @@ export class SoftwareManagement {
     if (!value) this.fail("request-not-found", 404);
     return SoftwareJobSchema.parse(value);
   }
+  private async requireSoftwareDataFormat() {
+    const saved = z
+      .object({ version: z.literal(1), softwareState: z.number().int().min(1).max(999) })
+      .strict()
+      .parse((await this.read("data-format.json", 4096)) ?? { version: 1, softwareState: 1 });
+    if (saved.softwareState > 2) this.fail("data-format-newer-than-reader");
+    // Persist the rollback floor before the first record an older parser cannot
+    // read. A release that fails before writing new data can still recover to v1.
+    if (saved.softwareState < 2)
+      await this.write("data-format.json", { version: 1, softwareState: 2 });
+  }
   async catalog() {
     const value = await this.read("catalog.json", 262144);
     const c = SoftwareCatalogSchema.parse(
@@ -303,6 +314,14 @@ export class SoftwareManagement {
         )
           this.fail("demo-observation-denied");
       }
+      if (
+        value.platform === "android" ||
+        value.serviceManagement ||
+        ["reading-services", "starting-service", "stopping-service"].includes(
+          value.operation?.stage ?? "",
+        )
+      )
+        await this.requireSoftwareDataFormat();
       await this.write("device-" + d.deviceId + ".json", {
         receivedAt: this.now().toISOString(),
         value: { ...value, serviceInventory: undefined },
@@ -354,6 +373,7 @@ export class SoftwareManagement {
         target: r.deviceId,
         digest: digest(JSON.stringify(next)),
       });
+      await this.requireSoftwareDataFormat();
       await this.write("service-policy-" + r.deviceId + ".json", next);
       return next;
     });
@@ -369,6 +389,7 @@ export class SoftwareManagement {
         Date.parse(snapshot.observedAt)
     )
       return;
+    await this.requireSoftwareDataFormat();
     await this.write("service-scan-" + id + ".json", {
       observedAt: snapshot.observedAt,
       status: snapshot.status,
@@ -551,6 +572,8 @@ export class SoftwareManagement {
         correlationId: request.requestId,
         digest: job.digest,
       });
+      if (service || request.operation === "services-inventory")
+        await this.requireSoftwareDataFormat();
       await this.write(request.requestId + ".json", job);
       return job;
     });
@@ -924,6 +947,12 @@ export class SoftwareManagement {
       if (result.restartRequired !== undefined && result.result !== "installed")
         this.fail("completion-result-denied");
       if (result.restartRequired !== undefined) job.restartRequired = result.restartRequired;
+      if (
+        job.service ||
+        operation === "services-inventory" ||
+        result.inventory?.platform === "android"
+      )
+        await this.requireSoftwareDataFormat();
       job.status =
         result.result === "interrupted" ? "recovery-required" : success ? "succeeded" : "failed";
       job.result = result.result;

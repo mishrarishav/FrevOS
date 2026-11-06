@@ -56,3 +56,10 @@ existing retained signing key; manifest versionCode3/versionName1.2.0 permits an
 in-place APK update that preserves the existing Keystore pairing. Test that update
 and local consent/Start/Stop behavior on a real Android device before claiming
 phone acceptance. Google Play publication needs a separate policy review.
+
+ADR0106 also requires the normal reviewed platform builder/destination sidecar
+updates before activation. The packaged software reader metadata and protected
+data-format floor prevent a return to a legacy parser after new service/Android
+software state is written. Pre-write health-failure recovery remains allowed.
+The stopped-candidate automatic recovery path checks the same floor. Use a
+compatible recovery artifact after a format change; preserve jobs and the floor.
