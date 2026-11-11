@@ -1,5 +1,27 @@
 # DevSetu Current State
 
+2026-11-11 IST, monitoring recovery: Server9 / DCPUBWEB is now collecting over
+its existing authenticated Kerberos WinRM port 5052. Six hosts supply real
+readings: 10.9.69.9, .19, .20, .21, .28 and .31. Fourteen targets, grants,
+history and source references remain; eight targets still have independently
+verified authorization, management-endpoint or network blockers. The owner's
+confirmation that the username/password are unchanged does not resolve those
+authorization failures. No vendor access or broad WinRM/firewall change occurred.
+
+Operation `smr_22d060941fa247f6a77c8ea58bdf2bcf` and native operation
+`sme_0ff34f698f6f401b912c050ae8a9900b` passed Plan/Apply. The unchanged app
+artifact `7e085cf2…` from source `8d0f37b` was restarted; native programs from
+`f3c9094` updated only Common/Collector and Server9's registry binding. A first
+failed attempt exposed an inherited file-ACL replacement defect and temporarily
+stopped DevSetu. Exact original file permissions were recovered, the defect was
+reproduced/fixed/tested, and the corrected operation verified full owner/group/
+DACL preservation. Both private/public health return 200. Authenticated public
+browser acceptance shows advancing DCPUBWEB CPU/RAM graphs and 293 services.
+Independent read-only preservation also passes for nine pairings, 19 software
+records, 44 snapshot files and 15 settings (11 unchanged, four approved updates).
+No new app build, schema migration or isolated database restore test is claimed.
+See [recovery evidence and remaining blockers](SERVER_MONITORING_RECOVERY.md).
+
 2026-11-11 IST: ADR0109 supersedes the local preview workflow. Owned Reviews
 listeners and five FrevOS Docker containers are stopped, Docker Desktop is
 stopped, and volumes/source data are retained. Skills and startup guards forbid
@@ -38,7 +60,8 @@ occurred. Final validation: 90 backend, 7 runtime-policy, 5 packaging and 11
 transport test methods pass, plus typecheck/build, without local services/DB.
 Full release CI/browser acceptance is not claimed for this storage change.
 
-Final app activation remains owner-operated; the old live app does not expose
+At that SQL7 migration checkpoint, final app activation remained owner-operated;
+the then-live old app did not expose
 new Reviews APIs merely because data is central. PostgreSQL remains on Server20
 loopback: a working direct laptop DB profile/private transport is not configured
 or claimed. No listener/HBA/firewall/TLS bypass was introduced. Legacy file state
