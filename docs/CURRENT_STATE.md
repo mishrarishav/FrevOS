@@ -2613,3 +2613,36 @@ probe results and central bootstrap success do not imply that the new browser
 UI is already deployed. Subsequent store/queue readback and application
 activation require their own recorded results. No local Docker, database,
 application listener or preview service was started.
+
+### Sampler recovery and real database verification — 2026-11-11
+
+The first real queue verification timed out because the sampler exited after
+its initial heartbeat. Windows PowerShell 5.1 converted the `$null` backup-path
+argument in `File.Replace(temp, destination, $null)` to an empty path. The
+single-line `[NullString]::Value` correction passes a three-iteration real-file
+loop regression. Controlled update `smu_9bd1166ab26f4a0290f778e2252dfd95`
+verified worker SHA256
+`ee40e6f734c2ba3f3b8f2893bf189ed52c2b0d399156b9f197b5605f3aba0f63`,
+unchanged registry/credential profile, and two advancing heartbeats. The
+original failed verification receipt and partial operational state are retained.
+
+Recovery verification receipt SHA256
+`ea7ce6007cb1116d98ca48dfe0d325806fcce77d8cddb33bb2a0543c788b4c8e`
+records two real central-database/native-queue rounds: all 14 targets settled
+in each round and five produced actual metrics. Ten history points were retained
+across servers .19, .20, .21, .28 and .31; .20 is explicitly local, the other
+four use WinRM. Workspace RLS, persisted metric readback, runtime preservation
+and unchanged Reviews checks pass. No state reset or invented samples were used.
+The application is still the old release: continuous database ingestion and
+the new monitoring UI remain pending its activation.
+
+The Android SDK builder now enrolls ten sources; configuration SHA256 is
+`901653559db0a4838f24e907b2b17809b79c6f090f37dc3d0b6e22f1b3f7dfd4`.
+Signer, tools and service identity remain the same. The first SDK apply rolled
+code/configuration back after its ACL check failed; retention of the original
+owner/group security descriptor was not proven. Fresh operation
+`au_08ac770da41f41dfb5bc0efd317e4aac` preserves the recovered baseline's full
+security descriptor and its Check passes. This does not retroactively claim
+proof of the original descriptor. Build preparation uses the qualified owner
+pure-test path; full Docker CI has not run. No local Docker, database, listener
+or preview runtime was started.

@@ -51,7 +51,7 @@ function Write-Heartbeat {
     $temporary = Join-Path $results ('heartbeat-' + [Guid]::NewGuid().ToString('N') + '.tmp')
     Write-MonitorJsonNew $temporary $value 8192
     $destination = Join-Path $results 'heartbeat.json'
-    if (Test-Path -LiteralPath $destination) { [IO.File]::Replace($temporary,$destination,$null) } else { [IO.File]::Move($temporary,$destination) }
+    if (Test-Path -LiteralPath $destination) { [IO.File]::Replace($temporary,$destination,[NullString]::Value) } else { [IO.File]::Move($temporary,$destination) }
 }
 try {
     do {
