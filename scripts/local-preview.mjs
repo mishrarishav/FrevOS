@@ -3,12 +3,14 @@ import { randomBytes } from "node:crypto";
 import { closeSync, existsSync, mkdirSync, openSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { assertNoLocalStackStartup } from "./codebase-runtime.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const localDirectory = join(root, ".local");
 const environmentFile = join(localDirectory, ".env.local");
 const composeArguments = ["compose", "--env-file", environmentFile, "-f", "compose.local.yaml"];
 const command = process.argv[2];
+assertNoLocalStackStartup(command);
 
 function secret(bytes = 32) {
   return randomBytes(bytes).toString("base64url");

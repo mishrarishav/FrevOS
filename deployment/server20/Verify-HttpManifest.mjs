@@ -8,6 +8,18 @@ const root = resolve(rootArg ?? "missing");
 const fail = () => {
   throw Error("Release integrity or profile mismatch");
 };
+const monitoringPaths = new Set(
+  [
+    "Common.ps1",
+    "Collector.ps1",
+    "Worker.ps1",
+    "Protect-Credential.ps1",
+    "Install-Worker.ps1",
+    "QueueCollector.mjs",
+    "manifest.v1.json",
+    "README.md",
+  ].map((name) => `deployment/server-monitoring/${name}`),
+);
 const hash = async (path) => {
   const h = createHash("sha256");
   for await (const chunk of createReadStream(path)) h.update(chunk);
@@ -57,9 +69,10 @@ try {
   for (const f of m.files) {
     if (
       typeof f.path !== "string" ||
-      !/^(apps\/control-plane\/|apps\/control-center\/(?:dist|dist-browser)\/|deployment\/(?:server20|servix)\/|prerequisites\/)/.test(
+      (!/^(apps\/control-plane\/|apps\/control-center\/(?:dist|dist-browser)\/|deployment\/(?:server20|servix)\/|prerequisites\/)/.test(
         f.path,
-      ) ||
+      ) &&
+        !monitoringPaths.has(f.path)) ||
       /(^|\/)(\.|\.\.)(\/|$)|[:\\]/.test(f.path) ||
       [...f.path].some((character) => character.charCodeAt(0) < 32) ||
       f.path.endsWith("/") ||
@@ -74,6 +87,9 @@ try {
     expected.set(key, f);
     size += f.bytes;
     if (size > 160000000) fail();
+  }
+  if ([...monitoringPaths].some((path) => expected.has(path.toLowerCase()))) {
+    for (const path of monitoringPaths) if (!expected.has(path.toLowerCase())) fail();
   }
   for (const required of [
     "apps/control-plane/dist/main.js",

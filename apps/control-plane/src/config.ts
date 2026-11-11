@@ -1,7 +1,7 @@
-import { IdentityIssuerSchema } from "@frevos/contracts";
+import { IdentityIssuerSchema, UserIdSchema, WorkspaceIdSchema } from "@frevos/contracts";
 import { z } from "zod";
 import { decodeEncryptionKey, sha256 } from "./crypto.js";
-import { paperclipBindings, type PaperclipBinding } from "./paperclip-bridge.js";
+import { type PaperclipBinding, paperclipBindings } from "./paperclip-bridge.js";
 
 const EnvironmentSchema = z
   .object({
@@ -20,6 +20,21 @@ const EnvironmentSchema = z
     FREVOS_SERVIX_DEPLOYMENT_ROOT: z.string().min(1).max(500).optional(),
     DEVSETU_GIT_EXECUTABLE: z.string().min(1).max(500).default("git"),
     DEVSETU_PAPERCLIP_BINDINGS: z.string().max(100000).optional(),
+    DEVSETU_REVIEWS_ROOT: z
+      .string()
+      .trim()
+      .min(1)
+      .max(500)
+      .refine((value) =>
+        Array.from(value).every(
+          (character) => character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127,
+        ),
+      )
+      .optional(),
+    DEVSETU_REVIEWS_ADMINISTRATORS: z.string().max(32768).optional(),
+    DEVSETU_REVIEWS_WORKSPACES: z.string().max(32768).optional(),
+    DEVSETU_REVIEWS_MONITORING_ENABLED: z.enum(["true", "false"]).default("true"),
+    DEVSETU_SERVER_MONITORING_CONFIG: z.string().min(1).max(500).optional(),
 
     FREVOS_BASE_PATH: z
       .string()
@@ -40,6 +55,11 @@ interface BaseControlPlaneConfig {
   readonly servixRoot?: string;
   readonly componentGitExecutable: string;
   readonly paperclipBindings: PaperclipBinding[];
+  readonly reviewsRoot?: string;
+  readonly reviewAdministrators: Record<string, string[]>;
+  readonly reviewWorkspaceIds: string[];
+  readonly reviewMonitoringEnabled: boolean;
+  readonly serverMonitoringConfig?: string;
 }
 
 export type ControlPlaneConfig = BaseControlPlaneConfig &
@@ -88,6 +108,28 @@ export function loadConfig(environment: NodeJS.ProcessEnv): ControlPlaneConfig {
   }
 
   const base = {
+    reviewAdministrators: z
+      .record(WorkspaceIdSchema, z.array(UserIdSchema).max(100))
+      .parse(
+        parsed.DEVSETU_REVIEWS_ADMINISTRATORS
+          ? JSON.parse(parsed.DEVSETU_REVIEWS_ADMINISTRATORS)
+          : {},
+      ),
+    ...(parsed.DEVSETU_REVIEWS_ROOT ? { reviewsRoot: parsed.DEVSETU_REVIEWS_ROOT } : {}),
+    reviewWorkspaceIds: z
+      .array(WorkspaceIdSchema)
+      .max(1000)
+      .refine(
+        (values) => new Set(values).size === values.length,
+        "Duplicate review worker workspace enrollment",
+      )
+      .parse(
+        parsed.DEVSETU_REVIEWS_WORKSPACES ? JSON.parse(parsed.DEVSETU_REVIEWS_WORKSPACES) : [],
+      ),
+    reviewMonitoringEnabled: parsed.DEVSETU_REVIEWS_MONITORING_ENABLED === "true",
+    ...(parsed.DEVSETU_SERVER_MONITORING_CONFIG
+      ? { serverMonitoringConfig: parsed.DEVSETU_SERVER_MONITORING_CONFIG }
+      : {}),
     paperclipBindings: paperclipBindings(parsed.DEVSETU_PAPERCLIP_BINDINGS),
     componentGitExecutable: parsed.DEVSETU_GIT_EXECUTABLE,
     databaseUrl: parsed.DATABASE_URL,

@@ -1,5 +1,12 @@
 # Local Preview
 
+> Historical operating model, superseded for this owner's workflow. Do not start
+> local Docker, databases or localhost preview services. `pnpm local:up` now
+> refuses before creating state or invoking Docker. Use the explicit
+> [central database codebase runtime](CODEBASE_RUNTIME.md) when the owner chooses
+> to run code. Existing volumes and state are retained; the historical commands
+> below are not instructions to start another local environment.
+
 FrevOS Local Preview runs the real React build and Fastify BFF behind Caddy
 HTTPS, with PostgreSQL 18 persistence and a Keycloak OIDC realm. It is a
 non-Production developer target; it does not replace independent black-box

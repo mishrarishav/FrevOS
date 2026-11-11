@@ -12,7 +12,12 @@ import { ComponentDeployments } from "./component-deployments.js";
 import { loadConfig } from "./config.js";
 import { registerControlCenter } from "./control-center.js";
 import { OidcTransactionCodec } from "./crypto.js";
-import { createDatabasePool, verifyApplicationRole, verifyDatabaseReadiness } from "./database.js";
+import {
+  createDatabasePool,
+  verifyApplicationRole,
+  verifyDatabaseReadiness,
+  withApplicationTransaction,
+} from "./database.js";
 import { DeploymentSettingsStore } from "./deployment-settings.js";
 import { DeveloperConnectorStore } from "./developer-connectors.js";
 import { DeviceLogins } from "./device-logins.js";
@@ -31,10 +36,26 @@ import { OpenIdClientProvider } from "./oidc.js";
 import { PrivatePaperclipTasks } from "./paperclip-bridge.js";
 import { loadPreviewConfig, PreviewRelay } from "./preview-relay.js";
 import { ProjectAutomationRepository } from "./project-automation.js";
-import { IdentitySessionRepository, WorkspaceRepository } from "./repositories.js";
+import {
+  IdentitySessionRepository,
+  type WorkspaceEvidence,
+  WorkspaceRepository,
+} from "./repositories.js";
 import { loadRepositoryHosting, RepositoryCenter } from "./repository-center.js";
+import { reviewAuthority } from "./review-authority.js";
+import { checkReviewLink } from "./review-link-checker.js";
+import { ReviewPostgresStore } from "./review-postgres-store.js";
+import { ReviewRegisters } from "./review-registers.js";
+import { parseReviewWorkbook } from "./review-workbook.js";
 import { SelfUpdates } from "./self-updates.js";
 import { buildServer } from "./server.js";
+import { ServerMonitoringService } from "./server-monitoring.js";
+import {
+  loadServerMonitoringRuntime,
+  nativeServerMonitoringCollector,
+  serverMonitoringTargetAllowed,
+} from "./server-monitoring-runtime.js";
+import { ServerMonitoringPostgresStore } from "./server-monitoring-store.js";
 import {
   loadServixExecutionProfile,
   ServixDeploymentError,
@@ -49,6 +70,11 @@ const pool = createDatabasePool(config.databaseUrl);
 
 try {
   await verifyApplicationRole(pool);
+  const reviewStoreReadiness = new ReviewPostgresStore(pool, {
+    enrolledWorkspaceIds: config.reviewWorkspaceIds,
+  });
+  await reviewStoreReadiness.assertReady();
+  const reviewWorkerWorkspaceIds = new Set(config.reviewWorkspaceIds);
   let servixDeployment: ServixDeploymentStore | undefined;
   let developerConnectors: DeveloperConnectorStore | undefined;
   let deploymentSettings: DeploymentSettingsStore | undefined;
@@ -63,6 +89,11 @@ try {
   let repositoryCenter: RepositoryCenter | undefined;
   let codeRepositories: CodeRepositories | undefined;
   let gitDesktop: GitDesktop | undefined;
+  let legacyReviewAdministrator: (
+    workspace: string,
+    actor: string,
+    evidence: WorkspaceEvidence | null,
+  ) => boolean = () => false;
   const agentWorkspaces = new Map<string, AgentWorkspace>();
   const notifications = new Map<string, AgentNotifications>();
   const agentNotifications = (workspaceId: string) => {
@@ -236,6 +267,11 @@ try {
     const discoveryPolicy = await loadDiscoveryAccessPolicy(
       join(operator, "DiscoveryAccessPolicy.json"),
     );
+    // Reuse the operator-enrolled platform workspace; never enumerate tenant payloads by bypassing RLS.
+    reviewWorkerWorkspaceIds.add(discoveryPolicy.workspaceId);
+    legacyReviewAdministrator = (workspace, actor, evidence) =>
+      workspace === discoveryPolicy.workspaceId &&
+      isDiscoveryAdministrator(discoveryPolicy, actor, evidence);
     requireDeviceLoginOrigin(config.publicOrigin, discoveryPolicy.deviceLoginMethod);
     if (discoveryPolicy.workspaceId !== "ws_server20")
       throw new ServixDeploymentError("discovery-access-policy-workspace-denied", 403);
@@ -447,7 +483,73 @@ try {
           }),
           transactionCodec: new OidcTransactionCodec(config.oidcTransactionKey),
         };
+  const monitoringConfigFile =
+    config.serverMonitoringConfig ??
+    (config.servixRoot ? join(config.servixRoot, "..", "config", "server-monitoring.json") : undefined);
+  const monitoringConfig = monitoringConfigFile
+    ? await loadServerMonitoringRuntime(monitoringConfigFile)
+    : undefined;
+  if (monitoringConfig) reviewWorkerWorkspaceIds.add(monitoringConfig.workspaceId);
+  const reviewStore = new ReviewPostgresStore(pool, {
+    enrolledWorkspaceIds: [...reviewWorkerWorkspaceIds],
+  });
+  const reviews = new ReviewRegisters(
+    reviewStore,
+    reviewAuthority(
+      new WorkspaceRepository(pool),
+      config.reviewAdministrators,
+      legacyReviewAdministrator,
+    ),
+    async (workspaceId) =>
+      withApplicationTransaction(pool, workspaceId, async (client) => {
+        const result = await client.query<{ user_id: string; display_name: string | null }>(
+          `SELECT app_user.user_id, app_user.display_name FROM frevos.workspace_memberships member
+           JOIN frevos.users app_user ON app_user.user_id=member.user_id
+           WHERE member.workspace_id=$1 AND member.status='active' AND 'project:read'=ANY(member.granted_scopes)
+           ORDER BY app_user.user_id LIMIT 1001`,
+          [workspaceId],
+        );
+        if (result.rows.length > 1000) throw Error("reviews-member-capacity");
+        return result.rows.map((row) => ({
+          userId: row.user_id,
+          name: row.display_name ?? row.user_id,
+        }));
+      }),
+    { parseWorkbook: parseReviewWorkbook, checkLink: checkReviewLink },
+  );
+  let serverMonitoring: ServerMonitoringService | undefined;
+  if (monitoringConfig) {
+    const store = new ServerMonitoringPostgresStore(pool, {
+      enrolledWorkspaceIds: [monitoringConfig.workspaceId],
+    });
+    await store.assertReady();
+    serverMonitoring = new ServerMonitoringService({
+      store,
+      authority: reviewAuthority(
+        new WorkspaceRepository(pool),
+        config.reviewAdministrators,
+        legacyReviewAdministrator,
+      ),
+      readRegister: async (workspaceId, actor, registerId) => {
+        const state = await reviews.state(actor, workspaceId, registerId);
+        return { id: state.register.id, records: state.records };
+      },
+      collector: await nativeServerMonitoringCollector(monitoringConfig),
+      targetAllowed: (target) => serverMonitoringTargetAllowed(monitoringConfig, target),
+      sourcePolicies: monitoringConfig.sourcePolicies.map((source) => ({
+        ...source,
+        workspaceId: monitoringConfig.workspaceId,
+      })),
+      concurrency: monitoringConfig.concurrency,
+      timeoutMs: monitoringConfig.timeoutMs,
+    });
+  }
   const serverOptions = {
+    reviews,
+    ...(serverMonitoring && monitoringConfig
+      ? { serverMonitoring, serverMonitoringEnabled: monitoringConfig.enabled }
+      : {}),
+    reviewMonitoringEnabled: config.reviewMonitoringEnabled,
     publicOrigin: config.publicOrigin,
     ...(config.servixRoot && config.authMode === "local"
       ? { selfUpdates: new SelfUpdates(join(config.servixRoot, "..", "maintenance")) }
@@ -500,7 +602,7 @@ try {
   if (browserProfile?.listen.port === config.port) throw Error("browser-entry-listener-conflict");
   const browserServer = browserProfile
     ? await buildBrowserEntry(
-        serverOptions,
+        { ...serverOptions, serverMonitoringEnabled: false, reviewMonitoringEnabled: false },
         browserProfile,
         fileURLToPath(new URL("../../control-center/dist-browser/", import.meta.url)),
       )

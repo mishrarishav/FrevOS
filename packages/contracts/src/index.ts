@@ -14,6 +14,7 @@ export {
 } from "./approvals.js";
 export * from "./artifact-promotions.js";
 export { type AuthCookiePolicy, authCookiePolicy } from "./auth-cookies.js";
+export * from "./code-repositories.js";
 export * from "./component-deployments.js";
 export * from "./deployment-change.js";
 export * from "./deployment-settings.js";
@@ -114,7 +115,7 @@ export {
   ProjectAutomationStatusSchema,
 } from "./project-automation.js";
 export * from "./repository-center.js";
-export * from "./code-repositories.js";
+export * from "./review-registers.js";
 export * from "./servix-deployment.js";
 export * from "./software-management.js";
 export * from "./system-discovery.js";
@@ -152,3 +153,4 @@ export {
   type WorkspaceStatus,
   WorkspaceStatusSchema,
 } from "./workspaces.js";
+export * from "./server-monitoring.js";

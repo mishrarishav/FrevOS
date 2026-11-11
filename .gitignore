@@ -6,6 +6,8 @@ coverage/
 dist/
 dist-browser/
 *.tsbuildinfo
+__pycache__/
+*.py[cod]
 /deployment/servix/FrevOS.FolderPicker.exe
 
 # Local environment and secrets

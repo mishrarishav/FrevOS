@@ -9,6 +9,7 @@ export type RouteId =
   | "tasks"
   | "qa"
   | "reviews"
+  | "server-monitoring"
   | "releases"
   | "deployments"
   | "deployment-setup"
@@ -148,12 +149,20 @@ export const routes: readonly RouteDefinition[] = [
     description: "Independent acceptance evidence and reviewable test maintenance.",
   },
   {
+    id: "server-monitoring",
+    path: "/reviews/servers",
+    label: "Server monitoring",
+    shortLabel: "Servers",
+    phase: "Server observations",
+    description: "Authorized server performance, processes, services and alerts.",
+  },
+  {
     id: "reviews",
-    path: "/reviews/pr-12",
+    path: "/reviews",
     label: "Reviews",
     shortLabel: "Review",
-    phase: "Phase 8",
-    description: "Outcome, implementation, risk, diff, and independent evidence review.",
+    phase: "Application reviews",
+    description: "Configurable application registers, ownership, link checks and review history.",
   },
   {
     id: "releases",
@@ -230,6 +239,8 @@ export function normalizePath(pathname: string): string {
 }
 
 export function resolveRoute(pathname: string): RouteDefinition | undefined {
+  if (normalizePath(pathname) === "/reviews/pr-12")
+    return routes.find((route) => route.id === "reviews");
   const normalized =
     normalizePath(pathname) === "/deployments/setup"
       ? "/projects/configuration"

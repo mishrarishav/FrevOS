@@ -27,6 +27,13 @@ import {
   type SessionContext,
   SessionContextSchema,
   SessionSummarySchema,
+  ServerMonitorAcknowledgeSchema,
+  ServerMonitorCatalogSchema,
+  ServerMonitorImportResultSchema,
+  ServerMonitorImportSchema,
+  ServerMonitorRefreshSchema,
+  ServerMonitorSavePolicySchema,
+  ServerMonitorSaveTargetSchema,
   UserIdSchema,
   WorkspaceIdSchema,
   WorkspaceSchema,
@@ -61,6 +68,8 @@ import type {
   WorkspaceRepository,
 } from "./repositories.js";
 import type { RepositoryCenter } from "./repository-center.js";
+import { ReviewRegisterError, type ReviewRegisters } from "./review-registers.js";
+import { ServerMonitoringError, type ServerMonitoringService } from "./server-monitoring.js";
 import {
   renderSelfUpdateHtml,
   renderSelfUpdateScript,
@@ -153,6 +162,11 @@ const LocalLoginBodySchema = z
 const EmptyBodySchema = z.object({}).strict();
 
 interface BuildServerOptions {
+  readonly serverMonitoring?: ServerMonitoringService;
+  readonly serverMonitoringEnabled?: boolean;
+  readonly serverMonitoringWorkerIntervalMs?: number;
+  readonly reviews?: ReviewRegisters;
+  readonly reviewMonitoringEnabled?: boolean;
   readonly codeRepositories?: CodeRepositories;
   readonly software?: SoftwareManagement;
   readonly repositoryCenter?: RepositoryCenter;
@@ -276,6 +290,32 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
   });
 
   server.setErrorHandler((error, _request, reply) => {
+    if (_request.routeOptions.url?.includes("/server-monitoring")) {
+      const code = (error as { code?: string }).code;
+      if (code === "FST_ERR_CTP_BODY_TOO_LARGE" || code === "FST_ERR_CTP_INVALID_JSON_BODY") {
+        void reply
+          .status(code === "FST_ERR_CTP_BODY_TOO_LARGE" ? 413 : 400)
+          .send({ error: "invalid-request" });
+        return;
+      }
+    }
+    if (error instanceof ServerMonitoringError) {
+      void reply.status(error.statusCode).send({ error: error.message });
+      return;
+    }
+    if (_request.routeOptions.url?.includes("/reviews/")) {
+      const code = (error as { code?: string }).code;
+      if (code === "FST_ERR_CTP_BODY_TOO_LARGE" || code === "FST_ERR_CTP_INVALID_JSON_BODY") {
+        void reply
+          .status(code === "FST_ERR_CTP_BODY_TOO_LARGE" ? 413 : 400)
+          .send({ error: "reviews-invalid-upload" });
+        return;
+      }
+    }
+    if (error instanceof ReviewRegisterError) {
+      void reply.status(error.statusCode).send({ error: error.message });
+      return;
+    }
     if (error instanceof AccountActionError) {
       void reply.status(error.statusCode).send({ error: error.code });
       return;
@@ -1327,6 +1367,150 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
       },
     );
   server.get<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/server-monitoring"),
+    async (request, reply) => {
+      const e = await requireWorkspace(request, options, "project:read", now());
+      if (!options.serverMonitoring) throw new HttpError(503, "server-monitoring-not-configured");
+      reply.header("cache-control", "no-store");
+      return ServerMonitorCatalogSchema.parse(
+        await options.serverMonitoring.catalog(e.workspaceId, e.session.session.context.userId),
+      );
+    },
+  );
+  for (const action of ["targets", "imports", "checks", "refresh"] as const)
+    server.post<{ Params: WorkspaceParams }>(
+      route(`/v1/workspaces/:workspaceId/server-monitoring/${action}`),
+      async (request, reply) => {
+        const e = await requireWorkspace(request, options, "project:read", now());
+        requireCsrf(request, e.session.session, options.publicOrigin, options.authCookies.csrf);
+        const service = options.serverMonitoring;
+        if (!service) throw new HttpError(503, "server-monitoring-not-configured");
+        reply.header("cache-control", "no-store");
+        const actor = e.session.session.context.userId;
+        if (action === "imports")
+          return ServerMonitorImportResultSchema.parse(
+            await service.importTargets(
+              e.workspaceId,
+              actor,
+              ServerMonitorImportSchema.parse(request.body),
+            ),
+          );
+        const result =
+          action === "targets"
+            ? await service.saveTarget(
+                e.workspaceId,
+                actor,
+                ServerMonitorSaveTargetSchema.parse(request.body),
+              )
+            : action === "checks"
+              ? await service.check(
+                  e.workspaceId,
+                  actor,
+                  ServerMonitorRefreshSchema.parse(request.body),
+                )
+              : await service.refresh(
+                  e.workspaceId,
+                  actor,
+                  ServerMonitorRefreshSchema.parse(request.body),
+                );
+        return ServerMonitorCatalogSchema.parse(result);
+      },
+    );
+  server.put<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/server-monitoring/policy"),
+    async (request, reply) => {
+      const e = await requireWorkspace(request, options, "project:read", now());
+      requireCsrf(request, e.session.session, options.publicOrigin, options.authCookies.csrf);
+      if (!options.serverMonitoring) throw new HttpError(503, "server-monitoring-not-configured");
+      reply.header("cache-control", "no-store");
+      return ServerMonitorCatalogSchema.parse(
+        await options.serverMonitoring.savePolicy(
+          e.workspaceId,
+          e.session.session.context.userId,
+          ServerMonitorSavePolicySchema.parse(request.body),
+        ),
+      );
+    },
+  );
+  server.post<{ Params: WorkspaceParams & { alertId: string } }>(
+    route("/v1/workspaces/:workspaceId/server-monitoring/alerts/:alertId/acknowledge"),
+    async (request, reply) => {
+      const e = await requireWorkspace(request, options, "project:read", now());
+      requireCsrf(request, e.session.session, options.publicOrigin, options.authCookies.csrf);
+      if (!options.serverMonitoring) throw new HttpError(503, "server-monitoring-not-configured");
+      EmptyBodySchema.parse(request.body);
+      reply.header("cache-control", "no-store");
+      return ServerMonitorCatalogSchema.parse(
+        await options.serverMonitoring.acknowledge(
+          e.workspaceId,
+          e.session.session.context.userId,
+          ServerMonitorAcknowledgeSchema.parse({ alertId: request.params.alertId }),
+        ),
+      );
+    },
+  );
+  server.get<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/reviews"),
+    async (request, reply) => {
+      const e = await requireWorkspace(request, options, "project:read", now());
+      if (!options.reviews) throw new HttpError(503, "reviews-not-configured");
+      reply.header("cache-control", "no-store");
+      return options.reviews.catalog(e.session.session.context.userId, e.workspaceId);
+    },
+  );
+  server.get<{ Params: WorkspaceParams }>(
+    route("/v1/workspaces/:workspaceId/reviews/monitoring"),
+    async (request, reply) => {
+      const e = await requireWorkspace(request, options, "project:read", now());
+      if (!options.reviews) throw new HttpError(503, "reviews-not-configured");
+      reply.header("cache-control", "no-store");
+      return options.reviews.monitoring(e.session.session.context.userId, e.workspaceId);
+    },
+  );
+  server.get<{ Params: WorkspaceParams & { registerId: string } }>(
+    route("/v1/workspaces/:workspaceId/reviews/:registerId"),
+    async (request, reply) => {
+      const e = await requireWorkspace(request, options, "project:read", now());
+      if (!options.reviews) throw new HttpError(503, "reviews-not-configured");
+      reply.header("cache-control", "no-store");
+      return options.reviews.state(
+        e.session.session.context.userId,
+        e.workspaceId,
+        request.params.registerId,
+      );
+    },
+  );
+  for (const action of [
+    "save-register",
+    "save-record",
+    "delete-record",
+    "grant",
+    "workbook",
+    "preview-import",
+    "commit-import",
+    "check-link",
+    "add-review",
+    "save-schedule",
+    "run-monitor",
+    "read-monitor-alert",
+  ] as const)
+    server.post<{ Params: WorkspaceParams }>(
+      route("/v1/workspaces/:workspaceId/reviews/" + action),
+      { bodyLimit: 8_000_000 },
+      async (request, reply) => {
+        const e = await requireWorkspace(request, options, "project:read", now());
+        requireCsrf(request, e.session.session, options.publicOrigin, options.authCookies.csrf);
+        if (!options.reviews) throw new HttpError(503, "reviews-not-configured");
+        reply.header("cache-control", "no-store");
+        return options.reviews.execute(
+          e.session.session.context.userId,
+          e.workspaceId,
+          action,
+          request.body,
+        );
+      },
+    );
+  server.get<{ Params: WorkspaceParams }>(
     route("/v1/workspaces/:workspaceId/git-desktop"),
     async (request) => {
       const e = await requireWorkspace(request, options, "project:read", now());
@@ -2323,6 +2507,62 @@ export async function buildServer(input: BuildServerOptions): Promise<FastifyIns
     },
   );
 
+  if (options.serverMonitoring && options.serverMonitoringEnabled !== false) {
+    const monitoring = options.serverMonitoring;
+    const interval = z
+      .number()
+      .int()
+      .min(1000)
+      .max(60000)
+      .parse(options.serverMonitoringWorkerIntervalMs ?? 2500);
+    let timer: ReturnType<typeof setInterval> | undefined;
+    let closing = false;
+    let pending: Promise<void> | null = null;
+    const tick = () => {
+      if (closing || pending) return;
+      pending = Promise.resolve()
+        .then(() => monitoring.runDue())
+        .then(() => undefined)
+        .catch(() => {
+          server.log.error("server-monitoring-tick-failed");
+        })
+        .finally(() => {
+          pending = null;
+        });
+    };
+    server.addHook("onReady", async () => {
+      tick();
+      timer = setInterval(tick, interval);
+      timer.unref();
+    });
+    server.addHook("onClose", async () => {
+      closing = true;
+      if (timer) clearInterval(timer);
+      await pending;
+    });
+  }
+  if (options.reviews && options.reviewMonitoringEnabled !== false) {
+    const reviews = options.reviews;
+    let timer: ReturnType<typeof setInterval> | undefined;
+    let closing = false;
+    const tick = () => {
+      if (closing) return;
+      void reviews.tickMonitoring().catch(() => {
+        // Do not log workbook contents or network response bodies on worker failure.
+        server.log.error("reviews-monitoring-tick-failed");
+      });
+    };
+    server.addHook("onReady", async () => {
+      tick();
+      timer = setInterval(tick, 30_000);
+      timer.unref();
+    });
+    server.addHook("onClose", async () => {
+      closing = true;
+      if (timer) clearInterval(timer);
+      await reviews.closeMonitoring();
+    });
+  }
   return server;
 }
 

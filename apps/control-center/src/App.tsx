@@ -8,6 +8,7 @@ import type {
   ProjectAutomationOperation,
   ProjectAutomationRequest,
   ProjectRepositoryConnection,
+  ReviewMonitoringSummary,
   Workspace,
 } from "@frevos/contracts";
 import {
@@ -59,6 +60,7 @@ import { AccountControls } from "./AccountControls.js";
 import { AgentsPage } from "./AgentsPage.js";
 import { ArtifactPromotionsPage } from "./ArtifactPromotionsPage.js";
 import {
+  ApiFailure,
   type ControlCenterApi,
   createControlCenterApi,
   DeviceVerificationRequired,
@@ -86,6 +88,13 @@ import {
 import { JoinRequestForm } from "./JoinRequestForm.js";
 import { LocalDevelopmentPage } from "./LocalDevelopmentPage.js";
 import {
+  MonitoringAlertList,
+  type MonitoringStatus,
+  monitoringAlerts,
+  ReviewMonitoringOverview,
+} from "./ReviewReports.js";
+import { ReviewsPage } from "./ReviewsPage.js";
+import {
   addBasePath,
   isPathActive,
   normalizePath,
@@ -95,6 +104,7 @@ import {
   resolveRoute,
   routes,
 } from "./routing.js";
+import { ServerMonitoringPage } from "./ServerMonitoringPage.js";
 
 // Product-owned default label only; stored workspace identity and user labels stay intact.
 function workspaceDisplayName(workspace: Workspace): string {
@@ -131,6 +141,7 @@ const routeIcons: Record<Exclude<RouteId, "not-found">, LucideIcon> = {
   tasks: Activity,
   qa: FlaskConical,
   reviews: GitPullRequest,
+  "server-monitoring": Activity,
   releases: Layers3,
   deployments: Rocket,
   "deployment-setup": Settings2,
@@ -211,6 +222,53 @@ export function App({
     records: JoinRequest[];
   } | null>(null);
   const [inboxNavigation, setInboxNavigation] = useState(0);
+  const [reviewInbox, setReviewInbox] = useState<{
+    scope: string;
+    status: MonitoringStatus;
+    summary: ReviewMonitoringSummary | null;
+  } | null>(null);
+  const [reviewReload, setReviewReload] = useState(0),
+    [reviewNavigation, setReviewNavigation] = useState(0),
+    [readingReviewAlert, setReadingReviewAlert] = useState("");
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reviewReload refreshes the authenticated summary after a monitoring change.
+  useEffect(() => {
+    setReviewInbox(null);
+    const request = api.reviewMonitoring;
+    if (!inboxScope || !request) return;
+    const abort = new AbortController();
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      try {
+        const summary = await request(inboxWorkspace, abort.signal);
+        if (!abort.signal.aborted) setReviewInbox({ scope: inboxScope, status: "ready", summary });
+      } catch (reason) {
+        if (!abort.signal.aborted) {
+          if (reason instanceof ApiFailure && reason.kind === "unauthenticated") {
+            setExperience({ kind: "session-expired" });
+            return;
+          }
+          setReviewInbox({
+            scope: inboxScope,
+            status:
+              reason instanceof ApiFailure && reason.kind === "denied" ? "denied" : "unavailable",
+            summary: null,
+          });
+        }
+      } finally {
+        if (!abort.signal.aborted) timer = setTimeout(() => void poll(), 30000);
+      }
+    };
+    void poll();
+    return () => {
+      abort.abort();
+      clearTimeout(timer);
+    };
+  }, [api, inboxScope, inboxWorkspace, reviewReload]);
+  useEffect(() => {
+    const refresh = () => setReviewReload((value) => value + 1);
+    window.addEventListener("devsetu-review-monitoring-changed", refresh);
+    return () => window.removeEventListener("devsetu-review-monitoring-changed", refresh);
+  }, []);
   useEffect(() => {
     setJoinInbox(null);
     if (!inboxScope || !api.joinRequests) return;
@@ -362,6 +420,7 @@ export function App({
 
   const route = resolveRoute(pathname);
   const currentInbox = joinInbox?.scope === inboxScope ? joinInbox : null;
+  const currentReviewInbox = reviewInbox?.scope === inboxScope ? reviewInbox : null;
   const pendingJoins =
     currentInbox?.status === "ready"
       ? currentInbox.records.filter((r) => ["pending", "approving"].includes(r.status))
@@ -378,7 +437,39 @@ export function App({
     setInboxNavigation((value) => value + 1);
     navigate("/systems/discovery");
   };
+  const openReviewRegister = (registerId: string) => {
+    try {
+      sessionStorage.setItem(
+        `frevos:${experience.session.userId}:${experience.workspace.workspaceId}:reviews:selected`,
+        registerId,
+      );
+      sessionStorage.setItem(
+        `frevos:${experience.session.userId}:${experience.workspace.workspaceId}:reviews:reports`,
+        "open",
+      );
+    } catch {
+      /* Navigation preferences are optional. */
+    }
+    setReviewNavigation((value) => value + 1);
+    navigate("/reviews");
+  };
+  const markReviewAlert = async (registerId: string, alertId: string) => {
+    const request = api.readReviewMonitorAlert;
+    if (!request) return;
+    setReadingReviewAlert(alertId);
+    try {
+      await request(experience.workspace.workspaceId, { version: 1, registerId, alertId });
+      setReviewReload((value) => value + 1);
+    } catch (reason) {
+      if (reason instanceof ApiFailure && reason.kind === "unauthenticated") expireCodeSession();
+      else setReviewInbox({ scope: inboxScope, status: "unavailable", summary: null });
+    } finally {
+      setReadingReviewAlert("");
+    }
+  };
   const projectWorkspace =
+    route?.id === "reviews" ||
+    route?.id === "server-monitoring" ||
     route?.id === "repository-center" ||
     route?.id === "agents" ||
     (experience.workspace.workspaceId === "ws_server20" &&
@@ -407,6 +498,16 @@ export function App({
             status={currentInbox?.status ?? "loading"}
             records={pendingJoins}
             onReview={openJoinInbox}
+            {...(api.reviewMonitoring
+              ? {
+                  monitoringStatus: currentReviewInbox?.status ?? "loading",
+                  monitoring: currentReviewInbox?.summary ?? null,
+                  onOpenMonitoring: openReviewRegister,
+                  onReadMonitoring: (registerId: string, alertId: string) =>
+                    void markReviewAlert(registerId, alertId),
+                  readingMonitoring: readingReviewAlert,
+                }
+              : {})}
           />
         }
         accountControl={
@@ -447,6 +548,15 @@ export function App({
                   count={pendingJoins.length}
                   onReview={openJoinInbox}
                 />
+              }
+              reviewControl={
+                api.reviewMonitoring ? (
+                  <ReviewMonitoringOverview
+                    status={currentReviewInbox?.status ?? "loading"}
+                    summary={currentReviewInbox?.summary ?? null}
+                    openRegister={openReviewRegister}
+                  />
+                ) : null
               }
             />
           ) : null}
@@ -514,6 +624,32 @@ export function App({
               projects={experience.projects}
             />
           ) : null}
+          {route?.id === "reviews" ? (
+            <ReviewsPage
+              key={
+                experience.workspace.workspaceId +
+                ":" +
+                experience.session.userId +
+                ":" +
+                reviewNavigation
+              }
+              api={api}
+              workspaceId={experience.workspace.workspaceId}
+              userId={experience.session.userId}
+              scopeName={workspaceDisplayName(experience.workspace)}
+              onSessionExpired={expireCodeSession}
+            />
+          ) : null}
+          {route?.id === "server-monitoring" ? (
+            <ServerMonitoringPage
+              key={`${experience.workspace.workspaceId}:${experience.session.userId}`}
+              api={api}
+              workspaceId={experience.workspace.workspaceId}
+              userId={experience.session.userId}
+              scopeName={workspaceDisplayName(experience.workspace)}
+              onSessionExpired={expireCodeSession}
+            />
+          ) : null}
           {route?.id === "artifact-promotions" &&
           experience.workspace.workspaceId === "ws_server20" ? (
             <ArtifactPromotionsPage api={api} workspaceId={experience.workspace.workspaceId} />
@@ -531,6 +667,8 @@ export function App({
           route.id !== "control-center" &&
           route.id !== "design-system" &&
           route.id !== "agents" &&
+          route.id !== "reviews" &&
+          route.id !== "server-monitoring" &&
           route.id !== "repository-center" &&
           route.id !== "projects" ? (
             route.id === "project-operations" ? null : (route.id === "deployments" ||
@@ -951,29 +1089,42 @@ export function JoinNotifications({
   status,
   records,
   onReview,
+  monitoringStatus,
+  monitoring,
+  onOpenMonitoring,
+  onReadMonitoring,
+  readingMonitoring,
 }: {
   status: JoinInboxStatus;
   records: JoinRequest[];
   onReview: () => void;
+  monitoringStatus?: MonitoringStatus;
+  monitoring?: ReviewMonitoringSummary | null;
+  onOpenMonitoring?: (registerId: string) => void;
+  onReadMonitoring?: (registerId: string, alertId: string) => void;
+  readingMonitoring?: string;
 }) {
   const [open, setOpen] = useState(false);
-  if (status === "denied") return null;
+  if (status === "denied" && (!monitoringStatus || monitoringStatus === "denied")) return null;
   const count = status === "ready" ? records.length : 0;
+  const reviewAlerts = monitoringStatus === "ready" ? monitoringAlerts(monitoring ?? null) : [];
+  const total = count + reviewAlerts.length;
+  const label = monitoringStatus
+    ? `Notifications: ${status === "ready" ? `${count} join requests, ` : status === "denied" ? "" : "join requests unavailable, "}${monitoringStatus === "ready" ? `${reviewAlerts.length} review alerts` : monitoringStatus === "denied" ? "review alerts not available for this account" : "review alerts unavailable"}`
+    : status === "ready"
+      ? `Notifications: ${count} pending join requests`
+      : "Notifications unavailable";
   return (
     <div className="join-notifications">
       <button
         className="top-action"
         type="button"
-        aria-label={
-          status === "ready"
-            ? `Notifications: ${count} pending join requests`
-            : "Notifications unavailable"
-        }
+        aria-label={label}
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
       >
         <Bell aria-hidden="true" size={17} />
-        {count > 0 ? <span className="join-count">{count}</span> : null}
+        {total > 0 ? <span className="join-count">{total}</span> : null}
       </button>
       {open ? (
         <section className="join-notification-popover" aria-label="Notifications">
@@ -1001,13 +1152,41 @@ export function JoinNotifications({
                 </button>
               ) : null}
             </>
-          ) : (
+          ) : status !== "denied" ? (
             <p role="status">
               {status === "loading"
                 ? "Checking notifications…"
                 : "Notifications could not be checked. Retrying automatically."}
             </p>
-          )}
+          ) : null}
+          {monitoringStatus && monitoringStatus !== "denied" ? (
+            <section
+              className="review-notification-section"
+              aria-label="Review monitoring notifications"
+            >
+              <h3>Review monitoring</h3>
+              {monitoringStatus === "ready" && onOpenMonitoring ? (
+                <MonitoringAlertList
+                  entries={reviewAlerts.slice(0, 5)}
+                  openRegister={(id) => {
+                    setOpen(false);
+                    onOpenMonitoring(id);
+                  }}
+                  {...(onReadMonitoring ? { onRead: onReadMonitoring } : {})}
+                  {...(readingMonitoring ? { busyId: readingMonitoring } : {})}
+                  emptyText="No unread SSL or report alerts."
+                />
+              ) : (
+                <p role="status">
+                  {monitoringStatus === "loading"
+                    ? "Checking review alerts…"
+                    : monitoringStatus === "ready"
+                      ? `${reviewAlerts.length} unread review alerts.`
+                      : "Review alerts could not be checked. Retrying automatically."}
+                </p>
+              )}
+            </section>
+          ) : null}
         </section>
       ) : null}
     </div>
@@ -1103,6 +1282,30 @@ function NavigationRail({
                   </AppLink>
                 </div>
               ) : null}
+              {id === "reviews" ? (
+                <div className="rail-submenu">
+                  <AppLink
+                    to="/reviews"
+                    navigate={navigate}
+                    className={
+                      resolveRoute(pathname)?.id === "reviews" ? "rail-link active" : "rail-link"
+                    }
+                  >
+                    Applications
+                  </AppLink>
+                  <AppLink
+                    to="/reviews/servers"
+                    navigate={navigate}
+                    className={
+                      resolveRoute(pathname)?.id === "server-monitoring"
+                        ? "rail-link active"
+                        : "rail-link"
+                    }
+                  >
+                    Server monitoring
+                  </AppLink>
+                </div>
+              ) : null}
             </div>
           );
         })}
@@ -1193,6 +1396,7 @@ function ControlCenter({
   onSubmit,
   navigate,
   approvalControl,
+  reviewControl,
 }: {
   workspace: Workspace;
   clients: Client[];
@@ -1203,6 +1407,7 @@ function ControlCenter({
   onSubmit: (value: string) => void;
   navigate: (to: string) => void;
   approvalControl?: ReactNode;
+  reviewControl?: ReactNode;
 }) {
   const examples = [
     "Analyze the current architecture",
@@ -1224,6 +1429,7 @@ function ControlCenter({
       />
 
       {approvalControl}
+      {reviewControl}
       <section className="command-hero" aria-labelledby="command-title">
         <div className="hero-glow" aria-hidden="true" />
         <div className="command-intro">

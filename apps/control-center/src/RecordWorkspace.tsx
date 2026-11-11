@@ -25,6 +25,7 @@ type Preferences = {
   sort: string;
   descending: boolean;
   filters: Record<string, string>;
+  cardFilters: Record<string, string>;
 };
 function readPreferences(key: string, view: Preferences["view"]): Preferences {
   const defaults: Preferences = {
@@ -34,6 +35,7 @@ function readPreferences(key: string, view: Preferences["view"]): Preferences {
     sort: "name",
     descending: false,
     filters: {},
+    cardFilters: {},
   };
   try {
     const p = JSON.parse(sessionStorage.getItem(key) ?? "null");
@@ -53,6 +55,14 @@ function readPreferences(key: string, view: Preferences["view"]): Preferences {
               ),
             ) as Record<string, string>)
           : {},
+      cardFilters:
+        p.cardFilters && typeof p.cardFilters === "object"
+          ? (Object.fromEntries(
+              Object.entries(p.cardFilters).filter(
+                ([k, v]) => k.length < 80 && typeof v === "string" && v.length < 240,
+              ),
+            ) as Record<string, string>)
+          : {},
     };
   } catch {
     return defaults;
@@ -68,6 +78,7 @@ export function RecordWorkspace<T>({
   page,
   records,
   columns,
+  cardFilterColumns = [],
   identify,
   statusOf,
   statuses,
@@ -94,6 +105,7 @@ export function RecordWorkspace<T>({
   page: string;
   records: T[];
   columns: RecordColumn<T>[];
+  cardFilterColumns?: string[];
   identify: (record: T) => string;
   statusOf: (record: T) => string;
   statuses: { id: string; label: string }[];
@@ -118,23 +130,29 @@ export function RecordWorkspace<T>({
     | "repositories"
     | "folders"
     | "software"
-    | "services";
+    | "services"
+    | "registers"
+    | "applications";
 }) {
   const key = `frevos:${userId}:${workspaceId}:${page}:records:v1`;
   const listLabel =
-    noun === "repositories"
-      ? "Repository list"
-      : noun === "software"
-        ? "Software list"
-        : noun === "services"
-          ? "Services list"
-          : noun === "systems"
-            ? "System list"
-            : noun === "agents"
-              ? "Agent list"
-              : noun === "requests"
-                ? "Join request list"
-                : "Project list";
+    noun === "registers"
+      ? "Review register list"
+      : noun === "applications"
+        ? "Application list"
+        : noun === "repositories"
+          ? "Repository list"
+          : noun === "software"
+            ? "Software list"
+            : noun === "services"
+              ? "Services list"
+              : noun === "systems"
+                ? "System list"
+                : noun === "agents"
+                  ? "Agent list"
+                  : noun === "requests"
+                    ? "Join request list"
+                    : "Project list";
   const [preferences, setPreferences] = useState(() => readPreferences(key, defaultView));
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [pageIndex, setPageIndex] = useState(0);
@@ -156,7 +174,13 @@ export function RecordWorkspace<T>({
     (record) =>
       columns.some((c) => matches(c.value(record), preferences.search)) &&
       (cards
-        ? preferences.status === "all" || statusOf(record) === preferences.status
+        ? (preferences.status === "all" || statusOf(record) === preferences.status) &&
+          columns.every(
+            (c) =>
+              !cardFilterColumns.includes(c.id) ||
+              !preferences.cardFilters[c.id] ||
+              c.value(record) === preferences.cardFilters[c.id],
+          )
         : columns.every((c) => matches(c.value(record), preferences.filters[c.id] ?? ""))),
   );
   const sort = columns.find((c) => c.id === preferences.sort) ?? columns[0];
@@ -193,10 +217,34 @@ export function RecordWorkspace<T>({
           ))}
         </select>
       </label>
+      {columns
+        .filter((c) => cardFilterColumns.includes(c.id))
+        .map((column) => (
+          <label key={column.id}>
+            {column.label}
+            <select
+              value={preferences.cardFilters[column.id] ?? ""}
+              onChange={(event) =>
+                update({
+                  cardFilters: { ...preferences.cardFilters, [column.id]: event.target.value },
+                })
+              }
+            >
+              <option value="">All</option>
+              {[...new Set(records.map((r) => column.value(r)).filter(Boolean))]
+                .sort()
+                .map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+            </select>
+          </label>
+        ))}
       <button
         type="button"
         className="button secondary"
-        onClick={() => update({ status: "all", search: "" })}
+        onClick={() => update({ status: "all", search: "", cardFilters: {} })}
       >
         Reset filters
       </button>
@@ -250,11 +298,15 @@ export function RecordWorkspace<T>({
           <section
             className="record-summary"
             aria-label={
-              noun === "services"
-                ? "Services status summary"
-                : noun === "software"
-                  ? "Software status summary"
-                  : "Project status summary"
+              noun === "applications"
+                ? "Application status summary"
+                : noun === "registers"
+                  ? "Review register summary"
+                  : noun === "services"
+                    ? "Services status summary"
+                    : noun === "software"
+                      ? "Software status summary"
+                      : "Project status summary"
             }
           >
             {[{ id: "all", label: `All ${noun}` }, ...statuses].map((s) => (
@@ -281,17 +333,21 @@ export function RecordWorkspace<T>({
               value={preferences.search}
               onChange={(e) => update({ search: e.target.value })}
               placeholder={
-                noun === "repositories"
-                  ? "Find a repository…"
-                  : noun === "software"
-                    ? "Search software, version or publisher…"
-                    : noun === "services"
-                      ? "Search service, status or startup type…"
-                      : noun === "agents"
-                        ? "Search agent, role or model…"
-                        : noun === "requests"
-                          ? "Search account or request ID…"
-                          : "Search project, source folder or server…"
+                noun === "applications"
+                  ? "Search application, owner or department…"
+                  : noun === "registers"
+                    ? "Find a review register…"
+                    : noun === "repositories"
+                      ? "Find a repository…"
+                      : noun === "software"
+                        ? "Search software, version or publisher…"
+                        : noun === "services"
+                          ? "Search service, status or startup type…"
+                          : noun === "agents"
+                            ? "Search agent, role or model…"
+                            : noun === "requests"
+                              ? "Search account or request ID…"
+                              : "Search project, source folder or server…"
               }
             />
           </label>
@@ -469,11 +525,15 @@ export function RecordWorkspace<T>({
       {cards && filtersOpen ? (
         <WorkspaceDialog
           label={
-            noun === "services"
-              ? "Service filters"
-              : noun === "software"
-                ? "Software filters"
-                : "Project filters"
+            noun === "applications"
+              ? "Application filters"
+              : noun === "registers"
+                ? "Review register filters"
+                : noun === "services"
+                  ? "Service filters"
+                  : noun === "software"
+                    ? "Software filters"
+                    : "Project filters"
           }
           onClose={() => setFiltersOpen(false)}
         >

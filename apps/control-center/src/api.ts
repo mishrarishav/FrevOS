@@ -129,6 +129,34 @@ import {
   RepositoryRecoveryResultSchema,
   type RepositoryRecoveryState,
   RepositoryRecoveryStateSchema,
+  type ReviewAddReview,
+  type ReviewCatalog,
+  ReviewCatalogSchema,
+  type ReviewCheckLink,
+  type ReviewCommitImport,
+  type ReviewGrantInput,
+  type ReviewImportPreview,
+  ReviewImportPreviewSchema,
+  type ReviewMonitoringSummary,
+  ReviewMonitoringSummarySchema,
+  type ReviewPreviewImport,
+  type ReviewReadMonitorAlert,
+  type ReviewRunMonitor,
+  type ReviewSaveRecord,
+  type ReviewSaveRegister,
+  type ReviewSaveSchedule,
+  type ReviewState,
+  ReviewStateSchema,
+  type ReviewWorkbook,
+  type ReviewWorkbookInput,
+  ReviewWorkbookSchema,
+  type ServerMonitorCatalog,
+  ServerMonitorCatalogSchema,
+  type ServerMonitorImport,
+  type ServerMonitorImportResult,
+  ServerMonitorImportResultSchema,
+  type ServerMonitorSavePolicy,
+  type ServerMonitorSaveTarget,
   ServicePolicySchema,
   type ServixDeployment,
   ServixDeploymentSchema,
@@ -182,6 +210,48 @@ export interface WorkspaceSnapshot {
 }
 
 export interface ControlCenterApi {
+  serverMonitoring?(workspaceId: string, signal?: AbortSignal): Promise<ServerMonitorCatalog>;
+  serverMonitorSaveTarget?(
+    workspaceId: string,
+    input: ServerMonitorSaveTarget,
+  ): Promise<ServerMonitorCatalog>;
+  serverMonitorImport?(
+    workspaceId: string,
+    input: ServerMonitorImport,
+  ): Promise<ServerMonitorImportResult>;
+  serverMonitorRefresh?(
+    workspaceId: string,
+    input: { targetId?: string },
+  ): Promise<ServerMonitorCatalog>;
+  serverMonitorPolicy?(
+    workspaceId: string,
+    input: ServerMonitorSavePolicy,
+  ): Promise<ServerMonitorCatalog>;
+  serverMonitorAcknowledge?(
+    workspaceId: string,
+    input: { alertId: string },
+  ): Promise<ServerMonitorCatalog>;
+  reviewMonitoring?(workspaceId: string, signal?: AbortSignal): Promise<ReviewMonitoringSummary>;
+  saveReviewSchedule?(workspaceId: string, input: ReviewSaveSchedule): Promise<ReviewState>;
+  runReviewMonitor?(workspaceId: string, input: ReviewRunMonitor): Promise<ReviewState>;
+  readReviewMonitorAlert?(workspaceId: string, input: ReviewReadMonitorAlert): Promise<ReviewState>;
+  reviewsCatalog?(workspaceId: string, signal?: AbortSignal): Promise<ReviewCatalog>;
+  reviewsState?(
+    workspaceId: string,
+    registerId: string,
+    signal?: AbortSignal,
+  ): Promise<ReviewState>;
+  saveReviewRegister?(workspaceId: string, input: ReviewSaveRegister): Promise<ReviewState>;
+  saveReviewRecord?(workspaceId: string, input: ReviewSaveRecord): Promise<ReviewState>;
+  grantReviewAccess?(workspaceId: string, input: ReviewGrantInput): Promise<ReviewState>;
+  reviewWorkbook?(workspaceId: string, input: ReviewWorkbookInput): Promise<ReviewWorkbook>;
+  previewReviewImport?(
+    workspaceId: string,
+    input: ReviewPreviewImport,
+  ): Promise<ReviewImportPreview>;
+  commitReviewImport?(workspaceId: string, input: ReviewCommitImport): Promise<ReviewState>;
+  checkReviewLink?(workspaceId: string, input: ReviewCheckLink): Promise<ReviewState>;
+  addApplicationReview?(workspaceId: string, input: ReviewAddReview): Promise<ReviewState>;
   codeCatalog?(workspaceId: string, signal?: AbortSignal): Promise<CodeCatalog>;
   codeTree?(
     workspaceId: string,
@@ -484,6 +554,7 @@ export function createControlCenterApi(
     body: unknown,
     schema: RuntimeSchema<Output>,
     signal?: AbortSignal,
+    method: "POST" | "PUT" = "POST",
   ): Promise<Output> => {
     const csrfToken = cookieReader(authCookies.csrf);
     if (csrfToken === undefined) {
@@ -492,7 +563,7 @@ export function createControlCenterApi(
     let response: Response;
     try {
       response = await fetcher(addBasePath(path, basePath), {
-        method: "POST",
+        method,
         credentials: "same-origin",
         cache: "no-store",
         headers: {
@@ -532,6 +603,60 @@ export function createControlCenterApi(
   };
 
   return {
+    serverMonitoring: (ws, signal) =>
+      get(`${workspacePath(ws)}/server-monitoring`, ServerMonitorCatalogSchema, signal),
+    serverMonitorSaveTarget: (ws, input) =>
+      post(`${workspacePath(ws)}/server-monitoring/targets`, input, ServerMonitorCatalogSchema),
+    serverMonitorImport: (ws, input) =>
+      post(
+        `${workspacePath(ws)}/server-monitoring/imports`,
+        input,
+        ServerMonitorImportResultSchema,
+      ),
+    serverMonitorRefresh: (ws, input) =>
+      post(`${workspacePath(ws)}/server-monitoring/refresh`, input, ServerMonitorCatalogSchema),
+    serverMonitorPolicy: (ws, input) =>
+      post(
+        `${workspacePath(ws)}/server-monitoring/policy`,
+        input,
+        ServerMonitorCatalogSchema,
+        undefined,
+        "PUT",
+      ),
+    serverMonitorAcknowledge: (ws, input) =>
+      post(
+        `${workspacePath(ws)}/server-monitoring/alerts/${encodeURIComponent(input.alertId)}/acknowledge`,
+        {},
+        ServerMonitorCatalogSchema,
+      ),
+    reviewMonitoring: (ws, signal) =>
+      get(`${workspacePath(ws)}/reviews/monitoring`, ReviewMonitoringSummarySchema, signal),
+    saveReviewSchedule: (ws, input) =>
+      post(`${workspacePath(ws)}/reviews/save-schedule`, input, ReviewStateSchema),
+    runReviewMonitor: (ws, input) =>
+      post(`${workspacePath(ws)}/reviews/run-monitor`, input, ReviewStateSchema),
+    readReviewMonitorAlert: (ws, input) =>
+      post(`${workspacePath(ws)}/reviews/read-monitor-alert`, input, ReviewStateSchema),
+    reviewsCatalog: (ws, signal) =>
+      get(`${workspacePath(ws)}/reviews`, ReviewCatalogSchema, signal),
+    reviewsState: (ws, id, signal) =>
+      get(`${workspacePath(ws)}/reviews/${encodeURIComponent(id)}`, ReviewStateSchema, signal),
+    saveReviewRegister: (ws, input) =>
+      post(`${workspacePath(ws)}/reviews/save-register`, input, ReviewStateSchema),
+    saveReviewRecord: (ws, input) =>
+      post(`${workspacePath(ws)}/reviews/save-record`, input, ReviewStateSchema),
+    grantReviewAccess: (ws, input) =>
+      post(`${workspacePath(ws)}/reviews/grant`, input, ReviewStateSchema),
+    reviewWorkbook: (ws, input) =>
+      post(`${workspacePath(ws)}/reviews/workbook`, input, ReviewWorkbookSchema),
+    previewReviewImport: (ws, input) =>
+      post(`${workspacePath(ws)}/reviews/preview-import`, input, ReviewImportPreviewSchema),
+    commitReviewImport: (ws, input) =>
+      post(`${workspacePath(ws)}/reviews/commit-import`, input, ReviewStateSchema),
+    checkReviewLink: (ws, input) =>
+      post(`${workspacePath(ws)}/reviews/check-link`, input, ReviewStateSchema),
+    addApplicationReview: (ws, input) =>
+      post(`${workspacePath(ws)}/reviews/add-review`, input, ReviewStateSchema),
     codeCatalog: (ws, signal) =>
       get(`${workspacePath(ws)}/code-repositories`, CodeCatalogSchema, signal),
     codeTree: (ws, id, query, signal) =>

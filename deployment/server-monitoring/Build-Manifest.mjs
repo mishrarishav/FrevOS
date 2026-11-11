@@ -1,0 +1,11 @@
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
+const root=path.dirname(fileURLToPath(import.meta.url));
+const names=['Common.ps1','Collector.ps1','Worker.ps1','Protect-Credential.ps1','Install-Worker.ps1'];
+const files=[];
+for(const name of names) files.push({name,sha256:createHash('sha256').update(await fs.readFile(path.join(root,name))).digest('hex')});
+const data=JSON.stringify({version:1,files},null,2)+'\n';
+await fs.writeFile(path.join(root,'manifest.v1.json'),data,'utf8');
+process.stdout.write(JSON.stringify({version:1,manifestSha256:createHash('sha256').update(data).digest('hex'),programFiles:files.length})+'\n');

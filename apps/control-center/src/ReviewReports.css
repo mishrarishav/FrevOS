@@ -1,0 +1,123 @@
+.review-monitor-overview {
+  padding: 18px 22px;
+}
+.review-monitor-overview .panel-header {
+  padding: 0 0 12px;
+}
+.review-monitor-overview h2,
+.review-reports-editor h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.review-monitor-summary {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 14px 0;
+}
+.review-monitor-summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 110px;
+}
+.review-monitor-summary strong {
+  font-size: 23px;
+}
+.review-monitor-summary span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.review-monitor-registers {
+  display: grid;
+  gap: 10px;
+}
+.review-monitor-registers > article {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+  border-top: 1px solid var(--border);
+  padding: 12px 0;
+}
+.review-monitor-registers h3 {
+  font-size: 14px;
+  margin: 0 0 6px;
+}
+.review-monitor-registers p {
+  margin: 4px 0;
+}
+.review-monitor-alerts {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+}
+.review-monitor-alerts > article,
+.review-certificate,
+.review-run-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  min-width: 0;
+}
+.review-monitor-alerts h3 {
+  font-size: 14px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.review-monitor-alerts p {
+  font-size: 12px;
+}
+.review-monitor-alerts .button {
+  font-size: 12px;
+  padding: 7px 10px;
+}
+.review-weekdays,
+.review-access-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+.review-schedule-form .reviews-checkbox {
+  margin: 8px 0;
+}
+.review-run-report {
+  margin-top: 20px;
+}
+.review-run-item {
+  margin: 12px 0;
+}
+.review-run-item > summary {
+  line-height: 1.6;
+}
+.review-certificate {
+  margin: 12px 0;
+  background: var(--surface-2);
+}
+.review-notification-section {
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+.review-notification-section h3 {
+  font-size: 14px;
+  margin: 0 0 10px;
+}
+.review-notification-section .review-monitor-alerts > article {
+  padding: 10px;
+}
+@media (max-width: 780px) {
+  .review-monitor-registers > article {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .review-monitor-overview {
+    padding: 16px;
+  }
+  .review-monitor-summary {
+    gap: 14px;
+  }
+  .review-monitor-summary > div {
+    min-width: 95px;
+  }
+}

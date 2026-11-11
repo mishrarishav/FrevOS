@@ -10,9 +10,9 @@ $sourceHead=(& git -C $root rev-parse HEAD|Out-String).Trim()
 if($LASTEXITCODE -ne 0 -or $sourceHead -cnotmatch '^[a-f0-9]{40}$'){throw 'Source identity unavailable'}
 function Assert-PackagedRuntimeModules([string]$PackageRoot) {
  $boundary=[IO.Path]::GetFullPath($PackageRoot)+'\';$queue=[Collections.Generic.Queue[string]]::new();$seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
- $queue.Enqueue((Join-Path $PackageRoot 'apps\control-plane\dist\main.js'));$queue.Enqueue((Join-Path $PackageRoot 'apps\control-plane\node_modules\@frevos\contracts\dist\index.js'))
+ $queue.Enqueue((Join-Path $PackageRoot 'apps\control-plane\dist\main.js'));$queue.Enqueue((Join-Path $PackageRoot 'apps\control-plane\node_modules\@frevos\contracts\dist\index.js'));$queue.Enqueue((Join-Path $PackageRoot 'deployment\server-monitoring\QueueCollector.mjs'))
  while($queue.Count){
-  $file=[IO.Path]::GetFullPath($queue.Dequeue());if(-not $file.StartsWith($boundary,[StringComparison]::OrdinalIgnoreCase) -or -not $file.EndsWith('.js',[StringComparison]::OrdinalIgnoreCase)){throw 'Packaged module escaped application'}
+  $file=[IO.Path]::GetFullPath($queue.Dequeue());if(-not $file.StartsWith($boundary,[StringComparison]::OrdinalIgnoreCase) -or $file -notmatch '\.m?js$'){throw 'Packaged module escaped application'}
   if(-not $seen.Add($file)){continue};if($seen.Count -gt 256){throw 'Packaged module capacity'}
   Assert-NoReparsePath $file
   if(-not(Test-Path -LiteralPath $file -PathType Leaf) -or (Get-Item -LiteralPath $file).Length -gt 2000000){throw 'Packaged runtime module missing'}
@@ -22,7 +22,7 @@ function Assert-PackagedRuntimeModules([string]$PackageRoot) {
 }
 function Get-SourceGuard {
  $paths=@()
- foreach($relative in @('apps\control-center\src','apps\control-plane\src','packages\contracts\src','deployment\servix','deployment\server20')){$paths+=@(Get-ChildItem -LiteralPath (Join-Path $root $relative) -Recurse -File|Select-Object -ExpandProperty FullName)}
+ foreach($relative in @('apps\control-center\src','apps\control-plane\src','packages\contracts\src','deployment\servix','deployment\server20','deployment\server-monitoring')){$paths+=@(Get-ChildItem -LiteralPath (Join-Path $root $relative) -Recurse -File|Select-Object -ExpandProperty FullName)}
  foreach($relative in @('apps\android-connector','deployment\android')){if(Test-Path -LiteralPath (Join-Path $root $relative)){$paths+=@(Get-ChildItem -LiteralPath (Join-Path $root $relative) -Recurse -File|Select-Object -ExpandProperty FullName)}}
  foreach($relative in @('apps/control-center/index.html','apps/control-center/public/favicon.svg','package.json','pnpm-lock.yaml','pnpm-workspace.yaml','apps\control-center\package.json','apps\control-plane\package.json','packages\contracts\package.json')){$paths+=Join-Path $root $relative}
  $paths+=@(Get-ChildItem -LiteralPath $root -Filter 'tsconfig*.json' -File|Select-Object -ExpandProperty FullName)
@@ -71,6 +71,8 @@ try{
  }
  foreach($name in @('main','config','server','control-center','repositories','local-accounts','self-updates','developer-connectors','servix-deployment','deployment-settings','component-deployments','component-git','atomic-record','local-development','agent-workspace','agent-notifications','model-secrets','model-gateway','project-folder-search','artifact-promotions','preview-relay','repository-center','code-repositories','code-git','git-desktop','git-engine','paperclip-bridge','software-management')){foreach($suffix in @('js','js.map','d.ts','d.ts.map')){Copy-Item -LiteralPath (Join-Path $root ('apps\control-plane\dist\'+$name+'.'+$suffix)) -Destination (Join-Path $package ('apps\control-plane\dist\'+$name+'.'+$suffix))}}
  foreach($name in @('deployment-change','servix-deployment','developer-connectors','deployment-settings','local-accounts','component-deployments','local-development','index','artifact-promotions','preview-relay','repository-center','code-repositories','git-desktop','agent-teams','software-management')){foreach($suffix in @('js','js.map','d.ts','d.ts.map')){Copy-Item -LiteralPath (Join-Path $root ('packages\contracts\dist\'+$name+'.'+$suffix)) -Destination (Join-Path $package ('apps\control-plane\node_modules\@frevos\contracts\dist\'+$name+'.'+$suffix))}}
+ & (Get-Command node.exe -ErrorAction Stop).Source (Join-Path $root 'deployment\server20\Copy-ReviewRuntime.mjs') $root $package --monitoring
+ if($LASTEXITCODE -ne 0){throw 'Frozen Reviews/monitoring runtime/dependency packaging failed'}
  foreach($suffix in @('js','js.map','d.ts','d.ts.map')){
   foreach($name in @('device-logins','discovery-access','join-requests')){Copy-Item -LiteralPath (Join-Path $root ('apps\control-plane\dist\'+$name+'.'+$suffix)) -Destination (Join-Path $package ('apps\control-plane\dist\'+$name+'.'+$suffix))}
   foreach($name in @('device-login','join-requests')){Copy-Item -LiteralPath (Join-Path $root ('packages\contracts\dist\'+$name+'.'+$suffix)) -Destination (Join-Path $package ('apps\control-plane\node_modules\@frevos\contracts\dist\'+$name+'.'+$suffix))}
@@ -168,6 +170,11 @@ try{
  $inputs+=@('deployment/server20/SoftwareDataFormat.mjs')
  foreach($relative in @('apps/android-connector','deployment/android')){if(Test-Path -LiteralPath (Join-Path $root $relative)){$inputs+=@(Get-ChildItem -LiteralPath (Join-Path $root $relative) -Recurse -File|ForEach-Object {$_.FullName.Substring($root.Length+1).Replace('\','/')})}}
  $inputs+=@('packages/contracts/src/software-management.ts','apps/control-plane/src/software-management.ts','apps/control-center/src/SoftwarePanel.tsx','apps/control-center/src/ServiceListenControls.tsx','apps/control-center/src/software-inventory-status.ts')
+ $inputs+=@('packages/contracts/src/review-registers.ts','apps/control-plane/src/review-authority.ts','apps/control-plane/src/review-registers.ts','apps/control-plane/src/review-workbook.ts','apps/control-plane/src/review-link-checker.ts','apps/control-plane/src/review-monitor-schedule.ts','apps/control-center/src/ReviewsPage.tsx','apps/control-center/src/ReviewsPage.css','apps/control-center/src/ReviewReports.tsx','apps/control-center/src/ReviewReports.css','deployment/server20/Copy-ReviewRuntime.mjs')
+ $inputs+=@('apps/control-plane/src/review-postgres-store.ts','apps/control-plane/src/review-migration.ts','apps/control-plane/src/review-central-migrate.ts','apps/control-plane/migrations/0007_review_workspace_state.sql','deployment/server20/ReviewMigrationRemote.py')
+ $inputs+=@('packages/contracts/src/server-monitoring.ts','apps/control-plane/src/server-monitoring.ts','apps/control-plane/src/server-monitoring-store.ts','apps/control-plane/src/server-monitoring-runtime.ts','apps/control-plane/migrations/0008_server_monitoring_state.sql','apps/control-center/src/ServerMonitoringPage.tsx','apps/control-center/src/ServerMonitoringPage.css')
+ if(Test-Path -LiteralPath (Join-Path $root 'apps\control-plane\src\server-monitoring-central.ts')){$inputs+='apps/control-plane/src/server-monitoring-central.ts'}
+ $inputs+=@(Get-ChildItem -LiteralPath (Join-Path $root 'deployment\server-monitoring') -File|ForEach-Object {'deployment/server-monitoring/'+$_.Name})
  $inputs+=@('packages/contracts/src/preview-relay.ts','apps/control-plane/src/preview-relay.ts','apps/control-center/src/VpnPreviewButton.tsx','apps/control-center/src/PreviewApiInspector.tsx','apps/control-center/src/PreviewApiInspector.css','deployment/server20/Configure-PrivatePreview.ps1','deployment/server20/Validate-PreviewConfig.mjs')
  $inputs+=@('apps/control-plane/src/control-center.ts')
  $inputs+=@('apps/control-plane/src/browser-entry.ts','scripts/build-browser-entry.mjs','apps/control-center/vite.config.ts')

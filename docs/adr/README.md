@@ -277,3 +277,17 @@ pinned Coraza/CRS gateway and isolated local acceptance.
 
 [0106: Software state compatibility](0106-software-data-format-recovery-boundary.md)
 records the persisted reader boundary and safe activation/recovery checks.
+
+[0107: Application review registers](0107-configurable-application-review-registers.md)
+records configurable workbook reviews, explicit access and bounded link checks.
+
+[0108: Scheduled reviews and certificate alerts](0108-scheduled-reviews-and-certificate-alerts.md)
+records accessible-only weekly checks, durable reports and scoped in-app SSL reminders.
+
+[0109: Central Reviews storage and code-only development](0109-central-reviews-storage-and-code-only-development.md)
+records the owner's no-local-services policy, verified Server20 migration,
+workspace PostgreSQL storage and separate application-activation boundary.
+
+[0110: Configurable internal server monitoring](0110-internal-server-monitoring.md)
+records Internal-only source enrollment, explicit server grants, measured
+performance graphs and the read-only central native collector.

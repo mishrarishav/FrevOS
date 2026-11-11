@@ -10,9 +10,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   App,
+  canCommitReviewedChanges,
   JoinApprovalCard,
   JoinNotifications,
-  canCommitReviewedChanges,
   projectAutomationStatusLabel,
 } from "../src/App.js";
 import type { ExperienceState } from "../src/experience.js";
@@ -85,7 +85,10 @@ describe("Control Center route contract", () => {
   it("keeps route paths and identifiers unique", () => {
     expect(new Set(routes.map((route) => route.path)).size).toBe(routes.length);
     expect(new Set(routes.map((route) => route.id)).size).toBe(routes.length);
-    expect(routes).toHaveLength(21);
+    expect(routes).toHaveLength(22);
+    expect(routes).toContainEqual(
+      expect.objectContaining({ id: "server-monitoring", path: "/reviews/servers" }),
+    );
     expect(routes).toContainEqual(
       expect.objectContaining({ id: "repository-center", path: "/code" }),
     );

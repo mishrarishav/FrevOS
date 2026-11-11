@@ -23,9 +23,11 @@ or Phase 4 completion is claimed yet.
 See [Current State](docs/CURRENT_STATE.md) for the factual implementation
 status and open decisions.
 
-For an authenticated laptop Preview using local HTTPS, Keycloak, and
-PostgreSQL 18, follow [Local Preview](docs/LOCAL_PREVIEW.md) and run
-`pnpm local:up`.
+For the owner's codebase-only workflow against the verified existing Server20
+database, use [Codebase runtime](docs/CODEBASE_RUNTIME.md). Running the application
+is an explicit owner action with a protected runtime profile. Local Docker,
+local databases and localhost preview stacks are disabled; `pnpm local:up`
+refuses before starting them.
 
 For the separately authorized hosted free-tier route, follow the
 [Phase 4 Oracle UAT runbook](docs/PHASE_4_UAT_RUNBOOK.md).
@@ -67,6 +69,7 @@ Git submodules.
 - [Phase 3 UI Reference](docs/UI_REFERENCE.md)
 - [Phase 4 UAT Runbook](docs/PHASE_4_UAT_RUNBOOK.md)
 - [Local Preview](docs/LOCAL_PREVIEW.md)
+- [Codebase runtime with central database](docs/CODEBASE_RUNTIME.md)
 - [Current State](docs/CURRENT_STATE.md)
 - [Architecture Decision Records](docs/adr/README.md)
 - [Contributor and agent rules](AGENTS.md)

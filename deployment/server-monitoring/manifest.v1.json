@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "files": [
+    {
+      "name": "Common.ps1",
+      "sha256": "9a0239da4271a5e534d33e748569c4be2d9f543ea9da7bbd69c82a53851597b2"
+    },
+    {
+      "name": "Collector.ps1",
+      "sha256": "8e21ef013717b85c7b1e4e7dbc1310c6c3fcd80d45143df41d307b9ad182cece"
+    },
+    {
+      "name": "Worker.ps1",
+      "sha256": "cb49b60b0eda3c9d022b9650db954ac2b1d5c7dc5ea3d0a45fce00b7b4dc0c04"
+    },
+    {
+      "name": "Protect-Credential.ps1",
+      "sha256": "82a8dd30fb5a0606f719200ef9a7f6b3dcddd77b8d42a628151effdb1e2c97a5"
+    },
+    {
+      "name": "Install-Worker.ps1",
+      "sha256": "a30691e13061707d99319517b499b3d971aead7a2045a23523a9678bd675cea0"
+    }
+  ]
+}

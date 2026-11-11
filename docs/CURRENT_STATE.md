@@ -1,5 +1,99 @@
 # DevSetu Current State
 
+2026-11-11 IST: ADR0109 supersedes the local preview workflow. Owned Reviews
+listeners and five FrevOS Docker containers are stopped, Docker Desktop is
+stopped, and volumes/source data are retained. Skills and startup guards forbid
+new local Docker/database/preview stacks. Code-only startup requires an explicit
+verified central profile and fails closed. Legacy Testcontainers suites must
+not run locally or against the live database.
+
+The authorized central Reviews migration completed at 04:48 IST on Server20,
+existing PostgreSQL 18.4 `frevos`, workspace `ws_server20`. SQL 0007 and one
+atomic data/receipt transaction added one real register, 53 records, 74 endpoints
+and one report. Synthetic register/previews were excluded; structured source
+actors map to verified existing `usr_windows_admin`, with no accounts or grants
+created. The weekly schedule remains paused. Fresh APP-role readback matches
+the exact planned document SHA256
+`6cb3b0ed0e30118a72af5915c0fb341726df0f9265adcb82e7350910d79da4af`.
+Existing role attributes and active memberships match preflight.
+
+Operation `rmi_70a2b5a11cbb4ebba05c3fbf0978c54e` retains its protected
+evidence and complete 206,737-byte plain-SQL backup under the installation's
+private operator directory. Backup SHA256 is
+`3d92e700bd8e6aa7fad1459c633d840b5ff9fee84ae93f33d1938b8250540a40`;
+export exit, completion markers, byte count and hash pass. No isolated restore
+test is claimed. Earlier native-tool/ACL attempts stopped before DDL/data writes
+and remain retained. pg_restore startup still times out, including --version,
+despite matching vendor hashes; plain SQL avoids that tool without security
+policy changes. Direct SID ACL inspection removes account-name lookup while
+retaining strict broad-access denials. Bound artifact reuse avoids repeat copies.
+
+The same 13 runtime/active/configuration/pairing paths remain. Eleven raw hashes
+match, including runtime environment, active release and all five settings.
+Two active connector records continue polling; two post-import observations
+have identical content hashes after excluding only lastSeenAt. This migration
+does not write connector files. Public strict-TLS health remains HTTP 200.
+No app restart/activation, IIS/environment rewrite, workbook edit, commit or push
+occurred. Final validation: 90 backend, 7 runtime-policy, 5 packaging and 11
+transport test methods pass, plus typecheck/build, without local services/DB.
+Full release CI/browser acceptance is not claimed for this storage change.
+
+Final app activation remains owner-operated; the old live app does not expose
+new Reviews APIs merely because data is central. PostgreSQL remains on Server20
+loopback: a working direct laptop DB profile/private transport is not configured
+or claimed. No listener/HBA/firewall/TLS bypass was introduced. Legacy file state
+also needs its existing central installation context. See
+[central migration](REVIEWS_CENTRAL_MIGRATION.md),
+[code-only runtime](CODEBASE_RUNTIME.md) and
+[ADR0109](adr/0109-central-reviews-storage-and-code-only-development.md).
+
+2026-11-11 IST: ADR0108 extends local Reviews with administrator-configured
+weekly days/time/IANA timezone, explicit Accessible-value eligibility, durable
+reports and scoped dashboard/bell SSL reminders. TLS verification stays enabled;
+reports retain certificate validity/issuer/verification separately from HTTP and
+page health. Cached expiry reminders continue between weekly checks, with their
+observation time. Retained TLS evidence survives later transport failures; TLS
+sites deduplicate warnings across HTTPS/HTTP-diagnostic endpoints. Missing URLs
+produce explicit partial reports. Authorization/configuration changes, restart
+recovery, catch-up, DST and per-user read receipts are tested. A real local timer
+at 01:30 IST selected 27/53 source entries, excluded 26 and completed 34 URL
+checks; actual certificate-expiry warnings appear in Control Center and the bell.
+Final source passes 83 scoped control-plane, 153 frontend and 137 contract tests,
+typecheck/build and frozen production-package import/delta-guard checks. Native
+time input saving was fixed and verified in the built browser. The demo weekly
+schedule is paused, days unselected, default time 09:00; the owner can configure
+and enable it. Pairing, production state, environment files and workbook bytes
+remain unchanged. No deployment/commit/push occurred. See [Reviews](REVIEWS.md),
+[validation](REVIEWS_VALIDATION.md) and [ADR0108](adr/0108-scheduled-reviews-and-certificate-alerts.md).
+
+2026-11-10 IST follow-up: The owner authorizes exact-origin configuration and
+actual GET/browser checks of the supplied workbook's links in the local Reviews
+instance. 101 exact protocol-specific origins are configured there. Its 51
+original endpoints plus 23 explicitly separate HTTP diagnostics have measured
+results; no HTTPS validation is bypassed. Eighteen rendered application/page
+observations distinguish 13 visible dashboard/catalogue pages, three sign-in
+pages, one incomplete page and one parked/different page; the source placeholder
+is marked separately. HTTP status, TLS/redirect/timeout and browser evidence stay
+distinct. Optional isolated anonymous session cookies fix old cookie-detection
+redirects, and capped responses retain their actual status without claiming
+health. All test state remains local/ignored, source workbook unchanged, no
+production/pairing/environment mutation. Final deployment remains owner-operated.
+See [actual-link validation](REVIEWS_VALIDATION.md).
+
+2026-11-10 IST: Configurable application review registers are implemented locally
+on `codex/configurable-review-registers`, stacked on the owner's local base
+6addf9b. Reviews now has workspace-scoped registers, explicit viewer/reviewer
+grants, configurable fields/choices, mapped XLSX previews with conflict decisions,
+source/assignment history, reviews and bounded server-side link checks. Real
+PostgreSQL/local HTTP integration, packaged parser/access checks, full frontend
+tests/coverage and browser import/soft-404/viewer acceptance pass. A local copy of
+the supplied workbook retains 53 records after explicitly skipping its duplicate;
+the source file is unchanged and business data stays in ignored local state.
+At this initial implementation checkpoint, no live release, pairing/environment
+mutation or external application link test had been performed. Final deployment
+remains owner-operated. See [Reviews](REVIEWS.md),
+[validation](REVIEWS_VALIDATION.md) and ADR0107 for configuration and scope.
+
 2026-11-06 IST: Owner changes this task to local implementation/testing; final
 Server20/T-Server deployment is owner-operated (ADR0104). No new application
 activation, live connector replacement or gateway mutation is performed. Android
@@ -2462,3 +2556,60 @@ is reviewed, merged, and cleanly deployed; logical backup and isolated recovery
 evidence is recorded; and a separately reviewed independent black-box acceptance
 change passes against that exact target. The product owner postponed recovery
 execution to a later task. Phase 5 must not start before those gates.
+
+## Server monitoring preparation — 2026-11-11 IST
+
+[ADR0110](adr/0110-internal-server-monitoring.md) and the
+[server monitoring runbook](SERVER_MONITORING.md) describe the configurable
+Reviews server workspace, explicit target grants, central PostgreSQL state and
+fixed read-only native collector. The workbook's 50 Internal / three vendor
+records yield 14 approved private targets; vendor endpoints, placeholders and
+missing/malformed addresses do not become remote targets automatically.
+
+Laptop probes reached zero of 14 WinRM endpoints. Server20's separate probe
+reached six WinRM ports; actual protected credential probes produced four remote
+WinRM observations and one explicitly local central-host observation. Nine
+targets remain unavailable. HTTP/RDP reachability is not promoted to a successful
+WinRM login. The native SYSTEM worker is healthy with 14 enrolled targets and a
+DPAPI-protected profile; existing pairing, runtime environment and data are
+untouched. Broad network/trust/certificate permissions were not changed.
+
+At this preparation checkpoint SQL 0008 is not applied and the new application
+package is not activated. The root operator will append subsequent migration,
+activation and live outcomes. UI/API/SSR, domain/store/HTTP, queue, mocked native
+PowerShell and static build validation are separate from that live acceptance.
+No local Docker, database, listener or preview service was started. Services in
+this monitoring feature are read-only; existing Discovery controls are separate.
+### Internal server monitoring central bootstrap — 2026-11-11
+
+The owner authorized access to the workbook's Internal servers and excluded
+vendor-managed servers. The Server20 native SYSTEM sampler is installed and
+has a verified healthy heartbeat with 14 operator-enrolled endpoints. A real
+credentialed probe returned four WinRM measurements (10.9.69.19, .21, .28 and
+.31) and one explicitly local measurement (.20); the other nine endpoints did
+not produce measurements. No firewall, TrustedHosts, IIS or customer-service
+configuration was changed to make unavailable endpoints appear connected.
+
+Central bootstrap `smb_f2eac9879a894c81a30a8323bc80b06e` succeeded against
+the existing native PostgreSQL 18.4 `frevos` database. SQL 0008 checksum is
+`f4f447db262e8f225d41a8a3a68daad8332bfcd47b3a4307677b5b1a47c2892e`.
+The new workspace state contains 14 targets and 50 application source
+references. Twelve source records were excluded (vendor entries, the reserved
+example and records without usable hosting addresses). The existing Reviews
+document remains `6cb3b0ed0e30118a72af5915c0fb341726df0f9265adcb82e7350910d79da4af`.
+
+A fresh full plain SQL backup was exported and verified before writes:
+498,446 bytes, SHA256
+`51e15298a0c7006a4c685e65ae3fc5b1dd358a37fa46ee2cf6fa59c58912bde3`.
+Verification covers exporter exit, header/footer, size and digest; restore
+testing was **not** performed. The application configuration was created as a
+new operator-enrolled file; existing runtime configuration, pairing records and
+environment files were outside the write set. The existing credential was
+sealed using SYSTEM DPAPI, with its generated private input removed after
+successful verification. It is not present in application configuration or Git.
+
+At this checkpoint the application release has not been activated. Native
+probe results and central bootstrap success do not imply that the new browser
+UI is already deployed. Subsequent store/queue readback and application
+activation require their own recorded results. No local Docker, database,
+application listener or preview service was started.
