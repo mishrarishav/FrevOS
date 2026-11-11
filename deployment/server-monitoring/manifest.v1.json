@@ -3,11 +3,11 @@
   "files": [
     {
       "name": "Common.ps1",
-      "sha256": "9a0239da4271a5e534d33e748569c4be2d9f543ea9da7bbd69c82a53851597b2"
+      "sha256": "d1bc2196a82d1bfacd854ced50961ca45c3437320f979e10b024ed8c0b8a4ad9"
     },
     {
       "name": "Collector.ps1",
-      "sha256": "8e21ef013717b85c7b1e4e7dbc1310c6c3fcd80d45143df41d307b9ad182cece"
+      "sha256": "e0dd4f4fa28ca80b16031f54dbd0d2ee0f756b30b9f42f8bff362327cb1770c8"
     },
     {
       "name": "Worker.ps1",

@@ -2,6 +2,11 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Collector.ps1')
 $script:Passed = 0
 function Assert-Test($Condition,[string]$Name) { if (-not $Condition) { throw ('fixture-failed: ' + $Name) }; $script:Passed++ }
+function Assert-Rejected([scriptblock]$Action,[string]$Code,[string]$Name) {
+    $rejected = $false
+    try { & $Action } catch { $rejected = $_.Exception.Message -ceq $Code }
+    Assert-Test $rejected $Name
+}
 foreach ($address in @('10.9.69.20','10.6.69.5','172.16.0.1','172.31.255.254','192.168.1.20')) { Assert-Test (Test-MonitorPrivateAddress $address) ('private-address-' + $address) }
 foreach ($address in @('8.8.8.8','127.0.0.1','169.254.1.3','172.32.0.1','10.10.900','10.09.69.20','10.9.69.256','::1','http://10.9.69.20','10.9.69.20/path')) { Assert-Test (-not (Test-MonitorPrivateAddress $address)) 'reject-address' }
 $target = [pscustomobject]@{id = 'srv_' + ('a' * 32); workspaceId = 'ws_fixture'; address = '10.9.69.20'; port = 5985; transport = 'local'; credentialProfile = 'fixture_profile'; revision = 1; enabled = $true; endpointHost = 'FIXTURE20'; authentication = 'Kerberos'; expectedComputerName = 'FIXTURE20'}
@@ -16,6 +21,46 @@ foreach ($edit in @(@{workspaceId = 'ws_other'},@{id = 'srv_' + ('b' * 32)},@{ad
     Assert-Test ((Get-MonitorBinding $copy.workspaceId $copy) -cne $binding) 'endpoint-identity-edit-requires-enrollment'
 }
 Assert-Test ($binding -eq '6af312024c22a0ff6544161a08aab04c23d3404e566793a364128d9afc4c7cfa') 'cross-runtime-binding'
+
+# DNS policy fixtures are pure: no resolver, credential or network call is made.
+$dnsTarget = $target.PSObject.Copy(); $dnsTarget.transport = 'winrm-http'; $dnsTarget.endpointHost = 'fixture.example.internal'
+Assert-MonitorResolvedEndpoint $dnsTarget @('10.9.69.20')
+Assert-MonitorResolvedEndpoint $dnsTarget @('10.9.69.20','10.9.69.20')
+Assert-Test $true 'single-address-policy-remains-compatible'
+Assert-Rejected { Assert-MonitorResolvedEndpoint $dnsTarget @('10.9.69.20','10.10.91.81') } 'monitor-dns-binding-rejected' 'unapproved-secondary-address-rejected'
+Assert-Rejected { Assert-MonitorResolvedEndpoint $dnsTarget @() } 'monitor-dns-binding-rejected' 'empty-dns-answer-rejected'
+Assert-Rejected { Assert-MonitorResolvedEndpoint $dnsTarget $null } 'monitor-dns-binding-rejected' 'null-dns-answer-rejected'
+$multiTarget = $dnsTarget.PSObject.Copy()
+$multiTarget | Add-Member -NotePropertyName approvedEndpointAddresses -NotePropertyValue @('10.9.69.20','10.10.91.81')
+Assert-MonitorTarget $multiTarget 'ws_fixture'
+Assert-MonitorResolvedEndpoint $multiTarget @('10.10.91.81','10.9.69.20')
+Assert-Test $true 'explicit-approved-multi-interface-set-accepted'
+Assert-Test ((Get-MonitorBinding 'ws_fixture' $multiTarget) -ceq (Get-MonitorBinding 'ws_fixture' $dnsTarget)) 'operator-dns-policy-retains-app-target-identity'
+foreach ($answers in @(@('10.9.69.20'),@('10.9.69.20','10.10.91.82'),@('10.9.69.20','10.10.91.81','10.0.0.99'),@('10.9.69.20','2001:db8::1'),@('10.9.69.20','8.8.8.8'))) {
+    Assert-Rejected { Assert-MonitorResolvedEndpoint $multiTarget $answers } 'monitor-dns-binding-rejected' 'dns-change-never-auto-enlarges-approved-set'
+}
+$copy = $multiTarget.PSObject.Copy(); $copy.authentication = 'Negotiate'
+Assert-Rejected { Assert-MonitorTarget $copy 'ws_fixture' } 'monitor-invalid-approved-endpoint-policy' 'multi-interface-requires-kerberos'
+$copy = $multiTarget.PSObject.Copy(); $copy.PSObject.Properties.Remove('expectedComputerName')
+Assert-Rejected { Assert-MonitorTarget $copy 'ws_fixture' } 'monitor-invalid-approved-endpoint-policy' 'multi-interface-requires-computer-identity'
+$copy = $multiTarget.PSObject.Copy(); $copy.expectedComputerName = '../other'
+Assert-Rejected { Assert-MonitorTarget $copy 'ws_fixture' } 'monitor-invalid-approved-endpoint-policy' 'multi-interface-invalid-computer-identity-rejected'
+$copy = $multiTarget.PSObject.Copy(); $copy.endpointHost = $copy.address
+Assert-Rejected { Assert-MonitorTarget $copy 'ws_fixture' } 'monitor-invalid-approved-endpoint-policy' 'multi-interface-requires-hostname'
+$copy = $multiTarget.PSObject.Copy(); $copy.transport = 'local'
+Assert-Rejected { Assert-MonitorTarget $copy 'ws_fixture' } 'monitor-invalid-approved-endpoint-policy' 'multi-interface-not-valid-for-local-transport'
+foreach ($policy in @(@('10.9.69.20','10.9.69.20'),@('10.9.69.20','8.8.8.8'),@('10.9.69.20','::1'),@('10.9.69.20','10.09.69.21'),@('10.9.69.20',42))) {
+    $copy = $multiTarget.PSObject.Copy(); $copy.approvedEndpointAddresses = $policy
+    Assert-Rejected { Assert-MonitorTarget $copy 'ws_fixture' } 'monitor-invalid-approved-endpoint-set' 'unbounded-or-nonprivate-enrollment-rejected'
+}
+$copy = $multiTarget.PSObject.Copy(); $copy.approvedEndpointAddresses = '10.9.69.20'
+Assert-Rejected { Assert-MonitorTarget $copy 'ws_fixture' } 'monitor-invalid-approved-endpoint-set' 'approved-set-must-be-array'
+$copy = $multiTarget.PSObject.Copy(); $copy.approvedEndpointAddresses = @()
+Assert-Rejected { Assert-MonitorTarget $copy 'ws_fixture' } 'monitor-invalid-approved-endpoint-set' 'empty-approved-set-rejected'
+$copy = $multiTarget.PSObject.Copy(); $copy.approvedEndpointAddresses = @(1..9 | ForEach-Object { '10.0.0.' + $_ })
+Assert-Rejected { Assert-MonitorTarget $copy 'ws_fixture' } 'monitor-invalid-approved-endpoint-set' 'approved-set-capacity-bounded'
+$copy = $multiTarget.PSObject.Copy(); $copy.approvedEndpointAddresses = @('10.10.91.81')
+Assert-Rejected { Assert-MonitorTarget $copy 'ws_fixture' } 'monitor-approved-endpoint-primary-missing' 'primary-endpoint-required-in-enrollment'
 
 # Pure in-process fixtures: no remote connections, listener, database or installed collector.
 $script:FixtureUnsupported = $false

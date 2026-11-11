@@ -92,8 +92,7 @@ function Invoke-MonitorTarget($Target, [string]$WorkspaceId, [string]$ProtectedR
             $json = & $script:MonitorSnapshotProgram
         } else {
             $addresses = @([Net.Dns]::GetHostAddresses($Target.endpointHost) | ForEach-Object { $_.ToString() })
-            # A hostname may not resolve outside its exact enrolled IPv4 endpoint.
-            if ($addresses.Count -lt 1 -or @($addresses | Where-Object { $_ -cne $Target.address }).Count -gt 0) { throw 'monitor-dns-binding-rejected' }
+            Assert-MonitorResolvedEndpoint $Target $addresses
             $tcp = New-Object Net.Sockets.TcpClient
             try {
                 $pending = $tcp.BeginConnect($Target.address,[int]$Target.port,$null,$null)

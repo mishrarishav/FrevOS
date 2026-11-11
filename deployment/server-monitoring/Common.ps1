@@ -91,12 +91,35 @@ function Get-MonitorBinding([string]$WorkspaceId, $Target) {
     try { return ([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($value))).Replace('-','').ToLowerInvariant()) } finally { $sha.Dispose() }
 }
 function Assert-MonitorTarget($Target, [string]$WorkspaceId) {
-    Assert-MonitorShape $Target @('id','workspaceId','address','port','transport','credentialProfile','revision','enabled','endpointHost','authentication') @('expectedComputerName')
+    Assert-MonitorShape $Target @('id','workspaceId','address','port','transport','credentialProfile','revision','enabled','endpointHost','authentication') @('expectedComputerName','approvedEndpointAddresses')
     if ($Target.id -notmatch '^srv_[a-f0-9]{32}$' -or $Target.workspaceId -cne $WorkspaceId -or $WorkspaceId -notmatch '^ws_[A-Za-z0-9][A-Za-z0-9_-]{0,119}$') { throw 'monitor-invalid-target-binding' }
     if (-not (Test-MonitorPrivateAddress $Target.address) -or $Target.port -isnot [int] -and $Target.port -isnot [long] -or $Target.port -lt 1 -or $Target.port -gt 65535) { throw 'monitor-invalid-endpoint' }
     if ($Target.transport -notin @('winrm-http','winrm-https','local') -or $Target.authentication -notin @('Kerberos','Negotiate') -or $Target.credentialProfile -notmatch '^[a-z][a-z0-9_-]{2,79}$') { throw 'monitor-invalid-transport' }
     if ($Target.enabled -isnot [bool] -or ($Target.revision -isnot [int] -and $Target.revision -isnot [long]) -or $Target.revision -lt 0 -or $Target.revision -gt 2147483647) { throw 'monitor-invalid-target-policy' }
     if ($Target.endpointHost -notmatch '^(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?$' -or $Target.endpointHost -match '\.\.') { throw 'monitor-invalid-endpoint-host' }
+    if ($Target.PSObject.Properties['approvedEndpointAddresses']) {
+        # Multi-interface names require a separate operator enrollment. Neither the
+        # app request nor newly observed DNS addresses can enlarge this set.
+        if ($Target.transport -eq 'local' -or $Target.authentication -cne 'Kerberos' -or -not $Target.PSObject.Properties['expectedComputerName'] -or $Target.expectedComputerName -notmatch '^[A-Za-z0-9][A-Za-z0-9-]{0,62}$' -or $Target.endpointHost -match '^[0-9.]+$') { throw 'monitor-invalid-approved-endpoint-policy' }
+        $approved = $Target.approvedEndpointAddresses
+        if ($approved -isnot [array] -or $approved.Count -lt 1 -or $approved.Count -gt 8) { throw 'monitor-invalid-approved-endpoint-set' }
+        $seen = @{}
+        foreach ($address in $approved) {
+            if ($address -isnot [string] -or -not (Test-MonitorPrivateAddress $address) -or $seen.ContainsKey($address)) { throw 'monitor-invalid-approved-endpoint-set' }
+            $seen[$address] = $true
+        }
+        if (-not $seen.ContainsKey($Target.address)) { throw 'monitor-approved-endpoint-primary-missing' }
+    }
+}
+function Assert-MonitorResolvedEndpoint($Target, [string[]]$ResolvedAddresses) {
+    $approved = @($Target.address)
+    if ($Target.PSObject.Properties['approvedEndpointAddresses']) { $approved = @($Target.approvedEndpointAddresses) }
+    # Require exact set equality, including all A/AAAA answers from the same
+    # resolver used by WinRM. Extra, missing or public addresses fail closed.
+    if ($null -eq $ResolvedAddresses -or $ResolvedAddresses.Count -lt 1 -or $ResolvedAddresses.Count -gt 64) { throw 'monitor-dns-binding-rejected' }
+    $resolved = @($ResolvedAddresses | Sort-Object -Unique)
+    if ($resolved.Count -ne $approved.Count) { throw 'monitor-dns-binding-rejected' }
+    foreach ($address in $resolved) { if ($approved -cnotcontains $address) { throw 'monitor-dns-binding-rejected' } }
 }
 function Get-MonitorCredential([string]$ProtectedRoot, [string]$Profile) {
     Assert-MonitorSystem
