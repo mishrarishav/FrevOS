@@ -2646,3 +2646,74 @@ security descriptor and its Check passes. This does not retroactively claim
 proof of the original descriptor. Build preparation uses the qualified owner
 pure-test path; full Docker CI has not run. No local Docker, database, listener
 or preview runtime was started.
+
+### Central Reviews and server monitoring activated — 2026-11-11 IST
+
+Server20 activated source `8d0f37b3f9e9f5733d70a993d9a80fd50095b1cd`
+through the authenticated DevSetu maintenance UI. Candidate
+`2200a8057b5445b3968e8c3b630b4207` and request
+`su_230c3c9e383910170a63765a80f98023` completed with native Apply PASS,
+HTTP/UI 200, siblings preserved and retained private recovery backups.
+The manifest is
+`7e085cf28e75d3e6ca62b687e4d1e713a77ed21cf2364def3c46cfcdef2670ce`;
+the 133,843,129-byte archive is
+`457673bb9394278563b8adf553d7355d4970fe4e692b6b26743a2f9c43210e82`.
+Existing owner deployment intent was materialized for this exact actor,
+workspace, artifact, target and single-use operation. No new artifact-specific
+human reply was claimed.
+
+Fresh native Plan, 44-file protected snapshot and post-activation verification
+passed. Nine pairing identities/credential hashes, 15 stable settings and
+19 software records remain retained. Runtime/environment configuration,
+sampler enrollment/programs/encrypted credential profile and existing routing
+were outside application replacement. No `.env` file existed at the two
+selected installation paths; none was created or overwritten by this release.
+Central Reviews full digest remains
+`6cb3b0ed0e30118a72af5915c0fb341726df0f9265adcb82e7350910d79da4af`.
+Monitoring policy, source references, grants and enrollment are unchanged;
+history advanced from 10 to 20 points in the first post-start readback.
+This demonstrates the deployed main process consuming the queue independently
+of the earlier verification CLI. Application activation itself performed no
+database migration; the separately recorded SQL 0007/0008 bootstrap was already
+complete.
+
+Live authenticated browser acceptance at `/reviews/servers` showed 14 targets
+and five fresh systems: four remote WinRM targets (.19, .21, .28, .31) and the
+explicitly local central host (.20). CPU/RAM graphs advanced with new samples;
+process and service views contained actual observations (230 services on the
+central host). Six endpoints are unreachable and three report WinRM unavailable;
+none is represented as a successful login or an invented zero metric. Vendor
+servers remain excluded. Central-host E: free space was approximately 1.8 GB at
+the observation time; no unrelated data was removed. The process table still
+uses the shared software noun in its search/count captions, a cosmetic issue;
+its process rows and measurements are correct.
+
+The public T-Server `/devsetu` route serves byte-identical new JavaScript and
+CSS, with HTTP 200 health and strict TLS validation. Anonymous monitoring API
+access returns 401. Its separate browser session requires sign-in; protected
+browser acceptance used the owner's authenticated private Server20 session.
+T-Server remains a proxy; its IIS/DNS/firewall configuration was not changed.
+The saved live performance screenshot and hashed private receipts remain in
+the ignored operator evidence directory.
+
+The first fresh Android build stopped before signing because its compiled
+permission allowlist omitted the already-approved inventory permission present
+in source validation. A shared strict allowlist and two focused regression tests
+fixed the mismatch while retaining denial of unrelated permissions. Controlled
+SDK update `au_4db657404de7412491f91e900b514b2a` passed Validate/Apply/Check;
+configuration SHA256 is
+`672a99f80b2590a90a9519e83ee0025858ed5889a9ac8ad198327c96daa9cfca`.
+Ten-source signed build `ab_0153ff3c3f8901b583c29ac65170736b` and refreshed
+builder reference preserve the original signer, tools and restricted service
+identity. APK SHA256 is
+`6cfc36ceb44085cc1dc2370e28db139424327b9a81294d67ef1f1a33bc5e755f`.
+
+Release preparation is explicitly qualified as owner operator static/pure
+build plus signed native artifact and packaged-runtime checks. Full Docker CI,
+local HTTP integration fixtures and database restore testing were not run.
+No local Docker, database or application listener was started. The installed
+default source-to-deploy executor still needs separate alignment with this
+no-local-service build preference; this prepared-artifact activation does not
+claim that the full configured source-publication/build pipeline passed.
+Code is pushed to the `codex/internal-server-monitoring` task branch; no
+default-branch merge was performed.
