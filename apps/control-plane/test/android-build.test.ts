@@ -142,6 +142,48 @@ it("denies an Android manifest that requests unrelated sensitive permissions or 
   }
 });
 
+it("uses one strict permission policy for inventory-enabled source and compiled APK manifests", async () => {
+  const value = await request();
+  expect(builder.validateRequest(value, scope, now)).toEqual(value);
+  const manifest = Buffer.from(value.sources[0].data, "base64").toString("utf8");
+  const permissions = [...manifest.matchAll(/<uses-permission\b[^>]*android:name="([^"]+)"/g)].map(
+    (match) => match[1],
+  );
+  expect(permissions).toContain("android.permission.QUERY_ALL_PACKAGES");
+  const dump = [
+    "package: org.devsetu.connector",
+    ...permissions.map((name) => `uses-permission: name='${name}'`),
+  ].join("\r\n");
+  expect(builder.validateCompiledPermissions(dump)).toEqual(permissions);
+  for (const name of [
+    "android.permission.READ_SMS",
+    "android.permission.READ_CONTACTS",
+    "android.permission.QUERY_ALL_PACKAGES.evil",
+    "android.permission.*",
+  ]) {
+    const changed = structuredClone(value);
+    const source = Buffer.from(
+      manifest.replace("</manifest>", `<uses-permission android:name="${name}"/></manifest>`),
+    );
+    changed.sources[0].data = source.toString("base64");
+    changed.sources[0].sha256 = createHash("sha256").update(source).digest("hex");
+    expect(() => builder.validateRequest(changed, scope, now)).toThrow(
+      "android-manifest-scope-denied",
+    );
+    expect(() =>
+      builder.validateCompiledPermissions(`${dump}\nuses-permission: name='${name}'`),
+    ).toThrow("android-compiled-permission-denied");
+  }
+  for (const malformed of [
+    'uses-permission: name="android.permission.READ_SMS"',
+    "uses-permission: missing-name",
+    "uses-permission: name='android.permission.INTERNET' name='android.permission.READ_SMS'",
+  ])
+    expect(() => builder.validateCompiledPermissions(malformed)).toThrow(
+      "android-compiled-permission-denied",
+    );
+});
+
 it("refuses changed workspace, job, configuration, source, signature and artifact bytes before exporting a trusted Android build result", async () => {
   const root = await mkdtemp(join(tmpdir(), "dva-"));
   try {

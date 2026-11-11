@@ -19,6 +19,27 @@ const sourcePaths = [
     "HealthSamplingService",
   ].map((name) => `src/org/devsetu/connector/${name}.java`),
 ];
+// Keep source-manifest and compiled-APK checks on the same strict policy.
+const allowedPermissions = new Set([
+  "android.permission.INTERNET",
+  "android.permission.FOREGROUND_SERVICE",
+  "android.permission.FOREGROUND_SERVICE_SPECIAL_USE",
+  "android.permission.POST_NOTIFICATIONS",
+  "android.permission.QUERY_ALL_PACKAGES",
+]);
+function validateCompiledPermissions(output) {
+  if (typeof output !== "string" || Buffer.byteLength(output) > 2097152)
+    throw Error("android-compiled-permission-denied");
+  const permissions = [];
+  for (const line of output.split(/\r?\n/)) {
+    if (!/^\s*uses-permission\b/.test(line)) continue;
+    const names = [...line.matchAll(/\bname='([^']+)'/g)];
+    if (names.length !== 1 || !allowedPermissions.has(names[0][1]))
+      throw Error("android-compiled-permission-denied");
+    permissions.push(names[0][1]);
+  }
+  return permissions;
+}
 async function plain(file) {
   let current = path.resolve(file);
   // The installer verifies ancestors before enrolling this private root. The
@@ -149,18 +170,11 @@ function validateRequest(value, config, now = Date.now()) {
     value.sources.find((file) => file.path === "AndroidManifest.xml").data,
     "base64",
   ).toString("utf8");
-  const allowed = new Set([
-    "android.permission.INTERNET",
-    "android.permission.FOREGROUND_SERVICE",
-    "android.permission.FOREGROUND_SERVICE_SPECIAL_USE",
-    "android.permission.POST_NOTIFICATIONS",
-    "android.permission.QUERY_ALL_PACKAGES",
-  ]);
   if (
     !manifest.includes('package="org.devsetu.connector"') ||
     /<!DOCTYPE|<!ENTITY|<instrumentation|android:debuggable="true"/.test(manifest) ||
     [...manifest.matchAll(/<uses-permission\b[^>]*android:name="([^"]+)"/g)].some(
-      (match) => !allowed.has(match[1]),
+      (match) => !allowedPermissions.has(match[1]),
     )
   )
     throw Error("android-manifest-scope-denied");
@@ -272,18 +286,7 @@ async function compile(config, request, directory) {
     directory,
   );
   const permissions = await command(tool("aapt2"), ["dump", "permissions", base], directory);
-  const allowedPermissions = new Set([
-    "android.permission.INTERNET",
-    "android.permission.FOREGROUND_SERVICE",
-    "android.permission.FOREGROUND_SERVICE_SPECIAL_USE",
-    "android.permission.POST_NOTIFICATIONS",
-  ]);
-  if (
-    [...permissions.matchAll(/uses-permission[^\r\n]*name='([^']+)'/g)].some(
-      (match) => !allowedPermissions.has(match[1]),
-    )
-  )
-    throw Error("android-compiled-permission-denied");
+  validateCompiledPermissions(permissions);
   const badging = await command(tool("aapt2"), ["dump", "badging", base], directory);
   if (!/^package: name='org\.devsetu\.connector'/m.test(badging))
     throw Error("android-compiled-package-denied");
@@ -466,7 +469,14 @@ async function worker(configPath) {
     await new Promise((resolve) => setTimeout(resolve, 2000));
   }
 }
-module.exports = { sourcePaths, validateRequest, verifyTools, compile, hashFile };
+module.exports = {
+  sourcePaths,
+  validateRequest,
+  validateCompiledPermissions,
+  verifyTools,
+  compile,
+  hashFile,
+};
 if (require.main === module && process.argv.length === 4 && process.argv[2] === "--worker") {
   worker(process.argv[3]).catch(async (error) => {
     try {
